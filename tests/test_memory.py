@@ -1,0 +1,307 @@
+# -*- coding: utf-8 -*-
+"""记忆内核（organs/memory.py）的契约测试。
+
+★★★ 存在理由
+  这是 DWC 的**第一个器官**。而 DWC 的头号教训是
+  「门存在 ≠ 门被执行」⇒ 所以记忆内核的每个判据都要有阳性测试。
+
+★ 逐条判据:
+  D6 · EXPERIENCE 只存"能驱动进化的东西" —— 写入时门槛，不是事后分类
+  D7 · 记忆必须证明"被使用" —— 无 access 记录不算有价值
+  §三 · 淘汰三条依据（召回过？改变行为？唯一签名？）
+  §四 · 七管归属的区划分
+  P1 · 器官之间只经接口
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+import pytest
+
+ROOT = r"E:/Divine Wisdom Core"
+sys.path.insert(0, os.path.join(ROOT, "src"))
+from dwc.organs.memory import (  # noqa: E402
+    EXPERIENCE_REQUIREMENTS, KIND_TO_ZONE, MemoryError, MemoryKernel,
+    MemoryKind, MemoryNode, Tube, Zone,
+)
+
+
+@pytest.fixture
+def mem():
+    k = MemoryKernel()
+    yield k
+    k.close()
+
+
+# ══════════════════════════════════════════════════════════
+# §四 · 四区归属
+# ══════════════════════════════════════════════════════════
+
+def test_zone_mapping_follows_design():
+    """意图: 各类记忆的归属区与 MEMORY_SYSTEM §四 的表一致。"""
+    assert KIND_TO_ZONE[MemoryKind.TRACE] is Zone.PROXY
+    assert KIND_TO_ZONE[MemoryKind.WORKING_STATE] is Zone.PROXY
+    assert KIND_TO_ZONE[MemoryKind.FAILURE_SIGNATURE] is Zone.EXPERIENCE
+    assert KIND_TO_ZONE[MemoryKind.SKILL] is Zone.EXPERIENCE
+    assert KIND_TO_ZONE[MemoryKind.PROPOSAL] is Zone.EXPERIENCE
+
+
+def test_pipe_assignment(mem):
+    """★★ 意图: 七管归属 —— remember→PROXY，learn/evolve→EXPERIENCE。"""
+    t = mem.remember(MemoryKind.TRACE, {"a": 1})
+    assert mem.get(t).tube is Tube.REMEMBER
+    w = mem.remember(MemoryKind.WORKING_STATE, {"b": 2})
+    assert mem.get(w).tube is Tube.REMEMBER
+    s = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                      {"c": "x", "q": "y", "m": "z"})
+    assert mem.get(s).tube is Tube.LEARN
+    p = mem.remember(MemoryKind.PROPOSAL,
+                      {"consumer_declared": "gate7_accumulation"})
+    assert mem.get(p).tube is Tube.EVOLVE
+
+
+# ══════════════════════════════════════════════════════════
+# D6 · EXPERIENCE 的写入门槛
+# ══════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize("kind,missing", [
+    (MemoryKind.FAILURE_SIGNATURE, "q"),
+    (MemoryKind.FAILURE_SIGNATURE, "m"),
+    (MemoryKind.SKILL, "boundary"),
+    (MemoryKind.PROPOSAL, "consumer_declared"),
+])
+def test_d6_blocks_incomplete_experience(mem, kind, missing):
+    """★★★ 判据 D6: 缺门槛字段就**不许进 EXPERIENCE**。
+
+    ★★★ 这是写入时的门槛，不是事后分类 ——
+      若只是打标签，那么"不能驱动进化的东西"照样会占 EXPERIENCE。
+    """
+    payload = {k: "v" for k in EXPERIENCE_REQUIREMENTS[kind]}
+    payload[missing] = None                      # 缺（或为空）
+    with pytest.raises(MemoryError) as e:
+        mem.remember(kind, payload)
+    assert "D6" in str(e.value)
+
+
+def test_d6_allows_complete_experience(mem):
+    """意图: 门槛齐备就放行。"""
+    nid = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                       {"c": "timeout", "q": "agent", "m": "retry"})
+    assert mem.get(nid).zone is Zone.EXPERIENCE
+
+
+def test_d6_does_not_block_proxy(mem):
+    """意图: PROXY 类没有门槛（痕迹不需要 c,q,m）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"action": "x"})
+    assert mem.get(nid).zone is Zone.PROXY
+
+
+def test_unknown_kind_rejected(mem):
+    """意图: 未知种类必须 raise。"""
+    with pytest.raises(MemoryError):
+        mem.remember("not_a_kind", {})
+
+
+# ══════════════════════════════════════════════════════════
+# D7 · 记忆必须证明被使用
+# ══════════════════════════════════════════════════════════
+
+def test_d7_unused_memory_has_no_proven_value(mem):
+    """★★★ 判据 D7: 无 access 记录 ⇒ 不算有价值。
+
+    ★★★ 母巢的反面教材: 98.8% 节点 access_count=0，
+      但 importance 均值 0.747 —— 自评很高，实际没人用。
+    ⇒⇒ 所以本模块**不提供自报价值的接口**，价值只能由 recall 推出。
+    """
+    nid = mem.remember(MemoryKind.TRACE, {"a": 1})
+    n = mem.get(nid)
+    assert n.access_count == 0
+    assert not n.used()
+    assert not n.proven_value()
+
+
+def test_d7_recall_makes_it_used(mem):
+    """意图: 召回本身**就是**使用的证据。"""
+    nid = mem.remember(MemoryKind.TRACE, {"a": 1})
+    n = mem.recall(nid)
+    assert n.access_count == 1
+    assert n.used() and n.proven_value()
+    assert n.last_access is not None
+
+
+def test_d7_no_self_reported_value_api(mem):
+    """★★★ 意图: 内存核**没有**自报价值接口（防止 importance 那种自评）。"""
+    pub = [m for m in dir(mem) if not m.startswith("_")]
+    for banned in ("set_importance", "rate", "score", "self_value",
+                   "importance", "value", "quality"):
+        assert banned not in pub, "出现自报价值的接口 %r（D7 禁止）" % banned
+
+
+def test_effect_is_separate_from_access(mem):
+    """★★ 意图: 被召回 ≠ 改变行为（两者是不同证据）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"a": 1})
+    n = mem.recall(nid)
+    assert n.used() and not n.changed_behavior(), "召回不等于改变行为"
+    n2 = mem.record_effect(nid)
+    assert n2.changed_behavior()
+
+
+def test_usage_stats_reflects_reality(mem):
+    """★★★ 意图: 使用统计必须由 access 记录算出，不是估的。"""
+    a = mem.remember(MemoryKind.TRACE, {"a": 1})
+    b = mem.remember(MemoryKind.TRACE, {"b": 2})
+    mem.remember(MemoryKind.TRACE, {"c": 3})
+    mem.recall(a)
+    mem.recall(b)
+    mem.record_effect(a)
+    st = mem.usage_stats()
+    assert st["total"] == 3
+    assert st["used"] == 2
+    assert st["effective"] == 1
+    assert abs(st["used_ratio"] - 2 / 3) < 1e-9
+    assert abs(st["effective_ratio"] - 1 / 3) < 1e-9
+
+
+def test_usage_stats_empty_is_zero_not_error(mem):
+    """意图: 空库返回 0 而非抛错。"""
+    st = mem.usage_stats()
+    assert st["total"] == 0 and st["used_ratio"] == 0.0
+
+
+# ══════════════════════════════════════════════════════════
+# §三 · 淘汰三条依据
+# ══════════════════════════════════════════════════════════
+
+def test_eviction_candidates_only_report_evidence(mem):
+    """★★★ 意图: eviction_candidates **不删任何东西**。
+
+    ★★ 淘汰决策属于 evolver（GAI dials 的职责），不在记忆内核内。
+      ⇒ 若记忆内核自己删，就有了第二个决策中心。
+    """
+    ids = [mem.remember(MemoryKind.TRACE, {"n": i}) for i in range(3)]
+    rows = mem.eviction_candidates()
+    assert len(rows) == 3
+    for nid in ids:
+        assert mem.get(nid) is not None, "eviction_candidates 不得删除任何记忆"
+
+
+def test_unique_signature_is_protected(mem):
+    """★★★ 意图: 某类失败的唯一签名受"稀有保护" ⇒ 不可淘汰。
+
+    ★ 依据 MEMORY_SYSTEM §三: "淘汰前必须过稀有保护:
+      若该记忆是某类失败的唯一签名 ⇒ 不淘汰"
+    """
+    sig = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                       {"c": "timeout", "q": "agent", "m": "retry"})
+    mem.remember(MemoryKind.TRACE, {"n": 1})
+    rows = {r["node_id"]: r for r in mem.eviction_candidates()}
+    assert rows[sig]["rare_protected"] is True
+    assert rows[sig]["evictable"] is False, "唯一签名不该被淘汰"
+
+
+def test_used_memory_not_evictable(mem):
+    """意图: 被用过的记忆不可淘汰（access > 0）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"n": 1})
+    mem.recall(nid)
+    rows = {r["node_id"]: r for r in mem.eviction_candidates()}
+    assert rows[nid]["evictable"] is False
+
+
+def test_never_used_proxy_is_evictable(mem):
+    """意图: 从未召回的痕迹可淘汰（候选）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"n": 1})
+    rows = {r["node_id"]: r for r in mem.eviction_candidates()}
+    assert rows[nid]["evictable"] is True
+
+
+# ═══════════════════════════════════════════════��══════════
+# 归档（不删）
+# ══════════════════════════════════════════════════════════
+
+def test_archive_keeps_node_readable(mem):
+    """意图: 归档不是删除（判据 S6 的同款纪律）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"n": 1})
+    n = mem.archive(nid)
+    assert n.zone is Zone.ARCHIVE
+    assert n.archived_at is not None
+    assert mem.get(nid) is not None, "归档后仍可读"
+    # ★ 归档后不该出现在候选里
+    assert nid not in [r["node_id"] for r in mem.eviction_candidates()]
+
+
+# ══════════════════════════════════════════════════════════
+# 检索（索引消费点）
+# ══════════════════════════════════════════════════════════
+
+def test_signature_clustering(mem):
+    """★★ 意图: 失败签名按 (c,q,m) 三元组精确聚类。"""
+    a = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                     {"c": "t", "q": "a", "m": "r", "n": 1})
+    b = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                     {"c": "t", "q": "a", "m": "r", "n": 2})
+    c = mem.remember(MemoryKind.FAILURE_SIGNATURE,
+                     {"c": "t", "q": "a", "m": "other", "n": 3})
+    got = mem.by_signature("t", "a", "r")
+    assert len(got) == 2, "同三元组应聚成类"
+    assert a in got and b in got and c not in got
+
+
+def test_by_zone_and_chain(mem):
+    """意图: 按区/按链检索。"""
+    t = mem.remember(MemoryKind.TRACE, {"n": 1}, chain_id="CH1")
+    mem.remember(MemoryKind.TRACE, {"n": 2}, chain_id="CH2")
+    assert len(mem.by_zone(Zone.PROXY)) == 2
+    assert [n.node_id for n in mem.by_chain("CH1")] == [t]
+
+
+def test_index_plans_use_indexes(mem):
+    """★ 判据 S4 的同款: 索引要有真实查询消费点。"""
+    mem.remember(MemoryKind.TRACE, {"n": 1})
+    mem.remember(MemoryKind.FAILURE_SIGNATURE, {"c": "t", "q": "a", "m": "r"})
+    for sql, params, want in (
+        ("SELECT node_id FROM memory_node WHERE zone=?", ("proxy",), "ix_node_zone"),
+        ("SELECT node_id FROM memory_node WHERE chain_id=?", ("CH1",), "ix_node_chain"),
+        ("SELECT node_id FROM failure_sig WHERE c=? AND q=? AND m=?",
+         ("t", "a", "r"), "ix_sig_cluster"),
+    ):
+        plan = mem._conn.execute("EXPLAIN QUERY PLAN " + sql, params).fetchall()
+        details = [r["detail"] for r in plan]
+        assert any(want in d for d in details), \
+            "%s 应走 %s，实为: %s" % (sql[:40], want, details)
+
+
+def test_get_missing_raises(mem):
+    """意图: 读不存在的记忆必须 raise（不许返回空对象）。"""
+    with pytest.raises(MemoryError):
+        mem.get("nope")
+
+
+# ══════════════════════════════════════════════════════════
+# P1 · 器官纪律
+# ══════════════════════════════════════════════════════════
+
+def test_no_driver_interface(mem):
+    """★★ 判据 S3/P1: 记忆内核不许驱动进化。"""
+    for banned in ("evolve", "run_next", "step", "trigger", "advance",
+                   "prune", "evict"):
+        assert not hasattr(mem, banned), \
+            "记忆内核出现 %r —— 淘汰决策属 evolver（D8/GAI dials）" % banned
+
+
+def test_node_is_frozen(mem):
+    """意图: MemoryNode 不可变。"""
+    nid = mem.remember(MemoryKind.TRACE, {"n": 1})
+    n = mem.get(nid)
+    with pytest.raises(Exception) as e:
+        n.access_count = 99
+    assert "frozen" in str(e.value).lower() or "assign" in str(e.value).lower()
+
+
+def test_chain_link_is_preserved(mem):
+    """★★ 意图: 记忆记住自己属于哪条链（可反查"这次进化留下了什么"）。"""
+    nid = mem.remember(MemoryKind.SKILL,
+                       {"scene": "x", "method": "y", "boundary": "z"},
+                       chain_id="CH42")
+    assert mem.get(nid).chain_id == "CH42"
+    assert [n.node_id for n in mem.by_chain("CH42")] == [nid]
