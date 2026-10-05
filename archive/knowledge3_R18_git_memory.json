@@ -1,0 +1,33 @@
+{
+ "round": "R18 · 建 git + memory 器官",
+ "date": "2026-10-05",
+ "git": {
+  "初始提交": "b68800e",
+  "入库": "195 文件 / 20.1 MB（原目录 622 MB）",
+  "排除": [
+   ".cache/ 436 MB 外部克隆",
+   "papers_txt/ 166 MB PDF"
+  ],
+  "★审计记录入库": "archive/knowledge3_R*.json —— 原 archive/ 规则把它们一起排除了",
+  "★gitignore 语义坑": "★ 后出现的规则覆盖先出现的；无斜杠的 *.bak_* 匹配任意层级 ⇒ 必须用 ! 否定且排最后",
+  "恢复验证": "git archive 导出到临时目录 ⇒ 154 项测试全过、门全绿",
+  "★已知限制": "git clone 在本机失败（cannot spawn D:/GIT/...sh.exe: Exec format error）⇒ 用 archive 验证"
+ },
+ "memory器官": {
+  "模块": "src/dwc/organs/memory.py · 20,754 B",
+  "四区": "EXPERIENCE / PROXY / ARCHIVE / INERT",
+  "D6": "EXPERIENCE 只存能驱动进化的东西 ⇒ 写入时门槛（缺 c/q/m 或 consumer_declared 直接 raise）",
+  "D7": "★ 无 self_rated_value 类接口；价值只由 recall/access 推出",
+  "淘汰": "只出证据不删 —— 决策属 evolver（GAI dials）",
+  "★schema 缺陷（测试抓到）": "failure_sig PRIMARY KEY(c,q,m) ⇒ 同三元组互相覆盖 ⇒ 聚类无法实现且稀有保护永远为真而空转 ⇒ 主键改 node_id"
+ },
+ "测试": "6 份 / 181 项（新增 test_memory.py 27 项）",
+ "诚实边界": [
+  "★★★ memory 器官目前是**孤岛** —— 没有跑 run_term、没有接 wiring、没有真实调用者。⇒ 它只是可用的内核，尚未参与任何一轮进化",
+  "★★★ MEMORY_SYSTEM §六 有三个「待你拍板」未决项：Q1 七管形态（甲/乙/丙）· Q2 死记忆判据的 N（10/20 轮/按 term）· Q3 淘汰三层判据（照用/简化）。我按现有设计实现了，但 Q1 若选丙（七管自定义）则 Table 要改",
+  "★★ D8（机制零引用即违规）没有实现 —— 它需要跨 N 轮的观测窗口，而 N 正是 Q2 的未决项",
+  "★ gate.py 的 G3 只检六层字段名与 Γ 定义特征存在，不检『六层真被点亮』⇒ wiring 有 activity，但没有任何器官调用 wiring ⇒ 六层在系统里仍无真实数据",
+  "★ git 只有本地仓库，无远端 ⇒ 机器坏了就全没了（不像 SYNTHEX 有 GitHub 私有库）",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}

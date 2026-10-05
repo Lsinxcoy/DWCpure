@@ -1,0 +1,65 @@
+# DWC · 保留与死亡策略的配置面（判据 D8 的落点）
+# ★ 本文件是 ARCHITECTURE 原则 8（D8）的落点：
+#   "任何机制若在 N 个 term 内零调用，门报红"
+# ★ 依据: docs/MEMORY_SYSTEM.md §六 Q2 的 2026-10-05 裁决
+#   + ARCHITECTURE 原则 8（原则 8 原文:「N 应由 term 边界推导，
+#     而不是拍一个固定轮数」）
+# ★⇒ 关键: 单位是 **term**，不是 step（轮）。
+#   母巢的病是 29 个模块"仅测试引用"，N 太大 ⇒ 永不报红。
+version: 1
+
+retention:
+  # ── D8 · 死机制的判定窗口 ──
+  # ★★★ 必填无默认（与 K4 / G11 同款纪律）
+  # ★ 单位是 term —— 一次完整进化（诊断→提案→门→落地至少各一次）
+  #   而不是一个 step
+  dead_after_terms: 3
+
+  # ★★ 这个 3 是**我拍的**，理由如下（诚实标注）:
+  #   ERROR_AND_TERM §2.3 已定 term 的四个终止条件（七环节跑通/预算耗尽/
+  #   保护组回归/停止规则命中），但**没有给 term 的期望时长** ⇒ 无法反推 N。
+  #   ⇒ 选 3 的依据是: 母巢 59 模块里 29 个"仅测试引用" —— 它们是
+  #     在早期几轮里没被引用、后期才接入的 ⇒ N=1 会误杀；
+  #     而 N≥10 会让死机制潜伏十几轮才报红 ⇒ 与母巢同病。
+  #   ⇒★ 所以 3 是一个**待实测校准**的初值，不是从文献或已定设计推出来的。
+  #   ★ 校准方式: 跑够 term 后看 D8 的报红是否与人工判断一致
+  source: "agent_choice · 未经实测校准 · 见下方诚实边界①"
+
+  # ── 零引用的判据口径（严格）──
+  # ★★ ARCHITECTURE 原则 8 的判据口径原文: "该模块被 import 次数 = 0
+  #   且 被 invoke 次数 = 0"
+  # ⇒ 两者都必须为 0 才算零引用（"仅测试引用"不算零引用，但也不算有引用）
+  zero_reference:
+    require_import_zero: true
+    require_invoke_zero: true
+    # ★ 测试引用单独归类（母巢 29 个模块在这一类）
+    tests_only_is: not_zero_reference      # ∈ {zero, not_zero_reference}
+
+  # ── 记忆保留（MEMORY_SYSTEM §三 的三层判据，顺序不可换）──
+  memory:
+    # 第1层: 是否曾被召回（access_count > 0）
+    #   ★ 未召回 ⇒ 进"未验证区"，**不淘汰**（可能是检索策略问题）
+    never_recalled: hold                       # ∈ {hold, evict}
+    # 第2层: 被召回后是否改变过行为（effect 记录）
+    never_changed_behavior: candidate         # ∈ {hold, candidate}
+    # 第3层: 稀有保护 —— 某类失败的唯一签名不淘汰
+    rare_signature: protect                   # ∈ {protect, evict}
+    # ★ 三层顺序不可换: 未召回 ≠ 淘汰
+    order_fixed: true
+
+  # ── 门检（D8 的执行点）──
+  gate:
+    # ★ 零调用即报红的门: gate.py 的 G3 活性门（它已有六层模型）
+    #   present+registered 但 called 从未被点亮 ⇒ 零引用
+    report_on_zero_reference: true
+    # ★ 报红前必须留的证据（可事后核"为什么判它死"）
+    require_evidence: true
+
+# 诚实边界:
+#   ① ★★ dead_after_terms=3 是我拍的初值，**未经实测校准** ——
+#      ERROR_AND_TERM 定了 term 的终止条件但没给期望时长 ⇒ 无法反推
+#   ② ★★ D8 本身尚未实现（gate.py 没有零引用判据）⇒ 本文件目前是声明
+#   ③ ★ tests_only_is 的取值语义未定：母巢把 29 个"仅测试引用"单列，
+#      但 DWC 是否该把它们算"零引用"（并据此报红）仍未裁决
+#   ④ ★ never_recalled=hold 意味着"未召回的记忆永远不淘汰"
+#      —— 那若检索策略本身有缺陷，这批记忆会永久堆积

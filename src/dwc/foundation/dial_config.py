@@ -10,7 +10,8 @@
   ★ 只读不写：任何违反都 raise DialError，绝不静默降级（判据 E2/E3）。
 
 ★★★ 存在理由
-  R13 实测发现三处"设计说了、config 里没有"的字段（Z1/Z3、X1、M6）。
+  R13 实测发现三处"设计说了、config 里没有"的字段（Z1/Z3、X1、M6）；
+  R19 追加 D8 的 dead_after_terms（MEMORY_SYSTEM §六 Q2 已裁决按 term 计）。
   本轮把它们落盘 —— 但**落盘不等于生效**：
   没有校验器的 yaml 只是一段文本，任何人改了都不会变红。
   ⇒ 这正是 R9 那条教训的延伸: 派生字段与枚举都必须被机器核对。
@@ -212,12 +213,98 @@ def load_dials(path: str = DIALS_PATH) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════
+# retention.yaml — 判据 D8（机制零引用即违规）
+# ══════════════════════════════════════════════════════════
+
+RETENTION_PATH = os.path.join(CFG, "retention.yaml")
+
+_DEAD_ACTIONS = {"hold", "evict"}
+_ZERO_REF_CLASSES = {"zero", "not_zero_reference"}
+
+
+def load_retention(path: str = RETENTION_PATH) -> Dict[str, Any]:
+    """判据 D8 的配置面。★ 2026-10-05 MEMORY_SYSTEM §六 Q2 裁决后新增。
+
+    ★★★ 关键语义: dead_after_terms 的单位是 **term** 不是 step。
+      依据: ARCHITECTURE 原则 8 原文「N 应由 term 边界推导，
+      而不是拍一个固定轮数」⇒ 固定轮数（10/20）两个旧选项都违反该原则。
+    """
+    r = _load(path)
+    ret = _need(r, "retention", "retention.yaml")
+
+    # ── D8 · 必填无默认 ──
+    n = _need(ret, "dead_after_terms", "retention.retention")
+    if not isinstance(n, int) or n < 1:
+        raise DialError(
+            "D8: dead_after_terms 必须是 >=1 的整数，实为 %r（类型 %s）"
+            % (n, type(n).__name__))
+
+    # ── 零引用的判据口径（ARCHITECTURE 原则 8 的"严格口径"）──
+    zr = _need(ret, "zero_reference", "retention.retention")
+    for f in ("require_import_zero", "require_invoke_zero"):
+        if not isinstance(_need(zr, f, "retention.retention.zero_reference"), bool):
+            raise DialError("D8: zero_reference.%s 必须是布尔" % f)
+    cls = _need(zr, "tests_only_is", "retention.retention.zero_reference")
+    if cls not in _ZERO_REF_CLASSES:
+        raise DialError(
+            "D8: zero_reference.tests_only_is=%r 不在 %r 内"
+            % (cls, sorted(_ZERO_REF_CLASSES)))
+    # ★★ 判据口径的硬要求: 两个都必须为 0 才算零引用
+    #   （依据 ARCHITECTURE 原则 8 原文「import 次数 = 0 **且** invoke 次数 = 0」）
+    if not (zr["require_import_zero"] and zr["require_invoke_zero"]):
+        raise DialError(
+            "D8: 零引用的判据口径是 import==0 **且** invoke==0"
+            "（ARCHITECTURE 原则 8 原文）⇒ 两者都必须是必检项")
+
+    # ── 记忆三层判据（MEMORY_SYSTEM §三，顺序不可换）──
+    mem = _need(ret, "memory", "retention.retention")
+    for f, allowed in (("never_recalled", {"hold", "evict"}),
+                       ("never_changed_behavior", {"hold", "candidate"}),
+                       ("rare_signature", {"protect", "evict"})):
+        v = _need(mem, f, "retention.retention.memory")
+        if v not in allowed:
+            raise DialError(
+                "D8: memory.%s=%r 不在 %s 内" % (f, v, sorted(allowed)))
+    # ★★★ 第1层的语义硬要求: 未召回的记忆不许直接淘汰
+    #   依据 MEMORY_SYSTEM §三「未召回 ⇒ 进未验证区，**不淘汰**
+    #   （可能是检索策略问题）」—— 简掉这层就会误杀检索策略没覆盖到的记忆
+    if mem["never_recalled"] != "hold":
+        raise DialError(
+            "D8: memory.never_recalled 必须是 hold —— "
+            "『未召回 ≠ 淘汰，���能是检索策略问题』（MEMORY_SYSTEM §三）")
+    # ★★★ 稀有保护必须保持 protect（2026-10-05 Q3 裁决）
+    #   原校验只查了枚举值 ⇒ 把 protect 改成 evict 能过 ⇒ 裁决与代码不一致
+    #   ⇒★ 依据 MEMORY_SYSTEM §三:「淘汰前必须过稀有保护:
+    #     若该记忆是某类失败的唯一签名 ⇒ **不淘汰**」—— 它是硬否决
+    if mem["rare_signature"] != "protect":
+        raise DialError(
+            "D8: memory.rare_signature 必须是 protect —— "
+            "『某类失败的唯一签名 ⇒ 不淘汰』是硬否决（MEMORY_SYSTEM §三），"
+            "不是可调档位（Q3 裁决: 照用三层判据）")
+    if not _need(mem, "order_fixed", "retention.retention.memory"):
+        raise DialError(
+            "D8: memory.order_fixed 必须为 true —— 三层判据的顺序不可换")
+
+    # ── 门检配置 ──
+    g = _need(ret, "gate", "retention.retention")
+    if not isinstance(_need(g, "report_on_zero_reference",
+                            "retention.retention.gate"), bool):
+        raise DialError("D8: gate.report_on_zero_reference 必须是布尔")
+    if not _need(g, "require_evidence", "retention.retention.gate"):
+        raise DialError(
+            "D8: gate.require_evidence 不可为 false —— "
+            "判零引用必须能事后核『为什么判它死』（母巢教训: 只有结论没证据）")
+
+    return r
+
+# ══════════════════════════════════════════════════════════
 
 def validate_all() -> Dict[str, Any]:
     return {
         "world_tree": load_world_tree(),
         "difficulty": load_difficulty(),
         "dials": load_dials(),
+        "retention": load_retention(),
     }
 
 
@@ -235,5 +322,10 @@ if __name__ == "__main__":
           % (df["semantics"], df["deep_research"]["enabled"],
              df["n_obs"]["zero_means"]))
     print("  dials       " + " ".join("%s=%s" % (k, dl[k]) for k in DIAL_BOOLS))
+    rt = v["retention"]["retention"]
+    print("  retention  dead_after_terms=%s（单位=term 非 step）· "
+          "tests_only_is=%s"
+          % (rt["dead_after_terms"],
+             rt["zero_reference"]["tests_only_is"]))
     print("  Z2 自检: sealed=%d < n_pareto_min=%d ⇒ gepa_pareto 不可用（符合预期）"
           % (_sealed_task_count(), wt["n_pareto_min"]))

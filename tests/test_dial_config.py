@@ -174,3 +174,137 @@ def test_missing_file_raises_not_empty():
     with pytest.raises(dc.DialError) as e:
         dc.load_world_tree(path=os.path.join(ROOT, "config", "_no_such.yaml"))
     assert "不存在" in str(e.value)
+
+
+# ══════════════════════════════════════════════════════════
+# retention.yaml — 判据 D8（2026-10-05 MEMORY_SYSTEM §六 Q2 裁决后新增）
+# ══════════════════════════════════════════════════════════
+
+def _mutated_retention(mutate):
+    src = os.path.join(ROOT, "config", "retention.yaml")
+    obj = yaml.safe_load(io.open(src, encoding="utf-8").read())
+    mutate(obj)
+    fd, tmp = tempfile.mkstemp(suffix=".yaml")
+    os.close(fd)
+    with io.open(tmp, "w", encoding="utf-8") as f:
+        yaml.safe_dump(obj, f, allow_unicode=True)
+    return tmp
+
+
+def test_retention_baseline_valid():
+    """意图: 落盘的 retention 必须自洽。"""
+    r = dc.load_retention()
+    assert r["retention"]["dead_after_terms"] >= 1
+
+
+def test_d8_unit_is_term_not_step():
+    """★★★ 意图: dead_after_terms 的单位是 **term**。
+
+    ★★★ 依据 ARCHITECTURE 原则 8 原文:「N 应由 term 边界推导，
+      而不是拍一个固定轮数」⇒ 固定轮数（10/20 轮）两个旧选项都违反该原则。
+      ⇒ 所以配置里不得出现 step 语义的字段。
+    """
+    r = dc.load_retention()
+    ret = r["retention"]
+    assert "dead_after_terms" in ret and "dead_after_steps" not in ret
+    raw = io.open(os.path.join(ROOT, "config", "retention.yaml"),
+                  encoding="utf-8").read()
+    assert "dead_after_steps" not in raw, "配置里不该出现 step 语义的字段"
+
+
+@pytest.mark.parametrize("bad,desc", [
+    (0, "N=0"), ("ten", "N 是字符串"), (3.5, "N 是小数"), (None, "N 缺失"),
+])
+def test_d8_dead_after_terms_type_and_range(bad, desc):
+    """★★ 意图: N 必须是 >=1 的整数（必填无默认）。"""
+    p = _mutated_retention(lambda o: o["retention"].__setitem__(
+        "dead_after_terms", bad))
+    try:
+        with pytest.raises(dc.DialError):
+            dc.load_retention(p)
+    finally:
+        os.remove(p)
+
+
+def test_d8_zero_reference_requires_both_checks():
+    """★★★ 意图: import==0 **且** invoke==0 才算零引用。
+
+    ⇒ 少任何一项都不行（否则"仅测试引用"会被误判成有引用）。
+    """
+    for field in ("require_import_zero", "require_invoke_zero"):
+        p = _mutated_retention(lambda o, f=field: o["retention"][
+            "zero_reference"].__setitem__(f, False))
+        try:
+            with pytest.raises(dc.DialError) as e:
+                dc.load_retention(p)
+            assert "D8" in str(e.value)
+        finally:
+            os.remove(p)
+
+
+def test_d8_tests_only_class_enum():
+    """意图: tests_only_is 必须在枚举内。"""
+    p = _mutated_retention(lambda o: o["retention"]["zero_reference"].__setitem__(
+        "tests_only_is", "bogus"))
+    try:
+        with pytest.raises(dc.DialError):
+            dc.load_retention(p)
+    finally:
+        os.remove(p)
+
+
+def test_d8_never_recalled_must_hold():
+    """★★★ 意图: 未召回的记忆不许直接淘汰。
+
+    ★★★ 依据 MEMORY_SYSTEM §三「未召回 ⇒ 进未验证区，**不淘汰**
+      （可能是检索策略问题）」—— 简掉这层会误杀"检索没覆盖到"的记忆。
+    """
+    p = _mutated_retention(lambda o: o["retention"]["memory"].__setitem__(
+        "never_recalled", "evict"))
+    try:
+        with pytest.raises(dc.DialError) as e:
+            dc.load_retention(p)
+        assert "检索策略" in str(e.value)
+    finally:
+        os.remove(p)
+
+
+def test_d8_rare_signature_must_protect():
+    """★ 意图: 稀有保护不可关（它是独立的硬否决，不是加权项）。"""
+    p = _mutated_retention(lambda o: o["retention"]["memory"].__setitem__(
+        "rare_signature", "evict"))
+    try:
+        with pytest.raises(dc.DialError):
+            dc.load_retention(p)
+    finally:
+        os.remove(p)
+
+
+def test_d8_order_fixed_required():
+    """★★ 意图: 三层判据的顺序不可换。"""
+    p = _mutated_retention(lambda o: o["retention"]["memory"].__setitem__(
+        "order_fixed", False))
+    try:
+        with pytest.raises(dc.DialError) as e:
+            dc.load_retention(p)
+        assert "顺序" in str(e.value)
+    finally:
+        os.remove(p)
+
+
+def test_d8_require_evidence_required():
+    """★★ 意图: 判零引用必须留证据（母巢教训: 只有结论没证据）。"""
+    p = _mutated_retention(lambda o: o["retention"]["gate"].__setitem__(
+        "require_evidence", False))
+    try:
+        with pytest.raises(dc.DialError) as e:
+            dc.load_retention(p)
+        assert "证据" in str(e.value)
+    finally:
+        os.remove(p)
+
+
+def test_validate_all_includes_retention():
+    """意图: validate_all 必须覆盖四份配置。"""
+    v = dc.validate_all()
+    assert set(v) == {"world_tree", "difficulty", "dials", "retention"}
