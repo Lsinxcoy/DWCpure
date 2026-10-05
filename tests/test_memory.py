@@ -53,9 +53,16 @@ def test_pipe_assignment(mem):
     assert mem.get(t).tube is Tube.REMEMBER
     w = mem.remember(MemoryKind.WORKING_STATE, {"b": 2})
     assert mem.get(w).tube is Tube.REMEMBER
+    # ★★ 2026-10-05 R21 更正: 失败签名属 **reflect 管**（归因），
+    #   不是 learn 管。依据 MEMORY_SYSTEM §四 的归属表原文:
+    #     | 失败签名 (c,q,m) | reflect | EXPERIENCE | 按三元组精确聚类 |
+    #   ⇒★ 而 learn 管对应的是「技能(场景/方法/边界)」那行
     s = mem.remember(MemoryKind.FAILURE_SIGNATURE,
                       {"c": "x", "q": "y", "m": "z"})
-    assert mem.get(s).tube is Tube.LEARN
+    assert mem.get(s).tube is Tube.REFLECT
+    sk = mem.remember(MemoryKind.SKILL,
+                      {"scene": "a", "method": "b", "boundary": "c"})
+    assert mem.get(sk).tube is Tube.LEARN
     p = mem.remember(MemoryKind.PROPOSAL,
                       {"consumer_declared": "gate7_accumulation"})
     assert mem.get(p).tube is Tube.EVOLVE
@@ -305,3 +312,51 @@ def test_chain_link_is_preserved(mem):
                        chain_id="CH42")
     assert mem.get(nid).chain_id == "CH42"
     assert [n.node_id for n in mem.by_chain("CH42")] == [nid]
+
+
+# ══════════════════════════════════════════════════════════
+# R21 · 七管枚举完整性（补 recall/dream 后新增）
+# ══════════════════════════════════════════════════════════
+
+def test_tube_has_all_seven():
+    """★★★ 意图: Tube 枚举必须齐全七管。
+
+    ★★★ R21 修正: 初版只有 5 个（漏 recall/dream）——
+      而它们恰好是"七管比 ARSI 多出来的那部分"
+      ⇒ 漏掉它们等于把七管悄悄缩成了五管。
+    """
+    assert {t.value for t in Tube} == {
+        "remember", "recall", "learn", "reflect", "evolve", "dream",
+        "maintain"}
+
+
+def test_recall_is_a_tube_and_the_d7_path(mem):
+    """★★★ 意图: recall 必须在管体系内，且它是 D7 的执行管。
+
+    ★★★ 我 R19 曾以"recall 是读侧所以不算管"把它排除——
+      而那个理由是错的: 母巢的病恰恰是"写入多、读取少"（98.8% access=0）
+      ⇒ 把读操作排除在管外，等于把病根排除在设计之外。
+    """
+    assert Tube.RECALL in list(Tube)
+    nid = mem.remember(MemoryKind.TRACE, {"a": 1})
+    assert mem.get(nid).tube is not Tube.RECALL, "recall 不该写入记忆（它不摄入）"
+    n = mem.recall(nid)
+    assert n.access_count == 1, "recall 必须留 access 痕迹（否则 D7 无法执行）"
+
+
+def test_no_dead_tube_values():
+    """★★ 意图: 枚举里的每一管都必须有真实写入路径（防死枚举值）。
+
+    ★★ 与 D8「机制零引用即违规」同款纪律 ——
+      R21 实测发现 maintain/dream 曾在枚举里却从未被使用。
+    """
+    import inspect
+    from dwc.organs import memory as M
+    src = inspect.getsource(M)
+    used = {t.name for t in Tube if ("Tube." + t.name) in src}
+    # RECALL / DREAM / MAINTAIN 通过方法名体现（recall() / dream() / maintain_*）
+    for name, marker in (("RECALL", "def recall"),
+                         ("DREAM", "def dream"),
+                         ("MAINTAIN", "def maintain")):
+        assert marker in src, "管 %s 在枚举里但没有实现（死枚举值）" % name
+    assert used, "至少要有管被显式引用"

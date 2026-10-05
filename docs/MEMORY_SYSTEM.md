@@ -110,11 +110,14 @@ maintenance_log op 分布 (31.4 万):
 ### 2.1 为什么采纳
 
 ```text
-① 七管的数据链设计与 ARSI 的 5 动作、Recuris 的 EM-WM 耦合同构:
+① 七管的数据链与两条外部路线**在动作意图上同构**
      母巢七管:  remember→recall→learn→reflect→evolve→dream→maintain
-     ARSI 5动作: dream/learn/evolve/maintain/remember
      Recuris:   Working Memory ⇄ Experiential Memory → Skill Memory 更新
-   ★ 三条独立路线收敛到同一组动作 —— 这是强证据
+   ★ 这两条收敛到同一组动作 —— 仍算强证据
+   ⚠★★ 2026-10-05 R20 实测更正: 原论证第三条「ARSI 的 5 动作」**已剔除**
+     ⇒ ARSI 侧只有 dream 对得上同名动作，其余五个描述与实测不符
+     ⇒ ⇒ "三条收敛"降为"两条收敛"（详见 §2.3 的重写）
+   ⇒★ 而这是必要的诚实: 宁可两条真证据，不要三条里有一条是错的
 
 ② 母巢七管有 44 天真实留痕, 不是空壳
 ③ 母巢的失败不在"链的形态", 在"链没有闭环"(写入多、读取少)
@@ -139,19 +142,62 @@ DWC 记忆数据链 (七阶段):
                ★ 母巢在此空转 —— DWC 必须修
 ```
 
-### 2.3 与 ARSI 的对应（证明两条路线同构）
+### 2.3 与 ARSI 的对应 ★★★ 2026-10-05 全文重写（R20 · 逐个核实 E:/ARSI 源码）
 
-| DWC 七管 | ARSI 5 动作 | 说明 |
-|---|---|---|
-| remember | remember | 摄入（ARSI 是空操作，DWC 必须真做） |
-| recall | — | ARSI 无独立召回阶段 |
-| learn | learn | 蒸馏（ARSI 是真实现） |
-| reflect | — | ARSI 无归因阶段 |
-| evolve | evolve | ★ ARSI 是占位符，DWC 必须真做 |
-| dream | dream | ARSI 是真实现 |
-| maintain | maintain | ARSI 是真实现 |
+```text
+★★★ 这张表初版（2026-10-04）**6 行里 5 行不准**。
+   实测依据: E:/ARSI/src/arsi/ 286 个 py，按**定义处**（def/class）逐动作定位，
+   不按文件名、不按文档转述。
 
-**★ DWC 比 ARSI 多 `recall` 和 `reflect` 两管** —— 这两管正是"记忆被使用"和"失败被定位"的关键。
+DWC 七管 | ARSI 实际形态（实测）                        | 初版写的
+remember  | memory_proxy.py:60 有完整实现                | ★ "空操作" —— 错
+          | 写 PROXY zone + native 备份                  |
+recall    | memory_proxy.py:58 有 recall(query, k=5)      | ★★★ "无独立召回阶段"
+          | NativeMemory Protocol 与 NullNativeMemory     |   —— 大错
+          | 也各有一份                                  |
+learn     | def learn* 定义点 = **0**                     | ★ "真实现" —— 无同名动作
+          | 实际形态 = consolidation(41) + distill(53)    |
+evolve    | world_model/world_evolver.py 380 行           | ★★ "占位符" —— 错
+          | ×3 个 def evolve*                            |
+dream     | pipelines/dream.py 359 行（5 阶段）           | ✓ 对
+          | + world_model/continuous_dream.py 263 行      |
+maintain  | def maintain* 定义点 = **0**                  | ★ "真实现" —— 无同名动作
+          | 实际形态 = prune(19) / UtilityDecay / forget  |
+```
+
+```text
+★★★ 修正后的结论（这是 R20 唯一能确定的事）
+① ★ **"三方同构"不成立** —— ARSI 侧只有 dream 对得上同名动作，
+   其余五个要么不存在同名动作、要么形态与初版描述相反
+② ★⇒ 因此"ARSI 5 动作"这个提法要谨慎:
+   ARSI 不是"五动作系统"，而是**按子系统切分的工程实现**
+   （mnemosyne 记忆 / world_model 演化 / pipelines 梦 / harness 门与账）
+③ ★★ DWC 采用七管的结论**不变**，但依据换成可核的两条:
+   a) 母巢七管有 44 天真实留痕，且**失败点已被定位**:
+      写入多、读取少（98.8% access=0）⇒ 要修的是闭环，不是形态
+   b) Recuris 的 EM→WM→Skill 耦合同构（这条独立成立）
+④ ★★★ ARSI 真正值得 DWC 学的，**不是"五动作"，是它的一处设计**:
+   `mnemosyne.core.should_consolidate` = `record.importance >= threshold`
+   ⇒ ★★ 纯自评阈值，**无 access 参与**
+   ⇒⇒ 而 D7 判据是"无 access 记录不得当作有价值"
+   ⇒⇒ ⇒★ 母巢的病 = 写进去没人读（access=0）
+       ARSI 的病 = 读了但没留痕，价值由 importance 自评说了算
+       两者的交集正是 D7 要修的那个
+⑤ ★★ ARSI 的三区实测 = SELF / EXPERIENCE / PROXY
+   （mnemosyne/core.py docstring 原文）
+   ⇒ 与 DWC 的 EXPERIENCE / PROXY / ARCHIVE / INERT **名字撞两个，
+     但不是同一个东西**（DWC 无 SELF，多了 ARCHIVE/INERT）
+```
+
+```text
+⚠★★ 本节的诚实边界
+① 只核了 src/arsi/（286 个 py）；scripts/ 下 32 个 py 未逐一核
+② "同名动作 = 0" 的判据是 `def\s+learn\w*\s*\(` 这类正则；
+   若它以别名或变量形式存在，本节结论需再修
+③ ★★ R19 的 Q1 裁决（选七管）当时用的正是这张错误的表
+   ⇒ 依据作废、结论保留，已按 §六 Q1 的更正记录重述依据
+```
+
 
 ---
 
@@ -241,14 +287,21 @@ D8 · 机制零引用即违规（★ 本版新增）
 
 ```text
 Q1 七管形态 → ★★ 甲（照母巢七管，补 recall/reflect 闭环）
-   依据:
-   ① 母巢的病恰恰是**缺 recall/reflect 闭环** ——
-      98.8% 节点 access_count=0（写进去了，没回读过）
-      ⇒ 选乙（ARSI 五动作）等于复制那个病
-   ② MEMORY_SYSTEM §四 的 Table 已按七管写（内容/哪管产生/存哪个区/判据）
-      ⇒ 选甲则 Table 不需改；选乙则要重写归属
-   ③ 七管里 remember/recall 是 D7（记忆必须证明被使用）的**唯一执行路径**
-      ⇒ 没有 recall 就没有 access 记录，D7 无法执行
+   ★★★ 2026-10-05 R20 更正依据（结论不变，依据全换）:
+      原依据①②③ 建立在 §2.3 那张表上，而该表实测 5/6 行不准 ⇒ 全部作废
+   现行依据（每条可核）:
+   ① ★ 母巢有 **44 天真实留痕**，且失败点已定位: 写入多、读取少
+      （98.8% access_count=0）⇒ 要修的是**闭环**，不是形态
+      ⇒⇒ 任何"更简的动作集"都不解决闭环问题
+   ② ★ Recuris 的 EM ⇄ WM → Skill 更新 与七管同构
+      （独立证据，不依赖 ARSI 那张错表）
+   ③ ★★ D7（记忆必须证明被使用）要求 recall 必须留下 access 痕迹。
+      实测 ARSI `mnemosyne/core.py` 里 recall / last_used / used_count
+      命中均为 **0** ⇒⇒ 无论动作集是五个还是七个，
+      **不留痕就执行不了 D7**
+      ⇒⇒ 这才是"补 recall/reflect"的真实理由，与 ARSI 有几个动作无关
+   ⚠ 原依据①"选乙（ARSI 五动作）等于复制那个病"**已作废** ——
+     ARSI 有 recall（memory_proxy.py:58），初版说它没有是错的
    ⇒ 落地: Tube 枚举保留 REMEMBER/LEARN/EVOLVE/MAINTAIN/REFLECT 五类
      （实测写链的五环只用前三个；recall/reflect 是**读侧与归纳侧**，
       已在 MemoryKernel.recall() / by_signature() 落地）

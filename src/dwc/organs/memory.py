@@ -66,12 +66,25 @@ class Zone(str, Enum):
 
 
 class Tube(str, Enum):
-    """七管（MEMORY_SYSTEM §四 的五条 + 两个辅助）。"""
-    REMEMBER = "remember"
-    LEARN = "learn"
-    EVOLVE = "evolve"
-    MAINTAIN = "maintain"
-    REFLECT = "reflect"
+    """七管（MEMORY_SYSTEM §2.2 的七个阶段）。
+
+    ★★★ 2026-10-05 R21 更正: 初版只定义了 5 个（remember/learn/evolve/
+       maintain/reflect），**漏了 recall 与 dream** —— 而它们恰好是
+       "七管比 ARSI 多出来的那部分"，漏掉它们等于把七管缩成了五管。
+       ⇒★ 而且当时我给的理由是"recall 是读侧所以不算管"，
+         ★★★ 而那个理由是错的: 母巢的病恰恰是"写入多、读取少"
+           （98.8% access=0）⇒ recall 正是 D7 的执行管，
+           把读操作排除在管之外，等于把病根排除在设计之外。
+         ★ 事实上 recall() 方法早就落地了（access_count+1）——
+           功能在、枚举没跟上 ⇒ 这是实现漏了，不是设计选择。
+    """
+    REMEMBER = "remember"     # 摄入
+    RECALL = "recall"         # ★ 取回（R21 补）—— D7 的执行管
+    LEARN = "learn"           # 巩固
+    REFLECT = "reflect"       # 归因
+    EVOLVE = "evolve"         # 变异（唯一改东西的阶段）
+    DREAM = "dream"           # ★ 反刍（R21 补）
+    MAINTAIN = "maintain"     # 维护
 
 
 class MemoryKind(str, Enum):
@@ -241,8 +254,8 @@ class MemoryKernel:
         nid = node_id or uuid.uuid4().hex
         tube = Tube.REMEMBER if kind in (MemoryKind.TRACE,
                                         MemoryKind.WORKING_STATE) else (
-            Tube.LEARN if kind in (MemoryKind.FAILURE_SIGNATURE,
-                                   MemoryKind.SKILL) else Tube.EVOLVE)
+            Tube.REFLECT if kind is MemoryKind.FAILURE_SIGNATURE else (
+                Tube.LEARN if kind is MemoryKind.SKILL else Tube.EVOLVE))
         self._conn.execute(
             "INSERT INTO memory_node"
             " (node_id, zone, kind, tube, payload, chain_id, created_at)"
@@ -275,7 +288,13 @@ class MemoryKernel:
             effect_count=d["effect_count"], archived_at=d["archived_at"])
 
     def recall(self, node_id: str) -> MemoryNode:
-        """召回一条记忆。★ 这次召回本身**就是 D7 的证据**。"""
+        """召回一条记忆（Tube.RECALL）。★ 这次召回本身**就是 D7 的证据**。
+
+        ★★ 它不写记忆节点（召回不是摄入），但它**改变** access_count
+          —— 而这正是"记忆被使用"的唯一证据。
+        ⇒★ R21: 补上这条管的原因是 —— 初版枚举里没有 recall，
+          等于把 D7 的执行路径排除在管体系之外（而功能早已落地）。
+        """
         self._conn.execute(
             "UPDATE memory_node SET access_count=access_count+1,"
             " last_access=? WHERE node_id=?", (time.time(), node_id))
@@ -359,6 +378,94 @@ class MemoryKernel:
             })
         return out
 
+    # ══════════════════════════════════════════════
+    # Tube.DREAM · 反刍（记忆重组 + 沙箱试演）
+    # ══════════════════════════════════════════════
+    def dream(self, c: str, q: str, m: str) -> Dict[str, Any]:
+        """★ 反刍一簇同签名的失败记忆，返回重组后的候选技能。
+
+        ★★★ 为什么 DREAM 不能"以后再说":
+          母巢台账里 dream 有 34,624 次真实调用（实测），
+          是七管里最活跃的一管之一。
+          ⇒ 而 D6（EXPERIENCE 只存能驱动进化的东西）要求失败签名
+            能被**归纳成技能** —— 那正是 dream 的职责：
+            把 N 条同类失败聚成一条"以后怎么避免"的经验。
+          ⇒⇒ 若没有 dream，失败签名就永远停在 PROXY 里当记录，
+            永远变不成 evolver 的输入 ⇒ D6 与 D7 都失去落点。
+
+        ★ 沙箱语义（§2.2 ⑥ 原文"记忆重组 + 沙箱试演"）:
+          本方法**只读** —— 不写任何节点、不改任何 access。
+          候选技能由调用方（learn / evolve）决定是否采纳。
+          ⇒⇒ 避免"反刍顺手就落库"，那正是 D6 要防的。
+        """
+        members = self.by_signature(c, q, m)
+        if not members:
+            return {"c": c, "q": q, "m": m, "n_members": 0,
+                    "n_used": 0, "candidate_skill": None,
+                    "eligible": False, "why": "无同类失败记忆"}
+        nodes = [self.get(n) for n in members]
+        # ★ 只聚"被用过的" —— 没人用的记忆归纳不出东西（与 D7 同源）
+        used = [n for n in nodes if n.used()]
+        details = [n.payload.get("detail") for n in used
+                   if n.payload.get("detail")]
+        return {
+            "c": c, "q": q, "m": m,
+            "n_members": len(nodes), "n_used": len(used),
+            "candidate_skill": ({
+                "scene": c,                          # 终止级原因 ≈ 场景
+                "method": "%s / %s" % (q, m),        # 因果角色 + 抽象机制
+                # ★ 边界从 payload 的 detail 取，缺则标"未知"——**不编**
+                "boundary": details[0] if details else "未知（payload 无 detail）",
+            } if used else None),
+            # ★ 一条都没被用过 ⇒ 不给候选（D6: 不能驱动进化就别占 EXPERIENCE）
+            "eligible": len(used) > 0,
+            "why": ("%d 条同类失败，其中 %d 条被真正用过"
+                    % (len(nodes), len(used))) if used
+                   else "全部未被召回 ⇒ 归纳不出技能（D7）",
+        }
+
+    # ══════════════════════════════════════════════
+    # Tube.MAINTAIN · 维护（遗忘 + 稀有保护 + 审计）
+    # ══════════════════════════════════════════════
+    def maintain(self, chain_id: Optional[str] = None) -> Dict[str, Any]:
+        """★ 执行一次维护，返回处置记录（**归档而非删除**）。
+
+        ★★★ 与 eviction_candidates 的分工:
+          eviction_candidates —— 只出证据，不动任何东西（纯查询）
+          maintain            —— 按三层判据执行归档，且留审计
+        ⇒★ 分开是为了 D8 的可核对性: 能查"当时凭什么这么处置"。
+
+        ★★ 三层顺序不可换（MEMORY_SYSTEM §三）:
+          1) 从未召回 → **不处置**（可能是检索策略问题）
+          2) 召回过但没改变行为 → 候选
+          3) 稀有保护（唯一签名）→ **硬否决**
+        """
+        rows = self.eviction_candidates()
+        held, archived, protected = [], [], []
+        for r in rows:
+            if r["rare_protected"]:
+                protected.append(r["node_id"])       # 第3层: 硬否决
+                continue
+            if r["access_count"] == 0:
+                held.append(r["node_id"])           # 第1层: 不处置
+                continue
+            archived.append(r["node_id"])           # 第2层: 归档
+        for nid in archived:
+            self.archive(nid)
+        return {
+            "chain_id": chain_id,
+            "n_evaluated": len(rows),
+            "held_never_recalled": held,       # ★ 未召回: 一律不动
+            "archived": archived,
+            "protected_rare": protected,
+            "n_held": len(held), "n_archived": len(archived),
+            "n_protected": len(protected),
+            # ★ 审计要点: held 占多数 ⇒ 那是检索策略的问题，不是记忆该删
+            "hint": ("held:%d archived:%d protected:%d —— held 占比高说明 "
+                     "recall 管要修，不是记忆该删"
+                     % (len(held), len(archived), len(protected))),
+        }
+
     def archive(self, node_id: str) -> MemoryNode:
         """归档（不删 —— 判据 S6 的同款纪律）。"""
         self._conn.execute(
@@ -439,6 +546,25 @@ def _self_test() -> None:
               % (row["kind"], row["zone"], row["access_count"],
                  row["effect_count"], row["rare_protected"],
                  row["evictable"]))
+
+    # ★ DREAM · 反刍（把同类失败归纳成技能）
+    m.remember(MemoryKind.FAILURE_SIGNATURE,
+               {"c": "timeout", "q": "agent", "m": "retry_bomb",
+                "detail": "重试 7 次"}, chain_id="CH1")
+    m.remember(MemoryKind.FAILURE_SIGNATURE,
+               {"c": "timeout", "q": "agent", "m": "retry_bomb",
+                "detail": "重试 9 次"}, chain_id="CH1")
+    dr = m.dream("timeout", "agent", "retry_bomb")
+    print("\n=== DREAM · 反刍 ===")
+    print("  同签名 %d 条 · 被用过 %d 条"
+          % (dr["n_members"], dr["n_used"]))
+    print("  候选技能: %s" % dr["candidate_skill"])
+    print("  eligible=%s · %s" % (dr["eligible"], dr["why"]))
+
+    # ★ MAINTAIN · 维护
+    mt = m.maintain()
+    print("\n=== MAINTAIN · 维护 ===")
+    print("  %s" % mt["hint"])
 
     # 归档不删
     m.archive(t1)

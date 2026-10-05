@@ -1,0 +1,27 @@
+{
+ "round": "R20 · 核实 ARSI「5 动作」这个前提（R19 裁决的直接依据）",
+ "date": "2026-10-05",
+ "为什么做": "R19 裁 Q1（七管 vs 五动作）时我引用了 MEMORY_SYSTEM §2.3 那张表，★ 而那张表我从未核过 ARSI 源码。",
+ "核实方法": "扫 E:/ARSI/src/arsi/ 全部 286 个 py，按**定义处**（def/class）逐动作定位",
+ "★ 实测结果（初版表 6 行里 5 行不准）": {
+  "remember": "文档『空操作』⇒ 实测 memory_proxy.py:60 有完整实现",
+  "recall": "文档『ARSI 无独立召回阶段』⇒ ★★★ 实测 memory_proxy.py:58 有 recall(query,k)",
+  "learn": "文档『真实现』⇒ def learn* 定义点 = 0；形态是 consolidation/distill",
+  "evolve": "文档『占位符』⇒ ★★ 实测 world_evolver.py 380 行 ×3 个 def evolve*",
+  "dream": "文档『真实现』⇒ ✓ dream.py 359 行 + continuous_dream.py 263 行",
+  "maintain": "文档『真实现』⇒ def maintain* 定义点 = 0；形态是 prune/UtilityDecay/forget"
+ },
+ "★★ 修正后的结论": [
+  "『三方同构』不成立 —— ARSI 侧只有 dream 对得上同名动作",
+  "ARSI 不是『五动作系统』，是按子系统切分的工程实现",
+  "★ Q1 选七管结论不变，依据全换：母巢 44 天留痕+失败点已定位 / Recuris 独立同构 / D7 要求 recall 留痕而 ARSI 的 recall 不留痕",
+  "★ ARSI 值得学的是 should_consolidate = importance>=threshold —— 纯自评无 access，正是 D7 的反面"
+ ],
+ "ARSI 三区实测": "SELF / EXPERIENCE / PROXY ⇒ 与 DWC 四区名字撞两个但不是同一东西",
+ "诚实边界": [
+  "★★★ 只核了 src/arsi/（286 py）；scripts/ 下 32 个 py 未逐一核",
+  "★ 『同名动作 = 0』的判据是 def/class 正则；若以别名或变量形式存在，结论需再修",
+  "★★★ R19 的 Q1 裁决用的正是这张错表 ⇒ 依据作废、结论保留",
+  "★★★ 本轮全部结论未经第二人复核"
+ ]
+}
