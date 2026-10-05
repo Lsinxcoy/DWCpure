@@ -1,0 +1,280 @@
+{
+ "round": "R5 · 门可信度审计",
+ "date": "2026-10-04",
+ "part": "1 · 命名空间冲突",
+ "families": {
+  "A": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  "G": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   8
+  ],
+  "F": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "S": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "C": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "Q": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "K": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "D": [
+   1,
+   2,
+   3,
+   6,
+   7,
+   8
+  ],
+  "V": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "E": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "T": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "I": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12
+  ],
+  "J": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13
+  ],
+  "L": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "M": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "P": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  "R": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "X": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "W": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "Z": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ "family_count": 20,
+ "definition_count": 130,
+ "R5_1_conflicting_ids": {
+  "A2": {
+   "世界树剪枝策略 + 想象节点存哪（被错塞在第 23 项里）": [
+    "ARCHITECTURE.md"
+   ],
+   "失败痕迹必须有签名": [
+    "docs/ACTOR_DESIGN.md"
+   ]
+  },
+  "A3": {
+   "𝒦 词表只覆盖 16/21，未覆盖: 代码 / 架构 / 元进化 / 评估器 / 外部机": [
+    "ARCHITECTURE.md"
+   ],
+   "三分离齐备": [
+    "docs/ACTOR_DESIGN.md"
+   ]
+  },
+  "A7": {
+   "未评价不等于失败": [
+    "docs/ACTOR_DESIGN.md"
+   ],
+   "C5 · E6 · G6 · I12 · J13 · K6 · L6 · M6 · P8": [
+    "docs/FULL_AUDIT_2026-10-04.md"
+   ]
+  },
+  "G5": {
+   "至少存在一处消费点读 group_id": [
+    "docs/CAPABILITY_GROUPS.md"
+   ],
+   "客观效用锚（effect ∈ [-1,+1], 禁自评）": [
+    "docs/STATE_SCHEMA.md"
+   ]
+  },
+  "I3": {
+   "每个检查器读的字段必须有设置方": [
+    "docs/IRON_LAWS_DESIGN.md"
+   ],
+   "★ 检查器读的字段有设置方": [
+    "docs/IRON_LAWS_DESIGN.md"
+   ],
+   "检查器读的字段有设置方": [
+    "docs/STATE_SCHEMA.md"
+   ]
+  },
+  "I6": {
+   "★ 每个检查器有阳性测试": [
+    "docs/IRON_LAWS_DESIGN.md"
+   ],
+   "每个检查器有阳性测试": [
+    "docs/STATE_SCHEMA.md"
+   ]
+  },
+  "T1": {
+   "run_term 内必含: before 快照 / n×step / after 快照 ": [
+    "docs/ERROR_AND_TERM.md"
+   ],
+   "TaskScorePoint 必须含 n_assertions（无默认值）": [
+    "docs/TASK_SCORE_TRACKING.md"
+   ]
+  },
+  "T2": {
+   "term 边界由进化事件决定, n_steps 只是上限": [
+    "docs/ERROR_AND_TERM.md"
+   ],
+   "dw_version 必须落, 且版本换代后分数不可直接比较": [
+    "docs/TASK_SCORE_TRACKING.md"
+   ]
+  },
+  "T3": {
+   "before/after 之间 dw_version 被锁": [
+    "docs/ERROR_AND_TERM.md"
+   ],
+   "judge.task_scores / group_scores 两个查询口必须存在": [
+    "docs/TASK_SCORE_TRACKING.md"
+   ]
+  },
+  "T4": {
+   "两个成本台账并存: term_cost(reset) + cumulative_cost": [
+    "docs/ERROR_AND_TERM.md"
+   ],
+   "每个 sealed 任务的 n_assertions 必须是配置里显式声明的, 不是运行": [
+    "docs/TASK_SCORE_TRACKING.md"
+   ]
+  }
+ },
+ "R5_1_conflict_count": 10,
+ "R5_3_T_dual": {
+  "ERROR_AND_TERM.md": {
+   "1": "run_term 内必含: before 快照 / n×step / after 快照 / 五元盘点 / 下一轮任务源",
+   "2": "term 边界由进化事件决定, n_steps 只是上限",
+   "3": "before/after 之间 dw_version 被锁",
+   "4": "两个成本台账并存: term_cost(reset) + cumulative_cost(不 reset)"
+  },
+  "TASK_SCORE_TRACKING.md": {
+   "1": "TaskScorePoint 必须含 n_assertions（无默认值）",
+   "2": "dw_version 必须落, 且版本换代后分数不可直接比较",
+   "3": "judge.task_scores / group_scores 两个查询口必须存在",
+   "4": "每个 sealed 任务的 n_assertions 必须是配置里显式声明的, 不是运行期数出来的",
+   "5": "第⑦步的 Λ 必须在配置里显式给出, 且必须与 median(n_assertions) 同量纲"
+  }
+ }
+}

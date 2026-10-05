@@ -1,0 +1,89 @@
+{
+ "round": "R3 · 补落地（用户选甲）",
+ "date": "2026-10-04",
+ "scope": "DEEP_READ_REPORT 8·2 的五条最硬发现，逐项核落地状态",
+ "method": "grep 关键要素 + 人眼复核（机器判定必须回落到人眼）",
+ "findings": [
+  {
+   "id": "发现1 A_t=(S_t,H_t,theta_t) 三元 [2608.03392]",
+   "status": "✓ 已落地",
+   "where": "ARCHITECTURE §9 第21项 STATE_SCHEMA 四层；§9 第25项 (e) patch_target",
+   "evidence": [
+    "S_t = (memory, skills, tools, context)  版本 ← 2608.03392 式(7)",
+    "H_t = (harness, workflow, org)  版本 ← 式(8)",
+    "θ_t 对 DWC **固定** ⇒ DWC 的 fixed 清单之一",
+    "工具归属澄清: 改代码仍属 assets; 只有改变『如何组织与控制执行』才是 architecture",
+    "(e) 可判定实现: 每个候选声明 (target_layer ∈ {assets, architecture}, target_component)",
+    "跨层自评即第20项根源: 守卫① 用 θ 层（自算 confidence）评 H 层 ⇒ 修法是换层"
+   ],
+   "note": "★ 我第一遍判它『未落地』是错的 —— 我的正则写了 ASCII 的 theta_t，而文档用希腊字母 θ_t ⇒ 机器漏判，人眼已在 ARCHITECTURE 里看到"
+  },
+  {
+   "id": "发现2 Coupled/Decoupled + 无外部选择器的自我策展 [2603.25681 §3.3.3]",
+   "status": "✓ 已落地",
+   "evidence": [
+    "『without an external selector』原文已在 ARCHITECTURE",
+    "『reliable validation signal』理论断言已在",
+    "Coupled/Decoupled 讨论已在"
+   ],
+   "open": "★★ 论文的断言是: 若保留 coupled 设计, DWC 必须正面回答『可靠验证信号从哪来』⇒ 这一问是否已被 DWC 正面回答, 需人工判读（我核到原文在, 但没核它被回答了）"
+  },
+  {
+   "id": "发现3 五条开放问题 [2608.03392 §10]",
+   "status": "✓ 已落地（5/5）",
+   "evidence": [
+    "短基准高估 SWEEVO 21% vs SWE-bench 65% ✓",
+    "自评分数可近满分而真实性能不升反降 ✓",
+    "外部 accept-reject 审计六模型都更好 ✓",
+    "Phantom Guardrails 15/60 运行 ✓",
+    "harness tampering 可遗传 ✓",
+    "selective addition/deletion + retention 消费四元 ✓"
+   ]
+  },
+  {
+   "id": "发现4 记忆四分类 + 五公式 [2501.07278]",
+   "status": "△ 部分落地",
+   "landed": [
+    "记忆四分类 Working/Episodic/Semantic/Parametric",
+    "五公式 FGT/BWT/AIP + 式(16)(17)(18)",
+    "FWT 用于层1偏置"
+   ],
+   "NOT_landed": [
+    {
+     "what": "领域**没有**记忆专用公开基准 [2404.13501 §6.3]",
+     "implication": "⇒ DWC 若造记忆基准 = 填补领域空白（这是一个**定位论据**，不只是技术选项）",
+     "evidence_check": "ARCHITECTURE 里 0 处『记忆 基准』的组合 ⇒ 确未落地"
+    }
+   ]
+  },
+  {
+   "id": "发现5 自主性三档 + 三轮卡住 [2404.14387 式(8)(9)(10)]",
+   "status": "△ 部分落地",
+   "landed": [
+    "自主性三档 Low/Med/High + Evol_L/Evol_M/Evol_H",
+    "self-critic 未与目标共演化的约束"
+   ],
+   "NOT_landed": [
+    {
+     "what": "『struggle to improve after **more than three rounds**』",
+     "evidence_check": "ARCHITECTURE 里 more than three rounds / three rounds 均 0 命中 ⇒ 确未落地",
+     "high_value": "★★★ 这条能替换我自己的一个拍脑袋参数:\n  · WORLD_TREE_CONVERGENCE 的卡住检测我写 N_STUCK=3，注释明说是我拍的\n  · GEPA 的 Figure 6a 只说『反复 refinement 会耗尽预算』，**没给数字**\n  ★ 而 2404.14387 给的是『超过三轮就难以改进』⇒ ★★ 这是论文依据\n  ⇒ N_STUCK=3 从『我拍的』升级为『有出处的』\n  ⇒ ★★ 但注意: 它的语境是『自主性停在 Med 档』，与 GEPA 的\n    『单候选 refinement 卡住』是否同一个现象, 需核原文 —— 不能直接套"
+    }
+   ]
+  }
+ ],
+ "self_correction": {
+  "id": "★★★ 我推翻了自己 R2 的结论",
+  "what": "R2 说『8 篇逐行精读的结论一条都没进 ARCHITECTURE』\n⇒ ★★ R3 逐条核后发现: **这不成立**。\n  · 发现1（三元模型 + 工具归属 + (e) 可判定实现）**已落地**\n  · 发现2（Coupled + 无外部选择器）**已落地**\n  · 发现3（五条开放问题）**5/5 已落地**\n  · 发现4/5 部分落地\n⇒ ★★ R2 的方法有缺陷: 它只看『编号在 ARCHITECTURE 里有没有出现』\n  ⇒ 而那 8 篇的**结论**是以『A_t=(S_t,H_t,θ_t) 三元』这种**无编号的形式**落地的\n  ⇒ ⇒ ★★ 这是 R2 的一个重要教训: **编号零命中 ≠ 结论未落地**\n  ⇒⇒★ 特别是发现1 我还一度判成『未落地』，原因是正则用了 ASCII theta_t\n     而文档写的是希腊字母 θ_t ⇒ ★ 机器判定必须回落到人眼确认"
+ },
+ "actionable": {
+  "P0": [
+   "★ 2404.14387 的『more than three rounds』⇒ 回原文核语境，判断能否替换 N_STUCK=3",
+   "★ 2404.13501 §6.3『领域无记忆基准』⇒ 可作 DWC 造记忆基准的定位论据（当前 0 落地）"
+  ],
+  "P1": [
+   "发现2 的『可靠验证信号从哪来』这一问 ⇒ 需人工判读 DWC 是否正面回答过"
+  ]
+ },
+ "verdict": "★ 8·2 五条里: 3 条已落地(1/2/3)、2 条部分落地(4/5)\n★★ 真未落地的只有 2 项: ①『领域无记忆基准』②『三轮卡住』\n⇒ ★★ 而这两项恰好都是**能直接补进现有设计**的:\n  ② 能把我拍的 N_STUCK=3 换成有论文依据的值\n  ① 给 DWC 造记忆基准提供『领域空白』的定位论据"
+}

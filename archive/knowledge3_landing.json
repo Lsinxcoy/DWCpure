@@ -1,0 +1,659 @@
+[
+ {
+  "id": "1208.3719",
+  "layer": "L2",
+  "txt": "refs/1208.3719.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "1606.04474",
+  "layer": "L2",
+  "txt": "refs/1606.04474.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "1611.01578",
+  "layer": "L2",
+  "txt": "refs/1611.01578.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "1611.02779",
+  "layer": "L2",
+  "txt": "refs/1611.02779.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "1703.03400",
+  "layer": "L2",
+  "txt": "refs/1703.03400.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "2203.14465",
+  "layer": "L2",
+  "txt": "refs/2203.14465.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 1
+ },
+ {
+  "id": "2309.16797",
+  "layer": "L2",
+  "txt": "refs/2309.16797.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 3
+ },
+ {
+  "id": "2310.02304",
+  "layer": "L2",
+  "txt": "refs/2310.02304.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 1
+ },
+ {
+  "id": "2404.13501",
+  "layer": "L2",
+  "txt": "refs/2404.13501.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 4
+ },
+ {
+  "id": "2404.14387",
+  "layer": "L2",
+  "txt": "refs/2404.14387.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 5
+ },
+ {
+  "id": "2407.19594",
+  "layer": "L2",
+  "txt": "refs/2407.19594.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 3
+ },
+ {
+  "id": "2408.08435",
+  "layer": "L2",
+  "txt": "refs/2408.08435.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/WORLD_TREE_CONVERGENCE.md"
+  ],
+  "n_mentions": 7
+ },
+ {
+  "id": "2501.07278",
+  "layer": "L2",
+  "txt": "refs/2501.07278.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/REGRESSION_GUARD.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 10
+ },
+ {
+  "id": "2502.16923",
+  "layer": "L2",
+  "txt": "refs/2502.16923.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "2504.01990",
+  "layer": "L2",
+  "txt": "refs/2504.01990.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 3
+ },
+ {
+  "id": "2504.15228",
+  "layer": "L2",
+  "txt": "refs/2504.15228.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 3
+ },
+ {
+  "id": "2504.15585",
+  "layer": "L2",
+  "txt": "refs/2504.15585.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 2
+ },
+ {
+  "id": "2505.03335",
+  "layer": "L2",
+  "txt": "refs/2505.03335.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 6
+ },
+ {
+  "id": "2505.05522",
+  "layer": "L1",
+  "txt": "2505.05522.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2505.05522.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AS_EVENT_SOURCE.md"
+  ],
+  "n_mentions": 6
+ },
+ {
+  "id": "2505.22954",
+  "layer": "L1",
+  "txt": "refs/2505.22954.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2505.22954.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md",
+   "docs/WORLD_TREE_CONVERGENCE.md"
+  ],
+  "n_mentions": 11
+ },
+ {
+  "id": "2507.19457",
+  "layer": "L2",
+  "txt": "refs/2507.19457.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/GAP_AUDIT.md",
+   "docs/WORLD_TREE_CONVERGENCE.md"
+  ],
+  "n_mentions": 7
+ },
+ {
+  "id": "2507.21046",
+  "layer": "L2",
+  "txt": "refs/2507.21046.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 6
+ },
+ {
+  "id": "2508.07407",
+  "layer": "L2",
+  "txt": "refs/2508.07407.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 5
+ },
+ {
+  "id": "2601.05111",
+  "layer": "L2",
+  "txt": "refs/2601.05111.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 4
+ },
+ {
+  "id": "2603.06333",
+  "layer": "L1",
+  "txt": "2603.06333.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2603.06333.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/CAUSAL_CHAIN_STORAGE.md",
+   "docs/CAUSAL_CHAIN_VS_BUS.md",
+   "docs/ERROR_AND_TERM.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/REGRESSION_GUARD.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 29
+ },
+ {
+  "id": "2603.19461",
+  "layer": "L1",
+  "txt": "refs/2603.19461.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2603.19461.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 13
+ },
+ {
+  "id": "2603.25111",
+  "layer": "L1",
+  "txt": "2603.25111.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2603.25111.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/ARSI_ARCHITECTURE.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 23
+ },
+ {
+  "id": "2603.25681",
+  "layer": "L1",
+  "txt": "refs/2603.25681.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2603.25681.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/COMPONENT_VOCABULARY.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/IRON_LAW_G11.md",
+   "docs/RESIDUAL_DIFFICULTY.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 35
+ },
+ {
+  "id": "2606.09498",
+  "layer": "L1",
+  "txt": "2606.09498.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2606.09498.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GATE_CONFLICT.md",
+   "docs/MEMORY_CONTENT.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 39
+ },
+ {
+  "id": "2606.14249",
+  "layer": "L1",
+  "txt": "2606.14249.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2606.14249.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GATE_CONFLICT.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 27
+ },
+ {
+  "id": "2606.14502",
+  "layer": "L2",
+  "txt": "refs/2606.14502.txt",
+  "report": null,
+  "landing_files": [
+   "docs/DEEP_READ_REPORT_2026-10-04.md"
+  ],
+  "n_mentions": 1
+ },
+ {
+  "id": "2607.07663",
+  "layer": "L1",
+  "txt": "refs/2607.07663.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2607.07663.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 11
+ },
+ {
+  "id": "2607.12790",
+  "layer": "L1",
+  "txt": "2607.12790.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2607.12790.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "README.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/ARSI_ARCHITECTURE.md",
+   "docs/CLAIM_SEPARATION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GATE_CONFLICT.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/JUDGE_LAYERS.md",
+   "docs/QUALITY_GATE.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AUTHORITY.md",
+   "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md"
+  ],
+  "n_mentions": 62
+ },
+ {
+  "id": "2607.27201",
+  "layer": "L1",
+  "txt": "2607.27201.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2607.27201.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 3
+ },
+ {
+  "id": "2607.27924",
+  "layer": "L1",
+  "txt": "2607.27924.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2607.27924.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AS_EVENT_SOURCE.md"
+  ],
+  "n_mentions": 5
+ },
+ {
+  "id": "2608.03392",
+  "layer": "L2",
+  "txt": "refs/2608.03392.txt",
+  "report": null,
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/IRON_LAW_G11.md",
+   "docs/RESUME_2026-10-04_NIGHT.md",
+   "docs/STATE_SCHEMA.md"
+  ],
+  "n_mentions": 14
+ },
+ {
+  "id": "2608.10299",
+  "layer": "L1",
+  "txt": "2608.10299.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2608.10299.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 14
+ },
+ {
+  "id": "2608.24876",
+  "layer": "L1",
+  "txt": "2608.24876.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2608.24876.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "README.md",
+   "docs/ACTOR_DESIGN.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/DIMENSIONS_FEASIBILITY.md",
+   "docs/DIMENSIONS_SCOPE_V1.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/MEMORY_CONTENT.md",
+   "docs/QUALITY_GATE.md",
+   "docs/RSI_PAPERS.md",
+   "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md"
+  ],
+  "n_mentions": 25
+ },
+ {
+  "id": "2609.04128",
+  "layer": "L1",
+  "txt": "2609.04128.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.04128.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ACTOR_TASK_SOURCE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GAP_AUDIT.md",
+   "docs/RESIDUAL_DIFFICULTY.md",
+   "docs/RESUME_2026-10-04_FINAL.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+   "docs/WORLD_TREE.md",
+   "docs/WORLD_TREE_CONVERGENCE.md"
+  ],
+  "n_mentions": 42
+ },
+ {
+  "id": "2609.06396",
+  "layer": "L1",
+  "txt": "2609.06396.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.06396.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/RESUME_2026-10-04_EARLY.md",
+   "docs/RSI_PAPERS.md",
+   "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md"
+  ],
+  "n_mentions": 37
+ },
+ {
+  "id": "2609.08183",
+  "layer": "L1",
+  "txt": "2609.08183.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.08183.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ACTOR_DESIGN.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/JUDGE_LAYERS.md",
+   "docs/LEVEL3_PROBE.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 41
+ },
+ {
+  "id": "2609.11873",
+  "layer": "L1",
+  "txt": "2609.11873.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.11873.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 26
+ },
+ {
+  "id": "2609.13406",
+  "layer": "L1",
+  "txt": "2609.13406.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.13406.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/ARSI_ARCHITECTURE.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/JUDGE_DESIGN.md",
+   "docs/MODIFIER_CRITIC.md",
+   "docs/RESUME_2026-10-04_FINAL.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AUTHORITY.md"
+  ],
+  "n_mentions": 42
+ },
+ {
+  "id": "2609.14857",
+  "layer": "L1",
+  "txt": "2609.14857.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.14857.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 16
+ },
+ {
+  "id": "2609.14858",
+  "layer": "L1",
+  "txt": "2609.14858.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.14858.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ACTOR_TASK_SOURCE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/ARSI_ARCHITECTURE.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GAP_AUDIT.md",
+   "docs/NO_SHADOW.md",
+   "docs/RESIDUAL_DIFFICULTY.md",
+   "docs/RESUME_2026-10-04_FINAL.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+   "docs/WORLD_TREE.md"
+  ],
+  "n_mentions": 35
+ },
+ {
+  "id": "2609.24972",
+  "layer": "L1",
+  "txt": "2609.24972.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.24972.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/COMPONENT_VOCABULARY.md",
+   "docs/EVOLUTION_CORE_AUDIT.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/GATE_CONFLICT.md",
+   "docs/IRON_LAWS_DESIGN.md",
+   "docs/RSI_PAPERS.md",
+   "docs/WORLD_TREE.md"
+  ],
+  "n_mentions": 53
+ },
+ {
+  "id": "2609.26457",
+  "layer": "L1",
+  "txt": "2609.26457.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.26457.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/ARSI_19_PAPERS_EVOLUTION.md",
+   "docs/EVOLUTION_CORE_DESIGN.md",
+   "docs/EVOLUTION_CORE_V2.md",
+   "docs/FULL_AUDIT_2026-10-04.md",
+   "docs/RSI_PAPERS.md"
+  ],
+  "n_mentions": 20
+ },
+ {
+  "id": "2609.2680",
+  "layer": "L1",
+  "txt": "2609.2680_rsi_survey.txt",
+  "report": "E:/Divine Wisdom Core/docs/papers/2609.2680.md",
+  "landing_files": [
+   "ARCHITECTURE.md",
+   "docs/CLAIM_SEPARATION.md",
+   "docs/DEEP_READ_REPORT_2026-10-04.md",
+   "docs/REGRESSION_GUARD.md",
+   "docs/RESUME_2026-10-04_NIGHT.md"
+  ],
+  "n_mentions": 24
+ }
+]

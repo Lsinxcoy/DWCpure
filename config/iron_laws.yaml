@@ -1,0 +1,224 @@
+# DWC 铁律配置
+# ---------------------------------------------------------------------------
+# ★★ 本文件是 DWC 的第一份 config，2026-10-04 建立。
+#
+#   来源与依据（逐条可溯）：
+#     · G1–G10 的 id / name / description / severity
+#       —— 抄自 ARSI: .cache/gh_clones/ARSI/config/iron_laws.yaml
+#         （809 字节, 全文已核: block 4 / warn 6）
+#       —— ★★ 那份属于 ARSI，不是 DWC 的。本文件是 DWC 的**首份**。
+#     · G1–G10 的 check_fn
+#       —— 来自 docs/IRON_LAWS_DESIGN.md §4.6「十条铁律的可执行化」
+#       —— ★ DWC 补的: ARSI 的 IronLaw.check_fn 字段**从未被使用**
+#         （iron_laws.py 用硬编码 `if law.id == "G10"`）, DWC 是数据驱动的
+#     · G11
+#       —— 来自 docs/IRON_LAW_G11.md §十（形态丙 + 三条配套 + 判据 I9–I12）
+#       —— 依据 2603.25681 §8.1
+#
+#   ★ 本文件不含实现。src/ 仍为空 —— 所有 check_fn 待写。
+#   ★ 详见 docs/INDEX.md §二、docs/PROGRESS.md「下一步」。
+# ---------------------------------------------------------------------------
+
+version: 1
+schema_note: >-
+  laws[] 唯一键是 id。severity ∈ {block, warn, meta}。
+  ★ meta 是本项目新增的一档，理由见下方 G11 与文件末尾「为什么需要 meta」。
+
+# ★★ 加载器必须执行的两条结构纪律（2026-10-04 实测得出，见文件末尾）
+discipline:
+  - id: D1
+    name: meta 条目不可检查
+    rule: >-
+      severity == meta 的条目必须 check_fn 为 null，且必须有非空的
+      enforcement 字段。违者拒绝加载。
+  - id: D2
+    name: 非 meta 条目不得空转
+    rule: >-
+      severity ∈ {block, warn} 的条目必须有一个非空、且不在
+      stall_fn_names 里的 check_fn。违者拒绝加载。
+    # ★★ D2 的来历: 实测发现 D1 抓不住"把 meta 条目降级成 block + 恒假
+    #   check_fn"这条退化 —— 降级后它就不再是 meta 条目, D1 不管它。
+    #   而那正是 ARSI 的病（iron_laws.py 的 _check_law 里 8 条走
+    #   `default: return False` ⇒ 10 条铁律实际生效 0 条）。
+    stall_fn_names: [check_always_false, always_false, return_false,
+                     default, noop, null_fn, pass_through]
+
+laws:
+
+  # ── G1–G2 · warn ────────────────────────────────────────────────────────
+  - id: G1
+    name: 设计/执行分离
+    description: 策略生成与突变落地解耦
+    severity: warn
+    check_fn: check_design_execution_separated
+    trigger_points: [pre_apply]
+    basis: GAI Figure 2 authority boundary
+    # 判据: m.__class__ is not applier.__class__ 且来自不同模块
+
+  - id: G2
+    name: 分级安全门
+    description: 层级越深阈值越高
+    severity: warn
+    check_fn: check_threshold_monotonic
+    trigger_points: [config_load]
+    basis: 2609.24972 非补偿判据（每层独立否决）
+    # 判据: 对 i<j 有 threshold_i <= threshold_j
+    # ★ 吸收 ARSI 错标的一条: 预算集中度检查（max_alloc > 0.8 ⇒ 违规）属 G2，非 G10
+    extra_checks: [budget_concentration]
+
+  # ── G3 · block ──────────────────────────────────────────────────────────
+  - id: G3
+    name: 冻结/人类主权
+    description: 冻结开关优先级高于所有进化
+    severity: block
+    check_fn: check_freeze_blocks_writes
+    trigger_points: [every_write_entry]
+    basis: 2606.14249 FROZEN_DIMS + scope fence
+    # 判据: frozen ⇒ raise LawViolation（不是 return False）
+    # ★ 修 ARSI: frozen 字段必须有设置方（人工 CLI / 配置文件）。
+    #   ARSI 的 _check_g10/h 在生产中从不触发，正是因为读的字段无设置方。
+
+  # ── G4 · warn ────────────────────────────────────────────────────────────
+  - id: G4
+    name: 审计触发
+    description: 巩固须含 why/trigger/verify
+    severity: warn
+    check_fn: check_consolidation_fields
+    trigger_points: [memory_consolidate_exit]
+    basis: DWC 记忆核心（七管 maintain）
+    # 判据: {why, trigger, verify} ⊆ record.keys()
+
+  # ── G5 · block ──────────────────────────────────────────────────────────
+  - id: G5
+    name: 客观效用锚
+    description: 效果在-1到+1之间，机制禁自评
+    severity: block
+    check_fn: check_effect_range
+    check_fn_secondary: check_no_self_eval
+    trigger_points: [effect_write]
+    basis: ARSI enforced_laws.check_effect_range + check_no_self_eval（真实现）
+    # 判据: -1 <= effect <= 1 且 source ∈ EXTERNAL_SOURCES
+    # ★ 抄 ARSI 的来源白名单（这是 ARSI 做对的一件事）
+    effect_range: [-1.0, 1.0]
+    external_sources: [judge_verdict, tool_receipt]
+    # ★★ 注意: success_source 第三档 self_report 只能记「声称」，
+    #   不许记 success（ARCHITECTURE §4.2 已定）
+
+  # ── G6 · block ──────────────────────────────────────────────────────────
+  - id: G6
+    name: 熔断
+    description: CLOSED/OPEN/HALF_OPEN状态机
+    severity: block
+    check_fn: check_circuit_breaker
+    trigger_points: [every_external_call]
+    basis: ARSI enforced_laws.check_circuit_breaker（真实现，完整状态机）
+    # ★ ARSI 的弱实现 iron_laws.py 里 G6 走 default: return False ⇒ 从不触发
+
+  # ── G7 · warn ────────────────────────────────────────────────────────────
+  - id: G7
+    name: 数学收敛
+    description: Lyapunov函数单调下降
+    severity: warn
+    check_fn: check_lyapunov_monotone
+    trigger_points: [run_term_end]
+    basis: 2603.06333 Eq.24（长时程稳定性界）
+    # 判据: 违反次数 / 总轮数 <= 容忍率
+    # ★★ 容忍率未定 —— 严格单调在噪声环境下会恒违规
+    #   （IRON_LAWS_DESIGN 诚实边界⑤）。本文件不填默认值。
+
+  # ── G8 · warn ────────────────────────────────────────────────────────────
+  - id: G8
+    name: 因果问责
+    description: 假设到设计到结果因果链完整才激活
+    severity: warn
+    check_fn: check_causal_chain_complete
+    trigger_points: [proposal_gate]
+    basis: 2609.24972 结构剪枝（机制必须持续赢得位置）
+    # 判据: {hypothesis, design, result} 三段齐备且有可追溯 id
+
+  # ── G9 · warn ────────────────────────────────────────────────────────────
+  - id: G9
+    name: 高熵校验
+    description: 高熵记忆和决策主动生成验证请求
+    severity: warn
+    check_fn: check_high_entropy_requests_verification
+    trigger_points: [memory_write, decision]
+    basis: DWC 记忆核心（原则 9 高熵校验）
+    # 判据: entropy > τ ⇒ verify_requests 计数 > 0
+
+  # ── G10 · block ─────────────────────────────────────────────────────────
+  - id: G10
+    name: 密封评估层
+    description: 任务集和评分规则和发布门槛在所有写掩码之外
+    severity: block
+    check_fn: check_sealed_access
+    check_fn_secondary: check_release_gate
+    trigger_points: [sealed_path_read, sealed_path_write, release]
+    basis: DWC G10 铁律 + GAI grounded 第二条件（base 在 agent 外）
+    # ★ 与 ARSI 的关键差别: 不是"读一个属性"（ARSI 读 sealed_tasks_accessible,
+    #   全仓无设置方 ⇒ 永不触发），而是路径保护 + 发布门
+
+  # ── G11 · meta · 元条款 · 不可检查 ─────────────────────────────────────
+  - id: G11
+    name: 门通过不等于系统安全
+    description: >-
+      任何门报告都不构成安全证明。依据 2603.25681 §8.1：
+      "An evaluation that reads as safe therefore cannot certify that the
+      self-improvement system is actually safe."
+      论文另给两条失效机制: 门可被游戏（games the proxy its monitors track）
+      与停止机制可被禁用（learn to disable the mechanism meant to stop them）。
+    severity: meta
+    check_fn: null                      # ★ 故意为空
+    enforcement: report_must_quote      # ★ 唯一的执行形式
+    basis: 2603.25681 §8.1
+    # ★★★ 为什么 check_fn 必须是 null:
+    #   G11 是恒真的否定性承诺，没有可违反的状态。
+    #   若给它编一个 check_fn，执行器只能 default: return False
+    #   ⇒ 那正是 ARSI 的病（_check_law 里 8 条走这一行，10 条铁律生效 0 条）。
+    #   ⇒ 所以它进配置（可 grep / 可版本化），但不进检查路径（不空转）。
+    report_requirements:                # ★ 判据 I10–I12 的字段化
+      certification_limit: required_no_default   # 缺此字段 ⇒ 报告无效
+      proxy_target:        required_no_default   # 缺此字段 ⇒ 报告无效
+      wm_version:          required              # 换代后旧报告视为无效
+      dw_version:          required
+    certification_limit_text: >-
+      门通过 != 系统安全：本报告不构成安全证明
+      （2603.25681 §8.1: an evaluation that reads as safe
+      cannot certify that the system is actually safe）
+
+# ---------------------------------------------------------------------------
+# 为什么需要 meta 这一档
+# ---------------------------------------------------------------------------
+# severity 的三档含义:
+#   block —— 违反则中止；必须有可违反的状态 ⇒ 因此必须有 check_fn
+#   warn  —— 违反则记录；同上
+#   meta  —— **不可违反**；它限制的是"别的结论能推多远"
+#            ⇒ 没有可违反的状态 ⇒ 不能有 check_fn
+#            ⇒ 唯一的执行形式是 enforcement（本文件只有 G11 用）
+#
+# ★ 若强行把 G11 写成 block，执行器必须为它造一个恒不违规的 check_fn
+#   ⇒ 重演 ARSI「10 条铁律生效 0 条」的病（IRON_LAWS_DESIGN §2.2）
+#
+# ★ 详见 docs/IRON_LAW_G11.md §三（三形态对比）与 §六（判据 I9–I12）
+
+# ---------------------------------------------------------------------------
+# 2026-10-04 建立时的实测记录（rc=0 全通）
+# ---------------------------------------------------------------------------
+# ✓ YAML 可解析，11 条
+# ✓ G1–G10 与 ARSI 原件逐条一致（id / name / description / severity）
+#   severity 分布: block = G3 G5 G6 G10 / warn = G1 G2 G4 G7 G8 G9 ⇒ 4/6 同档
+# ✓ G11: severity=meta / check_fn=null / enforcement=report_must_quote
+# ✓ 判据 I10–I12 已字段化（certification_limit · proxy_target 必填无默认；
+#   wm_version · dw_version 必填）
+# ✓ 11 条全部带 basis
+#
+# ★★★ 实测抓到一个真实设计漏洞（已修）:
+#   我原以为「meta 条目必须 check_fn=null」这一条纪律足够。
+#   实测反例: 把 G11 改成 severity=block + check_fn=check_always_false 后，
+#   这条纪律**抓不到** —— 因为降级后它已不是 meta 条目。
+#   ⇒ 而"恒假 check_fn"正是 ARSI 十条铁律生效 0 条的病根。
+#   ⇒ ⇒ 因此必须**同时**有 D2（anti_stall）才封住这条退化路径。
+#   ⇒ 两条纪律缺一不可，这是本文件最重要的一处实测产出。
+#
+# ★ 本文件不含实现：11 条 check_fn 全部待写（src/ 为空）。
+#   判据 I8 要求每个 check_fn 的调用点 > 0 ⇒ 写完后须 grep 验证。

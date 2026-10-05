@@ -1,0 +1,52 @@
+{
+ "round": "R15 · 用户裁决『采用六层』的落地",
+ "date": "2026-10-05",
+ "裁决": "用户: 采用（2026-10-05）⇒ DWC 采用六层活性模型",
+ "★★ 落地时发现的关键事实（六层的载体不是文件）": {
+  "核出处": "docs/papers/2608.24876.md §5.1.2 —— 六层挂在 Γ（因果链）事件上的机制/组件，不是 Python 文件",
+  "映射": {
+   "present": "文件/注册表",
+   "registered": "登记表",
+   "called": "Γ 中出现调用事件",
+   "succeeded": "外部回执匹配",
+   "produced_effect": "下游可观测产物",
+   "feedback_closed": "回到判分器"
+  },
+  "Table 4 的硬要求": "论文实测: 仅结果证据的故障定位 Macro-F1 = 0.0，**低于恒定猜测基线 33.3%**；原始轨迹条件下 61.1 ⇒⇒ Γ 必须记录『本应调用但未调用』（负事件），否则重犯母巢『调用失败看不出』的错",
+  "母巢的反面教材": "MechanismHealth 只有 call_count/is_healthy/last_called 三字段，把『从未调用』塞进 stale"
+ },
+ "三处落地": {
+  "1": "docs/QUALITY_GATE.md §门3 —— 措辞从『六层模型是候选，不是必然』改为『已裁决采用』+ 适用范围 + 后果",
+  "2": "scripts/gate.py —— 新增第五态 adopted_not_implemented；_gamma_present 改为按六层定义特征判定（不按文件名）",
+  "3": "src/dwc/foundation/activity.py —— 六层模型的第一份实现（12,346 B）+ 测试 23 项"
+ },
+ "五态全景（G3）": {
+  "n_a": "无可检对象（src/dwc 下没有 .py）",
+  "not_adopted": "声明不用六层（已裁决采用，当前不应出现）",
+  "adopted_not_implemented": "★ 采用已裁决但 Γ 还没写出来 —— activity.py 落地前的真实状态",
+  "fail": "★ 优先于 adopted_not_implemented（R14 我犯过一次这个错）",
+  "pass": "采用且齐备"
+ },
+ "★★ 本轮抓到的三个真缺陷": [
+  "① ★★★ activity.py 的 lit() 上游补齐切片写成 ORDER[:i]（不含第 i 层）⇒ lit(REGISTERED) 漏掉 registered 本身 ⇒ 而 __post_init__ 的单调性检查用同一写法，所以检查不出这个洞 ⇒ 被测试抓到（9 failed）⇒ 已修为 ORDER[:i+1]，stamp() 同步修",
+  "② ★★ _gamma_present 最初只认文件名（causal_chain/gamma/trace…），而实现命名为 activity.py ⇒ 门误报『Γ 尚未落地』⇒ 已改为按六层定义特征（class Layer / ORDER / Layer.PRESENT / FEEDBACK_CLOSED）判定 ⇒ 教训: 用文件名当判据 = 改名即误判（同 M2）",
+  "③ ★★ QUALITY_GATE.md 的 patch 吃掉了 `### ` 标题标记 ⇒ 已修"
+ ],
+ "变异验证": {
+  "方法": "破坏 gate.py / activity.py 各处，看测试是否变红",
+  "结果": "6/6 全抓到 —— ①Γ退回按文件名 ②第五态摘掉 ③切片改回 ④负事件点亮层 ⑤越级检查摘掉 ⑥dead判定失效",
+  "还原": "gate.py md5 8e8dae1a41 · activity.py md5 b3288e90b3 · 85 passed"
+ },
+ "当前状态": {
+  "gate.py": "7 道全PASS rc=0 ★ 首次 rc=0（且经变异验证非假绿）",
+  "pytest": "85 passed",
+  "src/dwc": "5 文件",
+  "活动模块自检": "rc=0"
+ },
+ "诚实边界": [
+  "★★ G3 现在报 pass，但它只检『六层字段名齐备 + Γ 定义特征存在』—— 这是**形式检查**，不是行为检查。真正验『六层被正确点亮』需要 Γ 事件驱动的运行期测试，而 organs/ 尚无任何器官产生事件 ⇒ 六层至今没有任何真实数据流过",
+  "★★ dead/stale 的判据基于 has_history_scores=false 的现状 —— 一旦历史序列落地，dead 的定义需要重审（什么叫『死』要看历史，不只看本轮）",
+  "★ 负事件目前只能由外部显式调用 stamp(NOT_CALLED) 记录，没有任何自动检测『本应调用但未调用』的机制 ⇒ 那需要 organs/ 的调用计划",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}

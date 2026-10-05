@@ -1,0 +1,420 @@
+# -*- coding: utf-8 -*-
+"""DWC 质量门 —— 可执行版。
+
+母巢的反面教材 (docs/QUALITY_GATE.md §封底):
+    门判了 12,717 次 promote/hold/prune, 实际停用 5 个机制,
+    mechanism_prune_shadow 建议 56,963 条 / applied=0。
+**门存在 ≠ 门被执行。**
+
+所以本文件的首要设计目标是: **门跑一次就留一次痕**,
+让"门存在但没人跑"这个病在 DWC 不可能悄悄发生。
+
+七道门对应母巢七条教训 L1-L7:
+    G1 定位门   新模块服务哪两件事之一?  有无重复抢位?
+    G2 真值门   成功判定有无系统外真值源? 有无硬编码成功?
+    G3 活性门   六层是否齐全且单调?  never_called 是否单列?
+    G4 生灭门   生成能力是否配套淘汰判据 + 上限?
+    G5 声称门   进度文档是否双栏且实测可复现?
+    G6 加减门   本月是否有减法记录?
+    G7 静默门   except 降级是否可观测? 是否伪装 ok=True?
+
+用法:
+    python scripts/gate.py# 跑全部
+    python scripts/gate.py --gate 2         # 只跑 G2
+    python scripts/gate.py --json           # 机器可读
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import datetime as _dt
+import io
+import json
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "src", "dwc")
+TESTS = os.path.join(ROOT, "tests")
+DOCS = os.path.join(ROOT, "docs")
+TRACE = os.path.join(ROOT, "archive", "gate_trace.jsonl")
+
+
+# ---------------------------------------------------------------- 基础设施
+
+def _py_files(root: str) -> list[str]:
+    out = []
+    if not os.path.isdir(root):
+        return out
+    for dp, dn, fns in os.walk(root):
+        dn[:] = [d for d in dn if d != "__pycache__"]
+        for fn in fns:
+            if fn.endswith(".py"):
+                out.append(os.path.join(dp, fn))
+    return out
+
+
+def _read(p: str) -> str:
+    try:
+        return io.open(p, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ""
+
+
+# ---------------------------------------------------------------- G1 定位门
+
+def gate1_locality() -> dict:
+    """新模块必须声明服务哪件事, 且无重复抢位。"""
+    files = _py_files(SRC)
+    violations = []
+    declared, replaces = {}, {}
+
+    for fp in files:
+        rel = os.path.relpath(fp, ROOT)
+        s = _read(fp)
+        tree = None
+        try:
+            tree = ast.parse(s)
+        except (SyntaxError, UnicodeDecodeError):
+            violations.append({"file": rel, "rule": "语法错误, 无法解析",
+                               "detail": ""})
+            continue
+
+        # 规则: 模块级 docstring 必须含定位声明
+        doc = ast.get_docstring(tree) or ""
+        if not re.search(r"DWC-(MEM|AUTO)", doc):
+            violations.append({
+                "file": rel, "rule": "缺定位声明",
+                "detail": "模块 docstring 必须写明 DWC-MEM(记忆底座) "
+                          "或 DWC-AUTO(自我强化)"})
+            continue
+
+        m = re.search(r"DWC-(MEM|AUTO)", doc)
+        declared[rel] = m.group(1)
+
+        # 规则: 替代声明不得冲突
+        for rm in re.finditer(r"REPLACES\s*=\s*['\"]([^'\"]+)['\"]", s):
+            tgt = rm.group(1)
+            replaces.setdefault(tgt, []).append(rel)
+
+    for tgt, owners in replaces.items():
+        if len(owners) > 1:
+            violations.append({
+                "file": ",".join(owners), "rule": "抢位冲突",
+                "detail": "REPLACES=%r 被 %d 个模块同时声明"
+                          % (tgt, len(owners))})
+
+    return {
+        "gate": 1, "name": "定位门", "lesson": "L1",
+        "files": len(files), "declared": declared,
+        "violations": violations,
+        "pass": not violations,
+    }
+
+
+# ---------------------------------------------------------------- G2 真值门
+
+# 母巢原样反例 (取自 P0-4 / P0-5)
+_MOTHERNODE_ANTI = [
+    (r"def\s+_?probe\w*\s*\([^)]*\)\s*(?:->[^:]+)?:\s*(?:#[^\n]*)?\n\s+return\s+True",
+     "P0-4 熔断 probe 恒 True"),
+    (r"return\s+0\.7\b", "P0-5 ScoreChannel 恒 0.7"),
+    (r"return\s+[\"']ok[\"']\s*,\s*[\"']stored[\"']", "P0-3 零副作用却报已存"),
+]
+
+
+def gate2_truth() -> dict:
+    """成功判定必须有系统外真值源; 禁硬编码成功。"""
+    files = _py_files(SRC)
+    violations = []
+
+    for fp in files:
+        rel = os.path.relpath(fp, ROOT)
+        s = _read(fp)
+        try:
+            tree = ast.parse(s)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # 规则 A: 无条件 return True / 常量的函数 (真在函数体内, 非注释)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            body = [x for x in node.body
+                    if not (isinstance(x, ast.Expr)
+                            and isinstance(x.value, ast.Constant))]
+            if not body:
+                violations.append({"file": rel,
+                                   "rule": "空函数体",
+                                   "detail": "%s 无任何语句"
+                                             % node.name})
+                continue
+            # 单条 return 常量 True 且函数名像探针
+            if len(body) == 1 and isinstance(body[0], ast.Return):
+                v = body[0].value
+                if isinstance(v, ast.Constant) and v.value is True:
+                    nm = node.name.lower()
+                    if any(k in nm for k in ("probe", "check", "verify",
+                                             "alive", "healthy", "test")):
+                        violations.append({
+                            "file": rel, "rule": "探针恒 True",
+                            "detail": "%s() 恒返回 True (母巢 P0-4)" % node.name})
+
+        # 规则 B: 母巢同款反模式
+        for pat, why in _MOTHERNODE_ANTI:
+            if re.search(pat, s):
+                violations.append({"file": rel, "rule": why, "detail": ""})
+
+        # 规则 C: 判定能力必须声明真值源
+        if re.search(r"\b(score|evaluate|judge|verdict|rate)\w*\s*\(", s):
+            if "TRUTH_SOURCE" not in s:
+                violations.append({
+                    "file": rel, "rule": "缺 TRUTH_SOURCE 声明",
+                    "detail": "含评分/判定能力, 必须声明系统外真值源"})
+
+    return {
+        "gate": 2, "name": "真值门", "lesson": "L2 + L7",
+        "files": len(files), "violations": violations,
+        "pass": not violations,
+    }
+
+
+# ---------------------------------------------------------------- G3 活性门
+
+LAYERS = ("present", "registered", "called", "succeeded",
+          "produced_effect", "feedback_closed")
+
+
+def gate3_activity() -> dict:
+    """六层齐全单调; never_called 单列; 弱判据不越级。"""
+    files = _py_files(SRC)
+    violations = []
+
+    if files:
+        blob = "\n".join(_read(f) for f in files)
+        for layer in LAYERS:
+            if layer not in blob:
+                violations.append({"file": "-", "rule": "缺活性层",
+                                   "detail": "无 %r 字段" % layer})
+        # 规则: "从未调用"不得混入 stale
+        for fp in files:
+            rel = os.path.relpath(fp, ROOT)
+            s = _read(fp)
+            for m in re.finditer(r"stale\.append\(\s*(\w+)\s*\)", s):
+                var = m.group(1)
+                seg = s[max(0, m.start() - 260):m.start()]
+                # 看它所在条件是否用了 call_count == 0
+                if re.search(r"%s\.call_count\s*==\s*0" % re.escape(var), seg):
+                    violations.append({
+                        "file": rel, "rule": "never_called 混入 stale",
+                        "detail": "母巢 P2-3 同款: 未调用≠曾经活跃"})
+        # 规则: 弱判据越级
+        for fp in files:
+            rel = os.path.relpath(fp, ROOT)
+            s = _read(fp)
+            for m in re.finditer(
+                    r"def\s+record_call\w*\s*\([^)]*\)[^:]*:(.*?)(?=\n    def |\Z)",
+                    s, re.S):
+                body = m.group(1)
+                for strong in ("succeeded", "produced_effect", "feedback_closed"):
+                    if re.search(r"%s\w*_layer\s*=\s*True" % strong, body):
+                        violations.append({
+                            "file": rel, "rule": "弱判据越级",
+                            "detail": "record_call 点亮了 %s" % strong})
+    return {
+        "gate": 3, "name": "活性门", "lesson": "L4",
+        "files": len(files), "violations": violations,
+        "pass": not violations,
+    }
+
+
+# ---------------------------------------------------------------- G4 生灭门
+
+_GEN_HINTS = (r"def\s+(compile|generate|synthes\w+|evolve|produce)\w*\s*\(",
+              r"def\s+_?\w*compile\w*\s*\(")
+
+
+def gate4_life_cycle() -> dict:
+    """生成能力必须配套淘汰判据 + 池子上限。"""
+    files = _py_files(SRC)
+    violations = []
+    has_gen = False
+
+    for fp in files:
+        rel = os.path.relpath(fp, ROOT)
+        s = _read(fp)
+        gen = any(re.search(p, s) for p in _GEN_HINTS)
+        if not gen:
+            continue
+        has_gen = True
+        need = []
+        if not re.search(r"(EVICT|evict\w*|淘汰)", s):
+            need.append("淘汰判据")
+        if not re.search(r"(POOL_LIMIT|MAX_POOL|pool_limit|max_pool)", s):
+            need.append("池子上限")
+        if not re.search(r"(OVERFLOW|overflow|超限|reject_new)", s):
+            need.append("超限行为")
+        for n in need:
+            violations.append({
+                "file": rel, "rule": "生成能力缺配套",
+                "detail": "缺 %s (母巢 L3: 1,447 生 / 5 死)" % n})
+
+    return {
+        "gate": 4, "name": "生灭门", "lesson": "L3",
+        "files": len(files), "generation_found": has_gen,
+        "violations": violations, "pass": not violations,
+    }
+
+
+# ---------------------------------------------------------------- G5 声称门
+
+def gate5_claims() -> dict:
+    """进度文档必须双栏且实测可复现。"""
+    prog = os.path.join(DOCS, "PROGRESS.md")
+    violations = []
+    if not os.path.exists(prog):
+        return {"gate": 5, "name": "声称门", "lesson": "L5",
+                "violations": [{"file": "docs/PROGRESS.md",
+                                "rule": "缺文件", "detail": ""}],
+                "pass": False}
+    s = _read(prog)
+    if "声称" not in s or "实测" not in s:
+        violations.append({"file": "docs/PROGRESS.md",
+                           "rule": "缺双栏", "detail": "须含'声称'与'实测'"})
+    if "取数" not in s:
+        violations.append({"file": "docs/PROGRESS.md",
+                           "rule": "实测不可复现",
+                           "detail": "须给取数命令"})
+    return {"gate": 5, "name": "声称门", "lesson": "L5",
+            "violations": violations, "pass": not violations}
+
+
+# ---------------------------------------------------------------- G6 加减门
+
+def gate6_subtraction() -> dict:
+    """ADR 存在性 + 本月减法记录。"""
+    adr_dir = os.path.join(DOCS, "adr")
+    adrs = [f for f in os.listdir(adr_dir)] if os.path.isdir(adr_dir) else []
+    # 减法记录: docs/adr/ 里含 SUBTRACT 的记录, 或 docs/ 下任何 reduc/减法/subtract 文件.
+    # 修 (2026-10-03): 原实现把**文件名**收进 subs, 却用 adr_dir 拼路径取 mtime ——
+    # 一旦命中文件在 adr_dir 之外 (如 docs/lessons/V8PRO_TO_V9_SUBTRACTION.md),
+    # 生成器为空 ⇒ max() 抛 ValueError ⇒ 整个 gate.py 崩溃 (不是判红, 是门失效).
+    # 改为全程持有**完整路径**, 且路径不存在时安全跳过.
+    subs = [os.path.join(adr_dir, a) for a in adrs if "SUBTRACT" in a.upper()]
+    if not subs:
+        for dp, dn, fns in os.walk(DOCS):
+            for fn in fns:
+                if re.search(r"reduc|减法|subtract", fn, re.I):
+                    subs.append(os.path.join(dp, fn))
+    now = _dt.date.today()
+    stale = []
+    if subs:
+        _mtimes = [os.path.getmtime(p) for p in subs if os.path.exists(p)]
+        if _mtimes:
+            newest = max(_mtimes)
+            days = (now - _dt.date.fromtimestamp(newest)).days
+            if days > 62:            # 两个月
+                stale.append(days)
+    violations = []
+    if stale:
+        violations.append({"file": "docs/adr", "rule": "减法记录过期",
+                           "detail": "最近减法记录距今 %d 天 (>62)" % stale[0]})
+    return {"gate": 6, "name": "加减门", "lesson": "L6",
+            "adr_count": len(adrs), "subtraction_records": len(subs),
+            "violations": violations, "pass": not violations}
+
+
+# ---------------------------------------------------------------- G7 静默门
+
+def gate7_silent() -> dict:
+    """except 降级必须可观测, 且不得伪装 ok=True。"""
+    files = _py_files(SRC)
+    violations = []
+    silent = total_exc = 0
+    for fp in files:
+        rel = os.path.relpath(fp, ROOT)
+        s = _read(fp)
+        for m in re.finditer(r"(?m)^\s*except\b[^:]*:", s):
+            total_exc += 1
+            seg = s[m.end():m.end() + 200]
+            if re.match(r"\s*pass\b", seg):
+                silent += 1
+                if not re.search(r"(logger|warning|counter|record_failure|audit)",
+                                 seg[:400]):
+                    violations.append({
+                        "file": rel, "rule": "静默 except",
+                        "detail": "except: pass 且无计数/日志"})
+        # 伪装 ok=True
+        for m in re.finditer(r"[\"']ok[\"']\s*:\s*True", s):
+            seg = s[max(0, m.start() - 300):m.start()]
+            if re.search(r"(return\s*$|->\s*dict)", seg) and \
+                    not re.search(r"(TRUTH_SOURCE|actually_written|side_effect)", seg):
+                violations.append({
+                    "file": rel, "rule": "疑似伪装成功",
+                    "detail": "返回 ok=True 但附近无副作用证据"})
+    return {
+        "gate": 7, "name": "静默门", "lesson": "L5(延伸)",
+        "files": len(files),
+        "silent_except": silent, "except_total": total_exc,
+        "violations": violations, "pass": not violations,
+    }
+
+
+# ---------------------------------------------------------------- 执行 + 留痕
+
+GATES = {
+    1: gate1_locality, 2: gate2_truth, 3: gate3_activity,
+    4: gate4_life_cycle, 5: gate5_claims, 6: gate6_subtraction,
+    7: gate7_silent,
+}
+
+
+def record(results: list[dict]) -> None:
+    """★ 门跑一次就留一次痕 —— 治"门存在但没人跑"。"""
+    os.makedirs(os.path.dirname(TRACE), exist_ok=True)
+    row = {"at": _dt.datetime.now().isoformat(timespec="seconds"),
+           "gates": [{"gate": r["gate"], "name": r["name"],
+                      "pass": r["pass"],
+                      "violations": len(r.get("violations", []))}
+                     for r in results]}
+    with io.open(TRACE, "a", encoding="utf-8", newline="") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--gate", type=int, choices=sorted(GATES))
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args()
+
+    keys = [args.gate] if args.gate else sorted(GATES)
+    results = [GATES[k]() for k in keys]
+
+    if args.json:
+        print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
+    else:
+        print("DWC 质量门  (%s)" % _dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        print("=" * 68)
+        for r in results:
+            mark = "✓ PASS" if r["pass"] else "✗ FAIL"
+            nv = len(r.get("violations", []))
+            print("[%s] G%d %-8s (%s)  违规 %d" % (
+                mark, r["gate"], r["name"], r["lesson"], nv))
+            for v in r.get("violations", [])[:8]:
+                print("        · %s | %s | %s" % (
+                    v.get("file", "")[:34], v.get("rule", ""),
+                    str(v.get("detail", ""))[:52]))
+            if nv > 8:
+                print("        … 另 %d 条" % (nv - 8))
+        ok = all(r["pass"] for r in results)
+        print("=" * 68)
+        print("总结: %s" % ("全部通过" if ok else "有门未过 —— 不许合入 src/dwc/"))
+        print("痕迹: %s" % os.path.relpath(TRACE, ROOT))
+
+    record(results)
+    return 0 if all(r["pass"] for r in results) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

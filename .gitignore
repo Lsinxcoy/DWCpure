@@ -1,0 +1,93 @@
+# Runtime artifacts — NEVER track (DWC)
+# 母巢教训 L6: 658,567 行"删除"其实是 git 出库，文件还在磁盘。
+# 产品复杂度没降，仓库只是干净了。运行时产物不该进版本控制。
+
+archive/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# 快照/检查点
+*_snapshot*.json
+*_snapshot*.jsonl
+*_checkpoint*.json
+*.checkpoint
+
+# 编译/生成产物 (母巢 3,808 个 .py 曾进过版本控制)
+compiled_mech*/
+generated/
+*.generated.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 环境
+.env
+.env.*
+!.env.example
+
+# ─────────────────────────────────────────────────────────────
+# 2026-10-05 追加（实测目录体积 622 MB 后核定）
+# ★ 上面的 archive/ 是对的（运行期台账），但它同时排除了
+#   archive/knowledge3_R*.json —— 那是我们每一轮的审计记录，
+#   属设计资产，不是运行期产物 ⇒ 必须入库。
+# ★★ git 规则要点: 父目录被 archive/ 忽略后，子文件上的 '!' **不生效**
+#   ⇒ 必须先 '!archive/' 解除目录忽略，再逐个 '!' 挑出要入库的文件。
+!archive/
+
+# 入库: 每轮的审计记录（★ 设计资产）
+archive/knowledge3_R*.json
+# ★ 入库: 改前备份（16-20 KB/个）—— R12 那天 fixture 误删源码，
+#   靠会话记录重建；这些 .bak 记录了每次改动前的状态
+archive/*.bak_*
+
+# 外部仓库克隆（436 MB，各自带 .git，入库会成嵌套仓库）
+.cache/
+
+# 论文 PDF 原文（166 MB，可从 arXiv 重新下载）
+papers_txt/
+
+# ★ papers/*.md（论文摘要与核验记录）要入库
+!papers/
+!papers/*.md
+
+# 备份文件（16-20 KB/个）——★ 决定**入库**：
+#   R12 那天 fixture 误删源码，靠会话记录重建；这些 .bak 记录了改动前状态
+# ★★★ 但这里有个 git 规则陷阱（实测踩到）:
+#   后面的 `*.bak_*`（无斜杠）会匹配**任意层级**的 .bak 文件，
+#   而它排在 `archive/*.bak_*` 之后 ⇒ 覆盖了 archive 下的那条。
+#   ⇒ 正确做法: 用 `!` 否定（优先级高于所有忽略规则），且必须排在最后。
+*.bak_*
+
+# 内存热链落盘（文档 §4 Layer 0，尚未实现）
+*.ring
+hot_chain/
+
+# ── 否定兜底（必须最后一行区域）──────────────────────────────
+# ★★★ gitignore 语义: 同一文件里**后出现的规则覆盖先出现的**；
+#   而 `!` 命中的优先级高于所有非否定规则。
+#   ⇒ 上面 `archive/*.bak_*` 会被后面的 `*.bak_*` 覆盖 ⇒ 必须在这里再否定一次。
+!archive/*.bak_*
+!archive/knowledge3_R*.json

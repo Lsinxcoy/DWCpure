@@ -1,0 +1,24 @@
+{
+ "round": "R13 · 补三处配置字段（Z1/Z3 · X1 · M6）+ 反向验证",
+ "date": "2026-10-05",
+ "落盘": {
+  "config/world_tree.yaml": "3,989 B · Z1/Z2/Z3/Z4/Z5/Z6 的配置面",
+  "config/difficulty.yaml": "3,152 B · X1/X2/X3 的配置面",
+  "config/dials.yaml": "2,972 B · M6 的四布尔",
+  "src/dwc/foundation/dial_config.py": "11,105 B · 三份配置的加载器+校验器",
+  "tests/test_dial_config.py": "8,962 B · 24 个反例 + 2 个契约测试"
+ },
+ "实测": "三份配置校验通过 · 反向验证 24/24 抓到 · pytest 全量 58 passed",
+ "★★ 本轮抓到的三个真漏洞（都是正向测试抓不到的）": [
+  "① zero_means=0（数字）让 `zero != 'NaN'` 短路成 False ⇒ 反向验证抓到 ⇒ 已补 isinstance 类型检查",
+  "② ★ Z3 的 task_group 检查排在 Z2 之后 ⇒ Z2 先因任务数不足报错 ⇒ task_group 永远轮不到 ⇒ 若将来任务数到 50+ 那个致命错误就没人拦 ⇒ 已把维度检查提前（顺序是契约）",
+  "③ ★★ 我自己在 X1 判据里把枚举写成 {residual, world_knowledge}，而 3.2 节原文是 {group_baseline, world_knowledge} ⇒ residual 是字段名不是语义值 ⇒ 已在 RESIDUAL_DIFFICULTY.md 更正"
+ ],
+ "诚实边界": [
+  "★★ 三份配置目前只是『声明』，不是『生效』—— Z4/Z5/Z6 的实现在 organs/world_model，而该目录不存在",
+  "★★ X3 在 deep_research.enabled=false 时无法被检验（没有代理可查）⇒ 属形态3死判据（能力不可得）",
+  "★★ M6 的四布尔保证它们的是 M4 与 P1，而 M4 尚无实现",
+  "★ n_stuck=3 无论文出处（我拍的）—— 已在 world_tree.yaml 里显式标注 source",
+  "★ 本轮全部结论未经第二人复核"
+ ]
+}

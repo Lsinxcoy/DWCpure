@@ -1,0 +1,288 @@
+# -*- coding: utf-8 -*-
+"""DWC 六层活性模型的载体 —— Γ 事件级机制活动追踪。
+
+★★★ 这个模块为什么现在写
+  2026-10-05 用户裁决：**DWC 采用六层活性模型**（2608.24876 §2.2.3 的 Γ 结构）。
+  而六层的正确载体是 Γ 事件上的机制/组件，不是 Python 文件
+  ⇒ 所以 gate.py 的 G3 需要一个真正的实现来"点亮"，否则永远是"待实现"。
+
+定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
+  ★ 机制活动状态 = "进化产物是否真被用"的记忆 ⇒ 属记忆底座。
+  ★ 本模块只提供数据契约与单调性校验，不做任何 IO、不决定进化。
+
+六层与点亮来源（2608.24876 §5.1.2 原文映射）
+    present         ← 文件 / 注册表存在
+    registered      ← 进入登记表（机制注册表）
+    called          ← Γ 中出现调用事件
+    succeeded       ← 外部回执匹配（★ 不是"我没抛异常"）
+    produced_effect ← 下游可观测产物
+    feedback_closed ← 回到判分器
+
+★★★ Table 4 的硬要求（本模块的核心设计约束）
+  论文实测: 仅结果证据的故障定位 Macro-F1 = 0.0，**低于恒定猜测基线 33.3%**；
+  原始轨迹条件下 Macro-F1 = 61.1。
+  ⇒⇒ Γ **必须记录"本应调用但未调用"**（负事件），否则 DWC 会重犯
+     母巢"调用失败看不出"的错（MechanismHealth 只有 call_count/is_healthy/
+     last_called 三字段，把"从未调用"塞进 stale）。
+  ⇒⇒ 所以本模块有第三个事件类型 `NOT_CALLED`，它**不是**异常路径，
+     而是**一等公民**：没调用是重要信息，不是缺失。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Dict, List, Optional, Set, Tuple
+
+# ══════════════════════════════════════════════════════════
+# 六层
+# ══════════════════════════════════════════════════════════
+
+
+class Layer(str, Enum):
+    PRESENT = "present"
+    REGISTERED = "registered"
+    CALLED = "called"
+    SUCCEEDED = "succeeded"
+    PRODUCED_EFFECT = "produced_effect"
+    FEEDBACK_CLOSED = "feedback_closed"
+
+
+#: ★ 层序 —— 单调性校验的依据。索引越大 = 越下游。
+ORDER: Tuple[Layer, ...] = (
+    Layer.PRESENT,
+    Layer.REGISTERED,
+    Layer.CALLED,
+    Layer.SUCCEEDED,
+    Layer.PRODUCED_EFFECT,
+    Layer.FEEDBACK_CLOSED,
+)
+
+ORDER_INDEX: Dict[Layer, int] = {lay: i for i, lay in enumerate(ORDER)}
+
+
+# ══════════════════════════════════════════════════════════
+# Γ 事件（★ 三类，第三类是负事件）
+# ══════════════════════════════════════════════════════════
+
+
+class EventKind(str, Enum):
+    REGISTER = "register"        # ← registered
+    CALL = "call"                # ← called
+    RECEIPT = "receipt"          # ← succeeded（外部回执匹配）
+    EFFECT = "effect"            # ← produced_effect（下游可观测产物）
+    FEEDBACK = "feedback"        # ← feedback_closed（回到判分器）
+    NOT_CALLED = "not_called"    # ★★★ 负事件：本应调用但未调用
+
+
+#: 事件类型 → 它点亮哪一层。★ NOT_CALLED 不点亮任何层（它记录"缺失"）
+EVENT_TO_LAYER = {
+    EventKind.REGISTER: Layer.REGISTERED,
+    EventKind.CALL: Layer.CALLED,
+    EventKind.RECEIPT: Layer.SUCCEEDED,
+    EventKind.EFFECT: Layer.PRODUCED_EFFECT,
+    EventKind.FEEDBACK: Layer.FEEDBACK_CLOSED,
+    # EventKind.NOT_CALLED → None（负事件，见上文 Table 4 硬要求）
+}
+
+
+class LayerError(Exception):
+    """违反层单调性。★ 承重代码不许静默降级（判据 E2/E3）。"""
+
+
+# ══════════════════════════════════════════════════════════
+# 机制活动状态（immutable snapshot）
+# ══════════════════════════════════════════════════════════
+
+
+@dataclass(frozen=True)
+class ActivityState:
+    """一个机制在某时刻的活性快照。★ frozen ⇒ 不可变（判据 I6 同款）。"""
+
+    mechanism: str
+    #: 已点亮的层（必是 ORDER 的前缀 —— 由构造器强制）
+    reached: frozenset = field(default_factory=frozenset)
+    #: ★ 负事件计数：本应调用但未调用的次数（Table 4 要求）
+    not_called: int = 0
+    #: 该机制从 present 起是否已进注册表（present 层的来源）
+    exists: bool = True
+
+    def __post_init__(self):
+        # ★ 单调性：若某层已点亮，则它上游所有层必须也点亮。
+        #   弱判据不得越级（G3 判据之一）。构造时就拦，不留到检查期。
+        reached = set(self.reached)
+        for lay in reached:
+            need = ORDER[: ORDER_INDEX[lay]]
+            missing = [x.value for x in need if x not in reached]
+            if missing:
+                raise LayerError(
+                    "机制 %r 的层 %r 已点亮但上游缺 %r ⇒ 弱判据越级"
+                    % (self.mechanism, lay.value, missing))
+
+    # ── 查询 ──
+    def at_least(self, layer: Layer) -> bool:
+        """是否已达某层。"""
+        return layer in self.reached
+
+    def depth(self) -> int:
+        """已达的最深层级（0 = 未点亮）。"""
+        if not self.reached:
+            return 0
+        return max(ORDER_INDEX[x] for x in self.reached)
+
+    def is_dead(self) -> bool:
+        """死机制判定：registered 但从未 called，或有负事件。
+
+        ★★ 不把"从未调用"混进 stale（G3 判据之一，母巢 P2-3 同款）。
+          母巢的 MechanismHealth 只有 call_count/is_healthy/last_called，
+          把"从未调用"塞进 stale ⇒ 这正是论文 Table 4 判定为低效的做法。
+        """
+        if not self.at_least(Layer.REGISTERED):
+            return False
+        return not self.at_least(Layer.CALLED) or self.not_called > 0
+
+    def to_dict(self) -> Dict:
+        """序列化。★ 供 TermReport / 五元盘点快照使用（M6 要求）。"""
+        return {
+            "mechanism": self.mechanism,
+            "reached": sorted(x.value for x in self.reached),
+            "depth": self.depth(),
+            "not_called": self.not_called,
+            "dead": self.is_dead(),
+        }
+
+
+# ══════════════════════════════════════════════════════════
+# 构造器 —— 唯一合法地"点亮"层的方式
+# ══════════════════════════════════════════════════════════
+
+
+def lit(*layers: Layer, exists: bool = True,
+        not_called: int = 0) -> ActivityState:
+    """构造一个 ActivityState，自动补齐上游层。
+
+    ★ 为什么自动补齐: 六层是**单调**的（弱判据不得越级）。
+      若要求调用方手动补齐，每个调用点都要重复写一遍 —— 迟早有人漏。
+
+    ★★ 2026-10-05 测试抓到真缺陷: 上游补齐原写作 ORDER[:ORDER_INDEX[lay]]
+      （不含第 i 层）⇒ lit(REGISTERED) 只得到 present，漏掉 registered 本身
+      ⇒⇒ 而 ActivityState.__post_init__ 的单调性检查也用同一写法，
+        所以它**检查不出这个洞**（漏的那层正好在被检查层的上游，
+        而自己没亮 → 不触发）
+    """
+    reached: Set[Layer] = set()
+    if exists:
+        reached.add(Layer.PRESENT)
+    for lay in layers:
+        # ★ 必须含第 i 层本身 ⇒ 切片到 i+1
+        reached.update(ORDER[: ORDER_INDEX[lay] + 1])
+    if not exists:
+        reached.discard(Layer.PRESENT)
+    return ActivityState(mechanism="", reached=frozenset(reached),
+                         not_called=not_called)
+
+
+def stamp(state: ActivityState, kind: EventKind) -> ActivityState:
+    """把一个 Γ 事件打到状态上，返回新状态（★ 不改原状态）。
+
+    ★ 负事件（NOT_CALLED）不点亮任何层，只累加 not_called 计数。
+    """
+    if kind is EventKind.NOT_CALLED:
+        return ActivityState(
+            mechanism=state.mechanism,
+            reached=state.reached,
+            not_called=state.not_called + 1,
+            exists=state.exists)
+    lay = EVENT_TO_LAYER.get(kind)
+    if lay is None:
+        raise LayerError("未知事件类型: %r" % kind)
+    reached = set(state.reached)
+    # ★ 切片到 i+1（含第 i 层本身）—— 与 lit() 同一个坑
+    reached.update(ORDER[: ORDER_INDEX[lay] + 1])
+    return ActivityState(mechanism=state.mechanism,
+                         reached=frozenset(reached),
+                         not_called=state.not_called,
+                         exists=state.exists)
+
+
+# ══════════════════════════════════════════════════════════
+# 机制注册表 —— 六层的前两层的载体
+# ══════════════════════════════════════════════════════════
+
+
+class MechanismRegistry:
+    """机制注册表。★ present/registered 两层的数据源。"""
+
+    def __init__(self):
+        self._states: Dict[str, ActivityState] = {}
+
+    def register(self, name: str) -> ActivityState:
+        """登记机制 ⇒ 点亮 present + registered。"""
+        st = ActivityState(mechanism=name,
+                           reached=frozenset({Layer.PRESENT,
+                                              Layer.REGISTERED}))
+        self._states[name] = st
+        return st
+
+    def apply(self, name: str, kind: EventKind) -> ActivityState:
+        """把事件打到已登记机制上。"""
+        st = self._states.get(name)
+        if st is None:
+            raise LayerError(
+                "机制 %r 未登记 ⇒ 不能记录 %r 事件（present 层未过）"
+                % (name, kind.value))
+        new = stamp(st, kind)
+        self._states[name] = new
+        return new
+
+    def get(self, name: str) -> ActivityState:
+        st = self._states.get(name)
+        if st is None:
+            raise LayerError("机制 %r 未登记" % name)
+        return st
+
+    def dead(self) -> List[str]:
+        """死机制名单。★ 与"stale"（曾经活跃后失效）**分开**。"""
+        return sorted(n for n, s in self._states.items() if s.is_dead())
+
+    def stale(self) -> List[str]:
+        """曾活跃后失效：已达 CALLED 但未达 SUCCEEDED。"""
+        return sorted(
+            n for n, s in self._states.items()
+            if s.at_least(Layer.CALLED) and not s.at_least(Layer.SUCCEEDED))
+
+    def all_states(self) -> List[ActivityState]:
+        return [self._states[k] for k in sorted(self._states)]
+
+    def snapshot(self) -> List[Dict]:
+        """全量快照。★ 供 TermReport 落盘（M6 的 snapshot 要求）。"""
+        return [s.to_dict() for s in self.all_states()]
+
+
+if __name__ == "__main__":
+    # 自检：四场景
+    reg = MechanismRegistry()
+    a = reg.register("mech_a")
+    print("登记后: depth=%d layers=%s" % (a.depth(), sorted(a.to_dict()["reached"])))
+
+    reg.apply("mech_a", EventKind.CALL)
+    reg.apply("mech_a", EventKind.RECEIPT)
+    s = reg.get("mech_a")
+    print("调用+回执后: depth=%d layers=%s dead=%s"
+          % (s.depth(), sorted(s.to_dict()["reached"]), s.is_dead()))
+
+    reg.register("mech_b")
+    reg.apply("mech_b", EventKind.NOT_CALLED)
+    reg.apply("mech_b", EventKind.NOT_CALLED)
+    b = reg.get("mech_b")
+    print("负事件×2后: not_called=%d dead=%s" % (b.not_called, b.is_dead()))
+
+    print("\ndead 名单: %s" % reg.dead())
+    print("stale 名单: %s" % reg.stale())
+    print("★ 两者不重叠: mech_b 是『从未调用』(dead)，mech_a 是『调用成功』(非 dead)")
+
+    # 越级必须 raise
+    try:
+        ActivityState(mechanism="x", reached=frozenset({Layer.SUCCEEDED}))
+        print("★ 越级未被拦 —— 有 bug")
+    except LayerError as e:
+        print("\n✓ 越级被拦: %s" % e)

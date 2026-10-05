@@ -1,0 +1,159 @@
+# DWC 能力组配置
+# ---------------------------------------------------------------------------
+# ★★ 2026-10-04 建立。依据 docs/CAPABILITY_GROUPS.md（缺口 A6）。
+#
+#   ★ 三组**不是**本项目划分的 —— 它们沿用 ARSI sealed_tasks.yaml 的
+#     category 字段（15 条逐条已核）。本文件做的是「显式声明 + 加固」。
+#
+#   ★ 为什么必须显式：ARSI 的 category 目前只是分组标签，**没有任何机制
+#     依赖它** ⇒ 判据 G5 要求至少存在两处消费点（门第⑦步 · 保护组回归）。
+#
+#   ★ 数据前提：
+#     组内任务与分数来自 organs/judge/ 的 TaskScorePoint（docs/TASK_SCORE_TRACKING.md）
+#     n_assertions 来自 sealed 任务的断言数（同上文件 §二）
+#
+#   ★ 本文件不含实现。src/ 仍为空。
+# ---------------------------------------------------------------------------
+
+version: 1
+
+# ── 加载器必须校验的硬约束（docs/CAPABILITY_GROUPS.md §五）───────────────
+constraints:
+  n_min_per_group: 3            # 每组至少 3 条任务（判据 G2）
+  # ★ 判据 G1: 每条 sealed 任务恰好属于一个 group_id（无遗漏、无重复）
+  # ★ 判据 G3: n_assertions_median 必须与 sealed_tasks 的实测值一致
+  # ★ 判据 G4: lambda_assert ≥ 1 / n_assertions_median（否则第⑦步是死判据）
+  # ★ 判据 G6: 组数 ≤ sealed 任务总数 / n_min_per_group
+
+derived_fields:
+  - name: lambda_floor_ratio          # = 1 / n_assertions_median
+    computed_by: loader               # ★ 由加载器重算, **不在配置里手填**
+    reason: >-
+      ★ 2026-10-04 实测教训: 手填派生字段必然漂移。
+      本文件初版为三组各写了一个 lambda_floor_ratio，
+      其中 knowledge_reasoning 写 0.286 而精确值是 0.2857142857…
+      ⇒ 核验脚本做 1e-6 比较时当场报红。
+      ⇒ 结论: 派生字段不该由人填，必须由 loader 从源数据重算。
+
+# ── 保护组回归容差（§9 第 25 项 (c) 的 ϵ_j）────────────────────────────────
+# ★ 必填、无默认值（与 G11 / K4 / X1 / Q1 同款纪律）
+# ★ 每个组的 epsilon 必须在此显式给出，不允许继承或缺省
+epsilon_default: null           # ★ 故意为 null —— 见 §九 诚实边界④
+
+groups:
+
+  # ── 组 1 ────────────────────────────────────────────────────────────────
+  - group_id: code_repair
+    sealed_task_ids:            # ★ 显式列举，不靠正则（判据 G1）
+      - code_fix_001
+      - code_fix_002
+      - code_fix_003
+      - code_fix_004
+      - code_fix_005
+      - code_fix_006
+    scoring: assertion          # ARSI 的 scoring 字段
+    verifier_rung: 1
+    n_assertions_per_task: [2, 2, 2, 3, 2, 2]   # ★ 实测, 逐条核自 sealed_tasks.yaml
+    n_assertions_total: 13
+    n_assertions_median: 2.0    # ★★ 标准中位数（实测；不是上中位数 2）
+    # ★★ 判据 G3 抓到的真错误: knowledge_reasoning 那组我曾写成 4（上中位数），
+    #   实测标准中位数是 3.5 ⇒ 已修正。1/median 随之从 0.250 变为 0.286。
+    lambda_assert: 1            # ★ 计数口径的容差，单位 = 个断言
+    epsilon: 1                  # ★ 保护组回归容差 ϵ_j
+    measurable: true            # ★ 组定义条件①的显式自陈
+    # ★ 组定义条件②「有历史成绩序列」目前为空（依赖 TaskScorePoint 落地）
+    has_history_scores: false
+    # ★ 组定义条件③「组间不重叠」: 本组 scoring=assertion，与另两组互异
+    disjoint_basis: scoring_mode
+
+  # ── 组 2 ────────────────────────────────────────────────────────────────
+  - group_id: knowledge_reasoning
+    sealed_task_ids:
+      - reasoning_001
+      - reasoning_002
+      - reasoning_003
+      - reasoning_004
+      - reasoning_005
+      - reasoning_006
+    scoring: keyword
+    verifier_rung: 1
+    n_assertions_per_task: [3, 3, 4, 4, 4, 3]   # ★ 实测（expected_keywords 的个数）
+    n_assertions_total: 21
+    n_assertions_median: 3.5    # ★★ 标准中位数 [3,3,4,4,4,3] ⇒ (3+4)/2 = 3.5
+    lambda_assert: 2            # ★ 按 断言总量/10 推的（21/10 ≈ 2），须真实负载校准
+    epsilon: 1
+    measurable: true
+    has_history_scores: false
+    disjoint_basis: scoring_mode
+
+  # ── 组 3 ────────────────────────────────────────────────────────────────
+  - group_id: paper_reproduction
+    sealed_task_ids:
+      - reproduce_001
+      - reproduce_002
+      - reproduce_003
+    scoring: value
+    verifier_rung: 3            # ★ 本组是 rung3（其余两组是 rung1）
+    n_assertions_per_task: [3, 2, 2]           # ★ 实测（expected_values 的键数）
+    n_assertions_total: 7
+    n_assertions_median: 2.0
+    lambda_assert: 1            # ★ 按 7/10 ≈ 1 推的
+    epsilon: 1
+    measurable: true
+    has_history_scores: false
+    disjoint_basis: scoring_mode
+    # ★★ 本组只有 3 条 ⇒ 其 epsilon 实际接近「单任务阈值」（掉 1 条 = 掉 33%）
+    #   且敏感度与另两组不等，而门是非补偿的 ⇒ 详见 §九 诚实边界④
+
+# ── 门第⑦步「累积退化判据」的形态（docs/GATE_CONFLICT.md §三）──────────────
+gate7:
+  unit: assertion_count          # ★ 单位是「个断言」，不是分数
+  # ★★ 为什么不用分数口径: 实测 median(n_assertions) 的 1/median 是
+  #   0.500 / 0.286 / 0.500 ⇒ 分数口径的 Λ=0.03 在三组上**全部**是死判据
+  #   （TASK_SCORE_TRACKING.md §八 实测）
+  comparison: strict_greater    # ★ 净增 > lambda_assert 才触发（不是 ≥）
+  window_source: term_boundary   # ★ 窗口上限 = ERROR_AND_TERM 的 term 边界
+  # ★ 门第⑦步依赖 A5（term 边界）—— 依赖链已闭合（见 LEVEL3_PROBE.md 问题2）
+
+# ── 消费者（判据 G5: 至少两处读 group_id）─────────────────────────────────
+consumers:
+  - gate7_accumulation           # 门第⑦步：按组算累积退化
+  - regression_guard_rhat        # §9 第25项(c)：保护组回归 r̂_{t,j} ≤ ϵ_j
+# ★ 若这两个被删而 group_id 仍只被记录不被读 ⇒ 三组只是标签（判据 R3 同款纪律）
+
+# ---------------------------------------------------------------------------
+# 2026-10-04 建立时的实测记录（rc=0 全通）
+# ---------------------------------------------------------------------------
+# ✓ G1: 15 条全被覆盖，无遗漏无重复
+# ✓ G2: 每组 ≥ 3 条（6 / 6 / 3）
+# ✓ G3: 中位数与 sealed_tasks 实测一致
+#   ★★ 第一次跑就红了: knowledge_reasoning 我写 4（上中位数），
+#      实测标准中位数 3.5 ⇒ 已修正。这正是 G3 存在的意义
+# ✓ G4: lambda_assert ≥ 1/median（0.500 / 0.286 / 0.500）三组全过
+#   反例: 若沿用分数口径 Λ=0.03，三组**全部**是死判据
+# ✓ G6: 组数上限 15/3 = 5，现用 3 ⇒ 加第 4 组需 ≥3 条新任务
+# ✓ 第⑦步计数口径: 单位「个断言」，三组语义一致，无需换算
+#   边界: 净增 == lambda_assert 时**不**触发（严格大于）
+#
+# ★★★ 实测暴露的遗留（诚实边界④）:
+#   knowledge_reasoning(λ=2) 与 paper_reproduction(λ=1) 在同一净增下结论相反
+#   ⇒ 三组敏感度不等，而门是非补偿的 ⇒ 小组被更严地惩罚
+#   ⇒ ★ 是否给小组放宽容差，未定。本文件如实保留三个拍的初值。
+
+# ---------------------------------------------------------------------------
+# 诚实边界
+# ---------------------------------------------------------------------------
+# ① 本文件不含实现；src/ 为空 ⇒ 六条判据（G1–G6）尚无代码可跑
+# ② ★★ lambda_assert = {1, 2, 1} 是按「断言总量/10」推的，无外部依据
+#   ★ 且推导假设了「各组断言难度相当」—— 实际上 code_repair 的断言
+#     （assert 布尔）与 knowledge_reasoning 的（关键词命中）难度不同
+#   ⇒ 三个值须在真实负载上校准（不可调整，否则改一次就要重跑校准）
+# ③ ★★ paper_reproduction 只有 3 条 ⇒ 其 epsilon 接近单任务阈值
+#   ⇒ 且三组敏感度不等，而门是非补偿的 ⇒ 见上面实测记录最后一段
+# ④ ★ 「组间不可重叠」只用 scoring 模式互异来判，未核三组任务的语义
+#   是否真互斥（code_fix_004 的 fibonacci 也属「算法推理」，
+#   与 knowledge_reasoning 的边界模糊）
+# ⑤ ★ 「20 基础设施 → code」这类对象到组的映射争议**不影响本文件**
+#   （本文件只管 sealed 任务的分组，不管 21 个进化对象的词表）
+# ⑥ ★ has_history_scores 全为 false ⇒ 组定义条件②未满足
+#   ⇒ 待 TaskScorePoint 落地后改 true（CAPABILITY_GROUPS.md §三）

@@ -1,0 +1,61 @@
+# DWC · 世界树收束策略（判据 Z1–Z6 的配置面）
+# ★ 本文件是 Z1/Z3 的落点: "设计说了、config 里没有"的两处字段。
+# ★ 全部字段无默认值 —— 与 G11 certification_limit / K4 editable /
+#   X1 semantics / Q1 claim_type 同款纪律（必填、不许隐式默认）。
+# 依据: docs/WORLD_TREE_CONVERGENCE.md §三（三条条件）+ §四（Z1–Z6）
+version: 1
+
+world_tree:
+  # ── Z1 · 收束策略（★ 无默认值；两路线不可互换）──
+  # ★★ 当前值 ig_tree 的依据（不是偏好，是算术）:
+  #   §三① 要求 n_tasks >= n_pareto_min，而 DWC 当前 15 条 < 50
+  #   ⇒ ⇒ 路线②（GEPA Pareto）的前置条件**不满足**
+  #   ⇒ ⇒ 而 §三③ 要求 lineage 记录能力，src/dwc/organs/world_model 尚未实现
+  #   ⇒ ⇒ 结论: 当前只能是路线①（信息增益单树深挖）
+  # ★★ 切换到 gepa_pareto 的三个前置（全部满足才允许）:
+  #   ① n_tasks >= n_pareto_min（本文件下方 + capability_groups 实际任务数）
+  #   ② §三② 可被 LLM 用自然语言反思并重写的东西存在
+  #      （prompt/指令/规则）⇒ 代码与架构不满足
+  #   ③ 有 lineage 记录能力（Z4 的 parent_id）
+  strategy: ig_tree            # ∈ {ig_tree, gepa_pareto} · 必填无默认
+
+  # ── Z3 · Pareto 前沿的维度（★ 显式声明，即使当前 strategy=ig_tree）──
+  # ★ 依据: GEPA Algorithm 2 是**逐任务实例**，不是逐总分
+  # ★★ 若误用 task_group/总分，Algorithm 2 的 line 4-5 退化为全局 argmax
+  #   ⇒ 那等于"永远选最好的" ⇒ 正是 Figure 6a 描述的局部最优陷阱
+  # ★★★ 所以即使当前不用 Pareto 路线，也必须显式写死 ——
+  #   否则将来切到 gepa_pareto 时会静默退化成"永远选最好的"
+  pareto_dim: task             # ∈ {task, task_group} · 必填无默认
+
+  # ── Z2 · n_pareto_min（★ 仅当 strategy=gepa_pareto 时校验）──
+  # ★★ 50 来自 GEPA 原文的实验规模，不是我的偏好
+  #   实测: DWC sealed=15 < 50 ⇒ 若切到 gepa_pareto 会被 Z2 判红
+  n_pareto_min: 50             # 必填无默认
+
+  # ── Z6 · 卡住检测（路线①的已知病，Figure 6a）──
+  stuck:
+    # ★★★ 来源标注（诚实）: 这个 3 是**我拍的**，不是论文给的数字。
+    #   GEPA Figure 6a 只说 "repeatedly attempts to refine it, fails to improve,
+    #   and ultimately **depletes the budget**" —— 描述现象，没给阈值。
+    #   ⇒★ 有一条独立文献给过相关现象（2404.14387 "struggle to improve after
+    #   more than three rounds"），但它讲的是"自主性停在 Med 档"，
+    #   与 GEPA 的"单候选 refinement 卡住"**是否同一现象未核** ⇒ 不能直接套。
+    #   ⇒⇒ 这就是为什么它写在这里而不是被当成有出处的值。
+    n_stuck: 3
+    source: "agent_choice · 无论文出处 · 见下方诚实边界①"
+    # 触发后怎么办（§三③ 的处置）
+    on_stuck: switch_strategy    # ∈ {switch_strategy, halt} · 必填无默认
+
+  # ── Z4/Z5 的运行期要求（此处只记配置面，实现待 organs/world_model）──
+  candidates:
+    persist: true                # ★ Z4: 候选必须持久化（原文 "tracked"）
+    lineage: parent_id           # ★ Z4: 必须记 lineage
+  merge:
+    require_all: true            # ★ Z5: 同一祖先 ∧ 互补集合 ∧ 都优于祖先
+    log_rate: true               # ★ Z5: 必须记录 merge 发生率（"merge occurs sparsely"）
+
+# 诚实边界:
+#   ① n_stuck=3 无论文出处（我拍的）· 2404.14387 的"三轮"语境不同，未核
+#   ② Z4/Z5/Z6 的实现不在本文件 —— 它们由 organs/world_model 承担，
+#      而该目录尚不存在 ⇒ 本文件目前只是"声明"，不是"生效"
+#   ③ strategy 切到 gepa_pareto 的三个前置见上方注释，目前 ①②③ 都不满足

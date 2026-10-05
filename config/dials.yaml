@@ -1,0 +1,43 @@
+# DWC · GAI 五元盘点的两个 dial（判据 M6 的落点）
+# ★ 本文件是 M6 的落点: "设计说了、config 里没有"的 dials.yaml。
+# ★ 依据: docs/MODIFIER_CRITIC.md §五（判据 M6）+ ARCHITECTURE §2.4.3
+# ★ 论文: GAI (arXiv:2609.13406) —— "These are the **two dials** of the framework"
+version: 1
+
+dials:
+  # ── dial 1 · m_in_agent ────────────────────────────────────────
+  # 改进器（modifier, m）**在不在 agent 内部**。
+  # ★ DWC 当前: true（改进器在 agent 内）⇒ 这是 DWC 与"外部选择器"路线的分界
+  # ★★ 依据 2603.25681 §3.3.3 的原文:
+  #     "No existing method ... has the main model curate its own training data
+  #      **without an external selector**"
+  #   ⇒ DWC 做的正是被点名的那个空白 ⇒ 这个值必须显式写死以便事后审计
+  m_in_agent: true              # 必填 · 无默认
+
+  # ── dial 2 · ρ（rho）三分 ──────────────────────────────────────
+  # ρ = evaluation base。三个布尔共同刻画它与 agent 的关系。
+  # ★★★ 依据 GAI grounded 条件②: base 必须在 agent 之外
+  #   （与原则 1「判据必须在系统之外」同源）
+  rho_grounded: true                    # ★ base 是否有外部真值源
+  rho_external_content: true            # ★ base 的内容是否来自 agent 之外
+  rho_agent_can_rewrite: false          # ★★ agent 能否改写 base ⇒ false 是硬要求
+  # ★★ rho_agent_can_rewrite: false 的意义:
+  #   若为 true，则 evaluation base 落在 agent 的可写面内
+  #   ⇒ 撞原则 1 ⇒ 且撞 2607.12790 实测的"评估器塌缩成 always-pass"
+
+# ── 落进五元盘点 χ=(π,V,m,U,ρ) 的每次报告 ──────────────────────
+# ★ 目的: 可事后审计"当时是哪一档"（MODIFIER_CRITIC §五 的要求）
+# ⇒ 每次 run_term 末的 TermReport 必须快照这四个布尔
+snapshot_into_term_report: true    # 必填 · 无默认
+snapshot_fields: [m_in_agent, rho_grounded, rho_external_content,
+                  rho_agent_can_rewrite]
+
+# 诚实边界:
+#   ① 四个布尔都是"声明"，不是"保证" —— 真正保证它们的是
+#      判据 M4（evidence 来源全在 agent 外）与 P1（不许跨器官私有态），
+#      而 M4 尚无实现 ⇒ 目前本文件是**待核对的声明**，不是生效的约束
+#   ② m_in_agent=true 意味着 DWC 放弃了"外部选择器"这条更稳的路线，
+#      这是对 2603.25681 理论断言的正面承受（该文说这条路需要
+#      "a reliable validation signal, which is often unavailable in
+#      autonomous settings" ⇒ intractable）⇒ 风险已在 CLAIM_SEPARATION 登记
+#   ③ snapshot_into_term_report 目前无实现（organs/ 全缺），是待兑现的承诺

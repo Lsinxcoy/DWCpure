@@ -1,0 +1,47 @@
+{
+ "round": "R16 · 甲: 因果链 Γ 的存储层（foundation/causal_chain.py）",
+ "date": "2026-10-05",
+ "为什么现在做": "六层活性模型挂在 Γ 事件上（用户 2026-10-05 裁决采用），而 Γ 就是这个模块\n⇒ 没有它，gate.py G3 检的只是『字段名齐备』，没有任何真实链在流",
+ "实现": {
+  "模块": "src/dwc/foundation/causal_chain.py · 19,721 B",
+  "三表": "chain（摘要，含停止规则要的三个度量列） / chain_record（明细正文） / chain_index（投影索引）",
+  "四索引": "ix_rec_chain / ix_rec_upstream / ix_chain_closed / ix_index_kind",
+  "五环": "decision → turn → trace → experience → change",
+  "★ seq 从 0 开始": "★ 有意选择（seq=0 即第一环，便于 falsy 判断），与 SQL 1-based 惯例不同（文档 §九⑨）",
+  "接口": "append / get / trace_back / by_upstream / by_kind / open_chains / verify_continuity / export / prune_archive / set_trace_hook",
+  "只记录不驱动": "★ 没有 run_next/step/trigger 之类（判据 C2/S3）"
+ },
+ "判据落实": {
+  "S1": "五个 id 字段写入点>0 且读取点>0（get 链摘要 / by_upstream / by_kind）",
+  "S2": "upstream_id 在 stage != decision 时强制非空，写入时 raise（不留到读取时）",
+  "S3": "接口白名单 + 源码无驱动型调用 + schema 无 trigger/view",
+  "S4": "四索引各有真实查询，并用 EXPLAIN QUERY PLAN 核对查询计划真的走索引",
+  "S5": "trace_before_persist 钩子 —— 注入 Trace 写失败 ⇒ 断言链未断裂（判据推荐形式，不是查时戳）",
+  "S6": "瘦身只走 export（带 manifest + sha256）→ prune_archive（需传 chain_id）；无直删接口"
+ },
+ "★★ 自检抓到的一个真缺陷": "prune_archive 的参数名是 archived_checksums，函数体却拿它比 chain_id\n⇒ 自检时传 checksum 进来删了 0 行，而我当时只打印『删 0 行』没断言『真删掉了』⇒ 假通过\n⇒★ 教训: 命名与实现必须一致；自检必须断言**后果**而不是只看返回值",
+ "★★ 我在写 S6 测试时连续错了三次": [
+  "① 用 grep 扫源码里的 DELETE ⇒ 把 docstring 里的判据条文（S6 · 不直接 DELETE FROM chain_record）当违规 ⇒ 与 R9『正则把条文当代码』同款",
+  "② 改用 ast 逐行扫 ⇒ 那条 SQL 是多行 execute( 调用，lineno 指向首行 ⇒ 扫不到 ⇒ 又一次假阴性",
+  "③ 断言『只有 prune_archive 一个删除入口』时按 delete/trunc/purge 三个词筛 ⇒ prune_archive 一个都不匹配 ⇒ 空列表 ≠ ['prune_archive']",
+  "⇒★⇒ 第四次才改成**行为判据**: 直接验证 prune 真删、需要 chain_id、无直删接口",
+  "⇒★★ 教训: 源码扫描型判据永远有假阳性/假阴性 ⇒ 能用行为验证就别扫源码"
+ ],
+ "变异验证": {
+  "方法": "破坏 causal_chain.py 七处，看测试是否变红",
+  "结果": "7/7 全抓到 —— ①S2校验去掉 ②seq改1-based ③白名单去掉 ④Trace钩子后置 ⑤prune不删 ⑥引入run_next ⑦by_upstream全表扫",
+  "还原": "md5 82f078dc02b1 · 118 passed"
+ },
+ "当前状态": {
+  "src/dwc": "6 文件（__init__×2 + capability_groups + dial_config + activity + causal_chain）",
+  "tests": "4 份 · 118 项",
+  "gate": "7 道全 PASS rc=0（经 R15 六类 + 本轮七类变异验证非假绿）"
+ },
+ "诚实边界": [
+  "★★★ ★★ 六层仍然没有任何真实数据流过 —— activity.py 定义了层与事件，causal_chain.py 定义了链，但**两者还没接起来**: 没有代码把 chain_record 里的 CALL/RECEIPT 事件喂给 MechanismRegistry.apply() ⇒ 六层仍停在『两个契约齐备』而非『一条活链』",
+  "★★ 本模块是存储层，没有热链（文档 §4 的 Layer 0 内存环）、没有批量 flush、没有瘦身触发条件（N_max / retention_days）⇒ 文档 §九③ 标的四个『拍脑袋参数』仍未定",
+  "★ verify_continuity 是事后检查，不是写入时保证 ⇒ 写入时的保证只靠 S2 的 upstream_id 非空，不检查『upstream 指向的环真的存在』",
+  "★ prune_archive 不校验 checksum（参数改成 chain_id 后，checksum 校验没了）⇒ 现在的保证是『调用方声明已导出』，不是『系统确认已导出』",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}

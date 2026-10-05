@@ -1,0 +1,49 @@
+# DWC · 残差难度 δ_θ 的配置面（判据 X1–X3 的落点）
+# ★ 本文件是 X1/X2 的落点: "设计说了、config 里没有"的 Difficulty 字段。
+# ★ 依据: docs/RESIDUAL_DIFFICULTY.md §3.2（dataclass 定义）+ §四（X1–X5）
+# ★ 归因: δ_θ 的唯一出处是 2609.04128（Environment Evolution），
+#   不是 2609.14858 —— 后者全文 "difficulty" 0 命中（已核）
+version: 1
+
+difficulty:
+  # ── X1 · semantics（★ 必填无默认；同一字段两义，事后不可解释）──
+  # ★★★ 枚举值取自 §3.2 的 dataclass 注释原文:
+  #     semantics: str  # ★ "group_baseline" | "world_knowledge"
+  #   ⚠ 我在 2026-10-04 的一版判据里写成 {residual, world_knowledge}，
+  #     那是**字段名**不是语义值 ⇒ 已在 X1 判据处更正。
+  #
+  # ★ 两条路线各自对应哪个值:
+  #   group_baseline  = 路线丙：δ_θ 相对**本组基线**的残余难度
+  #                     （DWC 当前只能算这个 —— p_𝒯 需外部知识源，而
+  #                      actor 走云端 LLM API 拿不到 logits ⇒ 路线甲物理上不可得）
+  #   world_knowledge = 路线甲：δ_θ 相对**世界知识**的难度
+  #                     （需 deep-research 代理，且它必须在写掩码之外 ⇒ X3）
+  semantics: group_baseline     # ∈ {group_baseline, world_knowledge} · 必填无默认
+
+  # ── X3 · 路线甲的写掩码约束（仅当 semantics=world_knowledge 时生效）──
+  # ★ 判据形式: deep-research 代理的模块不得出现在 𝒦_meta 的可编辑集
+  #   （同 G10 写掩码 + GAI grounded 条件②，与判据 I9 同款形式）
+  deep_research:
+    enabled: false              # ★ 当前为 false，因为 semantics=group_baseline
+    require_outside_write_mask: true   # ★ 硬要求：写掩码之外（不可配置放宽）
+
+  # ── X2 · n_obs 的语义约定（字段本身由运行期每次观测填入）──
+  # ★★ n_obs == 0 时 delta **必须**返回 NaN 而非 0:
+  #   "没观测过"与"观测到频率为 0"在数值上不可区分 ⇒ 必须显式区分
+  #   （与 C3' 的 n_obs=0 ⇒ NaN、Q5 的 Γ_t 不可算 ⇒ None 而非 0 同款纪律）
+  n_obs:
+    zero_means: NaN             # ★ 必填无默认 · 禁止写 0
+    rationale: "0 与『未观测』在数值上不可区分（同 C3' / Q5 纪律）"
+
+  # ── 门报告侧（X4）──
+  # ★ 门报告必须有 delta_semantics 字段且等于上面的 semantics
+  #   ⇒ 这是字段一致性比较，不是语义理解 ⇒ 可机械判
+  report_field: delta_semantics
+
+# 诚实边界:
+#   ① semantics 选 group_baseline 是**被物理约束逼出来的**，
+#     不是偏好 —— 路线甲的 p_θ 需要模型 logits，DWC 走云端 API 拿不到
+#   ② deep_research.enabled=false 时，X3 无法被检验（没有代理可查）
+#     ⇒ 切到 true 时必须补一条阳性测试，否则 X3 是死判据（形态3: 能力不可得）
+#   ③ 本文件只声明"用哪种语义"，不保证语义算得对 ——
+#     δ_θ 的计算实现在 organs/world_model，而该目录尚不存在

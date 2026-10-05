@@ -1,0 +1,41 @@
+{
+ "round": "R17 · 甲: 接线层（wiring.py）—— 六层第一次真的有数据流过",
+ "date": "2026-10-05",
+ "解决的问题": "R16 的诚实边界①: activity.py 定义了层与事件、causal_chain.py 定义了链，\n但两者没接起来 ⇒ 六层定义了却无任何真实数据流过\n⇒ 本模块 record() 同时写链并点亮活性层 ⇒ 链是唯一真值源（原则 3），活性只是投影",
+ "映射依据": {
+  "五环→六层": "decision→present · turn→registered · trace→called(+回执→succeeded) · experience→(不自动) · change→feedback_closed",
+  "succeeded 判据": "★ 只认 success_source ∈ {judge_verdict, tool_receipt}（ACTOR_DESIGN 的两个外部来源，原则 1）且 success 必须是显式 True；None（未评价）不算",
+  "produced_effect": "★ 不由 experience 环自动点亮，必须显式 effect_observed=True —— 『我学到了什么』≠『下游看到了什么』",
+  "负事件": "not_called=True 时仍写链留痕（缺失也是信息，2608.24876 Table 4 要求）但不点亮 CALLED"
+ },
+ "★★★ 本轮最大发现：六层语义被我连续强加错了两次": {
+  "第1次": "把『单调』实现成了『自动蕴含』—— lit()/stamp() 自动补齐上游 ⇒ 点亮 FEEDBACK_CLOSED 会连带点亮 SUCCEEDED ⇒ 『必须外部回执』的判据形同虚设 ⇒ 原则 1 被绕过而门还报全绿",
+  "第2次": "改成『必须声明直接上游』后，六层变成了**单向有序链** ⇒ 但核 2608.24876 §5.1.2 原文（逐字核）: 它只说『六层可直接从 Γ 逐层点亮』，给了六个**并列**来源，**从未说下游蕴含上游，也从未说必须按序点亮**",
+  "实测反证": "★ 一次调用『无外部回执但下游确实观测到了产物』（产物由 side-channel 产生）在有序链模型下**无法表达** —— 而这是真实存在的情况",
+  "最终模型": "★★ 六层是**六份并列证据**，不是一条链。ORDER 只留给 depth() 报告用；校验改由 REQUIRES 表（每层只要求它自己的证据）",
+  "谁发现的": "接线层的测试 —— 我自己写的测试逼出了自己写的错误实现"
+ },
+ "★★ 本轮抓到的其他缺陷": [
+  "自检抓到 KeyError: 映射表里 decision→PRESENT 而 _LAYER_TO_EVENT 没有 PRESENT ⇒ 我在注释里写了这件事却在循环里直接查表 ⇒ 已改 .get() 跳过",
+  "六个旧测试因语义变更而失败 ⇒ 逐条按新语义改写（含 3 条从『自动补齐』改为『必须声明证据』的意图）"
+ ],
+ "变异验证": {
+  "方法": "破坏 activity.py / wiring.py 九处，看测试是否变红",
+  "结果": "9/9 全抓到 —— ①恢复自动补齐 ②succeeded不要求called ③produced_effect加succeeded要求 ④REQUIRES校验摘掉 ⑤放宽回执白名单 ⑥success=None也算成功 ⑦负事件点亮called ⑧experience自动点亮effect ⑨present守卫失效",
+  "还原": "activity.py md5 33a4b433e4 · wiring.py md5 7df94dd675 · 154 passed"
+ },
+ "当前状态": {
+  "src/dwc": "7 文件（__init__×2 + capability_groups + dial_config + activity + causal_chain + wiring）",
+  "tests": "5 份 · 154 项",
+  "gate": "7 道全 PASS rc=0",
+  "★★ 六层状态": "★★★ 从『定义齐备但无数据』变成『真被点亮』—— 自检里 scorer depth=5（六层全亮）"
+ },
+ "诚实边界": [
+  "★★★ 六层的数据源目前全是**自检里的假事件** —— 没有任何真实器官产生事件。src/dwc/organs/ 仍是空的 ⇒ 所以『六层真被点亮』目前只在我写的测试场景里成立，系统里还没有一次真实的进化轮",
+  "★★ REQUIRES 表是**我定的**，论文只给六个来源、没说什么必须先有什么。⇒ SUCCEEDED 要求 CALLED 是我的判断（『无调用却成功』确实是矛盾的），但 PRESENT/REGISTERED/CALLED 之间的要求强度可以讨论",
+  "★ wiring.record 里『先 append 到链、再报『机制未登记』』是有意设计（缺失也留痕），但这意味着报错时链已被写入 —— 若调用方捕获异常继续跑，会留下一条无机制归属的链",
+  "★ 未测: 多个机制并发事件交织、跨进程的事件顺序（内存态的 registry 跨进程会丢）",
+  "★ wiring 与 causal_chain 的耦合是单向的：wiring 依赖 store，反向不成立 ⇒ 器官若绕过 wiring 直接写 store，活性会漏记 ⇒ 没有机制强制",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}

@@ -1,0 +1,175 @@
+{
+ "round": "R11 · scripts/ 其余脚本的假通过审计",
+ "date": "2026-10-05",
+ "口径": "判断是否会假通过, 问三件事: ①有无 pass/fail 判定 ②输入集合是否可能为空 ③空集合输出与真合规能否区分",
+ "结论": {
+  "高危_有判定且扫描且无空守卫": [],
+  "中危_有空守卫需看语义": [
+   "scan_evolution_order.py"
+  ],
+  "无判定_纯分析工具": [
+   "classify_papers19.py",
+   "dedup_audit.py",
+   "dedup_cross.py",
+   "deep_read_designs.py",
+   "extract_abstracts19.py",
+   "extract_evo16.py",
+   "scan_evolution.py",
+   "scan_evolution_design.py",
+   "scan_evolution_objects.py",
+   "scan_evolution_struct.py",
+   "scan_gates_apply.py",
+   "scan_lists.py",
+   "scan_write_vs_propose.py"
+  ]
+ },
+ "逐个": [
+  {
+   "file": "classify_papers19.py",
+   "bytes": 2853,
+   "lines": 55,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "dedup_audit.py",
+   "bytes": 3915,
+   "lines": 82,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": false,
+   "print": true
+  },
+  {
+   "file": "dedup_cross.py",
+   "bytes": 4764,
+   "lines": 85,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": false,
+   "print": true
+  },
+  {
+   "file": "deep_read_designs.py",
+   "bytes": 1870,
+   "lines": 38,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "extract_abstracts19.py",
+   "bytes": 1110,
+   "lines": 26,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": false,
+   "print": true
+  },
+  {
+   "file": "extract_evo16.py",
+   "bytes": 1361,
+   "lines": 35,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_evolution.py",
+   "bytes": 3219,
+   "lines": 64,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_evolution_design.py",
+   "bytes": 2571,
+   "lines": 53,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_evolution_objects.py",
+   "bytes": 2000,
+   "lines": 48,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_evolution_order.py",
+   "bytes": 4111,
+   "lines": 81,
+   "verdict": true,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_evolution_struct.py",
+   "bytes": 2039,
+   "lines": 54,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_gates_apply.py",
+   "bytes": 2381,
+   "lines": 52,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_lists.py",
+   "bytes": 1920,
+   "lines": 36,
+   "verdict": false,
+   "scan": false,
+   "empty_guard": true,
+   "print": true
+  },
+  {
+   "file": "scan_write_vs_propose.py",
+   "bytes": 2618,
+   "lines": 57,
+   "verdict": false,
+   "scan": true,
+   "empty_guard": true,
+   "print": true
+  }
+ ],
+ "★ 对照": "gate.py 是**唯一**有『7 道门 + pass/fail + rc』的脚本, 也是唯一出过假通过问题的 ⇒ ★★ 其余 14 个若只是分析工具, 则同类问题不存在",
+ "人眼复核_中危那一个": {
+  "文件": "scripts/scan_evolution_order.py（80 行）",
+  "结论": "★★ 做对了 —— 空集合有明确的三态标注，不与真判定混淆",
+  "证据": [
+   "第 42-43 行: if not evo: rows.append({... 'verdict': '无进化代码', 'n': 0}); continue",
+   "第 62 行: if not verdict: verdict.append('未识别')",
+   "⇒ ★ 空输入 ⇒ 明确说『无进化代码』或『未识别』，而不是说『合规』",
+   "★ 实跑验证: 5 个仓库报『无进化代码』· 16 处报『未识别』· 4 处报『先测后落』",
+   "★ 三个状态在输出里彼此可区分"
+  ],
+  "与 gate.py 的对比": "★★ gate.py 当初的问题是『空 ⇒ violations=[] ⇒ pass=True』，而 pass 与真通过**长得一样**\n⇒ 而这个脚本是『空 ⇒ 明确写『无进化代码』』⇒ 状态是显式命名的\n⇒ ⇒ ★★ 同一个人写的脚本，为什么一个中招一个没中招？\n  ★ 差别在于: 这个脚本的核心产物是**分析表**，它的『空』就是结论之一；\n    而 gate.py 的核心产物是**判决**，它的『空』会让判决无依据却仍给出判决",
+  "边界": "★ 它不检查 ROOT 是否存在（第 29 行 os.listdir(ROOT) 会抛异常）—— 实测 ROOT 存在（gh_clones 下有多个仓库），故未触发。★ 这不是假通过（它会崩而不是骗人），但仍是个隐患"
+ },
+ "★ 总结论": "★★★ 其余 14 个脚本**没有** gate.py 同类问题，原因清楚:\n  · 13 个是**纯分析/扫描工具**，没有 pass/fail 与退出码概念\n    ⇒ 它们输出『我看到了什么』，不输出『我判定合规』⇒ 空集合不会变成假判决\n  · 1 个（scan_evolution_order）有判定概念，但空集合被**显式命名**为\n    『无进化代码』/『未识别』⇒ 与真判定可区分\n⇒ ⇒ ★★ 所以假通过是 gate.py 的**独有问题**，不是 scripts/ 的普遍问题\n⇒ ⇒ ★ 根因是『判决型脚本』与『分析型脚本』的差别，不是某个人的疏忽",
+ "诚实边界": [
+  "★★ 我只人眼读了 1 个脚本（唯一有判定概念的那个），其余 13 个依据是机器初筛",
+  "★『无判定概念』的判定标准是字符串搜索 pass/fail/违规/合规/✓/✗ —— 漏判风险存在",
+  "★ 未逐个实跑这 13 个脚本（有的可能已失效）",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}

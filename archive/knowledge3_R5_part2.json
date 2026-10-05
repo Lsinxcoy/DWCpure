@@ -1,0 +1,186 @@
+{
+ "round": "R5 · 门可信度审计",
+ "date": "2026-10-04",
+ "part": "2 · 机器判定可靠性",
+ "roots": {
+  "M1_匹配失败": "正则/grep 因中文、希腊字母、含空格而漏判（我 R3/R4 各中一次）",
+  "M2_代理指标": "拿一个可测的代理（如编号是否出现）代替真判据（结论是否落地）",
+  "M3_口径未定": "数字口径/分母未先声明就统计（我在核对任务里犯过 3 次）",
+  "M4_命名空间": "编号在不同文档指不同东西，机器无法判定指的是哪一套"
+ },
+ "family_class": {
+  "A": {
+   "cls": "SEM",
+   "what": "actor 的可机械检查判据（§4.2 末）",
+   "note": "源码可判，但 A2/A3 编号与 ARCHITECTURE 的缺口编号冲突"
+  },
+  "C": {
+   "cls": "CODE",
+   "what": "因果链",
+   "note": "链上 id 写入/读取点计数 ⇒ 机器可靠"
+  },
+  "D": {
+   "cls": "DOC",
+   "what": "母巢缺陷编号（非判据，是缺陷清单）",
+   "note": "★ 不是判据却被当成判据编号 ⇒ 命名污染"
+  },
+  "E": {
+   "cls": "CODE",
+   "what": "错误处理二分",
+   "note": "grep except:pass 命中数 ⇒ 机器可靠"
+  },
+  "F": {
+   "cls": "CODE",
+   "what": "存储层",
+   "note": "DDL/表结构 ⇒ 机器可靠"
+  },
+  "G": {
+   "cls": "NUM",
+   "what": "能力组",
+   "note": "★ G3/G4 需重解析 sealed_tasks 并比中位数 ⇒ 口径敏感"
+  },
+  "I": {
+   "cls": "CODE",
+   "what": "铁律实现度",
+   "note": "★ I3『字段必须有设置方』需跨文件追踪 ⇒ 可判但易漏"
+  },
+  "J": {
+   "cls": "CODE",
+   "what": "judge 三层",
+   "note": "封印调用点/rung 占比 ⇒ 机器可靠"
+  },
+  "K": {
+   "cls": "NUM",
+   "what": "𝒦 词表",
+   "note": "★ K1『21 个对象逐一可映射』⇒ 需人工判断映射是否正确"
+  },
+  "L": {
+   "cls": "CODE",
+   "what": "Level3 探针",
+   "note": "kind 三值/target 非空 ⇒ 机器可靠"
+  },
+  "M": {
+   "cls": "CODE",
+   "what": "m/U 分离",
+   "note": "import 图 + 调用链 ⇒ 机器可靠（M2 需全量调用图）"
+  },
+  "P": {
+   "cls": "CODE",
+   "what": "器官接口",
+   "note": "AST 级 ⇒ 机器可靠"
+  },
+  "Q": {
+   "cls": "SEM",
+   "what": "三主张分离",
+   "note": "★ Q1 claim_type 三值可判; 但 Q5『不得声称世界级难度』是文案判据"
+  },
+  "R": {
+   "cls": "NUM",
+   "what": "保护组回归",
+   "note": "★ 需历史成绩序列，而它目前为空 ⇒ 判据暂不可判"
+  },
+  "S": {
+   "cls": "CODE",
+   "what": "存储正确性",
+   "note": "写入/读取点计数 ⇒ 机器可靠"
+  },
+  "T": {
+   "cls": "M4",
+   "what": "★ 两套 T1–T5（ERROR_AND_TERM 与 TASK_SCORE_TRACKING）",
+   "note": "★★ 编号撞车 ⇒ 机器无法判定"
+  },
+  "V": {
+   "cls": "CODE",
+   "what": "消费点验证",
+   "note": "transform/verify 一致性 ⇒ 机器可靠"
+  },
+  "W": {
+   "cls": "CODE",
+   "what": "世界树",
+   "note": "树结构唯一/provenance ⇒ 机器可靠"
+  },
+  "X": {
+   "cls": "CODE",
+   "what": "残差难度",
+   "note": "semantics/n_obs 必填 ⇒ 机器可靠"
+  },
+  "Z": {
+   "cls": "CFG",
+   "what": "世界树收束",
+   "note": "config 显式声明 ⇒ 机器可靠"
+  }
+ },
+ "need_human": [
+  {
+   "fam": "A",
+   "cls": "SEM",
+   "what": "actor 的可机械检查判据（§4.2 末）",
+   "note": "源码可判，但 A2/A3 编号与 ARCHITECTURE 的缺口编号冲突"
+  },
+  {
+   "fam": "D",
+   "cls": "DOC",
+   "what": "母巢缺陷编号（非判据，是缺陷清单）",
+   "note": "★ 不是判据却被当成判据编号 ⇒ 命名污染"
+  },
+  {
+   "fam": "G",
+   "cls": "NUM",
+   "what": "能力组",
+   "note": "★ G3/G4 需重解析 sealed_tasks 并比中位数 ⇒ 口径敏感"
+  },
+  {
+   "fam": "K",
+   "cls": "NUM",
+   "what": "𝒦 词表",
+   "note": "★ K1『21 个对象逐一可映射』⇒ 需人工判断映射是否正确"
+  },
+  {
+   "fam": "Q",
+   "cls": "SEM",
+   "what": "三主张分离",
+   "note": "★ Q1 claim_type 三值可判; 但 Q5『不得声称世界级难度』是文案判据"
+  },
+  {
+   "fam": "R",
+   "cls": "NUM",
+   "what": "保护组回归",
+   "note": "★ 需历史成绩序列，而它目前为空 ⇒ 判据暂不可判"
+  },
+  {
+   "fam": "T",
+   "cls": "M4",
+   "what": "★ 两套 T1–T5（ERROR_AND_TERM 与 TASK_SCORE_TRACKING）",
+   "note": "★★ 编号撞车 ⇒ 机器无法判定"
+  }
+ ],
+ "need_human_count": 7,
+ "family_total": 20,
+ "fails": [
+  {
+   "round": "R1",
+   "what": "误报 5 份 Prometheus 文档为『孤儿』",
+   "root": "M3_口径未定",
+   "detail": "扫描脚本只走 docs/ 顶层，没下钻 lessons/prometheus_lineage/"
+  },
+  {
+   "round": "R3",
+   "what": "误判『三元模型未落地』",
+   "root": "M1_匹配失败",
+   "detail": "正则写 ASCII theta_t，文档写希腊字母 θ_t ⇒ 假阴性"
+  },
+  {
+   "round": "R3",
+   "what": "误判『8 篇结论全未落地』",
+   "root": "M2_代理指标",
+   "detail": "用『编号是否出现』代替『结论是否落地』⇒ 假阳性"
+  },
+  {
+   "round": "R4",
+   "what": "正则解析中文标题三次失败（抓到 0 篇）",
+   "root": "M1_匹配失败",
+   "detail": "^[①-⑦]\\s+(\\S+) 抓不到含空格的环节名 ⇒ 最后靠人眼硬编码"
+  }
+ ],
+ "conclusion": "★★★ 体系性缺失: 20 族判据里**没有一条要求人眼复核**\n⇒ 而我这四次失误全部出自『只用机器判定』\n⇒ M1(匹配失败)×2 / M2(代理指标)×1 / M3(口径未定)×1 ⇒ 全部是机器判定自身失效\n⇒ ★★ 这不是四条独立失误，是一条判据设计原则的缺失"
+}

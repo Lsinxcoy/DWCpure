@@ -1,0 +1,1157 @@
+{
+ "generated": "2026-10-04",
+ "note": "知识库3 = 为 DWC 学过的全部论文",
+ "counts": {
+  "all": 48,
+  "with_report": 24,
+  "cited_no_report": 24,
+  "raw_only": 0
+ },
+ "items": {
+  "1208.3719": {
+   "txt": [
+    [
+     "1208.3719.txt",
+     "",
+     54672
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 2
+  },
+  "1606.04474": {
+   "txt": [
+    [
+     "1606.04474.txt",
+     "",
+     43358
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 2
+  },
+  "1611.01578": {
+   "txt": [
+    [
+     "1611.01578.txt",
+     "",
+     46572
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 2
+  },
+  "1611.02779": {
+   "txt": [
+    [
+     "1611.02779.txt",
+     "",
+     46949
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 2
+  },
+  "1703.03400": {
+   "txt": [
+    [
+     "1703.03400.txt",
+     "",
+     55174
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 2
+  },
+  "2203.14465": {
+   "txt": [
+    [
+     "2203.14465.txt",
+     "",
+     101401
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 1
+  },
+  "2309.16797": {
+   "txt": [
+    [
+     "2309.16797.txt",
+     "",
+     149706
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 3
+  },
+  "2310.02304": {
+   "txt": [
+    [
+     "2310.02304.txt",
+     "",
+     139931
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2505.22954.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 3
+  },
+  "2404.13501": {
+   "txt": [
+    [
+     "2404.13501.txt",
+     "",
+     147896
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/MEMORY_EVOLUTION_SURVEYS.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 16
+  },
+  "2404.14387": {
+   "txt": [
+    [
+     "2404.14387.txt",
+     "",
+     96750
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/MEMORY_EVOLUTION_SURVEYS.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 17
+  },
+  "2407.19594": {
+   "txt": [
+    [
+     "2407.19594.txt",
+     "",
+     58859
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2607.07663.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 5
+  },
+  "2408.08435": {
+   "txt": [
+    [
+     "2408.08435.txt",
+     "",
+     118824
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/WORLD_TREE_CONVERGENCE.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 8
+  },
+  "2501.07278": {
+   "txt": [
+    [
+     "2501.07278.txt",
+     "",
+     292361
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/REGRESSION_GUARD.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/MEMORY_EVOLUTION_SURVEYS.md",
+    "docs/papers/README.md",
+    "docs/papers/SELF_EVOLVING_SURVEYS.md"
+   ],
+   "cite_count": 19
+  },
+  "2502.16923": {
+   "txt": [
+    [
+     "2502.16923.txt",
+     "",
+     120262
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 3
+  },
+  "2504.01990": {
+   "txt": [
+    [
+     "2504.01990.txt",
+     "",
+     1389514
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 4
+  },
+  "2504.15228": {
+   "txt": [
+    [
+     "2504.15228.txt",
+     "",
+     63618
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md"
+   ],
+   "cite_count": 3
+  },
+  "2504.15585": {
+   "txt": [
+    [
+     "2504.15585.txt",
+     "",
+     417130
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 3
+  },
+  "2505.03335": {
+   "txt": [
+    [
+     "2505.03335.txt",
+     "",
+     197547
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 9
+  },
+  "2505.05522": {
+   "txt": [
+    [
+     "2505.05522.txt",
+     "",
+     142923
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2505.05522.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 16
+  },
+  "2505.22954": {
+   "txt": [
+    [
+     "2505.22954.txt",
+     "",
+     232229
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2505.22954.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/WORLD_TREE_CONVERGENCE.md",
+    "docs/papers/2505.22954.md",
+    "docs/papers/2603.19461.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 19
+  },
+  "2507.19457": {
+   "txt": [
+    [
+     "2507.19457.txt",
+     "",
+     275576
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/GAP_AUDIT.md",
+    "docs/WORLD_TREE_CONVERGENCE.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 8
+  },
+  "2507.21046": {
+   "txt": [
+    [
+     "2507.21046.txt",
+     "",
+     324320
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/README.md",
+    "docs/papers/SELF_EVOLVING_SURVEYS.md"
+   ],
+   "cite_count": 16
+  },
+  "2508.07407": {
+   "txt": [
+    [
+     "2508.07407.txt",
+     "",
+     247634
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/SELF_EVOLVING_SURVEYS.md"
+   ],
+   "cite_count": 11
+  },
+  "2601.05111": {
+   "txt": [
+    [
+     "2601.05111.txt",
+     "",
+     64966
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 5
+  },
+  "2603.06333": {
+   "txt": [
+    [
+     "2603.06333.txt",
+     "",
+     72513
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2603.06333.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/CAUSAL_CHAIN_STORAGE.md",
+    "docs/CAUSAL_CHAIN_VS_BUS.md",
+    "docs/ERROR_AND_TERM.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/REGRESSION_GUARD.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 47
+  },
+  "2603.19461": {
+   "txt": [
+    [
+     "2603.19461.txt",
+     "",
+     214492
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2603.19461.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2505.22954.md",
+    "docs/papers/2603.19461.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 21
+  },
+  "2603.25111": {
+   "txt": [
+    [
+     "2603.25111.txt",
+     "",
+     259851
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2603.25111.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/ARSI_ARCHITECTURE.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/RSI_PAPERS.md",
+    "docs/lessons/hermes_mstar_vocabulary.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 47
+  },
+  "2603.25681": {
+   "txt": [
+    [
+     "2603.25681.txt",
+     "",
+     566735
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2603.25681.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/COMPONENT_VOCABULARY.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/IRON_LAW_G11.md",
+    "docs/RESIDUAL_DIFFICULTY.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 44
+  },
+  "2606.09498": {
+   "txt": [
+    [
+     "2606.09498.txt",
+     "",
+     73606
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2606.09498.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GATE_CONFLICT.md",
+    "docs/MEMORY_CONTENT.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 56
+  },
+  "2606.14249": {
+   "txt": [
+    [
+     "2606.14249.txt",
+     "",
+     158069
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2606.14249.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GATE_CONFLICT.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 54
+  },
+  "2606.14502": {
+   "txt": [
+    [
+     "2606.14502.txt",
+     "",
+     500644
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/papers/2609.2680.md"
+   ],
+   "cite_count": 2
+  },
+  "2607.07663": {
+   "txt": [
+    [
+     "2607.07663.txt",
+     "",
+     145582
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2607.07663.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2505.22954.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/2607.07663.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/MEMORY_EVOLUTION_SURVEYS.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 24
+  },
+  "2607.12790": {
+   "txt": [
+    [
+     "2607.12790.txt",
+     "",
+     89982
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2607.12790.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "README.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/ARSI_ARCHITECTURE.md",
+    "docs/CLAIM_SEPARATION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GATE_CONFLICT.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/JUDGE_LAYERS.md",
+    "docs/QUALITY_GATE.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AUTHORITY.md",
+    "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 113
+  },
+  "2607.27201": {
+   "txt": [
+    [
+     "2607.27201.txt",
+     "",
+     178800
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2607.27201.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 18
+  },
+  "2607.27924": {
+   "txt": [
+    [
+     "2607.27924.txt",
+     "",
+     90184
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2607.27924.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 18
+  },
+  "2608.03392": {
+   "txt": [
+    [
+     "2608.03392.txt",
+     "",
+     247297
+    ]
+   ],
+   "report": null,
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/IRON_LAW_G11.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/STATE_SCHEMA.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/README.md",
+    "docs/papers/SELF_EVOLVING_SURVEYS.md"
+   ],
+   "cite_count": 40
+  },
+  "2608.10299": {
+   "txt": [
+    [
+     "2608.10299.txt",
+     "",
+     122621
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2608.10299.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 33
+  },
+  "2608.24876": {
+   "txt": [
+    [
+     "2608.24876.txt",
+     "",
+     122759
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2608.24876.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "README.md",
+    "docs/ACTOR_DESIGN.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/DIMENSIONS_FEASIBILITY.md",
+    "docs/DIMENSIONS_SCOPE_V1.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/MEMORY_CONTENT.md",
+    "docs/QUALITY_GATE.md",
+    "docs/RSI_PAPERS.md",
+    "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md"
+   ],
+   "cite_count": 42
+  },
+  "2609.04128": {
+   "txt": [
+    [
+     "2609.04128.txt",
+     "",
+     49611
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.04128.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ACTOR_TASK_SOURCE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GAP_AUDIT.md",
+    "docs/RESIDUAL_DIFFICULTY.md",
+    "docs/RESUME_2026-10-04_FINAL.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+    "docs/WORLD_TREE.md",
+    "docs/WORLD_TREE_CONVERGENCE.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 74
+  },
+  "2609.06396": {
+   "txt": [
+    [
+     "2609.06396.txt",
+     "",
+     221163
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.06396.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/RESUME_2026-10-04_EARLY.md",
+    "docs/RSI_PAPERS.md",
+    "docs/archive/ARCHITECTURE_v2_layerstack_REJECTED.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.06396.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.11873.md",
+    "docs/papers/2609.13406.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 62
+  },
+  "2609.08183": {
+   "txt": [
+    [
+     "2609.08183.txt",
+     "",
+     90391
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.08183.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ACTOR_DESIGN.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/JUDGE_LAYERS.md",
+    "docs/LEVEL3_PROBE.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 59
+  },
+  "2609.11873": {
+   "txt": [
+    [
+     "2609.11873.txt",
+     "",
+     342860
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.11873.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.06396.md",
+    "docs/papers/2609.11873.md",
+    "docs/papers/2609.13406.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 47
+  },
+  "2609.13406": {
+   "txt": [
+    [
+     "2609.13406.txt",
+     "",
+     59798
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.13406.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/ARSI_ARCHITECTURE.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/JUDGE_DESIGN.md",
+    "docs/MODIFIER_CRITIC.md",
+    "docs/RESUME_2026-10-04_FINAL.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AUTHORITY.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.06396.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.11873.md",
+    "docs/papers/2609.13406.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 70
+  },
+  "2609.14857": {
+   "txt": [
+    [
+     "2609.14857.txt",
+     "",
+     84180
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.14857.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/RSI_PAPERS.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.06396.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 40
+  },
+  "2609.14858": {
+   "txt": [
+    [
+     "2609.14858.txt",
+     "",
+     125267
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.14858.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ACTOR_TASK_SOURCE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/ARSI_ARCHITECTURE.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GAP_AUDIT.md",
+    "docs/NO_SHADOW.md",
+    "docs/RESIDUAL_DIFFICULTY.md",
+    "docs/RESUME_2026-10-04_FINAL.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_MODEL_AS_EVENT_SOURCE.md",
+    "docs/WORLD_TREE.md",
+    "docs/lessons/MOTHERNODE_LESSONS.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2607.27201.md",
+    "docs/papers/2607.27924.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 68
+  },
+  "2609.24972": {
+   "txt": [
+    [
+     "2609.24972.txt",
+     "",
+     84704
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.24972.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/COMPONENT_VOCABULARY.md",
+    "docs/EVOLUTION_CORE_AUDIT.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/GATE_CONFLICT.md",
+    "docs/IRON_LAWS_DESIGN.md",
+    "docs/RSI_PAPERS.md",
+    "docs/WORLD_TREE.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2606.09498.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2607.12790.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.04128.md",
+    "docs/papers/2609.08183.md",
+    "docs/papers/2609.14857.md",
+    "docs/papers/2609.14858.md",
+    "docs/papers/2609.24972.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 83
+  },
+  "2609.26457": {
+   "txt": [
+    [
+     "2609.26457.txt",
+     "",
+     105622
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.26457.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/ARSI_19_PAPERS_EVOLUTION.md",
+    "docs/EVOLUTION_CORE_DESIGN.md",
+    "docs/EVOLUTION_CORE_V2.md",
+    "docs/FULL_AUDIT_2026-10-04.md",
+    "docs/RSI_PAPERS.md",
+    "docs/lessons/omega_lineage_vocabulary.md",
+    "docs/papers/2505.05522.md",
+    "docs/papers/2603.06333.md",
+    "docs/papers/2603.25111.md",
+    "docs/papers/2606.14249.md",
+    "docs/papers/2608.10299.md",
+    "docs/papers/2608.24876.md",
+    "docs/papers/2609.26457.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/COMPARISON.md",
+    "docs/papers/README.md",
+    "docs/papers/VERIFICATION.md"
+   ],
+   "cite_count": 38
+  },
+  "2609.2680": {
+   "txt": [
+    [
+     "2609.2680_rsi_survey.txt",
+     "_rsi_survey",
+     226267
+    ]
+   ],
+   "report": "E:/Divine Wisdom Core/docs/papers/2609.2680.md",
+   "cited_by": [
+    "ARCHITECTURE.md",
+    "docs/CLAIM_SEPARATION.md",
+    "docs/DEEP_READ_REPORT_2026-10-04.md",
+    "docs/REGRESSION_GUARD.md",
+    "docs/RESUME_2026-10-04_NIGHT.md",
+    "docs/papers/2505.22954.md",
+    "docs/papers/2603.19461.md",
+    "docs/papers/2603.25681.md",
+    "docs/papers/2607.07663.md",
+    "docs/papers/2609.2680.md",
+    "docs/papers/MEMORY_EVOLUTION_SURVEYS.md",
+    "docs/papers/README.md",
+    "docs/papers/SELF_EVOLVING_SURVEYS.md"
+   ],
+   "cite_count": 81
+  }
+ }
+}
