@@ -1,0 +1,20 @@
+{
+ "round": "R21 · 七管枚举补全（recall/dream）+ 两管实现",
+ "date": "2026-10-05",
+ "起因": "R20 核实发现 Tube 枚举只有 5 个，漏了 recall/dream —— 而它们恰是七管的超集部分",
+ "★★ 我的错误理由": "R19 我以『recall 是读侧所以不算管』把它排除 ⇒ ★ 错的: 母巢的病恰恰是写入多读取少",
+ "实现": {
+  "Tube 枚举": "7 个齐（remember/recall/learn/reflect/evolve/dream/maintain）",
+  "dream()": "把同类失败归纳成候选技能，只读不落库（D6 沙箱语义）",
+  "maintain()": "三层判据执行归档 + 审计（held/archived/protected 三桶）",
+  "归属更正": "失败签名 → reflect 管（依 §四 归属表）；learn 管 → 技能",
+  "模块大小": "memory.py 28,069 B"
+ },
+ "测试": "197 项（含 3 项枚举完整性）",
+ "诚实边界": [
+  "★★★ dream() 的『场景/方法/边界』是从 (c,q,m) + payload.detail 拼的，不是真正从内容归纳 ⇒ 它是接口占位，不是智能归纳",
+  "★★★ maintain() 的三层判据只用了 access/effect/rare 三项证据，尚未接入 config/retention.yaml 的 dead_after_terms（D8 仍无实现）",
+  "★ dream 只聚『被用过』的记忆 ⇒ 若一条都没被用过就不给候选 —— 这意味着 D7 与 dream 会互相饿死（没被用⇒不归纳⇒不进化⇒更不被用）",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}
