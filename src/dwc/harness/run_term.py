@@ -65,6 +65,26 @@ class LawViolation(TermError):
 #: 就是它 —— 所以它必须先 register 才能记任何事件。
 MECHANISM = "memory_kernel"
 
+#: ★★★ TRUTH_SOURCE（判据 G2 要求: 含评分/判定能力的模块必须声明）
+#:
+#: ★★★★ 重要: 本模块**不自己判分** —— 它调用 judge 判分，
+#:   而 judge 的真值源在 dwc.organs.judge.TRUTH_SOURCE
+#:   ⇒⇒ 所以这里的声明是**转发**声明，不是"我有个真值源"
+#: ⇒⇒ ★ 那为什么还要声明？因为 G2 的判据形态是
+#:   「有 score/evaluate/judge 能力 ⇒ 必须显式写出分数从哪来」
+#:   ⇒ 若我不写，读者会以为 run_term 里有自评逻辑
+#:   ⇒ 而 run_term 里恰好**有一处**需要说明：_build_observations
+#:   造的那批**自造观测**（用 golden 关键词拼，必然通过）
+#:   ⇒⇒ 所以这里必须点明: 那批观测不是真值源，是"验接线用的假数据"
+TRUTH_SOURCE = {
+    "本模块不自评": "判分一律转发 dwc.organs.judge.Judge",
+    "真值源位置": "dwc.organs.judge.TRUTH_SOURCE（config/anchors/dev.json）",
+    "★ 自造观测": ("_build_observations 造的观测是**假数据**"
+                "（用 golden 关键词拼，必然通过）"
+                "⇒ 它证明接线通，不证明判分有效"
+                "⇒ ⇒ 绝不可被当作分数来源"),
+}
+
 
 # ══════════════════════════════════════════════════════════
 # 成本台账（判据 T4）
