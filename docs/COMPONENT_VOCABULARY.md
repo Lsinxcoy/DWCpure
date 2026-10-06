@@ -1,6 +1,11 @@
 # DWC 𝒦 词表补全（缺口 A3）
 
-> **状态**：设计定稿（**未写代码**，`src/` 与 `config/` 均空）
+> **状态**：**已实现**（R38 · 2026-10-06）
+>   ★ 原行写「未写代码，src/ 与 config/ 均空」—— **已是假陈述**
+>     （`src/dwc/organs/evolver.py` 的 `LAYER_BY_ITEM`/`K_META`/`layer_of`
+>      已落地并有测试锁；G5 声称门**没抓到**这一行，已记录为 G5 盲区）
+>   ★ 已落地: §2.1 𝒦_meta 5 项 · §四① 逐项映射（裁决 D）· K2/K3/K4 判据
+>   ★ 未落地: §四② 新颖度 ν_t · §四③ 剪枝 ℬ_t · §四④ 探索 ℰ_t · K1/K5/K6
 > **日期**：2026-10-04 · **来源**：`docs/GAP_AUDIT.md` 缺口 A3 + §二①（同一件事，两处分别记）
 > **参照（已核原文，非报告转述）**：`E:/Divine Wisdom Core/papers_txt/2609.24972.txt`
 > —— 式12 词表 / 式13 探索状态 / 式14 剪枝 / 式15 `K_str` / 式16 新颖度
@@ -159,9 +164,35 @@ RRSI 式12 原文（已逐字核，papers_txt/2609.24972.txt）:
 ```text
 ① proposer（m）只能在 𝒦 ∪ 𝒦_meta 里选组件, 且必须声明:
      component_type ∈ 𝒦 | 𝒦_meta
-     target_layer  ∈ assets (𝒦) | architecture (𝒦_meta)
-   ★★ 两个字段必须一致: component_type ∈ 𝒦 ⇒ target_layer 必为 assets
-     ★ 不一致 ⇒ 声明与意图矛盾, 门应拒（判据 K3）
+     target_layer  ∈ assets | architecture
+   ★★ 两个字段必须一致 ⇒ 不一致 = 声明与意图矛盾, 门应拒（判据 K2）
+
+   ╔═══════════════════════════════════════════════════════════╗
+   ║ ★★★★ 【R38 修订 · 2026-10-06 用户裁决 D】**逐项映射**    ║
+   ║                                                           ║
+   ║ 原文（一刀切）: `target_layer ∈ assets (𝒦) |               ║
+   ║                        architecture (𝒦_meta)`             ║
+   ║ ⇒⇒ ★ 与 §三 的**逐项处置冲突**（原表述有内部矛盾）:       ║
+   ║   §3.1 code「仍须过 b_t + 保护组回归」⇒ **无批准要求**     ║
+   ║   §3.2 architecture「门通过 ≠ 可落地 ⇒ 须人工批准」        ║
+   ║   而原映射把整个 𝒦_meta 归 architecture ⇒ code 被迫批准   ║
+   ║   ⇒⇒ **与 §3.1 明文冲突**（§三 才是逐项处置的实质内容）    ║
+   ║                                                           ║
+   ║ ★ 修订: `target_layer` 由**每项的处置**决定，             ║
+   ║         不由「在哪张表」决定（LAYER_BY_ITEM 逐项）:        ║
+   ║   code                → assets       （§3.1 无批准）       ║
+   ║   architecture        → architecture （§3.2 须批准）       ║
+   ║   meta_evolution      → architecture （§3.3 系统层，保守）  ║
+   ║   evaluator           → architecture （§3.4 不可编辑）     ║
+   ║   external_source     → architecture （§3.5 只读登记）     ║
+   ║   𝒦 9 项             → assets        （原样，未动）        ║
+   ║                                                           ║
+   ║ ★ 与原映射的差别**只有 `code` 一项**；§三 三处处置         ║
+   ║   **一字未改**（改的是 §四① 那句粗映射）                  ║
+   ║ ★ K2 判据不变（真值表更细，判据照常查）                   ║
+   ║ ★ 实现: src/dwc/organs/evolver.py `LAYER_BY_ITEM`         ║
+   ║   + 测试 `test_layer_of_per_item_ruling_d`（14 项全锁）    ║
+   ╚═══════════════════════════════════════════════════════════╝
 
 ② 新颖度 ν_t（式16 的 DWC 版）:
      ν_t(H') = Σ_{ℓ ∈ K_str ∪ {meta_evolution}} 1[ℓ ∈ comp(H') ∧ N_t(ℓ)=0]

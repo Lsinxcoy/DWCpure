@@ -738,11 +738,24 @@ def test_k3_evaluator_and_external_source_readonly():
 
 def test_layer_of_covers_both_tables():
     """§四① 真值表: 𝒦 ⇒ assets · 𝒦_meta ⇒ architecture · 词表外 ⇒ raise。"""
-    from dwc.organs.evolver import (COMPONENT_VOCAB, K_META, layer_of)
-    for c in COMPONENT_VOCAB:
-        assert layer_of(c) == "assets"
-    for c in K_META:
-        assert layer_of(c) == "architecture"
+    from dwc.organs.evolver import (COMPONENT_VOCAB, K_META, layer_of,
+                                    LAYER_BY_ITEM)
+    # ★★★ R38 裁决 D: **逐项映射** ⇒ 「𝒦_meta 全归 architecture」
+    #   这个断言（写于 D 之前）已被 §3.1 证伪:
+    #     §3.1 code 只要 b_t+回归 ⇒ 无批准 ⇒ 归 assets
+    #   ⇒ ⇒★ 改成: 两表**都能归层**（层由 LAYER_BY_ITEM 逐项给）
+    #   ⇒ ⇒★ 具体每项的期望值由 `test_layer_of_per_item_ruling_d` 锁
+    for c in list(COMPONENT_VOCAB) + list(K_META):
+        assert layer_of(c) in ("assets", "architecture"), \
+            "★ %s 归不了层" % c
+        assert LAYER_BY_ITEM.get(c) == layer_of(c)
+    # ★ 反向索引也必须与逐项表一致（不许两张表各说各话）
+    from dwc.organs.evolver import LAYER_BY_GROUP
+    for lay, comps in LAYER_BY_GROUP.items():
+        for c in comps:
+            assert layer_of(c) == lay, \
+                "★ LAYER_BY_GROUP[%s] 含 %s，但 layer_of 说 %s" % (
+                    lay, c, layer_of(c))
     # ★ 词表外必须**不猜**（返回任何层 = 编造）
     with pytest.raises(ValueError) as ex:
         layer_of("banana")
@@ -888,16 +901,19 @@ def test_component_vocab_is_single_sourced_everywhere():
         ok=True, source="llm", text=json.dumps({
             "patches": ["s = s.lower()\nreturn s == s[::-1]"],
             "m": "m", "component": "code", "dimension": "D1",
-            "target_layer": "architecture"}))))
+            "target_layer": "assets"}))))  # ★ R38/D
     r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
     assert r["n"] >= 1, \
         ("★ 生成侧拒了 𝒦_meta 合法组件（why=%s）"
          % str(r.get("why"))[:150])
     c = r["candidates"][0]
-    assert c.component == "code" and c.target_layer == "architecture"
-    # K2 与单源同向
-    assert check_pairing("code", "architecture") == []
-    assert check_pairing("code", "assets")
+    # ★★★ R38 裁决 D: code ⇒ **assets**（§3.1 只要 b_t+回归，无批准）
+    #   这三行原来锁的是「code=architecture」（旧的一刀切）
+    assert c.component == "code" and c.target_layer == "assets"
+    # K2 与单源同向（真值表变了，K2 自动跟）
+    assert check_pairing("code", "assets") == []
+    assert check_pairing("code", "architecture"), \
+        "★ D 生效后 code+architecture 应被 K2 拒（§3.1 不要求批准）"
 
 
 def test_meta_component_reaches_fully_end_to_end():
@@ -917,3 +933,65 @@ def test_meta_component_reaches_fully_end_to_end():
     assert e["target_layer"] == "architecture"
     assert Mutator.check_entry("E:q:f", e) == [], \
         "④ schema 拒了: %s" % Mutator.check_entry("E:q:f", e)
+
+def test_layer_of_per_item_ruling_d():
+    """★★★★★ R38 裁决 D · **逐项映射**（真值表不许再按表一刀切）。
+
+    ★★★ 依据（用户 2026-10-06 拍板 D）:
+      §3.1 code 「仍须过 b_t + 保护组回归」⇒ **无人工批准要求**
+      §3.2 architecture「门通过 ≠ 可落地 ⇒ 须批准」
+      §四① 原来的「𝒦_meta ⇒ architecture」一刀切 ⇒ code 被迫要批准
+      ⇒⇒ **与 §3.1 明文冲突**
+      ⇒ ⇒★ 改成逐项: 只有 `code` 从 architecture → assets，
+        其余 𝒦_meta 项与原表一致
+
+    本测试锁**每一项**的层（少改任何一项这里就红）。
+    """
+    from dwc.organs.evolver import layer_of, LAYER_BY_ITEM, check_pairing
+    # ★ 逐项期望（依据写在注释里，可复核）
+    expect = {
+        # 𝒦 9 项全 assets（§四① 原样）
+        "prompt": "assets", "control_flow": "assets", "config": "assets",
+        "output_plumbing": "assets", "context_mgmt": "assets",
+        "client_tool": "assets", "skill": "assets", "memory": "assets",
+        "subagent": "assets",
+        # 𝒦_meta 5 项按 §三 处置
+        "code": "assets",             # ★ D 的唯一变化（§3.1 无批准）
+        "architecture": "architecture",  # §3.2 须批准
+        "meta_evolution": "architecture",  # §3.3 系统层（保守）
+        "evaluator": "architecture",       # §3.4 不可编辑
+        "external_source": "architecture",  # §3.5 只读登记
+    }
+    assert set(LAYER_BY_ITEM) == set(expect), \
+        "★ 逐项表项数变了: 多 %s 少 %s" % (
+            set(LAYER_BY_ITEM) - set(expect), set(expect) - set(LAYER_BY_ITEM))
+    for comp, lay in expect.items():
+        assert layer_of(comp) == lay, \
+            "★ %s 应归 %s，实得 %s（逐项处置被改回一刀切？）" % (
+                comp, lay, layer_of(comp))
+    # ★★ D 的关键断言: code 与 architecture **分在两层**
+    assert layer_of("code") != layer_of("architecture"), \
+        "★ D 没生效: code 又被一刀切回 architecture"
+    # ★ K2 随真值表自动跟（不用改判据）
+    assert check_pairing("code", "assets") == []
+    assert check_pairing("code", "architecture"), \
+        "★ K2 应拒 code+architecture（§3.1 不要求批准）"
+
+
+def test_code_component_is_fully_acceptable_end_to_end():
+    """★ code 组件从生成到固化全通（D 之前它在中途被拒）。"""
+    from dwc.organs.evolver import Mutator, layer_of
+    g = CandidateGenerator(llm=_mock(LLMResult(
+        ok=True, source="llm", text=json.dumps({
+            "patches": ["s = s.lower()\nreturn s == s[::-1]"],
+            "m": "m", "component": "code", "dimension": "D1",
+            "target_layer": "assets"}))))
+    r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    assert r["n"] >= 1, ("① 生成侧拒了 code（why=%s）"
+                         % str(r.get("why"))[:140])
+    c = r["candidates"][0]
+    assert c.target_layer == "assets", \
+        "② code 应归 assets（§3.1 无批准要求）"
+    e = Mutator.entry_from_candidate(c)
+    assert Mutator.check_entry("E:q:f", e) == [], \
+        "③ schema 拒了: %s" % Mutator.check_entry("E:q:f", e)

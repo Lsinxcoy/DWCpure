@@ -414,8 +414,11 @@ class CandidateGenerator:
             + ", ".join(sorted(COMPONENT_VOCAB)) + ", "
             + ", ".join(sorted(K_META)),
             # ★★★★ R37 · §四①「两个字段必须**一致**」
-            "  · component 在 𝒦 ⇒ target_layer 必须是 assets" ,
-            "  · component 在 𝒦_meta ⇒ target_layer 必须是 architecture",
+            # ★★★★★ R38 裁决 D: **逐项**映射（不是「在哪张表」）
+            #   §3.1 code 只需 b_t+回归 ⇒ 归 assets（与其它 𝒦_meta 项不同）
+            "  · 多数 component ⇒ target_layer=assets（含 code！）",
+            "  · architecture / meta_evolution / evaluator / external_source"
+            " ⇒ target_layer=architecture",
             "  · 不一致 = 声明与意图矛盾（会被门拒）",
             # ★★★★ R37.1 · **选择引导**（实测: 模型总选 code+assets ⇒ 自相矛盾）
             #   实测: 任务是"修函数体的 bug" ⇒ 模型选 `code`(𝒦_meta)
@@ -427,8 +430,8 @@ class CandidateGenerator:
             #     两者不同 —— 本任务只改函数体 ⇒ 应选 𝒦
             "★ 本任务只改**函数体的逻辑** ⇒ 请从 𝒦 里选（如 "
             "control_flow / prompt / config / context_mgmt…）。",
-            "  `code` 在 𝒦_meta 是指『改代码库结构（新模块/重构）』，"
-            "与改函数体不同；若选 code 就必须给 architecture。",
+            "  （若你认为就是「改代码」，选 code 也可以 —— 它的 "
+            "target_layer=assets，与上面的多数项一致。）",
             "dimension 只能从这些选一个: "
             + ", ".join(sorted(DIMENSIONS)),
             # ★★★ R37: **一致性要求贴着 JSON 格式行放**
@@ -441,8 +444,9 @@ class CandidateGenerator:
             '只返回 JSON: {"patches": ["<完整函数体，首行缩进为0>"], '
             '"m": "<机制假设>", '
             '"component": "<𝒦 或 𝒦_meta 之一>", "dimension": "<D1-D9>", '
-            '"target_layer": "<component∈𝒦 则必填 assets；'
-            'component∈𝒦_meta 则必填 architecture>"}',  # ★ 自带映射
+            '"target_layer": "<多数项与 code 填 assets；'
+            'architecture/meta_evolution/evaluator/external_source'
+            ' 填 architecture>"}',  # ★ 逐项映射（R38 裁决 D）
             '★ 两个字段必须一致：component 在 𝒦 ⇒ target_layer=assets；'
             'component 在 𝒦_meta ⇒ target_layer=architecture。'
             '不一致 = 声明与意图矛盾，会被门**直接拒**。',

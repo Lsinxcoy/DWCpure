@@ -77,22 +77,54 @@ K_META: Dict[str, bool] = {
 #: ★★ K3 · 两项必须 editable: False（机械可查）
 K_META_READONLY = ("evaluator", "external_source")
 
-#: ★★ §四① · component → 所属层（**一致性判据 K2 的真值表**）
-#:   𝒦 9 项 ⇒ assets；𝒦_meta 5 项 ⇒ architecture
-LAYER_BY_GROUP = {"assets": frozenset(COMPONENT_VOCAB),
-                  "architecture": frozenset(K_META)}
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R38 · **逐项映射**（用户 2026-10-06 裁决「D」）
+#   原 §四① 是「表 ⇒ 层」一刀切: 𝒦⇒assets · 𝒦_meta⇒architecture
+#   ⇒⇒ ★★ 与 §三 的**逐项处置**冲突:
+#     §3.1 code  「仍须过 b_t + 保护组回归」    ← **没要人工批准**
+#     §3.2 architecture「门通过 ≠ 可落地 ⇒ 须批准」
+#     §四① 把 code 也归 architecture ⇒ code 被迫要批准
+#     ⇒⇒ **与 §3.1 明文冲突**（而 §三 才是逐项处置的实质内容）
+#   ⇒ ⇒★ 裁决 D: `target_layer` 由**每项的处置**决定，不由「在哪张表」
+#     · 改的是 §四① 那句粗映射，**§三 三处处置一字不动**
+#     · 与原表的差别**只有 `code` 一项**: architecture → assets
+#   ★ K2 仍照常查（只是真值表更细），不需要模型理解两表区别
+# ═══════════════════════════════════════════════════════════
+
+#: ★ 逐项真值表: component → target_layer
+#:   ★ 每一项都注了**依据哪一条处置**（可复核，不是我拍的）
+LAYER_BY_ITEM: Dict[str, str] = {
+    # ── 𝒦 9 项（§四① 原样，未动）──
+    **{c: "assets" for c in COMPONENT_VOCAB},
+    # ── 𝒦_meta 5 项（按 §三 的逐项处置）──
+    "code": "assets",          # ★ D 的唯一变化: §3.1 只给 b_t+回归
+                               #   ⇒ 无批准要求 ⇒ 归可落地层
+    "architecture": "architecture",   # §3.2: 须人工批准（G3 人类主权）
+    "meta_evolution": "architecture",  # §3.3: 系统层（改的是提议器自己
+                                       #   ⇒ 保守归架构层；§3.3 的三条护栏
+                                       #   不等于"无须批准"）
+    "evaluator": "architecture",       # §3.4: 不可编辑（登记在系统层）
+    "external_source": "architecture",  # §3.5: 只读登记
+}
+
+#: ★ K2 真值表的**反向索引**（layer → components）
+LAYER_BY_GROUP: Dict[str, frozenset] = {
+    "assets": frozenset(k for k, v in LAYER_BY_ITEM.items()
+                        if v == "assets"),
+    "architecture": frozenset(k for k, v in LAYER_BY_ITEM.items()
+                              if v == "architecture"),
+}
 
 
 def layer_of(component: str) -> str:
-    """component → target_layer（§四① 的真值表）。
+    """component → target_layer（**逐项**真值表 · R38 裁决 D）。
 
-    ★★ 返回 `assets`（∈𝒦）/ `architecture`（∈𝒦_meta）
-    ⇒ 不在任何一表 ⇒ ★ **不猜**，raise（两表并集 = 全部可选组件）
+    ★★ 返回 `assets` / `architecture`
+    ⇒ 不在表里 ⇒ ★ **不猜**，raise（两表并集 = 全部可选组件）
+    ⇒⇒ 每项的层由 §三 的**处置**决定（见 LAYER_BY_ITEM 的注释）
     """
-    if component in COMPONENT_VOCAB:
-        return "assets"
-    if component in K_META:
-        return "architecture"
+    if component in LAYER_BY_ITEM:
+        return LAYER_BY_ITEM[component]
     raise ValueError(
         "component=%r 既不在 𝒦(9) 也不在 𝒦_meta(5) ⇒ **无层可归**"
         "（proposer 只能在这两表里选，见 §四①）" % component)
