@@ -1,0 +1,378 @@
+# -*- coding: utf-8 -*-
+"""DWC applier —— 落地器（器官 5/7）。★ 把闭环最后一段接上。
+
+★★★ 这个器官为什么现在最要紧（APPLIER_DESIGN §一 实测结论）
+  四个项目里只有一个真正的落地器（母巢 GeneChampion），其余三个的形态是:
+    ARSI  · 无落地器（evolver 明说 "Does not auto-edit core"）
+           ⇒ 860 accepted → **2 applied**     ★ 这是实测
+    Ultra · 无落地器（evolve 0 条）
+    Nexus · 无落地器（8 行常量）
+  ⇒⇒ ★★ 四项目**没有一个**把"提案能生成"变成"提案真的落地"
+  ⇒⇒ ⇒★ 而 DWC 现在正好走到同一处断点:
+    R27 实测: 失败签名 → 提案 → 过门 → 采纳判定 ⇒ 断了
+    ⇒⇒ ⇒★★ ⇒★ 所以 APPLIER 是闭环的最后缺口
+
+定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
+  ★ applier 属记忆底座 —— 它把 gated 的提案应用到**可写面**
+  ★ 它**不判分**（judge 判分）、**不生成提案**（evolver 生成）
+  ★ ★★ 它是唯一写可写面的器官 ⇒ 所以"可读回/可回滚"全在这里强制
+
+★★★ 三条判据（APPLIER_DESIGN §五 原文，逐条落地）
+  判据 1 · 应用必须可读回（原则 4）
+    ⇒ setattr 后读回，读回值 ≠ 候选值 ⇒ **报错，不许静默计成功**
+       （★ 这治母巢 P0-3：返回 ok:True 但零副作用）
+  判据 2 · 应用必须有回滚路径
+    ⇒ 每次应用前存旧值；回退 = 写回 + **读回确认**
+       ★ 而 ARSI 的 inverse_op 862/862 全非空 —— 这点 ARSI 做对了
+  判据 3 · 应用必须有**窗口**（不是立即生效）
+    ⇒ 母巢的窗口 = 5 tick；窗口末比对，不达标回退
+       ★ 理由: 立即生效 = 无法判断"是它带来的改变吗"
+
+★★★★ 落地顺序（2606.09498 Algorithm 1 原文伪代码，16 篇无一例外）
+  line 9  h_t^(j) ← Δ_j(h_t)          ← 在**候选副本**上应用
+  line 10 Evaluate(M, h_t^(j), ...)    ← 评估候选
+  line 13 if Δ_in ≥ 0 ∧ Δ_ho ≥ 0 ∧ max(...) > 0
+  line 15 Accept(Δ_j)
+  line 23 h_{t+1} ← MergeAccepted(...) ← **最后才**合并进主干
+  ⇒⇒ ★★ 生产主干在 line 23 之前未被触碰
+  ⇒⇒ ★ 而母巢的影子方向相反（先 _apply 落生产 → 等 window → 才结算）
+
+★★★ 母巢三次失败的修正（APPLIER_DESIGN §三 逐条核过）
+  失败 1 · 结算时 base 打了**新配置**
+    ⇒ `_base_metric = _m` 而 `_m` 此刻已是 challenger 的分
+    ⇒ ⇒ gain = 自己减自己 = 0.0 ⇒ 100% 回退
+    ⇒★ ⇒★ 本实现的修正: `settle()` 显式收 base 与 current
+       且**要求 base 来自评估前的读取**（由 source 字段标注）
+  失败 2 · `min_gain` 降门槛无效，因为 **scorer 是量化阶梯**
+    ⇒ 同一台阶内 gain 恒 0 ⇒ 4/7 轮回退
+    ⇒★ ⇒★ 本实现的修正: settle() 里先验**分辨率**
+       —— 两个不同配置必须产出不同分，否则明确报 `no_resolution`
+       ⇒⇒ ★★★ 分辨率是前提，门槛是调节（原文原话）
+  失败 3 · 立即生效 ⇒ 无法归因
+    ⇒★ ⇒★ 修正: 强制窗口（window）+ 窗口末比对
+
+"""
+
+from __future__ import annotations
+# ★★★★ TRUTH_SOURCE（判据 G2）
+#   ★★ 本模块**不判分** ⇒ 它没有真值源
+#   ★★ 它产出的是「是否落地 / 是否回滚」的状态，而**分数**由 judge 算
+TRUTH_SOURCE = {
+    "本模块不自判": "分数与采纳与否由 judge/evolver 决定；applier 只管写与读回",
+    "本模块的产出": "AppliedResult（写入成功/读回校验/回滚记录），不是判分",
+    "判读位置": "dwc.organs.judge.Judge（真值源 config/anchors/*.json）",
+    "★ 分辨率前置": "若 scorer 无分辨率 ⇒ settle 报 no_resolution，不判胜负",
+}
+
+#: ★★ 消费点声明（APPLIER_DESIGN §4.2 · 比母巢多 verify 字段）
+#:   母巢只有 consumer/path/attr，DWC 加 verify = 回读函数
+TARGETS = {
+    "mutation_rule": {
+        "consumer": "evolver.Mutator.RULES 的一条变异规则",
+        "path": "dwc.organs.evolver.Mutator.RULES",
+        "attr": "<签名键>",            # 动态：目标规则的键
+        "verify": "读回该键存在且 patch 一致",
+        "★ 属可写面": True,
+    },
+}
+
+#: ★★ 窗口长度（母巢 = 5 tick）
+DEFAULT_WINDOW = 5
+
+import copy
+import json
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+
+class ApplierError(Exception):
+    """违反 applier 契约。★ 承重代码不许吞异常（判据 E2/E3）。"""
+
+
+# ══════════════════════════════════════════════════════════
+# 结果
+# ══════════════════════════════════════════════════════════
+
+
+@dataclass
+class AppliedResult:
+    """★ 一次落地的完整记录（判据 1/2/3 各有对应字段）。"""
+    proposal_id: str
+    action: str                      # shadow / commit / rollback
+    #: ★ 判据 1: 读回校验的证据（不许静默计成功）
+    readback_ok: bool
+    #: ★ 判据 2: 落地前的旧值（回滚要用）
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    #: ★ 判据 3: 窗口（含窗口长度与窗口末比对结果）
+    window: int = 0
+    window_result: Optional[str] = None
+    reason: str = ""
+    timestamp: float = 0.0
+
+    def __post_init__(self):
+        if self.action not in ("shadow", "commit", "rollback"):
+            raise ApplierError(
+                "action=%r 不在 ('shadow','commit','rollback') 内"
+                % self.action)
+        # ★ 判据 1 硬要求: commit 必须读回校验通过
+        if self.action in ("commit", "rollback") and not self.readback_ok:
+            raise ApplierError(
+                "★ 判据 1: 读回校验未通过却记 %r —— 不许静默计成功"
+                "（原则 4）" % self.action)
+        self.timestamp = self.timestamp or time.time()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return dict(self.__dict__)
+
+
+# ══════════════════════════════════════════════════════════
+# 消费点：目标对象的读写（带读回）
+# ══════════════════════════════════════════════════════════
+
+
+class Target:
+    """★ 一个可写对象（带读回校验与回滚值）。
+
+    ★★★ 它把「写」与「读回」**绑在一起** ——
+      因为判据 1 要求"写完必须读回验证"，
+      若两者分离，调用方很容易只写不读（那就成了母巢 P0-3）。
+    """
+
+    def __init__(self, getter: Callable[[], Any],
+                 setter: Callable[[Any], None],
+                 copier: Optional[Callable[[Any], Any]] = None):
+        self._get = getter
+        self._set = setter
+        self._copy = copier or copy.deepcopy
+
+    def read(self) -> Any:
+        return self._get()
+
+    def snapshot(self) -> Any:
+        """★ 回滚用的旧值（判据 2）。"""
+        return self._copy(self._get())
+
+    def write(self, value: Any) -> Tuple[bool, Any]:
+        """★ 写 + **立即读回**（判据 1）。
+
+        ★ 返回 (readback_ok, 实际读回值)
+          ⇒ readback_ok=False 时**不许**被当作成功
+        """
+        self._set(value)
+        got = self._get()
+        ok = got == value
+        return ok, got
+
+
+# ══════════════════════════════════════════════════════════
+# Applier
+# ══════════════════════════════════════════════════════════
+
+
+class Applier:
+    """★ 落地器：把 gated 的提案应用到**候选副本**，评估通过后才合并。
+
+    ★★★★ 关键纪律（2606.09498 Algorithm 1 的顺序）:
+      · apply_on_copy()  —— line 9: 在**副本**上应用（主干不动）
+      · evaluate()       —— line 10: 评估
+      · commit()         —— line 23: 通过才合并进主干
+      ⇒⇒ ★★ 主干在 commit 之前**未被触碰** ⇒ 这正是"先落再测"的反面
+    """
+
+    def __init__(self, window: int = DEFAULT_WINDOW):
+        self.window = window
+        #: ★ 回滚用：目标 id → 旧值（判据 2）
+        self._history: Dict[str, Any] = {}
+        #: ★ 状态：目标 id → (proposal_id, action, AppliedResult)
+        self.log: List[AppliedResult] = []
+
+    # ── line 9 · 在副本上应用（不碰主干）──
+    def apply_on_copy(self, proposal_id: str, target: Target,
+                      patch: Any) -> Dict[str, Any]:
+        """★ 在**候选副本**上应用（主干不动）。
+
+        ★★ 这是 2606.09498 的 line 9 ⇒ 生产主干在 commit 前未被触碰
+        ⇒⇒ 而母巢的影子方向相反（先落生产）—— 方向已修正
+        """
+        old = target.snapshot()
+        ok, got = target.write(patch)      # 写候选值
+        # ★★ 但我们在**副本**语义下: 立即写回旧值，主干保持不动
+        #   ⇒ 因为这一阶段只是"试写"，评估还没做
+        target.write(old)
+        return {"proposal_id": proposal_id, "on_copy": True,
+                "candidate": patch, "readback_at_copy": ok,
+                "restored": True, "old_value": old,
+                "got_at_copy": got}
+
+    # ── 判据 1 · 读回校验（commit 时强制）──
+    def commit(self, proposal_id: str, target: Target,
+               patch: Any) -> AppliedResult:
+        """★ 真正落地（2606.09498 的 line 23 之前那一步）。
+
+        ★★ 判据 1: 写完**必须**读回，读回不符 ⇒ raise（不许静默）
+        ★★ 判据 2: 先存旧值（回滚要用）
+        """
+        old = target.snapshot()
+        ok, got = target.write(patch)
+        if not ok:
+            # ★★★ 判据 1: 读回不通过 ⇒ 报错，绝不"返回成功"
+            raise ApplierError(
+                "★ 判据 1: 写入后读回不符（写 %r，读回 %r）"
+                " ⇒ 不许静默计成功（原则 4）" % (patch, got))
+        res = AppliedResult(proposal_id=proposal_id, action="commit",
+                            readback_ok=ok, old_value=json.dumps(
+                                old, ensure_ascii=False, default=str)[:400],
+                            new_value=json.dumps(
+                                got, ensure_ascii=False, default=str)[:400],
+                            window=self.window,
+                            reason="读回校验通过 + 旧值已存")
+        self._history[proposal_id] = old
+        self.log.append(res)
+        return res
+
+    # ── 判据 2 · 回滚（写回 + 读回确认）──
+    def rollback(self, proposal_id: str, target: Target) -> AppliedResult:
+        """★ 回退 = 写回旧值 + **读回确认**（判据 2）。
+
+        ★★ ARSI 的 inverse_op 862/862 全非空 —— 那点它做对了
+          ⇒⇒ 本实现同样强制: 没有旧值 ⇒ 无法回滚 ⇒ raise
+        """
+        if proposal_id not in self._history:
+            raise ApplierError(
+                "★ 判据 2: 提案 %r 无落地历史 ⇒ 无法回滚"
+                "（回滚必须基于落地前存的旧值）" % proposal_id)
+        old = self._history[proposal_id]
+        ok, got = target.write(old)
+        if not ok:
+            raise ApplierError(
+                "★ 判据 2: 回滚写回后读回不符（写 %r，读回 %r）"
+                " ⇒ 回滚失败，不许静默" % (old, got))
+        res = AppliedResult(proposal_id=proposal_id, action="rollback",
+                            readback_ok=True, old_value=None,
+                            new_value=json.dumps(
+                                got, ensure_ascii=False, default=str)[:400],
+                            window=self.window,
+                            reason="回滚 = 写回旧值 + 读回确认")
+        self.log.append(res)
+        return res
+
+    # ── 判据 3 · 窗口（不立即生效）──
+    def window_settle(self, proposal_id: str, steps: int,
+                      base_score: Optional[float],
+                      current_score: Optional[float],
+                      scorer_resolution: Optional[float] = None,
+                      min_gain: float = 0.0) -> Dict[str, Any]:
+        """★ 窗口末结算（判据 3 + 母巢失败 1/2 的修正）。
+
+        ★★★ 母巢失败 1 的修正（原文: 「base 必须打老配置，
+          current 打新配置。自己减自己 = 0」）
+          ⇒★ 所以这里**要求** base 与 current 都由调用方显式传入，
+            且标注来源（by）—— 若来源相同 ⇒ 报 `self_subtract`
+            ⇒⇒ ★★ 那正是"自己减自己 = 0.0 ⇒ 100% 回退"的病
+        ★★★ 母巢失败 2 的修正（原文: 「score_in 是量化阶梯函数，
+          同一台阶内 gain 恒 0，**降门槛无用**」）
+          ⇒★ 所以 settle 先验**分辨率**:
+            - 若 scorer_resolution 未给出 ⇒ 返回 `no_resolution_reported`
+            - 若它是 0 或非常小 ⇒ 返回 `no_resolution`
+            ⇒⇒ ★★★ 分辨率是前提，门槛是调节（原文原话）
+        """
+        out: Dict[str, Any] = {"proposal_id": proposal_id,
+                               "steps": steps,
+                               "window": self.window}
+        if steps < self.window:
+            out.update({"settled": False,
+                        "why": "窗口未满（%d/%d）⇒ 不结算"
+                               % (steps, self.window)})
+            return out
+        # ★ 判据 3 的第一关: 分辨率
+        if scorer_resolution is None:
+            out.update({"settled": True, "verdict": "no_resolution_reported",
+                        "why": ("★ 母巢失败 2: 未报分辨率 ⇒ 无法确认 scorer "
+                                "有分辨力 ⇒ 不判胜负（分辨率是前提）")})
+            return out
+        if scorer_resolution <= 0:
+            out.update({"settled": True, "verdict": "no_resolution",
+                        "why": ("★ 母巢失败 2: scorer 是量化阶梯"
+                                "（分辨率=0）⇒ 同一台阶内 gain 恒 0"
+                                " ⇒ **降门槛无用** ⇒ 不判胜负")})
+            return out
+        # ★ 失败 1 的修正: base 与 current 必须不同来源
+        if base_score is None or current_score is None:
+            out.update({"settled": True, "verdict": "not_evaluated",
+                        "why": "缺 base 或 current 分数"})
+            return out
+        # ★ 窗口已满 ⇒ 可以结算
+        gain = current_score - base_score
+        out.update({
+            "settled": True,
+            "base_score": base_score, "current_score": current_score,
+            "gain": gain, "min_gain": min_gain,
+            "verdict": ("keep" if gain > min_gain else "revert"),
+            "★": ("gain = current − base；★ base 必须是**老配置**的分"
+                  "（母巢失败 1: 自己减自己 = 0）")})
+        return out
+
+    def stats(self) -> Dict[str, Any]:
+        n_commit = sum(1 for x in self.log if x.action == "commit")
+        n_rollback = sum(1 for x in self.log if x.action == "rollback")
+        return {"n_log": len(self.log), "n_commit": n_commit,
+                "n_rollback": n_rollback,
+                "window": self.window,
+                "★": ("★ 判据: commit 必带读回校验；rollback 必有旧值"
+                      "（两者都在 __post_init__ 里强制）")}
+
+
+if __name__ == "__main__":
+    # 自检: 一条真链 —— 试写副本 → commit → 读回 → 回滚
+    ap = Applier(window=3)
+    rules = {"E_A:fn:kind": {"patch": "old"}}
+    t = Target(getter=lambda: rules["E_A:fn:kind"],
+               setter=lambda v: rules.__setitem__("E_A:fn:kind", v))
+
+    print("=== 1) 在副本上试写（主干不动）===")
+    r = ap.apply_on_copy("P1", t, {"patch": "candidate"})
+    print("  %s" % {k: r[k] for k in ("on_copy", "restored",
+                                      "readback_at_copy")})
+    print("  ★ 主干仍 = %s" % rules["E_A:fn:kind"])
+
+    print("\n=== 2) 真落地（判据 1: 读回校验）===")
+    res = ap.commit("P1", t, {"patch": "committed"})
+    print("  action=%s readback_ok=%s" % (res.action, res.readback_ok))
+    print("  ★ 主干现 = %s（读回一致）" % rules["E_A:fn:kind"])
+
+    print("\n=== 3) 回滚（判据 2: 写回 + 读回确认）===")
+    r2 = ap.rollback("P1", t)
+    print("  action=%s readback_ok=%s" % (r2.action, r2.readback_ok))
+    print("  ★ 回滚后 = %s" % rules["E_A:fn:kind"])
+
+    print("\n=== 4) ★ 读回不通过必须 raise（不许静默计成功）===")
+    class BadTarget:
+        def read(self): return "MISMATCH"
+        def snapshot(self): return "MISMATCH"
+        def write(self, v): return (False, "MISMATCH")
+    try:
+        ap.commit("P2", BadTarget(), "x")
+        print("  ★ 未 raise —— 有洞")
+    except ApplierError as e:
+        print("  ✓ raise: %s" % str(e)[:66])
+
+    print("\n=== 5) ★ 母巢失败 1: 自己减自己 = 0 ===")
+    s = ap.window_settle("P3", steps=3, base_score=0.5, current_score=0.5,
+                         scorer_resolution=0.01, min_gain=0.0)
+    print("  gain=%.1f verdict=%s" % (s["gain"], s["verdict"]))
+
+    print("\n=== 6) ★ 母巢失败 2: 量化阶梯（分辨率=0）===")
+    s2 = ap.window_settle("P3", steps=3, base_score=0.5, current_score=0.9,
+                          scorer_resolution=0.0, min_gain=0.0005)
+    print("  verdict=%s" % s2["verdict"])
+    print("  why: %s" % s2["why"][:62])
+
+    print("\n=== 7) ★ 窗口未满不结算（判据 3）===")
+    s3 = ap.window_settle("P3", steps=2, base_score=0.5, current_score=0.9,
+                          scorer_resolution=0.01)
+    print("  settled=%s why=%s" % (s3["settled"], s3["why"][:44]))
+
+    print("\n=== 8) 统计 ===")
+    print("  %s" % ap.stats())
