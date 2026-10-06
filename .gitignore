@@ -91,3 +91,8 @@ hot_chain/
 #   ⇒ 上面 `archive/*.bak_*` 会被后面的 `*.bak_*` 覆盖 ⇒ 必须在这里再否定一次。
 !archive/*.bak_*
 !archive/knowledge3_R*.json
+
+# ★★★ R34 · LLM 凭证配置 —— **绝不入库**（含 api key）
+#   母巢的 HIVE_TOKEN 教训: 凭证一旦进 git 历史就洗不掉
+config/llm.json
+*.llm.json

@@ -476,3 +476,78 @@ else:
           % ("成功" if sig_key not in _M.RULES else "★失败"))
 
 # ══════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════
+# step 9 · ★★★★ **LLM 形态**（R34 · need_llm 从「只报」变「能跑」）
+#   ★ 场景必须**确定性推不出**（否则 LLM 分支不触发 —— 我栽过）
+#     · is_palindrome 不含 range ⇒ R1 全失效
+#     · 不在 RULES 种子 3 条里 ⇒ 查表不命中
+#   ★★ 结论**只认 source == "llm"** 的候选（不许把确定性算进来）
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 9 · LLM 形态（真端点 · 需配置）")
+print("=" * 60)
+from dwc.llm import LLMClient
+
+_llm_client = LLMClient()
+if not _llm_client.configured:
+    # ★★ 不静默跳过 —— 明确报出**为什么**没测
+    print("  ★ 未配置 LLM ⇒ 本段**未测**（rc=0 但这条边界保留）")
+    print("    配置: config/llm.json 或 DWC_LLM_* 三件套")
+    print("    自检: python scripts/probe_llm.py --dry")
+    LLM_SEGMENT = "not_configured"
+else:
+    print("  端点: %s · 模型: %s" % (_llm_client._host_only(),
+                                   _llm_client._model))
+    _LFN = "is_palindrome"
+    _LBUG = "def is_palindrome(s):\n    return s == s[::-1]"
+    _LT = "code_fix_005"
+    # 9a · 真判分
+    _o9 = execute_task(Actor(), j, _LT, implementation=_LBUG)
+    _v9 = j.evaluate(_LT, "dev", observed=_o9["observation"])
+    _sig9 = _v9.failure_signature or {}
+    print("  judge: success=%s c=%s q=%s"
+          % (_v9.success, _sig9.get("c"), _sig9.get("q")))
+    assert not _v9.success, "★ 前提: 带 bug 必须判 fail"
+    # 9b · 确定性必须推不出（前提校验 —— 不通过就别下结论）
+    _g0 = CandidateGenerator()
+    _r0 = _g0.generate(_sig9, _v9.diffs, _LBUG, fn_name=_LFN)
+    print("  确定性: n=%d need_llm=%s" % (_r0["n"], _r0["need_llm"]))
+    assert _r0["n"] == 0, "★ 前提不成立（确定性已推出 ⇒ 测不到 LLM）"
+    # 9c · 真 LLM
+    _g9 = CandidateGenerator(llm=_llm_client)
+    _r9 = _g9.generate(_sig9, _v9.diffs, _LBUG, fn_name=_LFN)
+    _llm_only = [cd for cd in _r9["candidates"] if cd.source == "llm"]
+    print("  真 LLM: n=%d source=%s （**仅认 llm 来源** n=%d）"
+          % (_r9["n"], _r9.get("source"), len(_llm_only)))
+    print("    m_hint=%r" % _r9.get("m_hint"))
+    print("    账本: calls=%d ok=%d" % (_g9.n_llm_calls, _g9.n_llm_ok))
+    # 9d · 判分
+    _passed = []
+    print("  ── 判分 ──")
+    for _cd in _llm_only:
+        try:
+            _src = build_implementation(_LFN, _LBUG, _cd.patch)
+        except Exception as _e:
+            print("    构建失败: %s" % str(_e)[:50])
+            continue
+        _v = j.evaluate(_LT, "dev",
+                        observed=execute_task(
+                            Actor(), j, _LT,
+                            implementation=_src)["observation"])
+        print("    judge=%s  m=%r" % (_v.success, _cd.m[:44]))
+        if _v.success:
+            _passed.append(_cd)
+    if _passed:
+        print("  ★★★ 真 LLM 候选**通过判分** ⇒ prompt 验证完成")
+        print("       m 由模型填 = 2609.06396 Eq.10 在真端点落地")
+        LLM_SEGMENT = "passed"
+    elif _llm_only:
+        print("  ★ 真 LLM 给了 %d 条但**无一通过**（如实记，不算已验证）"
+              % len(_llm_only))
+        LLM_SEGMENT = "candidates_rejected"
+    else:
+        print("  ★ 真 LLM **未给可用候选**（source=%s）⇒ 未完成验证"
+              % _r9.get("source"))
+        LLM_SEGMENT = "no_candidates"
+    print("  LLM_SEGMENT=%s" % LLM_SEGMENT)

@@ -1,0 +1,83 @@
+{
+ "round": "R34.1 · 真端点打通（LLM 形态的事实验证）",
+ "date": "2026-10-06",
+ "endpoint": {
+  "host": "developer.amd.com.cn",
+  "model": "MiMo-V2.6-Flash",
+  "★ 凭证": "已写 config/llm.json（**.gitignore 排除**）；本记录**不含**任何 key 片段"
+ },
+ "为什么做": [
+  "R34 的诚实边界: 真端点未验（只有 mock = 协议层）",
+  "  ⇒ 本会话用户提供了端点 + key + 模型 ⇒ 打通它",
+  "",
+  "★ 两处必须先修（否则设置就没意义）:",
+  "  ① `.gitignore` **没排除** config/llm.json ⇒ key 会进 git 历史",
+  "    ⇒ 母巢 HIVE_TOKEN 同款教训: 凭证进历史洗不掉",
+  "  ② client 的 docstring **承诺了** config/llm.json，实现只读环境变量",
+  "    ⇒⇒ 那是『名字与实现不对齐』（原则 12），我 R34 刚立过",
+  "      幻影代码的规矩，转头自己犯同型 ⇒ 已补齐",
+  "  ⇒ 实现优先级: 显式参数 > 环境变量 > config/llm.json"
+ ],
+ "★★★★ 真端点实测": [
+  "★★★★ 真端点实测（scripts/probe_llm.py）:",
+  "  rc=0 · 1.6s · ok=True · text='ok' · n_calls=1/n_ok=1/n_fail=0",
+  "",
+  "★★★★★ 真 LLM 候选生成（scripts/real_llm_candidate.py + e2e step9）",
+  "  场景: code_fix_005 / is_palindrome（忘 `.lower()`）",
+  "    ★ 选它的三条理由（逐条核过）:",
+  "      · 不含 range ⇒ R1 唯一规则失效 ⇒ **确定性必然推不出**",
+  "      · 不在 RULES 种子 3 条里 ⇒ 查表不命中",
+  "      · 真 bug（忽略大小写失效）⇒ judge 真判 fail",
+  "  ① 确定性: n=0 need_llm=True（**前提先验证** —— 不通过就不下结论）",
+  "  ② 真 LLM: n=4 source=llm · calls=1 ok=4",
+  "    patch 全是真修复（lower() 的 4 种变体）",
+  "    m = 模型自己诊断: 『大小写不敏感导致 Racecar 与 racecaR 不等』",
+  "  ③ 判分: **4/4 judge=True**",
+  "",
+  "  ⇒⇒ ★★★ 三个事实被真端点证实:",
+  "    1. prompt 格式/约束**模型真遵守**（JSON + 纯函数体 + 可编译）",
+  "    2. `m 由模型填`（2609.06396 Eq.10）在**真端点**落地",
+  "    3. 候选通过 judge ⇒『LLM 形态能修好真 bug』"
+ ],
+ "本轮抓到的问题": [
+  "★★★★ 我第一次写 real_llm_candidate.py **撒了谎**（自抓）",
+  "  我 print『真 LLM 候选通过判分』，实际:",
+  "    source=deterministic · n_calls=0 · 4 条全是 R1 规则",
+  "  ⇒ 确定性先推出 ⇒ **LLM 分支根本没触发**",
+  "  ⇒ 而结论句是**无条件** print ⇒ 结论基于了错的东西",
+  "  ⇒⇒ ⇒★★ 那是幻影声明（原则 12 + G5 声称门要防的）",
+  "  ⇒ ⇒★ 修: ①场景**先断言**确定性推不出（前提校验）",
+  "      ②结论**只认** source=='llm' 的候选",
+  "      ③三态结论: passed / candidates_rejected / no_candidates",
+  "",
+  "★★ 执行事故: `io` 没 import ⇒ probe 直接崩",
+  "  ⇒ 与我 R34 上半场的 `json` 没 import **同一错**",
+  "  ⇒⇒ 我记过『用到前不核在不在』，**还是又犯**",
+  "  ⇒ ⇒★ 修法固化: 引入新函数前先扫它的模块级依赖",
+  "",
+  "★ git 兜底复验（两次）:",
+  "  · `git status` 不含 config/llm.json",
+  "  · `git check-ignore -v` 命中 .gitignore:97",
+  "  · `git grep <key前缀>` **被跟踪文件零命中**"
+ ],
+ "三层验证": {
+  "pytest": "21 份 / 427 项 rc=0",
+  "gate": "7/7 全部通过 rc=0",
+  "probe_llm": "真端点 rc=0 ok=True model=MiMo-V2.6-Flash",
+  "e2e": "五段 + 学习闭环 + 跨进程存活 + 出口自清洁 + **step9 LLM_SEGMENT=passed** rc=0",
+  "★ 凭证安全": "config/llm.json 被 gitignore 排除；被跟踪文件 grep key 前缀零命中"
+ },
+ "诚实边界": [
+  "★★ 只验了**一个**场景（is_palindrome）⇒ 单点证明；",
+  "  换函数/换 bug 类型未验",
+  "★★ 同一场景两次调用 m 的**措辞不同**（温度 0.2 不保证逐字一致）",
+  "  ⇒ ⇒★ 这不影响判分，但意味着 m **不可复现**（固化时要留意）",
+  "★★ LLM 候选**未固化**（没走 step8g 那条 land_rule）",
+  "  ⇒ 即学到的东西仍没落 RULES（下轮可接）",
+  "★★ `llm_governor.decide`（actor Layer B 三层兜底）仍未实现",
+  "★★ prompt 未做 A/B（可能更简洁的 prompt 更有效）",
+  "★★ 种子 3 条硬编码 · V2 的 ⑤⑥⑦ 三个器官未实现",
+  "★★★ 若这仓库被分享/公开，config/llm.json 要**单独管凭证**",
+  "  （gitignore 只防 git，不防拷贝整个目录给别人）"
+ ]
+}

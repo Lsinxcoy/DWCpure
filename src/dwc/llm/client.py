@@ -51,6 +51,7 @@
 ═══════════════════════════════════════════════════════════
 """
 from __future__ import annotations
+import io
 
 import json
 import os
@@ -68,6 +69,37 @@ ENV_BASE = "DWC_LLM_BASE_URL"
 ENV_KEY = "DWC_LLM_API_KEY"
 ENV_MODEL = "DWC_LLM_MODEL"
 ENV_TIMEOUT = "DWC_LLM_TIMEOUT"
+
+
+def _load_file_config() -> Dict[str, str]:
+    """★ 读 `config/llm.json`（docstring 承诺的第二配置源）。
+
+    ★★★ R34 实测: 我第一版 **docstring 写了它、实现没写**
+      ⇒⇒ 那正是「名字与实现不对齐」（原则 12 的反面）
+        ⇒⇒ 而我 R34 刚立过"幻影代码"的规矩，转头又犯同型
+    ⇒ ⇒★ 现在补上: 优先级 **环境变量 > 配置文件**
+      （环境变量给 CI/临时用；文件给长期配）
+
+    ★★ 文件含**凭证** ⇒ 必须已被 .gitignore 排除（R34 已加）
+      否则 key 进 git 历史洗不掉（母巢 HIVE_TOKEN 同款教训）
+
+    文件不存在/坏掉 ⇒ 返回 {}（**不报错** —— 没配是常态）
+    """
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))),
+        "config", "llm.json")
+    try:
+        with io.open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    # ★ 白名单取键（多余键不认 —— 避免把别的东西当配置）
+    return {k: str(data[k]).strip()
+            for k in ("base_url", "api_key", "model", "timeout")
+            if str(data.get(k, "")).strip()}
 
 
 @dataclass
@@ -109,12 +141,18 @@ class LLMClient:
                  model: Optional[str] = None,
                  timeout: float = 30.0,
                  probe: bool = False):
-        self._base = (base_url or os.environ.get(ENV_BASE, "")).strip()
+        # ★ 优先级: 显式参数 > 环境变量 > config/llm.json（docstring 承诺）
+        _fc = _load_file_config()
+        self._base = (base_url or os.environ.get(ENV_BASE, "")
+                      or _fc.get("base_url", "")).strip()
         self._key = (api_key if api_key is not None
-                     else os.environ.get(ENV_KEY, "")).strip()
-        self._model = (model or os.environ.get(ENV_MODEL, "")).strip()
+                     else (os.environ.get(ENV_KEY, "")
+                           or _fc.get("api_key", ""))).strip()
+        self._model = (model or os.environ.get(ENV_MODEL, "")
+                       or _fc.get("model", "")).strip()
         try:
-            self.timeout = float(os.environ.get(ENV_TIMEOUT, "") or timeout)
+            self.timeout = float(os.environ.get(ENV_TIMEOUT, "")
+                                 or _fc.get("timeout", "") or timeout)
         except ValueError:
             self.timeout = float(timeout)
         #: ★★ 三态分开（纪律③）: configured 是**静态**的
@@ -152,7 +190,8 @@ class LLMClient:
     def unavailable_reason(self) -> str:
         """★ 静态不可用的原因（**永远非空** —— 不许返回空字符串）。"""
         if not self._base:
-            return "未配置 %s（或 base_url 为空）" % ENV_BASE
+            return ("未配置 %s，也未在 config/llm.json 给 base_url"
+                    % ENV_BASE)
         if not self._key:
             return "未配置 %s" % ENV_KEY
         if not self._model:
