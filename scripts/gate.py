@@ -460,10 +460,137 @@ def gate7_silent() -> dict:
 
 # ---------------------------------------------------------------- 执行 + 留痕
 
+def gate8_contract() -> dict:
+    """★ R37 · 契约门 —— 设计定的 **K2/K3/K4** 是否落到代码里。
+
+    ★★★ 依据: docs/COMPONENT_VOCABULARY.md §五「可机械检查的判据」
+      设计已经写了 K1-K6，而**代码里一个都没有**（我实测 `target_layer`
+      在 src 出现 0 次、`𝒦_meta` 0 次）⇒ 那正是「设计定了判据但没人
+      实现」的缺口 —— 与母巢「门存在但没被执行」是同一族病。
+
+    ★★ 为什么是**静态查存在性**而不是跑断言:
+      G1-G7 全是静态扫描（gate 不 import src —— 门本身不能依赖被门对象）
+      ⇒ 运行时对错交给 **pytest**（测试有真断言）
+      ⇒⇒ 分工: gate 查「有没有实现」· pytest 查「对不对」
+
+    ★★ 不查 K1（21 对象映射）—— 文档诚实边界⑧ 说「须先补对象清单，
+      K1 目前无法验证」⇒ 我**不假装能查**（已知缺口，标 not_adopted）
+    """
+    files = _py_files(SRC)
+    violations = []
+    src_all = "".join(_read(f) for f in files)
+    ev = os.path.join(SRC, "organs", "evolver.py")
+    ca = os.path.join(SRC, "organs", "candidates.py")
+    ev_s = _read(ev) if os.path.isfile(ev) else ""
+    ca_s = _read(ca) if os.path.isfile(ca) else ""
+
+    # ── K2: component ↔ target_layer 的**判据函数必须存在且被调用** ──
+    if "def check_pairing" not in ev_s:
+        violations.append({"file": "organs/evolver.py",
+                           "rule": "K2 缺失",
+                           "detail": "check_pairing 未定义（§四① 的一致性判据）"})
+    else:
+        # 调用方: 固化(evolver) + 生成(candidates) —— 两侧都要用
+        if "check_pairing" not in ca_s.replace("from .evolver import", "", 1):
+            violations.append({"file": "organs/candidates.py",
+                               "rule": "K2 未被使用",
+                               "detail": "生成侧没调 check_pairing ⇒ 形同虚设"})
+        if "check_pairing(comp" not in ev_s and "check_pairing(_comp" not in ev_s:
+            violations.append({"file": "organs/evolver.py",
+                               "rule": "K2 未被使用",
+                               "detail": "固化侧没调 check_pairing"})
+
+    # ── K3: evaluator / external_source 必须 editable: False，且**在表里** ──
+    m = re.search(r"K_META\s*:\s*Dict\[str, bool\]\s*=\s*\{(.*?)\n\}", ev_s, re.S)
+    if not m:
+        m = re.search(r"K_META\s*=\s*\{(.*?)\n\}", ev_s, re.S)
+    if not m:
+        violations.append({"file": "organs/evolver.py",
+                           "rule": "K3 无表",
+                           "detail": "𝒦_meta 定义找不到 ⇒ 5 个系统层对象无登记"})
+    else:
+        body = m.group(1)
+        for name in ("evaluator", "external_source"):
+            mm = re.search(r'"%s"\s*:\s*([^,\n]+)' % name, body)
+            if not mm:
+                violations.append({"file": "organs/evolver.py",
+                                   "rule": "K3 缺项",
+                                   "detail": "%s 不在 𝒦_meta 里（§3.4: 要求**在表里**但禁改）" % name})
+            elif mm.group(1).strip() not in ("False",):
+                violations.append({"file": "organs/evolver.py",
+                                   "rule": "K3 可编辑",
+                                   "detail": "%s: editable=%s（应为 False ⇒ evaluator 可被改就是破坏 grounded）"
+                                            % (name, mm.group(1).strip())})
+
+    # ── K4: 𝒦_meta 每项必须**显式**标 editable（无默认值）──
+    if m:
+        body = m.group(1)
+        names = re.findall(r'"(\w+)"\s*:', body)
+        vals = re.findall(r'"\w+"\s*:\s*([^,\n]+)', body)
+        if any(v.strip() in ("", "None") for v in vals):
+            violations.append({"file": "organs/evolver.py",
+                               "rule": "K4 有默认值",
+                               "detail": "𝒦_meta 存在空/None 的 editable 标志（必填无默认）"})
+        if len(names) != 5:
+            violations.append({"file": "organs/evolver.py",
+                               "rule": "K4 项数",
+                               "detail": "𝒦_meta 应 5 项，实得 %d: %s"
+                                         % (len(names), names)})
+
+    # ── §四① 的第二个字段: target_layer 必须在**两侧**都存在 ──
+    # ★ 精确: 查 dataclass 字段定义（不是任何出现）
+    _mca = re.search(r"\n\s{4}target_layer\s*:\s*str", ca_s)
+    if not _mca:
+        violations.append({"file": "organs/candidates.py",
+                           "rule": "§四① 字段缺失",
+                           "detail": "Candidate dataclass 无 target_layer ⇒ "
+                                    "proposer 没声明第 2 个字段"})
+    # ★★★ R37 破坏性测试抓到我这判据是**假的**:
+    #   我原本写 `"target_layer" not in ev_s` —— 而 ev_s 里
+    #   entry_from_candidate **到处**有 target_layer ⇒ 恒 False
+    #   ⇒⇒ ⇒★ 破坏 RULE_ENTRY_FIELDS 却**抓不到**（4 类破坏漏 1）
+    #     —— 这正是「断言必须精确到来源」（我 memory 里记着的）
+    #   ⇒ ⇒★ 修: 只查 RULE_ENTRY_FIELDS **那一行**
+    _mref = re.search(r"RULE_ENTRY_FIELDS\s*=\s*\([^)]*\)", ev_s, re.S)
+    if not _mref:
+        violations.append({"file": "organs/evolver.py",
+                           "rule": "§四① 无 schema",
+                           "detail": "RULE_ENTRY_FIELDS 找不到 ⇒ 固化不校验字段"})
+    elif "target_layer" not in _mref.group(0):
+        violations.append({"file": "organs/evolver.py",
+                           "rule": "§四① 未进 schema",
+                           "detail": "RULE_ENTRY_FIELDS 不含 target_layer ⇒ 固化不校验它"
+                                    "（§四①: 第 2 个字段必须被检查）"})
+    # ★ 精确: 查 prompt 字面量里**要求模型返回** target_layer
+    if '"target_layer": "<' not in ca_s:  # ★ R37 改了占位符（自带映射）
+        violations.append({"file": "organs/candidates.py",
+                           "rule": "prompt 未要求",
+                           "detail": "prompt 的 JSON 格式没让模型声明 "
+                                    "target_layer（§四①『必须声明』）"})
+
+    # ── K1: **不查**（文档诚实边界⑧: 需先补对象清单）──
+    n_a = []
+    if not files:
+        n_a.append("src/dwc 无 .py")
+    # ★ lesson: 七门对应母巢七条教训（L1-L7）
+    #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
+    #   一字不差，而 `target_layer` 在 src 出现 0 次
+    #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
+    return {
+        "gate": 8, "name": "契约门", "lesson": "L1",
+        "files": len(files), "violations": violations,
+        "pass": not violations,
+        "n_a": n_a,
+        "k1": "not_adopted（须先补 21 对象清单，见文档诚实边界⑧）",
+    }
+
+
+
+
 GATES = {
     1: gate1_locality, 2: gate2_truth, 3: gate3_activity,
     4: gate4_life_cycle, 5: gate5_claims, 6: gate6_subtraction,
-    7: gate7_silent,
+    7: gate7_silent, 8: gate8_contract,
 }
 
 

@@ -142,7 +142,14 @@ def test_status_field_present_in_json():
     with src_dwc():
         rc, out, _ = run_gate("--json")
     res = json.loads(out)
-    assert len(res) == 7, "应有 7 道门"
+    # ★★★ R37: 原断言 `len(res) == 7` 是**硬编码门数**，
+    #   我加 G8 ⇒ 它红了。但测试的**意图**是
+    #   「机器读到的每道门都必须有 status」，不是「恰好 7 道」
+    #   ⇒⇒ ⇒★ 断言测的不是意图（我 memory 里记着的教训）
+    #   ⇒ ⇒★ 改: 下界 + 逐门查 status（加门/删门都不该红）
+    assert len(res) >= 7, "应至少 7 道门（实际 %d）" % len(res)
+    missing = [r.get("gate") for r in res if "status" not in r]
+    assert not missing, "★ 这些门缺 status（机器读不到状态）: %s" % missing
     for r in res:
         assert "status" in r, "G%d 缺 status 字段" % r["gate"]
     need = {1, 2, 3, 4, 7}

@@ -19,6 +19,7 @@
   失败 3 · 立即生效 ⇒ 无法归因（⇒ 强制窗口）
 """
 from __future__ import annotations
+import json
 
 import os
 import sys
@@ -390,6 +391,7 @@ def _rule_setup(key="E_VALUE:wrong_magnitude:fibonacci"):
 
 def _entry(**over):
     e = {"component": "control_flow", "dimension": "D7",
+         "target_layer": "assets",
          "target": "fibonacci", "m": "loop_bound",
          "m_source": "rule", "patch": "return 1",
          "rationale": "R32 实测: judge 验证通过"}

@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.organs.judge import Judge
 from dwc.organs.actor import (Actor, execute_task, build_implementation,
                               PureFunctionExecutor)
-from dwc.organs.evolver import Evolver, Mutator, Proposal
+from dwc.organs.evolver import Evolver, Mutator, Proposal, layer_of
 from dwc.organs.applier import Applier, Target, ApplierError
 from dwc.organs.candidates import CandidateGenerator
 
@@ -373,6 +373,11 @@ print("  固化前 RULES 含该键: %s" % (sig_key in _M.RULES))
 entry = {
     "component": "control_flow",
     "dimension": "D7",
+    # ★★★ R37 · §四① 第 2 个字段（**用 layer_of 推，不硬编码**）
+    #   ⇒ 硬编码 "assets" 会让本脚本与真值表脱钩（component 改了它不会跟）
+    #   ⇒⇒ 这里原本缺它 ⇒ schema 拒 ⇒ e2e 在 step8g 炸
+    #     = "改 schema 所有构造点要跟"的又一次（R35 同款）
+    "target_layer": layer_of("control_flow"),
     "target": LEARN_FN,
     "m": "loop_bound",
     "m_source": "rule",

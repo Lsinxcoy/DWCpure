@@ -48,6 +48,8 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from .evolver import (COMPONENT_VOCAB, DIMENSIONS, K_META,
+                     layer_of, check_component)
 
 class CandidateError(Exception):
     """违反候选生成契约（不许吞异常）。"""
@@ -64,6 +66,14 @@ class Candidate:
     rule: str = ""
     #: 供 Evolver.propose 的目标函数
     target: str = ""
+    #: ★★★★ R37 · target_layer —— §四①「proposer 必须声明」的第 2 个字段
+    #:   `component_type ∈ 𝒦 ⇒ target_layer 必为 assets`
+    #:   `component_type ∈ 𝒦_meta ⇒ target_layer 必为 architecture`
+    #:   ⇒⇒ ★★ 不一致 ⇒ **声明与意图矛盾，门应拒**（判据 K2）
+    #:   ⇒ ⇒★ 为什么与 component **分别声明**（而不是推导一个就够）:
+    #:     设计要的是"proposer 声明" ⇒ 让它**显式说出来**，
+    #:     才能查出"说一套做一套"（§四① 的原话是『必须声明』两个字段）
+    target_layer: str = ""
     #: ★★★ R34 · m = **机制假设**（EVOLUTION_CORE_DESIGN §9 第 4 项:
     #:   「m 由**模型**填」· 2609.06396 Eq.10 同）
     #:   ★★ 为什么以前没有这个字段:
@@ -240,6 +250,14 @@ class CandidateGenerator:
         cands = [c for c in cands
                  if self.key_of(c) not in self.rejected]
 
+        # ★★★ R37 · 统一 target_layer（同上，防漏）
+        #   ⇒ component 在 ⇒ 由 `layer_of` 推（§四① 真值表）
+        #   ⇒ 无 component（R2 那类无依据的）⇒ 保持空 ⇒ K2 拒
+        for _c in cands:
+            if not getattr(_c, "target_layer", "") and getattr(
+                    _c, "component", ""):
+                _c.target_layer = layer_of(_c.component)
+
         # ★★★ R35 · 统一 target（**防"加字段没同步构造"再发生**）
         #   ⇒ 我 R35 加了 component/dimension/provenance，却漏了 target
         #     ⇒ 于是固定化流水线**断在 schema**（check_entry 报缺 target）
@@ -375,7 +393,6 @@ class CandidateGenerator:
             #   （我第一版凭记忆写 got/want ⇒ 与 judge 的
             #    actual/expected 不一致 ⇒ prompt 里证据**恒为 None**）
             from .judge import DIFF_FIELDS as _DF
-            from .evolver import (COMPONENT_VOCAB, DIMENSIONS)
             ev_lines.append({k: d.get(k) for k in _DF
                              if k in ("index", "fn", "args",
                                       "expected", "actual")})
@@ -391,13 +408,44 @@ class CandidateGenerator:
             tick + "python", baseline_src, tick,
             # ★★ R35: component/dimension 必须由**模型在契约内选**
             #   （RRSI 式12 词表 + 九维 = 契约；我瞎填 = 编造）
-            "component 只能从这些选一个: "
-            + ", ".join(sorted(COMPONENT_VOCAB)),
+            # ★★★★ R37 · §四①: **两张表**都给（proposer 只能在这两表选）
+            #   ⇒ 只给 𝒦 9 项会让模型以为 code/architecture 不可选
+            "component 只能从这些选一个（𝒦=组件层 ∪ 𝒦_meta=系统层）: "
+            + ", ".join(sorted(COMPONENT_VOCAB)) + ", "
+            + ", ".join(sorted(K_META)),
+            # ★★★★ R37 · §四①「两个字段必须**一致**」
+            "  · component 在 𝒦 ⇒ target_layer 必须是 assets" ,
+            "  · component 在 𝒦_meta ⇒ target_layer 必须是 architecture",
+            "  · 不一致 = 声明与意图矛盾（会被门拒）",
+            # ★★★★ R37.1 · **选择引导**（实测: 模型总选 code+assets ⇒ 自相矛盾）
+            #   实测: 任务是"修函数体的 bug" ⇒ 模型选 `code`(𝒦_meta)
+            #   却给 `target_layer=assets` ⇒ K2 必拒 ⇒ e2e 跑不通
+            #   ⇒⇒ ★ 根因是**设计语义问题**（已挑明给用户，不在本轮改设计）
+            #   ⇒ ⇒★ 而 prompt 要**引导到正确选项**:
+            #     修函数体逻辑 = 改**组件行为**（控制流/提示词/技能…）
+            #     𝒦_meta 的 code 指**改代码库结构**（新增模块/重构），
+            #     两者不同 —— 本任务只改函数体 ⇒ 应选 𝒦
+            "★ 本任务只改**函数体的逻辑** ⇒ 请从 𝒦 里选（如 "
+            "control_flow / prompt / config / context_mgmt…）。",
+            "  `code` 在 𝒦_meta 是指『改代码库结构（新模块/重构）』，"
+            "与改函数体不同；若选 code 就必须给 architecture。",
             "dimension 只能从这些选一个: "
             + ", ".join(sorted(DIMENSIONS)),
+            # ★★★ R37: **一致性要求贴着 JSON 格式行放**
+            #   实测: 我把它放在前文的三行说明里，模型仍给了
+            #   `component='code'`(𝒦_meta) + `target_layer='assets'`
+            #   ⇒ K2 正确拒了 ⇒ 但 e2e 因此跑不通
+            #   ⇒⇒ ⇒★ 教训: 约束放**离输出格式最近**的地方
+            #     （模型对格式行的关注度最高 —— 前文说明容易被忽略）
+            #   ⇒ ⇒★ 且把映射**写进占位符**（不另起说明行）
             '只返回 JSON: {"patches": ["<完整函数体，首行缩进为0>"], '
             '"m": "<机制假设>", '
-            '"component": "<词表之一>", "dimension": "<D1-D9>"}',
+            '"component": "<𝒦 或 𝒦_meta 之一>", "dimension": "<D1-D9>", '
+            '"target_layer": "<component∈𝒦 则必填 assets；'
+            'component∈𝒦_meta 则必填 architecture>"}',  # ★ 自带映射
+            '★ 两个字段必须一致：component 在 𝒦 ⇒ target_layer=assets；'
+            'component 在 𝒦_meta ⇒ target_layer=architecture。'
+            '不一致 = 声明与意图矛盾，会被门**直接拒**。',
             "最多 %d 条，按可信度排序；没把握就返回空数组。"
             % self.LLM_MAX_CANDIDATES,
         ])
@@ -436,12 +484,50 @@ class CandidateGenerator:
             # ★★★ 契约校验: 不在词表/九维内 ⇒ **整批拒**
             #   （不猜、不回退默认值 —— 那就是编造 component）
             _comp = str(payload.get("component") or "").strip()
+            # ★★★★ R37 · §四①: 模型必须**显式声明** target_layer
+            _layer = str(payload.get("target_layer") or "").strip()
+            if not _layer:
+                # ★★ 模型没给 ⇒ **不默认猜**（那就变成我替它声明了）
+                #   ⇒⇒ ⇒★ 由 component 推（§四① 真值表是机械的）:
+                #     𝒦 ⇒ assets · 𝒦_meta ⇒ architecture
+                #   ⇒ 词表外 ⇒ 保持空 ⇒ K2 拒（不编造层）
+                _layer = (layer_of(_comp)
+                          if (_comp in COMPONENT_VOCAB
+                              or _comp in K_META) else "")
             _dim = str(payload.get("dimension") or "").strip()
-            if _comp not in COMPONENT_VOCAB or _dim not in DIMENSIONS:
+            # ★★★★ R37 我在**同一轮里**犯的"改一处不同步另一处":
+            #   prompt 给了**两表**（𝒦 9 + 𝒦_meta 5）—— 模型真选了
+            #   `component='code'`（𝒦_meta 合法项）
+            #   而这里的校验**只认 𝒦 9 项** ⇒ 合法组件被拒
+            #   ⇒⇒ ⇒★★ 实测: e2e step9 因此 `source=none`
+            #     = 我自己把端到端卡住了（不是模型的问题）
+            #   ⇒ ⇒★ 修: 校验口径必须与 prompt 的词表**完全一致**
+            #     （两处不同源 = 必然漂移，同 R30 的 c/q 值域）
+            # ★ R37 收敛: component 走**单源** `check_component`
+            #   （我刚发现 prompt/生成/固化三个来源不同 ⇒ 必然漂移）
+            _cp_err = check_component(_comp)
+            if _cp_err or _dim not in DIMENSIONS:
+                # ★ R37: 显式单表达式（**不用隐式拼接夹 +** —— R36 栽过）
+                _why = "LLM 给的契约值不在范围内 (component=%r dimension=%r" \
+                       " ⇒ 拒绝而非猜默认；合法值=𝒦∪𝒦_meta)" % (_comp, _dim)
+                if _cp_err:
+                    _why = _why + " · " + _cp_err[0]
+                else:
+                    _why = _why + " · dimension 不在 D1-D9"
                 return {"ok": False, "source": "error",
-                        "cause": ("LLM 给的契约值不在范围内 "
-                                  "(component=%r dimension=%r ⇒ "
-                                  "拒绝而非猜默认)" % (_comp, _dim)),
+                        "cause": _why,
+                        "candidates": []}
+            # ★★★ K2 校验（§四①: 不一致 ⇒ **声明与意图矛盾**）
+            #   ★ 照**现有惯例**（下面 component/dimension 那条也是整批拒）
+            #   ⇒⇒ ⇒★ 我第一版写 `continue` ⇒ SyntaxError
+            #     （这段是顺序代码、不在 for 里）
+            #     —— 先看现有怎么做，再照抄（"遵循现有惯例"）
+            from .evolver import check_pairing as _pair
+            _p2 = _pair(_comp, _layer)
+            if _p2:
+                return {"ok": False, "source": "error",
+                        "cause": ("K2 声明与意图矛盾: " + _p2[0]
+                                  + " ⇒ 拒绝而非猜默认"),
                         "candidates": []}
         except Exception as e:
             return {"ok": False, "source": "error",
@@ -487,6 +573,7 @@ class CandidateGenerator:
                 #     （R35 已经是第 N 次 ⇒ 见下条的统一兜底）
                 target=fn_name,
                 component=_comp, dimension=_dim,
+                target_layer=_layer,
                 # ★ m 指纹: 让这条 m 可回溯到"哪次调用"
                 provenance={
                     "prompt_ver": self.PROMPT_VER,

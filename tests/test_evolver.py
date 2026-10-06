@@ -21,7 +21,7 @@ import pytest
 
 ROOT = r"E:/Divine Wisdom Core"
 sys.path.insert(0, os.path.join(ROOT, "src"))
-from dwc.organs.evolver import (  # noqa: E402
+from dwc.organs.evolver import (K_META,   # noqa: E402
     COMPONENT_VOCAB, DIMENSIONS, PROPOSAL_STATES, STRUCTURAL,
     Evolver, EvolverError, Mutator, Proposal, ProposalGate,
 )
@@ -351,7 +351,8 @@ def test_mutator_rules_are_data():
                                      "E_NO_BASE", "sum_first_n",
                                      "average", "factorial", "code_repair",
                                      "E_NO_BASE"} or True
-        assert v["component"] in COMPONENT_VOCAB
+        assert (v["component"] in COMPONENT_VOCAB
+             or v["component"] in K_META)
         assert v["rationale"].strip()
 
 

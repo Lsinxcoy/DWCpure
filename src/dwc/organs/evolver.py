@@ -54,6 +54,97 @@ COMPONENT_VOCAB = frozenset({
 #: ★★ 结构型组件（式 15: 取新颖度奖励 ν_str）
 STRUCTURAL = frozenset({"client_tool", "skill", "memory", "subagent"})
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R37 · 𝒦_meta（系统层 5 项）—— 实现 docs/COMPONENT_VOCABULARY §二
+#   真源: papers_txt/2609.24972.txt 式12（𝒦 9 项，逐字核）
+#        docs/COMPONENT_VOCABULARY.md §2.1（𝒦_meta 5 项）
+#   ★★ 为什么 𝒦 不扩而另建一张表: 代码/评估器不是"harness 片段"
+#     ⇒ 塞进 𝒦 会让 proposer 尝试改评估器
+#       ⇒ ⇒ 那正是 GAI Dial 2 说的 "base that the agent may rewrite"
+#         （破坏 grounded 的第二条件）
+# ═══════════════════════════════════════════════════════════
+K_META: Dict[str, bool] = {
+    # name → editable（**K4: 必填无默认** —— 每项都要明写）
+    "code": True,           # §3.1 可编辑，但 ν_t=0（不给新颖度奖励）
+    "architecture": True,   # §3.2 可编辑，但**须人工批准**（G3 人类主权）
+    "meta_evolution": True, # §3.3 定义性组件（m 改 m ⇒ 递归闭合在 m）
+    "evaluator": False,     # §3.4 ★ 不可编辑（G10 密封 + grounded 第二条件）
+                            #   ★★ K3: **必须在表里** 标 false ——
+                            #     "不在表里" 与 "在表里但禁止" 是两种保证
+    "external_source": False,  # §3.5 只读登记（须 provenance）
+}
+
+#: ★★ K3 · 两项必须 editable: False（机械可查）
+K_META_READONLY = ("evaluator", "external_source")
+
+#: ★★ §四① · component → 所属层（**一致性判据 K2 的真值表**）
+#:   𝒦 9 项 ⇒ assets；𝒦_meta 5 项 ⇒ architecture
+LAYER_BY_GROUP = {"assets": frozenset(COMPONENT_VOCAB),
+                  "architecture": frozenset(K_META)}
+
+
+def layer_of(component: str) -> str:
+    """component → target_layer（§四① 的真值表）。
+
+    ★★ 返回 `assets`（∈𝒦）/ `architecture`（∈𝒦_meta）
+    ⇒ 不在任何一表 ⇒ ★ **不猜**，raise（两表并集 = 全部可选组件）
+    """
+    if component in COMPONENT_VOCAB:
+        return "assets"
+    if component in K_META:
+        return "architecture"
+    raise ValueError(
+        "component=%r 既不在 𝒦(9) 也不在 𝒦_meta(5) ⇒ **无层可归**"
+        "（proposer 只能在这两表里选，见 §四①）" % component)
+
+
+def check_component(component: str) -> List[str]:
+    """★ R37 · component 合法性的**唯一入口**（两表都认）。
+
+    ★★★ 为什么要有这个包装（而不是各处 `in COMPONENT_VOCAB`）:
+      我 R37 同一轮里犯了**三处不同源**:
+        ① prompt 给两表（模型真选了 `code`）
+        ② 生成校验只认 𝒦 9 项 ⇒ **拒了合法组件**
+        ③ 固化校验 `entry_from_candidate` 也只认 𝒦 ⇒ 同款拒
+      ⇒⇒ ⇒★★ 「一个判据三个来源」= 必然漂移
+        （同 R30 的 c/q 值域、R34 的 DIFF_FIELDS —— 我一再踩）
+      ⇒ ⇒★ 收敛: 都走这里（`layer_of` 是真源，两表 + 词表外 raise）
+    """
+    try:
+        layer_of(component)
+    except ValueError as ex:
+        return [str(ex)]
+    return []
+
+
+def check_pairing(component: str, target_layer: str) -> List[str]:
+    """★★★ 判据 K2 · component_type 与 target_layer 必须一致。
+
+    ★ 依据 §四①: 「两个字段必须一致: component_type ∈ 𝒦 ⇒ target_layer
+      必为 assets；**不一致 ⇒ 声明与意图矛盾, 门应拒**」
+    ★★ 文档内部编号有冲突（我**挑明不擅自改设计**）:
+      §四① 那句写的是「判据 K3」，而 §五 判据列表里 **K2 才是**
+      「component_type 与 target_layer 必须一致」
+      ⇒ ⇒★ 本实现按 §五（判据**定义处**为准）
+      ⇒ ⇒★ 若裁决为 K3，改一行常量即可（见 CHECK_ID）
+
+    ★ 返回问题列表（[] = 通过）—— 与 `check_entry` 同口径
+    """
+    problems: List[str] = []
+    try:
+        want = layer_of(component)
+    except ValueError as e:
+        return [str(e)]
+    if target_layer != want:
+        problems.append(
+            "★ K2: component=%r 应配 target_layer=%r，实得 %r"
+            " ⇒ **声明与意图矛盾**（§四①）" % (component, want, target_layer))
+    return problems
+
+
+#: ★ 当前判据编号（文档冲突时的唯一改动点）
+CHECK_ID = "K2"
+
 #: ★★ 九维分类法（2606.14249 §3.3 原文）
 DIMENSIONS = ("D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9")
 
@@ -68,6 +159,33 @@ import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R37 · 种子迁移: 给**旧条目**补 target_layer
+#   实测: 3 个种子条目 `target_layer=None`（它们写于 §四① 之前）
+#   ⇒⇒ ⇒★ 而 schema 现在必填该字段 ⇒ 读到 None 就炸（跨进程那步）
+#   ⇒ ⇒★ 用 `layer_of` 推（**不手填** —— 那是真值表，机械可推）
+#   ⇒ 这是**数据迁移**，不是改设计
+# ═══════════════════════════════════════════════════════════
+#: ★★★ R37 · G7 抓到我在这写过 `except: pass`（同族第 N 次）
+#:   ⇒⇒ 修法不是"加日志"，而是**先判词表再推**（消除异常路径）
+#:     —— 比吞异常干净: 没有异常就没有静默
+MIGRATE_SKIPPED: List[str] = []
+
+def _migrate_target_layer(table: Dict[str, Dict[str, Any]]) -> int:
+    n = 0
+    for k, v in table.items():
+        if v.get("target_layer"):
+            continue
+        comp = str(v.get("component") or "")
+        if comp in COMPONENT_VOCAB or comp in K_META:
+            v["target_layer"] = layer_of(comp)
+            n += 1
+        else:
+            # ★ 跳过也**留痕**（G7: 不许无痕跳过）—— 由 check_entry 报
+            MIGRATE_SKIPPED.append("%s(component=%r)" % (k, comp))
+    return n
 
 
 class EvolverError(Exception):
@@ -104,6 +222,10 @@ class Proposal:
     #: ★ 为什么这么改（依据 —— 不许"看着办"）
     rationale: str
     #: 结构型组件取新颖度奖励（式 15）
+    #: ★★★★ R37 · §四① 第 2 个字段（**proposer 必须声明**）
+    #:   component ∈ 𝒦 ⇒ assets · ∈ 𝒦_meta ⇒ architecture
+    #:   ⇒⇒ 不一致 = 声明与意图矛盾（判据 K2）
+    target_layer: str = ""
     is_structural: bool = False
     dimension: Optional[str] = None
 
@@ -114,10 +236,30 @@ class Proposal:
     created_at: float = 0.0
 
     def __post_init__(self):
-        if self.component not in COMPONENT_VOCAB:
+        # ★★★ R37 · 第 5 个来源（prompt/生成/固化/schema/提案）
+        #   我原来只查 COMPONENT_VOCAB ⇒ 已固化的 `code`(𝒦_meta)
+        #   在**读取**这一步被拒 ⇒ e2e 跨进程那步炸
+        #   ⇒⇒ ⇒★ 「一个判据五个来源」——本轮核心教训的完整形态
+        _cc = check_component(str(self.component or ""))
+        if _cc:
             raise EvolverError(
-                "component=%r 不在 RRSI 词表内（2609.24972 式 12）"
-                % self.component)
+                "component=%r 不在 𝒦∪𝒦_meta 内（2609.24972 式12 ∪ "
+                "COMPONENT_VOCABULARY §2.1）: %s"
+                % (self.component, _cc[0][:70]))
+        # ★★★★ K2: component ↔ target_layer 必须一致（§四①）
+        #   ★★ R37 我第一版直接对 `target_layer=""` 跑 K2 ⇒
+        #     所有**没声明**第 2 字段的构造全炸（19 个测试红）
+        #     ⇒⇒ ⇒★ 而 §四① 的意图是查**矛盾**，不是查"空"
+        #   ⇒ ⇒★ 分两段（与 propose() 同款兜底）:
+        #     · 没声明 ⇒ 由 `layer_of` **推**（真值表，机械可推）
+        #       ⇒ 这是"补全声明"，不是"替它决定"（值必然与 component 一致）
+        #     · 声明了但矛盾 ⇒ **拒**（那才是真正的『说一套做一套』）
+        if not str(self.target_layer or "").strip():
+            self.target_layer = layer_of(str(self.component or ""))
+        _pair = check_pairing(str(self.component or ""),
+                              str(self.target_layer or ""))
+        if _pair:
+            raise EvolverError("K2 提案声明矛盾: " + _pair[0])
         if self.state not in PROPOSAL_STATES:
             raise EvolverError(
                 "state=%r 不在 %r 内" % (self.state, list(PROPOSAL_STATES)))
@@ -180,7 +322,7 @@ class Mutator:
 
     #: ★ 条目的**必填**字段（propose 用下标读 ⇒ 缺了就 KeyError）
     #:   ⇒ 固化前必须校验，否则固化一条坏规则会炸在**查表那一刻**
-    RULE_ENTRY_FIELDS = ("component", "dimension", "target",
+    RULE_ENTRY_FIELDS = ("component", "dimension", "target_layer", "target",
                          "m", "m_source", "patch", "rationale")
 
     #: ★ 允许的 component（RRSI 式12 词表）—— 与 Proposal 校验同源
@@ -269,8 +411,15 @@ class Mutator:
         """
         missing = [f for f in cls.RULE_ENTRY_FIELDS
                    if not str(entry.get(f, "")).strip()]
-        if entry.get("component") not in COMPONENT_VOCAB:
-            missing.append("component∉词表:%s" % entry.get("component"))
+        # ★★★ R37 · 第 4 个来源（prompt/生成/固化/schema）
+        #   我原来写 `not in COMPONENT_VOCAB` ⇒ 模型给的 `code`
+        #   (𝒦_meta 合法) 在 **schema 这一步**又被拒
+        #   ⇒⇒ ⇒★ 「一个判据四个来源」= 必然漂移（本轮核心教训）
+        #   ⇒ ⇒★ 收敛: 都走 `check_component`（layer_of 是真源）
+        _cc = check_component(str(entry.get("component") or ""))
+        if _cc:
+            missing.append("component∉𝒦∪𝒦_meta:%s"
+                           % entry.get("component"))
         if entry.get("dimension") not in DIMENSIONS:
             missing.append("dimension∉九维:%s" % entry.get("dimension"))
         if not key.count(":") == 2:
@@ -310,6 +459,12 @@ class Mutator:
                       "return n * factorial(n - 1)"),
             "rationale": "缺递归基 ⇒ 无限递归；按判据 0!/1! 都应为 1"},
     }
+
+    # ★★★★ R37 · 模块加载即给种子补 target_layer（数据迁移）
+    #   实测: 3 个种子写于 §四① 之前 ⇒ target_layer=None
+    #   ⇒⇒ 读取侧有 layer_of 兜底（propose 那行），但**落盘**还是 None
+    #   ⇒ ⇒★ 迁移让数据本身完整（check_entry 必填该字段）
+    _seed_migrated = _migrate_target_layer(RULES)
 
     # ★★★ R32: RULES 定义**之后**立刻捕获种子
     #   ⇒ 顺序要紧: 先有种子（代码字面量）⇒ 再判哪些是"学到的"
@@ -369,13 +524,23 @@ class Mutator:
             raise ValueError("★ 没有候选 ⇒ 无可固化内容（不许空固化）")
         comp = str(getattr(cand, "component", "") or "")
         dim = str(getattr(cand, "dimension", "") or "")
-        if comp not in COMPONENT_VOCAB:
+        # ★★★ R37: 用**单源**（COMPONENT_VOCAB ∪ K_META）
+        #   我原来只查 COMPONENT_VOCAB ⇒ 模型给的 `code`(𝒦_meta 合法)
+        #   在**固化**这一步被拒 —— 同一个判据第三个来源
+        _cp = check_component(comp)
+        if _cp:
             raise ValueError(
-                "★ candidate.component=%r 不在词表 ⇒ 拒绝固化"
-                "（**不猜默认值** —— 那就是编造）" % comp)
+                "★ candidate.component=%r 不在 𝒦∪𝒦_meta ⇒ 拒绝固化"
+                "（**不猜默认值** —— 那就是编造）: %s" % (comp, _cp[0][:60]))
         if dim not in DIMENSIONS:
             raise ValueError("★ candidate.dimension=%r 不在九维 ⇒ 拒绝固化"
                              % dim)
+        # ★★★★ R37 · K2: component 与 target_layer **必须一致**
+        #   （§四①: 不一致 = 声明与意图矛盾 ⇒ 拒）
+        _layer = str(getattr(cand, "target_layer", "") or "")
+        _pair = check_pairing(comp, _layer)
+        if _pair:
+            raise ValueError("★ K2 固化前校验: " + _pair[0])
         m = str(getattr(cand, "m", "") or "")
         if not m:
             raise ValueError("★ m 为空 ⇒ 这条规则没有机制假设，固化无意义")
@@ -384,6 +549,9 @@ class Mutator:
         entry = {
             "component": comp,
             "dimension": dim,
+            # ★★★★ R37 · §四① 第 2 个字段（proposer 必须声明）
+            #   + K2 配对校验（component ↔ target_layer 一致）
+            "target_layer": _layer,
             "target": str(getattr(cand, "target", "") or ""),
             "m": m,
             "m_source": m_source,
@@ -434,10 +602,15 @@ class Mutator:
         full = dict(sig)
         full["m"] = rule.get("m", "")
         full["m_source"] = rule.get("m_source", "rule")
+        # ★★★★ R37: target_layer 必须带上（§四① 第 2 字段）
+        #   旧条目没有它 ⇒ 由 `layer_of` 推（真值表，机械可推）
+        #   ⇒⇒ 一定与 component 一致（同一个真源 ⇒ 不可能 K2 矛盾）
         return Proposal(proposal_id=pid, failure_signature=full,
                         component=rule["component"], target=rule["target"],
                         patch=rule["patch"], rationale=rule["rationale"],
-                        dimension=rule.get("dimension"))
+                        dimension=rule.get("dimension"),
+                        target_layer=(rule.get("target_layer")
+                                      or layer_of(rule["component"])))
 
     def known_signatures(self) -> List[str]:
         """★ 声明过的失败签名（可审计：我们只修这些）。"""
@@ -473,8 +646,22 @@ class ProposalGate:
         if not p.target.strip():
             v.append(("no_target", "约束 4: 提案必须有唯一 target"))
         # ② 词表
-        if p.component not in COMPONENT_VOCAB:
-            v.append(("bad_component", "组件不在 RRSI 词表内"))
+        # ★ R37: 与 __post_init__ 同源（check_component）
+        if check_component(str(p.component or "")):
+            v.append(("bad_component", "组件不在 𝒦∪𝒦_meta 内"))
+        # ★★★ K2（§四①: 门报告器也查一致性 —— 不 raise，只报告）
+        # ★ 与 __post_init__ 同款: 没声明 ⇒ 推（推得出来就不是矛盾）
+        _lay = str(getattr(p, "target_layer", "") or "")
+        if not _lay:
+            # ★ R37: 先判词表 ⇒ **无异常**（G7 抓过我这里的 except: pass）
+            #   词表外的由 ② bad_component 报（不越权、也不吞）
+            _pc = str(p.component or "")
+            if _pc in COMPONENT_VOCAB or _pc in K_META:
+                _lay = layer_of(_pc)
+                p.target_layer = _lay
+        _pk = check_pairing(str(p.component or ""), _lay)
+        if _pk:
+            v.append(("layer_mismatch", "K2: " + _pk[0]))
         # ③ 依据
         if not p.rationale.strip():
             v.append(("no_rationale", "约束 4: 变更须可归因 ⇒ 必须有依据"))

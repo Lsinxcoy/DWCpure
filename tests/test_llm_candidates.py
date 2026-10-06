@@ -349,6 +349,7 @@ def test_prompt_contains_contract_vocab():
 
 def _entry(**over):
     e = {"component": "control_flow", "dimension": "D7",
+         "target_layer": "assets",
          "target": "f", "m": "m", "m_source": "rule",
          "patch": "p", "rationale": "r"}
     e.update(over)
@@ -366,10 +367,21 @@ def _mk_cand(**kw):
                 grounding=[{"index": 0, "actual": 1, "expected": 2}],
                 m="lower_case", m_source="llm",
                 component="control_flow", dimension="D7",
+                target_layer="assets",
                 target="is_palindrome",
                 provenance={"prompt_ver": "v2", "model": "MiMo",
                             "n_diffs": 1, "raw_m": "m"})
     base.update(kw)
+    # ★★★ R37: layer **跟着 component 走**（与真实流水线一致）
+    #   我原来默认写死 `target_layer="assets"` ⇒ 换 component 后
+    #   K2 必然拒 ⇒ 测的就不是"component 合法性"而是我的手滑
+    #   ⇒⇒ ⇒★ 测试数据要走**真实构造路径**（`layer_of` 是真源）
+    if "target_layer" not in kw:
+        try:
+            from dwc.organs.evolver import layer_of
+            base["target_layer"] = layer_of(base.get("component", ""))
+        except ValueError:
+            base["target_layer"] = ""
     return Candidate(**base)
 
 
@@ -390,7 +402,13 @@ def test_entry_rejects_out_of_contract_component():
     from dwc.organs.evolver import Mutator
     with pytest.raises(ValueError) as ex:
         Mutator.entry_from_candidate(_mk_cand(component="banana"))
-    assert "词表" in str(ex.value) and "不猜默认值" in str(ex.value)
+    # ★ R37: 措辞从「不在词表」改成「不在 𝒦∪𝒦_meta」（扩到两表）
+    #   ⇒ 但**意图**没变: 原因要透出 + 明确"不猜默认值"
+    #   ⇒ ⇒★ 断言**意图**而非字面（否则每次改措辞都红）
+    assert "不猜默认值" in str(ex.value), "★ 拒绝必须说明不猜默认"
+    assert "banana" in str(ex.value), "★ 原因要带出被拒的值"
+    assert ("𝒦∪𝒦_meta" in str(ex.value) or "词表" in str(ex.value)), \
+        "★ 原因要说清在哪张表里不合法"
     # ★ 指纹也不能被绕过（同一函数路径）
     for bad in (dict(dimension="D99"), dict(m=""),
                 dict(component=""), dict(dimension="")):
@@ -686,3 +704,216 @@ def test_retire_flushes_to_disk():
          "跨进程时退化规则复活（G4 生灭在跨进程失效）")
     assert "已落盘同步" in ap.log[-1].reason, \
         "★ reason 要报落盘状态（否则『退役了』与『退役且同步』不可区分）"
+
+# ══════════════════════════════════════════════════════════
+# ⑥ R37 · §四① 的契约（𝒦_meta / target_layer / K2）
+#   真源: docs/COMPONENT_VOCABULARY.md §2.1 + §四① + §五
+# ══════════════════════════════════════════════════════════
+
+def test_meta_vocab_has_five_and_editable_no_default():
+    """★★★★★ K4: 𝒦_meta 必须 5 项且每项**显式**标 editable（无默认）。"""
+    from dwc.organs.evolver import K_META
+    assert len(K_META) == 5, "𝒦_meta 应 5 项，实得 %d" % len(K_META)
+    assert set(K_META) == {"code", "architecture", "meta_evolution",
+                           "evaluator", "external_source"}
+    for k, v in K_META.items():
+        assert isinstance(v, bool), \
+            "★ K4: %s 的 editable 必须是 bool（无默认值）" % k
+
+
+def test_k3_evaluator_and_external_source_readonly():
+    """★★★★ K3: evaluator/external_source 必须**在表里**且 editable=False。
+
+    ★★★ 依据 §3.4: 「不在表里」与「在表里但禁止改」是**两种不同的保证**
+      ⇒⇒ 若 evaluator 不在表里, grep 时看不出"是漏了还是有意排除"
+        —— 那正是缺口 A3 本身的成因
+    """
+    from dwc.organs.evolver import K_META, K_META_READONLY
+    for name in K_META_READONLY:
+        assert name in K_META, \
+            "★ K3: %s 必须**在表里**（不许靠缺席表达不可编辑）" % name
+        assert K_META[name] is False, \
+            "★ K3: %s 应 editable=False（改它 = 破坏 grounded 第二条件）" % name
+
+
+def test_layer_of_covers_both_tables():
+    """§四① 真值表: 𝒦 ⇒ assets · 𝒦_meta ⇒ architecture · 词表外 ⇒ raise。"""
+    from dwc.organs.evolver import (COMPONENT_VOCAB, K_META, layer_of)
+    for c in COMPONENT_VOCAB:
+        assert layer_of(c) == "assets"
+    for c in K_META:
+        assert layer_of(c) == "architecture"
+    # ★ 词表外必须**不猜**（返回任何层 = 编造）
+    with pytest.raises(ValueError) as ex:
+        layer_of("banana")
+    assert "无层可归" in str(ex.value)
+
+
+def test_k2_rejects_mismatched_pairing():
+    """★★★★★ K2: component 与 target_layer 不一致 ⇒ 拒（§四①）。"""
+    from dwc.organs.evolver import check_pairing
+    assert check_pairing("control_flow", "assets") == []
+    assert check_pairing("meta_evolution", "architecture") == []
+    # 不一致 ⇒ 必须报，且原因说清是哪两个值
+    p1 = check_pairing("control_flow", "architecture")
+    assert p1 and "K2" in p1[0] and "assets" in p1[0]
+    p2 = check_pairing("evaluator", "assets")
+    assert p2 and "architecture" in p2[0]
+    # 词表外 ⇒ 也算问题（无层可归）
+    assert check_pairing("banana", "assets")
+
+
+def test_candidate_has_target_layer_field():
+    """§四① 的第 2 个字段必须在 Candidate 里存在。"""
+    import dataclasses
+    from dwc.organs.candidates import Candidate
+    names = {f.name for f in dataclasses.fields(Candidate)}
+    assert "target_layer" in names, \
+        "★ §四①: proposer 必须声明两个字段，缺 target_layer"
+    assert "component" in names
+
+
+def test_rule_entry_fields_requires_target_layer():
+    """★★ RULE_ENTRY_FIELDS 必须含 target_layer（否则固化不校验它）。"""
+    from dwc.organs.evolver import Mutator
+    assert "target_layer" in Mutator.RULE_ENTRY_FIELDS, \
+        "★ §四①: schema 必须检查第 2 个字段"
+
+
+def test_prompt_requires_model_to_declare_layer():
+    """prompt 必须让模型**显式**声明 target_layer（§四①『必须声明』）。"""
+    g = CandidateGenerator(llm=_mock(_ok(["return 1"])))
+    g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    src = type(g).__init__
+    import inspect
+    body = inspect.getsource(CandidateGenerator._llm_generate)
+    assert '"target_layer"' in body, "★ prompt 的 JSON 格式必须含 target_layer"
+    assert "target_layer=assets" in body or "assets 或 architecture" in body \
+        or "只能是 assets 或 architecture" in body, \
+        "★ prompt 必须解释 𝒦/𝒦_meta 与 layer 的对应"
+
+
+def test_entry_from_candidate_carries_layer_and_enforces_k2():
+    """★★★★★ 固化侧: entry 要带 target_layer，且 K2 不一致 ⇒ 拒。"""
+    from dwc.organs.evolver import Mutator
+    c = _mk_cand()
+    assert c.target_layer == "assets", "R1/control_flow 应归 assets"
+    e = Mutator.entry_from_candidate(c)
+    assert e["target_layer"] == "assets"
+    assert Mutator.check_entry("E:q:f", e) == []
+    # ★ K2 破坏: 把 layer 改成 architecture（与 component 矛盾）
+    c2 = _mk_cand(target_layer="architecture")
+    with pytest.raises(ValueError) as ex:
+        Mutator.entry_from_candidate(c2)
+    assert "K2" in str(ex.value), \
+        "★ component 与 layer 矛盾竟固化通过 ⇒ 说一套做一套"
+
+
+def test_generation_unifies_layer_on_deterministic_candidates():
+    """统一收口: 确定性候选也要有 target_layer（缺的从 component 推）。"""
+    g = CandidateGenerator()
+    sig = {"c": "E_VALUE", "q": "wrong_magnitude", "fn": "sum_first_n"}
+    diffs = [{"args": 3, "actual": 3, "expected": 6},
+             {"args": 5, "actual": 10, "expected": 15}]
+    r = g.generate(sig, diffs, "def sum_first_n(n):\n    return sum(range(n))",
+                   fn_name="sum_first_n")
+    assert r["n"] >= 1
+    for c in r["candidates"]:
+        assert c.target_layer == "assets", \
+            "★ 确定性候选缺 target_layer（统一收口没覆盖到）"
+
+
+def test_r2_layer_stays_empty_and_k2_rejects_it():
+    """R2 无 component ⇒ layer 也空 ⇒ K2 拒（**诚实的拒绝**，同 R35）。"""
+    from dwc.organs.evolver import check_pairing
+    g = CandidateGenerator()
+    sig = {"c": "E_TYPE", "q": "wrong_magnitude", "fn": "mystery"}
+    diffs = [{"args": 1, "actual": "7", "expected": 7},
+             {"args": 2, "actual": "9", "expected": 9}]
+    r = g.generate(sig, diffs, "def mystery(x):\n    return str(x * 2)",
+                   fn_name="mystery")
+    r2s = [c for c in r["candidates"] if c.rule.startswith("R2_")]
+    if not r2s:
+        return
+    c = r2s[0]
+    assert c.component == "" and c.target_layer == "", \
+        "R2 不该有 component/layer（无依据）"
+    assert check_pairing(c.component, c.target_layer), \
+        "★ 空 component/layer 应被 K2 拒"
+
+def test_component_vocab_is_single_sourced_everywhere():
+    """★★★★★ R37 核心教训: **一个判据不许有四个来源**。
+
+    ★★★ 我本轮实测的漂移路径（每一步都真实发生）:
+      ① prompt 给两表 ⇒ 模型真选了 `component='code'`
+      ② 生成校验只认 𝒦 ⇒ 拒了**合法**组件 ⇒ e2e step9 卡死
+      ③ 固化 `entry_from_candidate` 同款拒
+      ④ schema `check_entry` 同款拒
+    ⇒⇒ ⇒★★ 四处都写 `in COMPONENT_VOCAB` ⇒ 必然漂移
+      （同 R30 的 c/q 值域、R34 的 DIFF_FIELDS —— 我一再踩）
+      ⇒ ⇒★ 收敛点: `check_component`（真源 = `layer_of`）
+
+    本测试锁:
+      a) `𝒦_meta` 里的 component **四处全部接受**
+      b) 词表外的 component **四处全部拒绝**
+      ⇒ 少改任何一处，这里就红
+    """
+    from dwc.organs.evolver import (Mutator, check_component,
+                                    check_pairing, K_META, layer_of)
+    from dwc.organs.candidates import CandidateGenerator
+
+    for comp in K_META:            # a) 𝒦_meta 合法项
+        assert check_component(comp) == [], \
+            "单源拒了合法组件 %s" % comp
+        layer_of(comp)              # 必须能归层
+        # 固化侧
+        e = Mutator.entry_from_candidate(_mk_cand(component=comp))
+        assert Mutator.check_entry("E:q:f", e) == [], \
+            "schema 拒了合法组件 %s: %s" % (comp,
+                                          Mutator.check_entry("E:q:f", e))
+    for bad in ("banana", "", "Code", "CODE"):   # b) 词表外
+        assert check_component(bad), "单源放行了 %r" % bad
+        with pytest.raises(ValueError):
+            Mutator.entry_from_candidate(_mk_cand(component=bad))
+        e2 = {"component": bad, "dimension": "D7",
+              "target_layer": "assets", "target": "f",
+              "m": "m", "m_source": "rule",
+              "patch": "p", "rationale": "r"}
+        assert any("component" in x
+                   for x in Mutator.check_entry("E:q:f", e2)), \
+            "schema 放行了 component=%r" % bad
+
+    # 生成侧（LLM 给 𝒦_meta 项 ⇒ 必须通过，不许拒）
+    g = CandidateGenerator(llm=_mock(LLMResult(
+        ok=True, source="llm", text=json.dumps({
+            "patches": ["s = s.lower()\nreturn s == s[::-1]"],
+            "m": "m", "component": "code", "dimension": "D1",
+            "target_layer": "architecture"}))))
+    r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    assert r["n"] >= 1, \
+        ("★ 生成侧拒了 𝒦_meta 合法组件（why=%s）"
+         % str(r.get("why"))[:150])
+    c = r["candidates"][0]
+    assert c.component == "code" and c.target_layer == "architecture"
+    # K2 与单源同向
+    assert check_pairing("code", "architecture") == []
+    assert check_pairing("code", "assets")
+
+
+def test_meta_component_reaches_fully_end_to_end():
+    """★ 一条 𝒦_meta 组件从**生成到固化**全通（漏哪一环都会红）。"""
+    from dwc.organs.evolver import Mutator, check_component
+    g = CandidateGenerator(llm=_mock(LLMResult(
+        ok=True, source="llm", text=json.dumps({
+            "patches": ["return 1"], "m": "m",
+            "component": "meta_evolution", "dimension": "D9",
+            "target_layer": "architecture"}))))
+    r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    assert r["n"] >= 1, "① 生成侧拒了 meta_evolution"
+    c = r["candidates"][0]
+    assert c.target_layer == "architecture"
+    assert check_component(c.component) == [], "② 单源拒了"
+    e = Mutator.entry_from_candidate(c)
+    assert e["target_layer"] == "architecture"
+    assert Mutator.check_entry("E:q:f", e) == [], \
+        "④ schema 拒了: %s" % Mutator.check_entry("E:q:f", e)
