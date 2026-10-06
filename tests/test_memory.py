@@ -360,3 +360,125 @@ def test_no_dead_tube_values():
                          ("MAINTAIN", "def maintain")):
         assert marker in src, "管 %s 在枚举里但没有实现（死枚举值）" % name
     assert used, "至少要有管被显式引用"
+
+# ══════════════════════════════════════════════════════════
+# R22 · 死结修复：dream 的 access 门槛 + 检索层
+# ══════════════════════════════════════════════════════════
+
+def _sig(mk, c, q, m, detail=None):
+    p = {"c": c, "q": q, "m": m}
+    if detail:
+        p["detail"] = detail
+    return mk.remember(MemoryKind.FAILURE_SIGNATURE, p)
+
+
+def test_starvation_broken_by_waiver(mem):
+    """★★★ 核心回归: 跨簇唯一 + 从未被召回 ⇒ 仍能归纳出技能。
+
+    ★★★ 这个病是我实测出来的（不是推理）:
+      dream 要 access>0 · access 只由 recall 增加
+      · recall 要先知道查什么 · 而旧代码只有 by_signature(三元组)
+      · 三元组只有失败现场才知道
+      ⇒⇒ "没失败过就查不到 → 查不到就永远没 access → 永远没技能"
+    """
+    _sig(mem, "timeout", "agent", "retry_bomb", "重试7次")
+    d = mem.dream("timeout", "agent", "retry_bomb")
+    assert d["eligible"] is True, "唯一签名不该被 access 门槛卡住"
+    assert d["waiver"] == "unique_signature"
+    assert d["candidate_skill"] is not None
+
+
+def test_waiver_not_granted_when_mechanism_common(mem):
+    """★★★ 意图: 同一机制在别处也出现 ⇒ **不豁免**。
+
+    ★★★ 这是 R22.1/R22.2 连续两次修正的产物:
+      初版用「簇内只有一条」⇒ 几乎恒真 ⇒ waiver 变成万能借口
+        ⇒⇒ 那比原来的饿死更坏（D7 判据形同虚设）
+      ⇒★ 正确判据: **抽象机制 m 在全库只出现一次**
+    """
+    _sig(mem, "timeout", "a", "common_bug", "x")
+    _sig(mem, "timeout", "b", "common_bug", "y")   # 同一 m，不同 q
+    d = mem.dream("timeout", "a", "common_bug")
+    assert d["waiver"] is None, "常见机制不该豁免（否则 waiver 成万能借口）"
+    assert d["eligible"] is False, "无豁免且没人用 ⇒ 归纳不出技能"
+
+
+def test_waiver_reason_is_auditable(mem):
+    """★★ 意图: 豁免必须带可审计的理由（否则会变成万能借口）。"""
+    _sig(mem, "x", "y", "rare_mech", "d")
+    d = mem.dream("x", "y", "rare_mech")
+    assert "跨簇唯一" in d["why"] or "唯一" in d["why"]
+    assert d["why"], "理由不得为空"
+
+
+def test_used_memory_takes_normal_path(mem):
+    """意图: 被召回过的走常规路径，不看 waiver。"""
+    a = _sig(mem, "oom", "mem", "leak", "爆了")
+    _sig(mem, "oom", "mem", "other", "爆2")
+    mem.recall(a)
+    d = mem.dream("oom", "mem", "leak")
+    assert d["eligible"] and d["n_used"] == 1
+    assert d["waiver"] is None, "有 access 就该走常规路径"
+
+
+def test_dream_on_empty_cluster(mem):
+    """意图: 空簇不产出，且返回结构完整（含 waiver 字段）。"""
+    d = mem.dream("a", "b", "c")
+    assert d["eligible"] is False and d["n_members"] == 0
+    assert "waiver" in d, "返回结构必须一致（空簇也要有 waiver 键）"
+
+
+def test_recall_search_finds_by_scene(mem):
+    """★★★ 意图: 检索的入口是**场景词**，不是三元组。
+
+    ★★★ 这才是死结的真正破法 —— 因为三元组只有失败现场才知道，
+      而场景词在失败**发生前**就有（要修什么 bug）。
+    """
+    mem.remember(MemoryKind.TRACE,
+                 {"scene": "修 timeout bug", "action": "retry"})
+    _sig(mem, "timeout", "agent", "retry_bomb", "重试7次")
+    hits = mem.recall_search("timeout", ["retry_bomb"])
+    assert len(hits) == 2, "场景词应同时命中痕迹与失败签名"
+
+
+def test_recall_search_is_pure(mem):
+    """★★ 意图: recall_search **不记 access**（它是纯查询，可反复用）。"""
+    mem.remember(MemoryKind.TRACE, {"scene": "s", "action": "a"})
+    for _ in range(3):
+        mem.recall_search("s", ["a"])
+    n = mem.get(mem.by_zone(Zone.PROXY)[0].node_id)
+    assert n.access_count == 0, "纯查询不该改证据（否则检索实验会污染 D7）"
+
+
+def test_recall_many_records_access(mem):
+    """★★ 意图: recall_many 才记 access（Tube.RECALL 的完整语义）。"""
+    t = mem.remember(MemoryKind.TRACE, {"scene": "s2", "action": "a2"})
+    hits = mem.recall_many("s2", ["a2"])
+    assert any(h.node_id == t for h in hits)
+    assert mem.get(t).access_count == 1, "取回后 access 必须 +1（§2.2② 判据）"
+
+
+def test_recall_search_empty_returns_empty(mem):
+    """意图: 查不到返回空列表（不 raise）。"""
+    mem.remember(MemoryKind.TRACE, {"scene": "x"})
+    assert mem.recall_search("完全无关的词") == []
+
+
+def test_maintain_holds_never_recalled(mem):
+    """★★★ 意图: 未召回的记忆**一律不处置**（第1层，不可换序）。"""
+    for i in range(3):
+        mem.remember(MemoryKind.TRACE, {"n": i})
+    r = mem.maintain()
+    assert r["n_held"] == 3 and r["n_archived"] == 0
+    assert len(r["held_never_recalled"]) == 3
+    assert "recall 管要修" in r["hint"], "审计要点要指向检索而非记忆该删"
+
+
+def test_maintain_protects_rare_signature(mem):
+    """★★ 意图: 稀有保护是硬否决（第3层）。"""
+    _sig(mem, "c1", "q1", "m1", "d")
+    mem.recall(mem.by_signature("c1", "q1", "m1")[0])
+    r = mem.maintain()
+    assert r["n_protected"] >= 1
+    assert mem.get(r["protected_rare"][0]).zone is not Zone.ARCHIVE, \
+        "唯一签名不许被归档"

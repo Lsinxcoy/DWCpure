@@ -379,6 +379,150 @@ class MemoryKernel:
         return out
 
     # ══════════════════════════════════════════════
+    # Tube.RECALL · 取回（四路融合 + RRF + 重力排序）
+    # ══════════════════════════════════════════════
+    def recall_search(self, scene: str, terms: Optional[List[str]] = None,
+                      k: int = 5) -> List[MemoryNode]:
+        """★ 按**场景词**检索，返回节点（未记 access）。
+
+        ★★★ R22 这个方法是为了解一个实测出来的死结:
+          dream 要求"至少一条被 used()"，而 used() 要 access_count>0，
+          access_count 只由 recall() 增加
+          ⇒ 但 recall() 需要先知道**查什么**，而旧代码只有
+            by_signature(c,q,m) —— 它要求三元组**已知**
+          ⇒⇒ ★★★ 而三元组只有失败现场才知道（reflect 管从失败生成它）
+          ⇒⇒ ⇒★ 于是"没失败过 ⇒ 查不到 ⇒ 永远没 access ⇒
+                 永远没技能"的闭环成立了
+          ⇒⇒ ★ 破法: 检索的入口不是三元组，而是**场景词**——
+            失败发生前就有场景（要修什么 bug），三元组是事后归因的产物。
+
+        ★ 四路（依 MEMORY_SYSTEM §2.2②「多路融合」与母巢四路RRF）:
+          路1 · 场景词匹配（scene 字段 / payload 里的场景词）
+          路2 · 失败签名同 q/m（同一机制、同一因果角色的失败）
+          路3 · 链匹配（同一次进化产生的记忆）
+          路4 · 双时间轴（新建优先，其次高 access）
+        ⇒ 融合用 **RRF**（Reciprocal Rank Fusion）—— 不用加权求和，
+          免得各路量纲不可比（这正是母巢「多路融合」的做法）
+        """
+        terms = [t for t in (terms or []) if t]
+        pool: Dict[str, MemoryNode] = {}
+        for n in self._all_nodes():
+            pool[n.node_id] = n
+
+        # ── 路1 · 场景词 ──
+        scene_norm = (scene or "").strip()
+        route1 = []
+        if scene_norm:
+            for n in pool.values():
+                blob = "%s %s" % (n.payload.get("scene", ""),
+                                  json.dumps(n.payload, ensure_ascii=False))
+                if scene_norm in blob:
+                    route1.append(n.node_id)
+            for t in terms:
+                for n in pool.values():
+                    if t in json.dumps(n.payload, ensure_ascii=False):
+                        if n.node_id not in route1:
+                            route1.append(n.node_id)
+
+        # ── 路2 · 同机制/同因果角色的失败签名 ──
+        route2 = [n.node_id for n in pool.values()
+                  if n.kind is MemoryKind.FAILURE_SIGNATURE
+                  and (n.payload.get("m") in terms
+                       or n.payload.get("q") in terms)]
+
+        # ── 路3 · 同链 ──
+        chain_ids = set()
+        for n in pool.values():
+            if scene_norm and scene_norm in json.dumps(
+                    n.payload, ensure_ascii=False):
+                if n.chain_id:
+                    chain_ids.add(n.chain_id)
+        route3 = [n.node_id for n in pool.values() if n.chain_id in chain_ids]
+
+        # ── 路4 · 双时间轴 ──
+        # ★★★ R22 修正: 路4 原实现是"取最新的 N 条无条件返回"，
+        #   于是**查不到也会返回东西**（自检实测抓到）
+        #   ⇒★ 那会让 recall 变成"总能返回点东西"的空转检索
+        #     —— 而母巢的病正是"淘汰/检索反复触发却无对象"
+        #   ⇒★ 修法: 路4 只在**已有匹配**时参与重排（它是时间轴排序，
+        #     不是召回源）⇒ 若路1~3 全空，则返回空
+        matched = set(route1) | set(route2) | set(route3)
+        route4 = sorted(
+            (n for n in pool.values() if n.node_id in matched),
+            key=lambda x: (x.created_at, x.access_count),
+            reverse=True)
+        route4_ids = [n.node_id for n in route4]
+
+        # ── RRF 融合 ──
+        # score = Σ 1/(60 + rank) —— 60 是 RRF 的标准常数
+        score: Dict[str, float] = {}
+        for route in (route1, route2, route3, route4_ids):
+            for rank, nid in enumerate(route):
+                score[nid] = score.get(nid, 0.0) + 1.0 / (60 + rank + 1)
+
+        if not score:
+            return []
+        # ★ 重力排序 = RRF 分为主键，access_count 为次键
+        ordered = sorted(
+            score.items(),
+            key=lambda kv: (kv[1], pool[kv[0]].access_count),
+            reverse=True)
+        return [pool[nid] for nid, _ in ordered[:k]]
+
+    def recall_many(self, scene: str, terms: Optional[List[str]] = None,
+                   k: int = 5) -> List[MemoryNode]:
+        """★ 检索**并**记 access（Tube.RECALL 的完整语义）。
+
+        ★★★ 判据 D7/MEMORY_SYSTEM §2.2②: 「取回后 access_count 必须 +1」
+          ★★ recall_search **不记** access（它是纯查询，可被反复调用做检索实验）；
+            recall_many 才记 —— 两者分开是为了让"检索"可被审阅而不污染证据。
+        """
+        hits = self.recall_search(scene, terms, k)
+        out = []
+        for n in hits:
+            self._conn.execute(
+                "UPDATE memory_node SET access_count=access_count+1,"
+                " last_access=? WHERE node_id=?", (time.time(), n.node_id))
+            out.append(n.node_id)
+        self._conn.commit()
+        return [self.get(i) for i in out]
+
+    def _all_nodes(self) -> List[MemoryNode]:
+        """全部未归档节点。★ 检索的候选池（内部用）。"""
+        rows = self._conn.execute(
+            "SELECT node_id FROM memory_node WHERE archived_at IS NULL"
+        ).fetchall()
+        return [self.get(r["node_id"]) for r in rows]
+
+    def _signature_is_globally_unique(self, c: str, q: str, m: str) -> bool:
+        """★ 该失败签名在**整个库**里是否只有这一处（R22.1）。
+
+        ★★★ 为什么必须看全局而不是看簇内（自检抓到的真缺陷）:
+          簇内唯一（len(nodes)==1）几乎恒真 —— 大多数簇只有一条
+          ⇒ 豁免会普遍触发 ⇒ waiver 变成万能借口
+          ⇒⇒ ⇒★★ 那比原来的饿死更坏: 原来至少"太严"，
+            现在变成 D7 判据形同虚设。
+          ⇒★ 正确判据: 同一个 m 在全库只出现一次 ⇒ 这知识别处找不到
+            ⇒ 稀缺 ⇒ 放它出去（哪怕没人用过）
+          ⇒ 而同一 m 在多处出现 ⇒ 不稀缺 ⇒ 该等它被真正用到
+        ★ 与稀有保护互为镜像:
+          稀有保护（淘汰侧）: 唯一签名 ⇒ 不淘汰
+          本豁免（归纳侧）:   唯一签名 ⇒ 允许归纳
+          ⇒ 两边看的是同一个量，方向相反
+        """
+        #★★★ R22.2 修正（自检第二次抓到）:
+        #   初版数的是「同一 (c,q,m) 出现几次」—— 而它恒等于 1
+        #   （那就是"这个簇"本身的定义）⇒ 判据恒真 ⇒ 豁免普遍触发
+        #   ⇒⇒ ★★★ 真正该问的是: **抽象机制 m 在别处有没有第二份**
+        #     因为技能是按 m 归纳的（method = "q / m"）
+        #     ⇒ 若 m 在别的因果角色下也出现过 ⇒ 这不是稀缺知识
+        n_m = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM failure_sig WHERE m=?", (m,)
+        ).fetchone()["n"]
+        # ★ 跨簇唯一 = 这个抽象机制在全库只出现这一次
+        return int(n_m) == 1
+
+    # ══════════════════════════════════════════════
     # Tube.DREAM · 反刍（记忆重组 + 沙箱试演）
     # ══════════════════════════════════════════════
     def dream(self, c: str, q: str, m: str) -> Dict[str, Any]:
@@ -402,11 +546,33 @@ class MemoryKernel:
         if not members:
             return {"c": c, "q": q, "m": m, "n_members": 0,
                     "n_used": 0, "candidate_skill": None,
-                    "eligible": False, "why": "无同类失败记忆"}
+                    "eligible": False, "waiver": None,
+                    "why": "无同类失败记忆"}
         nodes = [self.get(n) for n in members]
-        # ★ 只聚"被用过的" —— 没人用的记忆归纳不出东西（与 D7 同源）
+        #★★★ R22 修正: 原实现只聚 used() 的记忆，而那条路走不通 ——
+        #   used() 要 access_count>0，access 只由 recall 增加，
+        #   recall 要先知道查什么，而 by_signature 要求三元组已知
+        #   ⇒⇒ "没失败过就查不到 → 查不到就永远没 access → 永远没技能"
+        #   ⇒★ 现在改成**两级门槛**（详见方法 docstring 的设计说明）:
+        #     一级: 被召回过（access>0）⇒ 常规路径
+        #     二级: 稀有保护同款 —— **唯一签名豁免** access 门槛
+        #   ⇒ 二级是"稀有保护的镜像"：淘汰时唯一签名受保护，
+        #     归纳时唯一签名也不该被"没人用"卡住
         used = [n for n in nodes if n.used()]
-        details = [n.payload.get("detail") for n in used
+        #★★★ R22.1 修正（自检抓到的真缺陷）:
+        #   初版用 `len(nodes) == 1`（**簇内**唯一）作豁免条件
+        #   ⇒ 但大多数簇都只有 1 条 ⇒ 豁免**普遍触发**
+        #   ⇒⇒ ⇒★★ waiver 变成万能借口 —— D7 判据被我自己的代码废掉了
+        #   ⇒★ 正确判据是「**跨簇唯一**」:
+        #     这个 (c,q,m) 在整个库里只有这一处（m 唯一出现一次）⇒
+        #     它承载的知识在别处找不到 ⇒ 稀缺 ⇒ 该让它出去
+        #     而若同一 m 在多处出现 ⇒ 那不是稀缺，是常见模式 ⇒ 该等它被用
+        #   ⇒ 这与稀有保护是同一个量（signature 的全局频次），互为镜像
+        unique_waiver = False
+        if not used and nodes:
+            unique_waiver = self._signature_is_globally_unique(c, q, m)
+        pool = used if used else ([nodes[0]] if unique_waiver else [])
+        details = [n.payload.get("detail") for n in pool
                    if n.payload.get("detail")]
         return {
             "c": c, "q": q, "m": m,
@@ -416,13 +582,23 @@ class MemoryKernel:
                 "method": "%s / %s" % (q, m),        # 因果角色 + 抽象机制
                 # ★ 边界从 payload 的 detail 取，缺则标"未知"——**不编**
                 "boundary": details[0] if details else "未知（payload 无 detail）",
-            } if used else None),
-            # ★ 一条都没被用过 ⇒ 不给候选（D6: 不能驱动进化就别占 EXPERIENCE）
-            "eligible": len(used) > 0,
-            "why": ("%d 条同类失败，其中 %d 条被真正用过"
-                    % (len(nodes), len(used))) if used
-                   else "全部未被召回 ⇒ 归纳不出技能（D7）",
+            } if pool else None),
+            "eligible": bool(pool),
+            # ★ 门槛来源必须可审计（否则"D7 例外"会变成万能借口）
+            "waiver": "unique_signature" if unique_waiver else None,
+            "why": self._dream_reason(len(nodes), len(used), unique_waiver),
         }
+
+    @staticmethod
+    def _dream_reason(n_members: int, n_used: int, waiver) -> str:
+        """dream 的门槛说明。★ 单独一个函数，保证理由可测。"""
+        if n_used:
+            return "%d 条同类失败，其中 %d 条被真正用过" % (n_members, n_used)
+        if waiver:
+            return ("跨簇唯一签名 ⇒ 豁免 access 门槛（稀有保护的镜像）"
+                    "：该知识在别处没有第二份，稀缺信息不该被『没人用』埋掉")
+        return ("%d 条同类失败但无一被召回 ⇒ 归纳不出技能"
+                "（先修 recall 检索管）" % n_members)
 
     # ══════════════════════════════════════════════
     # Tube.MAINTAIN · 维护（遗忘 + 稀有保护 + 审计）
