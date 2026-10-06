@@ -130,6 +130,254 @@ def layer_of(component: str) -> str:
         "（proposer 只能在这两表里选，见 §四①）" % component)
 
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R40 · ν_t 新颖度（RRSI 式16 + DWC 版）—— 设计 §四②
+#   论文原文（2609.24972 式16，逐字核）:
+#     ν_t(H') = Σ_{ℓ ∈ K_str} 1[ℓ ∈ comp(H') ∧ N_t(ℓ)=0]
+#     K_str = {client_tool, skill, memory, subagent}        （式15）
+#     N_t(ℓ) = round t 之前、被**采纳**且 tagged ℓ 的编辑记录数
+#     「Prompt, control-flow, configuration, output-plumbing,
+#      and context-management edits **do not receive** this bonus」
+#   ★ DWC 版（COMPONENT_VOCABULARY §四②）: K_str ∪ {meta_evolution}
+#     —— meta_evolution 是唯一默认拿奖励的新增项（§3.3: 它是
+#        "可新增的结构"，符合 K_str 的本意）
+#   ★★ 为什么它可落地而 ℬ_t/ℰ_t 不行（R40 实测）:
+#     · N_t 的数据 = **RULES 已固化条目**（component 字段 3/3 有）✓
+#     · ℬ_t 需要 ℒ_t 信用日志（**不存在**）+ 组件级 g_t（**只有整体 gain**）
+#     · 且量化阶梯 ⇒ gain 恒 0 ⇒ 照式14 会**全体剪枝**（灾难）
+#   ⇒ ⇒★ 三式里 ν_t 是唯一数据齐的 —— 先做它，另两式**先修数据前置**
+# ═══════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R40 · K1 —— 21 个可进化对象 → 𝒦 ∪ 𝒦_meta 的映射
+#
+# ★★★★ 权威清单的**冲突已挑明**（我核了三处）:
+#   · COMPONENT_VOCABULARY §七 写「权威清单以 EVOLUTION_DIMENSIONS_TABLE 为准」
+#     列了 1标量…21元认知（含 智能体/推理增强/harness/基础设施/元认知）
+#   · ARCHITECTURE.md 说「v4 实测修正 (DEDUP_AUDIT_6SYSTEMS.md): 对象层 21」
+#   · DEDUP_AUDIT §2.4 指出 EVOLUTION_DIMENSIONS_TABLE 是**旧表 28 个**,
+#     并逐个证伪了 7 项（智能体/推理增强/harness/基础设施/元认知/…）
+#   ⇒⇒ ★ 结论: **DEDUP_AUDIT §2.3 的 21 项并集**才是权威
+#     （v4 严格去重: 6 套体系 39 仓库源码逐字提取）
+#   ⇒ ⇒★ COMPONENT_VOCABULARY §七 引的是**被证伪的旧表** —— 文档间冲突，
+#     我按 memory「审计文档权威」+ 时间序（v4 最新）取 DEDUP_AUDIT
+#
+# ★★ 映射允许**多对一**（K1 是"覆盖"判据: 每个对象必须映射到某组件，
+#   不要求组件与对象一一对应）—— 文档 §五 K1 原文:
+#   「21 个对象名必须各自出现在两张表之一」
+#
+# ★★★ 争议项**显式标注**（不擅自裁决，沿文档诚实边界⑩ 的做法）:
+#   · `in_disputed` 里的对象: 我选的映射**可能被推翻**
+#   · 尤其 §七 说的「基础设施→code」类（本次清单里已无该项）
+# ═══════════════════════════════════════════════════════════
+
+#: ★ 权威 21 对象（DEDUP_AUDIT §2.3 · v4 严格去重并集）
+EVOLUTION_OBJECTS_21 = (
+    "标量参数/超参", "策略", "技能", "记忆", "知识", "代码", "架构",
+    "提示词", "工具", "协作", "上下文", "观测", "执行环境", "元进化",
+    "评估器", "控制/安全", "模型选择", "训练桥", "行为/工作流",
+    "外部机制源(GitHub)", "外部机制源(论文)",
+)
+
+#: ★ 对象 → 组件（每项注**依据**；`†` = 有争议未裁决）
+OBJECT_TO_COMPONENT = {
+    "标量参数/超参": "config",           # 超参归 config
+    "策略": "control_flow",              # 策略即控制流
+    "技能": "skill",
+    "记忆": "memory",
+    "知识": "memory†",                   # † 知识存于记忆 vs 独立对象
+    "代码": "code",                      # §3.1
+    "架构": "architecture",              # §3.2
+    "提示词": "prompt",
+    "工具": "client_tool",
+    "协作": "subagent",
+    "上下文": "context_mgmt",
+    "观测": "output_plumbing†",          # † 观测 vs 评估器的边界
+    "执行环境": "config†",               # † 执行环境归 config 还是独立
+    "元进化": "meta_evolution",          # §3.3
+    "评估器": "evaluator",               # §3.4 不可编辑
+    "控制/安全": "control_flow†",        # † 与「策略」多对一
+    "模型选择": "config†",               # † 与「超参」多对一
+    "训练桥": "external_source†",        # † 训练桥是否属外部源
+    "行为/工作流": "control_flow†",      # † 与「策略/控制安全」三对一
+    "外部机制源(GitHub)": "external_source",
+    "外部机制源(论文)": "external_source",
+}
+
+
+def k1_coverage() -> Dict[str, Any]:
+    """★★ K1 —— 21 个对象是否**逐个**映射到 𝒦 ∪ 𝒦_meta。
+
+    ★ 依据: §五 K1「21 个对象名必须各自出现在两张表之一」
+    ★ 返回: {covered, missing, bad_target, disputed}
+      · missing     : 没映射的对象
+      · bad_target  : 映射到**不在两表**的组件（映射是无效的）
+      · disputed    : 标 † 的（我选的、可被推翻）
+    """
+    vocab = set(COMPONENT_VOCAB) | set(K_META)
+    missing, bad, disp = [], [], []
+    for obj in EVOLUTION_OBJECTS_21:
+        c = OBJECT_TO_COMPONENT.get(obj)
+        if not c:
+            missing.append(obj)
+            continue
+        clean = c.rstrip("†").strip()
+        if clean not in vocab:
+            bad.append("%s → %r（不在 𝒦∪𝒦_meta）" % (obj, c))
+        if c.endswith("†"):
+            disp.append("%s → %s" % (obj, clean))
+    return {"total": len(EVOLUTION_OBJECTS_21),
+            "covered": len(EVOLUTION_OBJECTS_21) - len(missing),
+            "missing": missing, "bad_target": bad,
+            "disputed": disp,
+            "n_disputed": len(disp)}
+
+
+#: ★ 式15 的 K_str（论文原文 4 项）∪ DWC 的 meta_evolution（§四②）
+NOVELTY_ELIGIBLE = frozenset(STRUCTURAL | {"meta_evolution"})
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R40 · 𝒯_t / 𝒰_t / ℬ_t（RRSI 伪码 line 7-11，逐字核论文）
+#   论文伪码:
+#     7: 𝒯_t ← {ℓ_i : (t_i, ℓ_i, …) ∈ ℒ_t}          ← **信用日志**
+#     8: 𝒰_t ← 𝒦 ∖ 𝒯_t                              ← 未探索
+#     9: ℰ_t ← (σ_t, 𝒰_t, m_draft)                   ← 停滞才激活
+#    10: ℬ_t ← {ℓ ∈ 𝒯_t : g_t(ℓ) ≤ 0}                ← 剪枝目标
+#    DWC 版（COMPONENT_VOCABULARY §四③④）:
+#     ℬ_t = {ℓ ∈ 𝒯_t ∩ 𝒦_editable : g_t(ℓ) ≤ 0}     ← 加**交集**
+#     𝒰_t = (𝒦 ∪ 𝒦_meta_editable) ∖ 𝒯_t             ← 探索含 meta
+#
+# ★★★★★ R40 实测的**两个 blocker**（所以 ℬ_t 不敢启用）:
+#   ① `ℒ_t` **不存在**: causal_chain 没有 change 写入函数
+#      ⇒ 论文的 𝒯_t 数据源是空的（文档诚实边界⑨也记了"未测"）
+#      ⇒ ⇒★ 本模块给**近似** 𝒯_t = 已固化条目的 component 集
+#        （语义: "留下过采纳记录的组件" —— 与 ℒ_t 同向但更粗）
+#   ② ★★★ **量化阶梯会让式14 全体剪枝**（applier L43/L46/L47 的旧教训）:
+#      「scorer 是量化阶梯 ⇒ 同一台阶内 gain 恒 0」
+#      ⇒ g_t(ℓ) 恒 0 ⇒ `g_t ≤ 0` **恒真** ⇒ ℬ_t = 𝒯_t ∩ 𝒦_editable
+#      ⇒⇒ **所有被测过的组件全被标为删除目标** —— 灾难
+#   ⇒ ⇒★ 所以: 公式实现了，但 `enabled=False` + `blockers()` 报原因
+#     —— 那不是"空转"，是**大声报错**（G7 纪律: 不许静默跳过）
+# ═══════════════════════════════════════════════════════════
+
+#: ★ 𝒦_editable = 𝒦 ∪ {m ∈ 𝒦_meta : m.editable}（§四③ · K5 的交集项）
+def editable_vocab() -> frozenset:
+    """组件层 + 系统层里**可编辑**的项（evaluator/external_source 不在）。"""
+    return frozenset(COMPONENT_VOCAB) | frozenset(
+        k for k, ok in K_META.items() if ok)
+
+
+def touched_components(accepted_rules) -> frozenset:
+    """𝒯_t 的**近似** —— 已留下采纳记录的组件集合。
+
+    ★★ 与论文的差异（必须说清，不许当真 ℒ_t 用）:
+      论文 𝒯_t 来自 ℒ_t（每次 measured edit 的 (t, ℓ, …) 三元日志）
+      ⇒ DWC **没有** ℒ_t（chain 无 change 写入）
+      ⇒ 本函数退而用"已固化规则的 component 集"
+      ⇒⇒ 语义差: 论文的 𝒯_t 记**每次**尝试，本近似只记**成功的**
+      ⇒ ⇒★ 后果: 试过但没采纳的组件会被算作"未探索"（偏乐观）
+    """
+    return frozenset(
+        str((r or {}).get("component") or "")
+        for r in (accepted_rules or []) if (r or {}).get("component"))
+
+
+def unexplored_components(accepted_rules) -> frozenset:
+    """𝒰_t = (𝒦 ∪ 𝒦_meta_editable) ∖ 𝒯_t（式8 + DWC §四④）。
+
+    ★ K6 判据的实现处: 探索**必须**含 𝒦_meta_editable，
+      否则架构层永不被探索（文档 §四④ 原话）
+    """
+    return editable_vocab() - touched_components(accepted_rules)
+
+
+def prune_blockers() -> List[str]:
+    """★★★★ ℬ_t 的启用前提清单（**没满足就不许启用**）。
+
+    ★ 依据: R40 实测的两个 blocker（见模块注释）
+    ⇒ 返回空 = 可以启用；非空 = 每一条都是**硬阻塞**
+    """
+    out: List[str] = []
+    # ① ℒ_t 信用日志（论文式11 的数据源）
+    try:
+        from ..foundation import causal_chain as _cc
+        has_change = any(
+            getattr(_cc, n, None) is not None
+            for n in ("record_change", "log_change", "change"))
+    except Exception:
+        has_change = False
+    if not has_change:
+        out.append("ℒ_t 信用日志缺失: causal_chain 无 change 写入函数"
+                   " ⇒ 论文式11 的 𝒯_t 无数据源（只有近似）")
+    # ② 组件级 g_t（不是整体 gain）+ 量化阶梯
+    out.append("g_t(ℓ) 无组件级实现（系统只有整体 "
+               "`current_score - base_score`）；且 scorer 是**量化阶梯**"
+               " ⇒ 同台阶 gain 恒 0 ⇒ 照式14 会**全体剪枝**（灾难）")
+    return out
+
+
+def prune_targets(accepted_rules, gains_by_component=None,
+                  enabled: bool = False) -> Dict[str, Any]:
+    """★★★ ℬ_t = {ℓ ∈ 𝒯_t ∩ 𝒦_editable : g_t(ℓ) ≤ 0}（式14 + K5 交集）。
+
+    ★ 三条硬要求（R40）:
+      ① **交集** 𝒦_editable（K5: 用并集会把 evaluator/external_source
+        也标成删除目标，而它们不可编辑 ⇒ 删除无法执行）
+      ② `enabled=False` 时**返回 blockers 不返回目标**（不假装在跑）
+      ③ 即便 enabled，gains 缺失也**不许用 0 充数**（那会全剪）
+    """
+    blockers = prune_blockers()
+    if not enabled:
+        return {"enabled": False, "targets": [], "blockers": blockers,
+                "why": "ℬ_t 默认关闭 —— 前提未满足（见 blockers）"}
+    if blockers:
+        return {"enabled": False, "targets": [], "blockers": blockers,
+                "why": "★ blockers 未清 ⇒ 不许启用（会误剪）"}
+    if gains_by_component is None:
+        # ★★★ 不许用 0 填 —— 量化阶梯下 0 就是"恒 ≤0" ⇒ 全剪
+        raise ValueError(
+            "★ ℬ_t 需要**组件级** gains（不是整体 gain）；"
+            "不许用默认 0 —— 那会让 ℬ_t = 全部 𝒯_t（灾难性剪枝）")
+    T = touched_components(accepted_rules)
+    # 交集（K5 关键）
+    pool = T & editable_vocab()
+    targets = sorted(
+        c for c in pool
+        if float(gains_by_component.get(c, 0.0)) <= 0.0)
+    return {"enabled": True, "targets": targets, "blockers": [],
+            "touched": sorted(T), "pool": sorted(pool),
+            "gains": {c: gains_by_component.get(c) for c in sorted(pool)}}
+
+
+def novelty_score(touched_components, accepted_rules) -> Dict[str, int]:
+    """★★★ ν_t —— 候选触到的、**从未被采纳过**的结构组件数（式16）。
+
+    ★ 参数:
+      touched_components  候选 H' 触到的组件集合 comp(H')
+      accepted_rules      已采纳的规则条目（取其 component ⇒ N_t(ℓ)）
+    ★ 返回: {"nu": ν_t, "new": 首次出现的组件列表, "n_t": N_t 快照}
+    ★★★ 三条硬要求（否则 ν_t 会被刷）:
+      ① 只有 `NOVELTY_ELIGIBLE` 里的组件**可能**拿分（式16 前提）
+      ② `N_t(ℓ) = 0` 必须按**已采纳记录**算，不按"当前是否存在"
+      ③ 新颖度只对**从未出现过的**计 1，同一候选碰多个只累加不重复
+    """
+    touched = set(touched_components or [])
+    if not touched:
+        return {"nu": 0, "new": [], "n_t": {}}
+    # N_t(ℓ): 采纳记录里 component 的出现次数
+    n_t: Dict[str, int] = {}
+    for r in (accepted_rules or []):
+        c = str((r or {}).get("component") or "")
+        if c:
+            n_t[c] = n_t.get(c, 0) + 1
+    # 只对 K_str ∪ {meta_evolution} 且 N_t=0 计分
+    fresh = sorted(c for c in touched
+                   if c in NOVELTY_ELIGIBLE and n_t.get(c, 0) == 0)
+    return {"nu": len(fresh), "new": fresh,
+            "n_t": {c: n_t.get(c, 0) for c in sorted(touched)}}
+
+
 def check_component(component: str) -> List[str]:
     """★ R37 · component 合法性的**唯一入口**（两表都认）。
 

@@ -230,7 +230,44 @@ RRSI 式12 原文（已逐字核，papers_txt/2609.24972.txt）:
 
 ---
 
-## 五、可机械检查的判据（gate.py 候选，K1–K6）
+## 四·五 ★★★★ R40 实测补记（2026-10-06 · 三式落地时核出的两处问题）
+
+```text
+★★★★ ① 权威清单的**文档冲突**（K1 的前提，我核了三处）:
+  本文 §七 写「权威清单以 EVOLUTION_DIMENSIONS_TABLE 为准」
+    列的 21 项含: 智能体 / 推理增强 / harness / 基础设施 / 元认知 …
+  但 ARCHITECTURE.md 说「v4 实测修正 → docs/DEDUP_AUDIT_6SYSTEMS.md」
+  而 DEDUP_AUDIT §2.4 直接指出 EVOLUTION_DIMENSIONS_TABLE 是**旧表 28 个**，
+    并逐个证伪了那 7 项（39 仓库零命中 / 非被进化对象 / ARSI 独有维度）
+  ⇒⇒ ★ 结论: **DEDUP_AUDIT §2.3 的 21 项并集**才是权威（v4 严去重）
+  ⇒ ⇒★ 本文 §七 那句引的是**被证伪的旧表** —— 已在 evolver.py 的
+    `EVOLUTION_OBJECTS_21` 注释里记录（K1 按 DEDUP 版实现）
+
+★★★★ ② ℬ_t 的**两个 blocker**（式14 不能直接启用）:
+  (a) `ℒ_t` 信用日志**不存在**: causal_chain 无 change 写入函数
+      ⇒ 论文式11 `𝒯_t ← {ℓ : (t,ℓ,…) ∈ ℒ_t}` **无数据源**
+      ⇒ 现状: 用「已固化规则的 component」做**近似**（docstring 声明差异:
+        只记成功的 ⇒ 试过没采纳的算未探索 ⇒ 偏乐观）
+  (b) ★★★ **量化阶梯会让式14 全体剪枝**
+      applier L43/L46/L47 既往教训: 「scorer 是量化阶梯 ⇒
+      同一台阶内 gain 恒 0」
+      ⇒ g_t(ℓ) 恒 0 ⇒ `g_t(ℓ) ≤ 0` **恒真** ⇒ ℬ_t = 𝒯_t ∩ 𝒦_editable
+      ⇒⇒ **所有被测过的组件全被标为删除目标**（灾难）
+  ⇒ ⇒★ 实现: 公式已写，但 `enabled=False` + `prune_blockers()` 报原因
+    （**不假装在跑** —— G7 纪律: 不许静默跳过）
+    且 blockers 未清时强开也会**拒绝**；gains 缺失时 **raise**（不许用 0 充数）
+
+★★ ③ K1 已可验证: `k1_coverage()` 21/21 覆盖、14 组件全被映射
+   ★ 7 项标 † = **争议未裁决**（我选的归属，可推翻）:
+     知识→memory · 观测→output_plumbing · 执行环境→config ·
+     控制/安全→control_flow · 模型选择→config · 训练桥→external_source ·
+     行为/工作流→control_flow
+   ⇒ 沿本文诚实边界⑩ 的做法: 不擅自裁决，显式标注可查
+```
+
+---
+
+
 
 ```text
 K1 · 𝒦 与 𝒦_meta 的并集 ⊇ DWC 的 21 个对象（逐一可映射，无遗漏）
