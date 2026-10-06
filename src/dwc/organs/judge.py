@@ -45,6 +45,18 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 # ══════════════════════════════════════════════════════════
 
 
+#: ★★★ R34 · **diffs 的字段真源**（judge 产 · candidates 读 · evolver 看）
+#:   ★★★ 为什么必须收敛成一个常量:
+#:     我 R34 写 `_llm_generate` 时凭记忆用了 `got`/`want`
+#:     ⇒ 而 judge 产的是 `actual`/`expected`
+#:     ⇒⇒ ⇒★ 于是 LLM prompt 里的证据**恒为 None**
+#:       （LLM 收到空证据 ⇒ 生成 = 凭空编造）
+#:     ⇒⇒ ⇒★★ 这与我 R30 吃过的亏是**同一族**:
+#:       字段名/值域各写一份，必然漂移
+#:   ⇒ ⇒★ 三处共用本常量，改字段只改一处
+DIFF_FIELDS = ("index", "kind", "fn", "kw", "args",
+               "expected", "actual", "ok", "reason")
+
 class JudgeError(Exception):
     """违反 judge 契约。★ 承重代码不许吞异常（判据 E2/E3）。"""
 
@@ -468,9 +480,7 @@ class Judge:
                     failure_signature=sig,
                     # ★ 逐条差异（判 fail 时**必须**说哪条、差在哪）
                     #   ⇒ 此前 reason 是通用文案 ⇒ 等于没说
-                    diffs=[{k: d.get(k) for k in
-                            ("index", "kind", "fn", "kw", "args",
-                             "expected", "actual", "ok", "reason")}
+                    diffs=[{k: d.get(k) for k in DIFF_FIELDS}
                            for d in bad] if not ok else [])
         self._log.append(v)
         return v

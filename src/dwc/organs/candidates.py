@@ -43,6 +43,7 @@ TRUTH_SOURCE = {
 }
 """
 from __future__ import annotations
+import json
 
 import re
 from dataclasses import dataclass, field
@@ -63,6 +64,18 @@ class Candidate:
     rule: str = ""
     #: 供 Evolver.propose 的目标函数
     target: str = ""
+    #: ★★★ R34 · m = **机制假设**（EVOLUTION_CORE_DESIGN §9 第 4 项:
+    #:   「m 由**模型**填」· 2609.06396 Eq.10 同）
+    #:   ★★ 为什么以前没有这个字段:
+    #:     确定性形态的 m 从 **RULES 条目**读（rule.get("m")）
+    #:     ⇒ 生成器**不需要**带它 ⇒ 字段不存在
+    #:   ⇒ ⇒★ 而 LLM 形态产的候选**本来就没有 RULES 条目**
+    #:     ⇒⇒ 没有 m 字段就没地方放「模型假设的机制」
+    #:     ⇒⇒ ⇒★★ 于是 **2609.06396 的 m 分工在代码里落不了地**
+    #:   ⇒ ⇒★ 所以这是补**设计缺口**，不是顺手加字段
+    m: str = ""
+    #: ★ m 的来源（诚实标注: 是规则读来的还是模型假设的）
+    m_source: str = "none"   # rule / llm / none
 
     def __post_init__(self):
         if not self.grounding:
@@ -83,8 +96,19 @@ class CandidateGenerator:
     #:   · 超限必须有行为(overflow) —— 三者皆由 G4 机械检查
     MAX_POOL = 8   # ★ G4 判据字面量: 池子上限
 
-    def __init__(self, pool_limit: Optional[int] = None):
+    def __init__(self, pool_limit: Optional[int] = None,
+                 llm: Optional[Any] = None):
         self.rules_fired: List[str] = []
+        #: ★★★ R34 · LLM 形态（可选 —— 不给 = 保持确定性退化形态）
+        #:   ★ 为什么默认不自动建 client:
+        #:     建 client 会读环境变量 ⇒ 若有人误配了错误端点，
+        #:     每次推不出都会**发网络请求**（时间+配额）
+        #:     ⇒ 对"降级"这个**常态路径**是无谓开销
+        #:   ⇒ ⇒★ 所以由调用方显式注入（e2e / 测试各自主动选择）
+        self.llm = llm
+        #: ★★ LLM 调用账本（可审计: 走没走 LLM、成没成）
+        self.n_llm_calls = 0
+        self.n_llm_ok = 0
         #: ★★ 淘汰表: candidate_key → 被否决的原因（判分方写入）
         self.rejected: Dict[str, str] = {}
         self.pool_limit = (pool_limit if pool_limit is not None
@@ -219,11 +243,51 @@ class CandidateGenerator:
                         "why": ("★ G4 淘汰: 本轮候选**全部**已被否决"
                                 "（%d 条）⇒ 不重试同一个错" % n_rejected_skip),
                         "rejected_pool": len(self.rejected)}
-            # ── 纪律③: 推不出 ⇒ 显式 need_llm ──
+            # ── 纪律③ · R34: 有 LLM ⇒ 转它；没有 ⇒ 显式 need_llm ──
+            #   ★★ 这是 `need_llm` 从「只报」变「能跑」的位置
+            if self.llm is not None:
+                r = self._llm_generate(sig, diffs, baseline_source, fn)
+                if r["ok"]:
+                    # ★ LLM 给了候选 ⇒ 仍过**同样的**池上限/淘汰
+                    cands = list(r["candidates"])
+                    skipped = [c for c in cands
+                               if self.key_of(c) in self.rejected]
+                    cands = [c for c in cands
+                             if self.key_of(c) not in self.rejected]
+                    dropped = 0
+                    if len(cands) > self.pool_limit:
+                        dropped = len(cands) - self.pool_limit
+                        cands = cands[:self.pool_limit]
+                    if cands:
+                        return {"candidates": cands, "n": len(cands),
+                                "need_llm": False, "source": "llm",
+                                "pool_limit": self.pool_limit,
+                                "n_dropped": dropped,
+                                "n_rejected_skipped": len(skipped),
+                                "n_rejected_pool": len(self.rejected),
+                                "m_hint": r.get("m_hint", ""),
+                                "n_syntax_rejected": self.n_syntax_rejected,
+                                "why": ("★ R34 LLM 形态产出 %d 条%s"
+                                        "（2606.14249 §3 形态）"
+                                        % (len(cands),
+                                           ("，超上限截断 %d" % dropped)
+                                           if dropped else ""))}
+                    cause = r.get("cause") or "LLM 候选全被池过滤"
+                else:
+                    cause = r.get("cause") or "LLM 未产出"
+                # ★ 仍 need_llm=True，但**带上 LLM 的真实原因**
+                #   （否则"没接 LLM"与"接了但失败"不可区分 = 静默）
+                return self._empty(
+                    "★★ 确定性推不出 + LLM 形态也未产出"
+                    "（source=%s，cause=%s）"
+                    % (r.get("source"), str(cause)[:80]),
+                    need_llm=True)
+            # ── 无 LLM 注入（保持退化形态，如实报）──
             return self._empty(
                 "★ 纪律③: 已有证据无法用确定性规则推导出 patch "
-                "（c=%s q=%s）⇒ 需 2606.14249 的 LLM 形态" % (
-                    sig.get("c"), sig.get("q")), need_llm=True)
+                "（c=%s q=%s）⇒ 需 2606.14249 的 LLM 形态（本进程未注入）"
+                % (sig.get("c"), sig.get("q")),
+                need_llm=True)
         return {"candidates": cands, "n": len(cands),
                 "need_llm": False,
                 # ★ G4 的三个量都进返回（可机械检查）
@@ -238,6 +302,159 @@ class CandidateGenerator:
                 "source": "deterministic",
                 "★": ("★ source=deterministic ⇒ 2606.14249 的 LLM 形态"
                       "**未启用**（DWC 无 LLM 接入）")}
+
+    # ══════════════════════════════════════════════════════
+    # ★★★★ R34 · LLM 形态（填 `need_llm` 的缺口）
+    #   ★ 依据（两篇一致）:
+    #     2606.14249 §3: 候选『generated by the meta-agent LLM,
+    #       not selected from a pre-enumerated set』
+    #     2609.06396 Eq.10: m 由**模型假设**填
+    #   ⇒ ⇒★ 而确定性形态只覆盖『源码含 range 且差值与入参相关』
+    #     ⇒ LLM 形态补上其余（尤其 m 的假设）
+    #
+    # ★★ 写法约束（R34 实测踩坑后立的）:
+    #   本段经**嵌套三引号**写入 ⇒ 任何 "\n" 字面量都会被外层吃掉
+    #   真换行 ⇒ 文件语法直接坏（第一次写就坏在这里）
+    #   ⇒ ⇒★ 一律 `splitlines()` + `chr(10)`，全程不出现 \n 字面量
+    # ══════════════════════════════════════════════════════
+
+    #: ★ 纪律④⑤ 对 LLM 候选**同样生效**（不是"模型说的就信"）
+    LLM_MAX_CANDIDATES = 4
+
+    def _llm_generate(self, sig, diffs, baseline_src, fn_name):
+        """★ 用 LLM 生成候选。**不抛不吞**（返回带 cause 的结构）。
+
+        ★★★ 三条容易被跳过的判据（跳过就成了"模型说的都对"）:
+          ① prompt 必须含**真实证据**（diffs）⇒ 否则是凭空生成
+          ② 返回必须**可编译**（拼回原源码验）
+          ③ 每条候选仍要 **grounding**（引用真实 diff 序号）
+        """
+        if self.llm is None:
+            return {"ok": False, "source": "unavailable",
+                    "cause": "未注入 llm（保持确定性退化形态）",
+                    "candidates": []}
+        self.n_llm_calls += 1
+        ev_lines = []
+        for i, d in enumerate(diffs):
+            if not isinstance(d, dict):
+                continue
+            # ★★★ R34: 用 **judge 的字段真源**，不凭记忆写字段名
+            #   （我第一版凭记忆写 got/want ⇒ 与 judge 的
+            #    actual/expected 不一致 ⇒ prompt 里证据**恒为 None**）
+            from .judge import DIFF_FIELDS as _DF
+            ev_lines.append({k: d.get(k) for k in _DF
+                             if k in ("index", "fn", "args",
+                                      "expected", "actual")})
+        nl = chr(10)
+        tick = chr(96) * 3
+        prompt = nl.join([
+            "你是代码修复器。只能改函数体，不得改签名、不得加 import。",
+            "失败签名: c=%s q=%s fn=%s"
+            % (sig.get("c"), sig.get("q"), fn_name),
+            "真实失败证据（actual=实测, expected=期望）:",
+            json.dumps(ev_lines, ensure_ascii=False),
+            "当前实现（要修的源码）:",
+            tick + "python", baseline_src, tick,
+            '只返回 JSON: {"patches": ["<完整函数体，首行缩进为0>"], '
+            '"m": "<机制假设>"}',
+            "最多 %d 条，按可信度排序；没把握就返回空数组。"
+            % self.LLM_MAX_CANDIDATES,
+        ])
+        try:
+            res = self.llm.complete(
+                prompt,
+                system="你只输出 JSON。不许解释。"
+                       "patch 必须是可直接插入的函数体。",
+                json_mode=True)
+        except Exception as e:
+            # ★★★ R34 纪律②: **不抛不吞**
+            #   · `LLMClient.complete` 自己已 catch（返回值模式）
+            #   · 但**注入的其它实现**可能抛 ⇒ 这里必须自己防
+            #   ⇒⇒ ★ 否则异常冒泡到调用方，对方最常见的处理是
+            #     `try: ... except: pass` ⇒ 那正是 G7 静默门要防的
+            #   ⇒ ⇒★ 转成**带 cause 的结构**（透出来，不吞）
+            self.n_llm_fail = getattr(self, "n_llm_fail", 0) + 1
+            return {"ok": False, "source": "error",
+                    "cause": "%s: %s" % (type(e).__name__, e),
+                    "candidates": []}
+        if res is None:
+            # ★ 也别把 None 当成功（我测试里正好造了这个）
+            self.n_llm_fail = getattr(self, "n_llm_fail", 0) + 1
+            return {"ok": False, "source": "error",
+                    "cause": "complete 返回 None（不许静默当成功）",
+                    "candidates": []}
+        if not getattr(res, "ok", False):
+            return {"ok": False,
+                    "source": getattr(res, "source", "error"),
+                    "cause": getattr(res, "error", "LLM 未返回"),
+                    "candidates": []}
+        try:
+            payload = json.loads(res.text)
+            raw = payload.get("patches") or []
+            m_hint = str(payload.get("m") or "")[:60]
+        except Exception as e:
+            return {"ok": False, "source": "error",
+                    "cause": "LLM 返回不是合法 JSON: %s" % e,
+                    "candidates": []}
+        out = []
+        n_rejected = 0
+        for body in raw[:self.LLM_MAX_CANDIDATES]:
+            if not isinstance(body, str) or not body.strip():
+                n_rejected += 1
+                continue
+            # ★ ② 可编译（拼回原源码验证）
+            cand_src = self._splice_body(baseline_src, fn_name, body)
+            if cand_src is None:
+                n_rejected += 1
+                continue
+            try:
+                compile(cand_src, "<llm>", "exec")
+            except SyntaxError:
+                n_rejected += 1
+                continue
+            # ★ ③ grounding: 只能引用**真实**存在的 diffs（不许编）
+            # ★★ 键必须与 ev_lines 的**真实键**一致
+            #   （我改 ev_lines 用 DIFF_FIELDS 时没同步这里 ⇒ KeyError）
+            #   ⇒⇒ ⇒★ "改一处不同步另一处"是我反复踩的同族坑
+            gd = [{"index": e.get("index"), "fn": e.get("fn"),
+                   "args": e.get("args"),
+                   "actual": e.get("actual"),
+                   "expected": e.get("expected")}
+                  for e in ev_lines if e.get("actual") is not None]
+            if not gd:
+                n_rejected += 1
+                continue
+            # ★ 首行缩进归零（与确定性候选同一约定）
+            lines = [l[4:] if l.startswith("    ") else l
+                     for l in body.strip().splitlines()]
+            out.append(Candidate(
+                patch=nl.join(lines), source="llm", rule="R_llm",
+                grounding=gd, m=m_hint, m_source="llm"))
+        self.n_llm_ok += len(out)
+        return {"ok": bool(out), "source": "llm",
+                "cause": ("" if out else
+                          "LLM 给的 %d 条都不可编译/无证据" % len(raw)),
+                "n_rejected": n_rejected, "m_hint": m_hint,
+                "candidates": out}
+
+    def _splice_body(self, src, fn, body):
+        """★ 把新函数体拼回原源码；拼不上 ⇒ 返回 None（**不猜**）。
+
+        ★ 与 `_body_of` **反向** —— 二者必须同步改（约定: 首行缩进 0）
+        """
+        import re as _re
+        m = _re.search(r"def %s\s*\([^)]*\):" % _re.escape(fn), src)
+        if not m:
+            return None
+        rest = src[m.end():]
+        m2 = _re.search(r"(?m)^(?=def |class |$)", rest)
+        after = rest[m2.start():] if m2 else ""
+        pad = "    "
+        nl = chr(10)
+        new_body = nl + "".join(
+            (pad + l if l.strip() else l) + nl
+            for l in body.strip().splitlines())
+        return src[:m.end()] + new_body + after
 
     # ── R1 · range 边界扰动（模式分类 + 局部扰动）──
     def _r1_range_offset(self, bad, src: str, fn: str) -> List[Candidate]:
