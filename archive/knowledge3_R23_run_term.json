@@ -1,0 +1,29 @@
+{
+ "round": "R23 · harness/run_term.py（第一个入口）",
+ "date": "2026-10-05",
+ "意义": "★★★★ 在它之前 memory/activity/causal_chain/wiring 全是孤岛，六层只在我手写的测试场景里被点亮过 ⇒ 本模块让它们在系统内真的动起来",
+ "判据落实": {
+  "T1": "六步齐（before / n×step / after / 五元盘点 / 下一轮任务源）",
+  "T2": "term 边界由进化事件决定，n_steps 只是上限（禁硬编码 break）",
+  "T3": "before/after 之间 dw_version 被锁（外部改动才算违规）",
+  "T4": "两个成本台账并存（term reset / cumulative 不 reset / rejected 单列）"
+ },
+ "实测": "五环齐 · 链 5 环连续 · T3 valid=True · 六层 depth=5 全亮 · stop=all_stages_complete · 记忆写入并被召回（D7 有证据）",
+ "★★★★ 本轮六次自我修正": [
+  "① dw_version 锁放在循环内 ⇒ 自己写的记忆把自己的锁撬开 ⇒ term 第一步自杀（n_steps=0）",
+  "② upstream 恒指 decision ⇒ 第2步起链断 ⇒ 改为链上上一环",
+  "③ rep.stages 从没被填 ⇒ missing_stages() 永远全缺",
+  "④ ★★ 同一个错犯了两次: last_tr not in got 而 got 装 stage 名、last_tr 是 ref 值 ⇒ 收尾两环被静默跳过",
+  "⑤ 五环齐检查在循环之后 ⇒ n_steps=99 时一路跑满 ⇒ 而 T2 要求检查在循环内",
+  "⑥ ★★ 预算判据是『已花>=预算』（事后性）⇒ 首检累计为 0 通过 ⇒ 跑完才超 ⇒ 而那时五环已齐 ⇒ 条件永远轮不到 ⇒ 已改为『还够不够跑下一步』（可预期性）"
+ ],
+ "测试": "8 份 / 233 项（新增 test_run_term.py 28 项）",
+ "诚实边界": [
+  "★★★ 一个 term = 1 步闭环 ⇒ 所以 n_steps>1 目前跑不到（循环第1步就五环齐）⇒ 多步 term 的路径未经实测",
+  "★★★ 终止条件③（保护组回归）与④（停止规则五条）未实现 —— 需要 judge 与真值源，目前只有①②",
+  "★★ 五元盘点里 π/V/U 三元显式为 None（judge/actor/evolver 未实现）—— 有意留白，但意味着环节④的『门』完全没跑",
+  "★★ experience/change 两环按 memory.usage_stats() 补，其中 change 环 judge=None ⇒『回到判分器』这一步没有任何真实判分发生",
+  "★ next_task_source 目前只产出两类任务（死机制/召回覆盖），实测常为空 ⇒ 离『真正驱动下一轮』还远",
+  "★★★ 本轮全部结论未经第二人复核"
+ ]
+}

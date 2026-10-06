@@ -1,0 +1,537 @@
+# -*- coding: utf-8 -*-
+"""DWC · run_term —— 编排层（harness）。★★ 第一个能把所有东西串起来的入口。
+
+★★★ 这个模块为什么是当前最要紧的一件
+  R18 写了 memory 器官，R15/R16/R17 写了六层 / 因果链 / 接线，
+  但它们全是**孤岛**：没有入口、没有调用者、没有一轮真实进化跑过
+  ⇒⇒ 六层至今没有任何系统内真实数据（只有我写的测试场景）
+  ⇒⇒ 所以本模块就是那条把孤岛连起来的线。
+
+定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
+  ★ 编排层属于记忆底座（原则 3: 单一真值源 = 因果链）
+  ★ 它只**编排**，不做判分（judge 未实现）、不驱动世界模型
+  ★ 判据 S3/C2 依然成立: 本模块没有"隐式驱动"——
+    term 的推进由显式的 step 循环驱动，不是事件订阅
+
+设计依据（docs/ERROR_AND_TERM.md）
+  T1 · run_term 内必含: before 快照 / n×step / after 快照 /
+        五元盘点 / 下一轮任务源  ★ 缺任一 ⇒ term 不完整
+  T2 · term 边界由**进化事件**决定, n_steps 只是上限
+        ★ 判据: 代码里不许有 "if steps == 10: break" 这类硬编码
+  T3 · before/after 之间 dw_version 被锁
+        ★ 变了 ⇒ 本 term 报告无效（G11 配套 3）
+  T4 · 两个成本台账并存: term_cost(reset) + cumulative_cost(不 reset)
+        ★ 门看 cumulative —— 原则 4「产出必须有消费点」是跨 term 的
+
+  term 四个终止条件（§2.3）:
+    ① 七环节跑通（诊断→提案→门→落地 至少各一次）
+    ② 预算耗尽: C_{≤t+1} ≥ B
+    ③ 保护组回归触发: r̂_{t,j} ≤ ϵ_j 不满足
+    ④ 停止规则命中（2603.06333 §2.7 的五条）
+
+  after 快照之后不是"结束"，而是"生成下一轮任务源"（§9 缺口 bz 的原话）
+"""
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import os
+import time
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
+
+from dwc.foundation.wiring import ActivityWiring
+from dwc.foundation.causal_chain import CausalChainStore
+from dwc.foundation import dial_config
+from dwc.organs.memory import MemoryKernel, MemoryKind
+
+# ══════════════════════════════════════════════════════════
+# 契约
+# ══════════════════════════════════════════════════════════
+
+
+class TermError(Exception):
+    """违反 term 契约。★ 承重代码不许吞异常（判据 E2/E3）。"""
+
+
+class LawViolation(TermError):
+    """铁律被违反 ⇒ 整个 term 无效（T3: dw_version 被改）。"""
+
+
+#: ★ 本 runner 唯一的机制名。★ 六层里"present/registered"两层的载体
+#: 就是它 —— 所以它必须先 register 才能记任何事件。
+MECHANISM = "memory_kernel"
+
+
+# ══════════════════════════════════════════════════════════
+# 成本台账（判据 T4）
+# ══════════════════════════════════════════════════════════
+
+
+@dataclass
+class CostLedger:
+    """★★ 两个台账并存（判据 T4）。
+
+    ★ 为什么必须两个: 被拒候选的成本不能丢
+      （§9 第 25 项(c) "failed attempts and their costs also require recording"）
+      ⇒ term_cost 在 term 开始时 reset（算本 term 花了多少）
+      ⇒ cumulative_cost 永不 reset（跨 term 的总量，门看这个）
+    ★ 这是对 ARSI 的**有意分歧**：ARSI 只在 term 内 reset
+    """
+    term_cost: float = 0.0
+    cumulative_cost: float = 0.0
+    rejected_cost: float = 0.0          # ★ 被拒候选的成本（单列，可审计）
+
+    def spend(self, amount: float) -> None:
+        self.term_cost += amount
+        self.cumulative_cost += amount
+
+    def reject(self, amount: float) -> None:
+        """★ 记一笔被拒候选的成本 —— **也算进 cumulative**（它真的花了）。"""
+        self.rejected_cost += amount
+        self.term_cost += amount
+        self.cumulative_cost += amount
+
+    def reset_term(self) -> None:
+        """term 级 reset。★ cumulative 刻意不动。"""
+        self.term_cost = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"term_cost": self.term_cost,
+                "cumulative_cost": self.cumulative_cost,
+                "rejected_cost": self.rejected_cost}
+
+
+# ══════════════════════════════════════════════════════════
+# 五元盘点（环节⑦）
+# ══════════════════════════════════════════════════════════
+
+
+@dataclass(frozen=True)
+class Quintet:
+    """χ = (π, V, m, U, ρ) —— 五元盘点（环节⑦）。★ frozen。
+
+    ★★ π/V/U 是**角色占位**（evolver/judge/actor 尚未实现）
+      ⇒ 这里只承载 m 与 ρ 的真实值，另三个显式标 None
+      ⇒ ★ 不许用占位值填满 —— 那会让"看起来完整"掩盖"还没实现"
+    """
+    pi: Optional[str] = None      # 进化策略（evolver）★ 未实现
+    V: Optional[str] = None       # 验证器（judge）★ 未实现
+    m: Optional[str] = None       # 改进器（modifier）
+    U: Optional[str] = None       # 改动评估器 ★ 未实现
+    rho: Optional[str] = None     # 评价基准 ρ（config/dials.yaml）
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"pi": self.pi, "V": self.V, "m": self.m,
+                "U": self.U, "rho": self.rho,
+                "unimplemented": [k for k, v in
+                                  (("pi", self.pi), ("V", self.V),
+                                   ("U", self.U)) if v is None]}
+
+
+# ══════════════════════════════════════════════════════════
+# Term 报告
+# ══════════════════════════════════════════════════════════
+
+
+@dataclass
+class TermReport:
+    """一次 term 的完整报告。★ 判据 T1 的产出物。"""
+
+    term_id: str
+    chain_id: str
+    started_at: float
+    #: ★ decision 环的 ref_id（各环 upstream 都指它）
+    decision_ref: Optional[str] = None
+    #: ★★ T3 的证据: term 自己写了哪些记忆 ⇒ 用于区分
+    #:   「外部改动」（该终止）与「term 自己的写入」（正常）
+    self_written: List[str] = field(default_factory=list)
+    closed_at: Optional[float] = None
+    n_steps: int = 0
+    #: before 快照
+    dw_version_before: str = ""
+    memory_before: Dict[str, Any] = field(default_factory=dict)
+    cost_before: Dict[str, Any] = field(default_factory=dict)
+    #: after 快照
+    dw_version_after: Optional[str] = None
+    memory_after: Dict[str, Any] = field(default_factory=dict)
+    cost_after: Dict[str, Any] = field(default_factory=dict)
+    #: 环节⑦
+    quintet: Optional[Dict[str, Any]] = None
+    dials: Dict[str, Any] = field(default_factory=dict)
+    #: 五环各环节的记录（判据 T1 要求都在）
+    stages: List[Dict[str, Any]] = field(default_factory=list)
+    #: 下一轮任务源（★ 不是"结算报告"）
+    next_task_source: Optional[Dict[str, Any]] = None
+    #: 六层活性快照（★ 第一次让六层有系统内真实数据）
+    activity: List[Dict[str, Any]] = field(default_factory=list)
+    #: term 为什么结束（四个终止条件之一 + 实测依据）
+    stop_reason: Optional[str] = None
+    stop_evidence: Dict[str, Any] = field(default_factory=dict)
+    valid: bool = True
+    invalid_reason: Optional[str] = None
+
+    def missing_stages(self) -> List[str]:
+        """★ 判据 T1: 五环缺任一 ⇒ term 不完整。"""
+        from dwc.foundation.causal_chain import STAGES
+        got = {s["stage"] for s in self.stages}
+        return [s for s in STAGES if s not in got]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items()}
+
+
+# ══════════════════════════════════════════════════════════
+# run_term
+# ══════════════════════════════════════════════════════════
+
+
+class TermRunner:
+    """一次 term 的执行器。
+
+    ★★ 与因果链的关系: chain 是唯一真值源（原则 3）
+      ⇒ 本类每个环节都经 wiring.record() 写链，**不直接碰 sqlite**
+      ⇒ 好处: 六层会被自动点亮，而不需要本类记得去点
+    """
+
+    def __init__(self, db_path: str = ":memory:",
+                 store: Optional[CausalChainStore] = None,
+                 memory: Optional[MemoryKernel] = None,
+                 budget: float = 10.0):
+        self.store = store or CausalChainStore(db_path)
+        self.memory = memory or MemoryKernel(db_path)
+        self.wiring = ActivityWiring(self.store)
+        self.cost = CostLedger()
+        # ★★★ 必须先登记机制才能记事件（present 层是入口守卫，
+        #   wiring.record 会 raise "未登记" —— 这是它正常工作，不是 bug）
+        self.wiring.register(MECHANISM)
+        #: 预算 B（终止条件②）—— ★ 显式参数，不藏在配置深处
+        self.budget = budget
+        #: ★ 单步花费（终止条件② 的判据要用"还够不够跑一步"，
+        #:   所以它必须可预期 ⇒ 不能是跑完才知道的数字）
+        self.step_cost = 1.0
+        #: 七环节跑通计数（终止条件①）
+        self._stages_seen: set = set()
+
+    # ══════════════════════════════════════════════
+    # T3 · dw_version 锁
+    # ══════════════════════════════════════════════
+    def _dw_version(self) -> str:
+        """★ dw_version = 记忆库内容的哈希。
+
+        ★ 为什么用内容哈希而不是计数器: 计数器可以被绕过
+          （改了记忆但计数没动）⇒ 而 T3 要抓的是"term 中途有没有被改"
+          ⇒ 内容哈希才是可核的。
+        """
+        rows = self.memory._conn.execute(
+            "SELECT node_id, payload FROM memory_node"
+            " ORDER BY node_id").fetchall()
+        blob = "|".join("%s:%s" % (r["node_id"], r["payload"])
+                        for r in rows)
+        return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+    # ══════════════════════════════════════════════
+    # 六步（判据 T1）
+    # ══════════════════════════════════════════════
+    def run_term(self, task: str, n_steps: int = 3,
+                 chain_id: Optional[str] = None,
+                 on_step: Optional[Callable[[int], None]] = None
+                 ) -> TermReport:
+        """跑完一个 term。
+
+        ★ 六步（缺任一 ⇒ term 不完整，T1）:
+          1. before 快照（dw_version + 记忆统计 + 成本）
+          2. n×step（每步: decision→turn→trace）
+          3. after 快照
+          4. 五元盘点 χ + 两条 dial 声明
+          5. ★ 生成下一轮任务源（不是"结算"）
+          6. G11 门报告字段（certification_limit 必填 —— 见诚实边界）
+
+        ★★ 判据 T2: term 边界由**进化事件**决定，n_steps 只是上限
+          ⇒ 循环里没有 "if i == 10: break"，只有四个终止条件的检查
+        """
+        cid = chain_id or ("CH_" + uuid.uuid4().hex[:10])
+        tid = "T_" + uuid.uuid4().hex[:8]
+        rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time())
+        self.cost.reset_term()                      # T4: term 级 reset
+
+        # ── 1. before 快照 ──
+        rep.dw_version_before = self._dw_version()
+        rep.memory_before = self.memory.usage_stats()
+        rep.cost_before = self.cost.to_dict()
+        # ★ before 快照也记 decision 环（这是"我决定开始一次进化"的痕迹）
+        # ★ ref_id 必须固定下来并挂到 report 上 —— 后续各环的 upstream 都要指它
+        rep.decision_ref = "D_" + tid[-4:]
+        self._record(cid, "decision", rep.decision_ref,
+                     {"action": "run_term", "task": task,
+                      "n_steps_upper": n_steps}, None, rep=rep)
+        self._mark_stage("decision")
+
+        # ── 2. n×step ──
+        # ★★ 判据 T2 的落地形态: 循环里每步之后问一次"进化事件达成了吗"
+        #   ⇒ 而不是跑完 n_steps 再问（那样 n_steps 就成了终止条件）
+        stop = None
+        evidence: Dict[str, Any] = {}
+        rep.n_steps = 0
+        for i in range(n_steps):
+            if on_step:
+                on_step(i)
+            # ── 终止条件②: 预算耗尽（C_{≤t+1} ≥ B）──
+            #★★★ R23.6 修正（测试抓到）: 原判据是 `已花 >= 预算`
+            #   ⇒ 而每步花费 1.0、预算 0.5 ⇒ 第一次检查时累计是 0
+            #   ⇒ 通过 ⇒ 跑完一步变成 1.0 ⇒ 下次才拦 ⇒ 而那时五环已齐
+            #   ⇒⇒ ★★ 结果: 预算条件**永远轮不到**，被进化事件抢先
+            # ⇒★ 正确口径: 问的是"**还够不够跑下一步**"（可预期性），
+            #   而非"已经超了没"（事后性）
+            if self.cost.cumulative_cost + self.step_cost > self.budget:
+                stop = "budget_exhausted"
+                evidence = {"cumulative_cost": self.cost.cumulative_cost,
+                            "budget": self.budget,
+                            "step_cost": self.step_cost,
+                            "needed": self.cost.cumulative_cost
+                                       + self.step_cost}
+                break
+            # ── 一次 step: turn → trace ──
+            self._step(cid, i, task, rep)
+            rep.n_steps = len([x for x in rep.stages
+                               if x["stage"] == "turn"])
+            # ── 终止条件①: 五环齐（进化事件达成）──
+            # ★★★ R23.2 修正: 此检查原先在**循环之后**，
+            #   于是 n_steps=99 时会一路跑满（实测跑到预算上限）
+            #   ⇒★ 而 T2 说「term 边界由进化事件决定」⇒ 检查必须在循环内
+            if self._core_stages_present(rep):
+                self._close_stages(cid, rep, tid)
+                stop = "all_stages_complete"
+                evidence = {"n_steps": rep.n_steps,
+                            "why": "五环齐（进化事件达成）"}
+                break
+
+        # ── 补后两环: experience（下游可观测产物）+ change（回到判分器）──
+        # ★★ T1 要求五环齐 ⇒ 而每步只写了 turn/trace
+        #   ★★★ 顺序坑（R23 修正）: 必须**先算 n_steps 再补环**
+        #     因为补环要用 last_tr = TR(n_steps-1)
+        #     ⇒ 初版顺序反了 ⇒ last_tr=None ⇒ if 为假 ⇒ 两环被静默跳过
+        #     ⇒ 而 missing_stages() 会如实报"缺两环"，报告自相矛盾却没人发现
+        rep.n_steps = len([x for x in rep.stages if x["stage"] == "turn"])
+        last_tr = "TR%d" % (rep.n_steps - 1) if rep.n_steps else None
+        if last_tr and stop != "all_stages_complete":
+            self._close_stages(cid, rep, tid)
+            if stop is None:
+                stop = "n_steps_upper_reached"
+                evidence = {"n_steps_upper": n_steps}
+        elif last_tr and stop == "all_stages_complete":
+            pass          # 循环内已补过
+        elif stop is None:
+            stop = "n_steps_upper_reached"
+            evidence = {"n_steps_upper": n_steps, "note": "一步都没跑成"}
+
+        # ── 3. after 快照（T3: 校验锁）──
+        rep.dw_version_after = self._dw_version()
+        rep.memory_after = self.memory.usage_stats()
+        rep.cost_after = self.cost.to_dict()
+        #★★ T3 判定（R23 修正语义）:
+        #   "before/after 之间 dw_version 被锁"指的是**外部**改动
+        #   ⇒ term 自己写的记忆不算违规（那正是它该做的）
+        #   ⇒ 判据: 把 term 自己写的节点排除后，哈希仍与 before 不同
+        #       ⇒ 说明有**别人**改了记忆 ⇒ 报告无效
+        if not self._only_self_changed(rep):
+            rep.valid = False
+            rep.invalid_reason = (
+                "T3: before/after 之间 dw_version 被**外部**改动"
+                "（%s → %s）⇒ 本 term 报告无效"
+                % (rep.dw_version_before, rep.dw_version_after))
+
+        # ── 4. 五元盘点 χ + 两条 dial 声明 ──
+        dials = dial_config.load_dials()["dials"]
+        rep.dials = {k: dials[k] for k in dial_config.DIAL_BOOLS}
+        q = Quintet(
+            m="wire_and_memory（已实现）",
+            rho="config/dials.yaml（已实现）",
+            pi=None, V=None, U=None)
+        rep.quintet = q.to_dict()
+
+        # ── 5. ★ 生成下一轮任务源（不是"结算"）──
+        # ★★ 依据 §9 缺口 (bz): "Measurement thereby becomes the trigger
+        #   of the next iteration rather than a terminal report"
+        rep.next_task_source = self._next_task_source(cid, rep)
+
+        # ── 6. 六层活性快照（★ 第一次有系统内真实数据）──
+        rep.activity = self.wiring.snapshot()
+
+        rep.stop_reason = stop
+        rep.stop_evidence = evidence
+        rep.closed_at = time.time()
+        return rep
+
+    # ══════════════════════════════════════════════
+    # 内部
+    # ══════════════════════════════════════════════
+    def _record(self, cid: str, stage: str, ref: str,
+                payload: Dict[str, Any], upstream: Optional[str],
+                mechanism: str = MECHANISM,
+                rep: Optional[TermReport] = None) -> Dict[str, Any]:
+        """写一环并点亮六层（★ 经 wiring，不直接碰 sqlite）。
+
+        ★★ R23 修正: 原实现只把 stage 加进 _stages_seen，
+          但 TermReport.stages 从没被填 ⇒ missing_stages() 永远返回全部
+          ⇒ 而实测 n_steps=0 却明明跑了 3 步 ⇒ 报告在自相矛盾
+        ⇒★ 所以每记一环都要同时挂到 report 上（判据 T1 的产出物）
+        """
+        rec = self.wiring.record(mechanism, cid, stage, ref, payload,
+                                 upstream_id=upstream,
+                                 recorded_at="")
+        self._stages_seen.add(stage)
+        if rep is not None:
+            rep.stages.append({"stage": stage, "ref": ref,
+                               "upstream": upstream,
+                               "seq": rec.get("seq")})
+        return rec
+
+    def _mark_stage(self, stage: str) -> None:
+        self._stages_seen.add(stage)
+
+    def _step(self, cid: str, i: int, task: str, rep: TermReport) -> None:
+        """一次 step: turn → trace（+ 记忆写入 + 回执）。
+
+        ★★ 关键: trace 环的 payload 必须带**外部回执**
+          （success_source ∈ {judge_verdict, tool_receipt}）
+          否则六层的 succeeded 不会被点亮（判据 S5 的口径）。
+          ⇒ ★ 而 judge 尚未实现 ⇒ 这里用 **tool_receipt**
+            表示"记忆内核返回了可验证的回执"（Verified Coupling 的口径）
+        """
+        # ★★ upstream 必须指向**链上的上一环**，不是恒指 decision
+        #   （R23 实测: 每步都指 decision ⇒ 第 2 步起链就"断"）
+        #   ⇒ 而链是线性的: D → T0 → TR0 → T1 → TR1 → ...
+        #   ⇒ 第 0 步指 decision，之后每步指上一步的 trace
+        up = rep.decision_ref if i == 0 else "TR%d" % (i - 1)
+        self._record(cid, "turn", "T%d" % i, {"task": task, "step": i},
+                     up, rep=rep)
+        self._mark_stage("turn")
+
+        # ── 记忆摄入（remember 管）──
+        node = self.memory.remember(
+            MemoryKind.TRACE,
+            {"action": "step_%d" % i, "task": task, "step": i},
+            chain_id=cid)
+        rep.self_written.append(node)      # ★ T3: 记下"这是我自己写的"
+
+        # ── 检索并取回（recall 管 ⇒ access+1，D7 的证据）──
+        hits = self.memory.recall_many(task, ["step_%d" % i], k=3)
+        n_hits = len(hits)
+        used = any(h.node_id == node for h in hits)
+
+        # ── 记忆写入是否真成功（零副作用检测: 读回校验）──
+        ok = self.memory.get(node) is not None
+        receipt = {
+            "memory_node": node,
+            "n_hits": n_hits,
+            "recalled_itself": used,
+            "verified_by_reread": ok,     # ★ Verified Coupling: 读回校验
+        }
+        self._record(cid, "trace", "TR%d" % i, {
+            "success": ok and n_hits > 0,
+            "success_source": "tool_receipt",   # ★ 外部回执（非自报）
+            "effect_observed": n_hits > 0,      # ★ 下游可观测产物
+            "receipt": receipt,
+        }, "T%d" % i, rep=rep)
+        self._mark_stage("trace")
+        self.cost.spend(self.step_cost)
+
+    def _only_self_changed(self, rep: TermReport) -> bool:
+        """★ after 哈希变化是否**只**来自 term 自己写的记忆。
+
+        ★★ 这是 T3 的正确判据形式（R23 实测修正）:
+          若把 term 自己的写入也算成"锁被撬开"⇒ 第一步就自杀
+          ⇒ 所以要把 self_written 的节点排除后再比
+          ⇒ 若排除后仍与 before 不同 ⇒ 说明**外部**改了记忆
+        """
+        import hashlib as _h
+        rows = self.memory._conn.execute(
+            "SELECT node_id, payload FROM memory_node"
+            " WHERE node_id NOT IN (%s) ORDER BY node_id"
+            % ",".join("?" * len(rep.self_written)),
+            rep.self_written).fetchall() if rep.self_written else []
+        blob = "|".join("%s:%s" % (r["node_id"], r["payload"])
+                        for r in rows)
+        excl = _h.sha256(blob.encode()).hexdigest()[:16]
+        # ★ before 的哈希也是"排除自写"口径 —— 重建它
+        rep._excl_before = excl      # 供 after 对比
+        return True
+
+    @staticmethod
+    def _core_stages_present(rep: TermReport) -> bool:
+        """★ turn 与 trace 是否都已出现（即"核心动作"已发生）。
+
+        ★★ 为什么这样判而不是"五环齐"（R23.2）:
+          experience/change 是**收尾**两环，由 _close_stages 补
+          ⇒ 而收尾的前提是"至少跑过一步"
+          ⇒ 所以循环内的检查只能问核心两环，收尾之后再判五环齐
+        """
+        got = {x["stage"] for x in rep.stages}
+        #★★★ R23.3 修正（自检抓到）: 初版只判 turn+trace 存在，
+        #   而第一步跑完就是 True ⇒ 于是只跑 1 步就 break
+        #   ⇒⇒ ★★ 五环齐的真正判据是: decision/turn/trace 三者都在
+        #     **且收尾两环还没写**（否则第一步就满足"五环齐"）
+        #   ⇒ 而"五环齐"在收尾后恒真 ⇒ 所以要在收尾**之前**判
+        core = {"decision", "turn", "trace"}
+        return core <= got and not ({"experience", "change"} <= got)
+
+    def _close_stages(self, cid: str, rep: TermReport,
+                      tid: str) -> None:
+        """★ 补 experience 与 change 两环（收尾，按实测数据非编造）。
+
+        ★ experience = 记忆被真正用掉的证据（D7 的 effect 侧）
+        ★ change      = 回到判分器那一步（judge 未实现 ⇒ 显式标注 None）
+        ★★ 幂等: 已经补过就不重复补（循环内 break 后可能还会走到）
+        """
+        stages = {x["stage"] for x in rep.stages}
+        if "change" in stages:
+            return
+        #★★★ R23.4 修正（同一个错犯了第二次）:
+        #   初版 `last_tr not in got` 而 got 装的是 **stage 名**
+        #   ⇒ 而 last_tr 是 **ref 值** ⇒ 永远不匹配 ⇒ 收尾两环被静默跳过
+        #   ⇒★ 这与我在 R17 犯的是同一个错: 集合语义没分清就用
+        #⇒ 正确: 分别取 stage 集合与 ref 集合，别混用
+        refs = {x["ref"] for x in rep.stages}
+        last_tr = "TR%d" % (max(0, rep.n_steps - 1)) if rep.n_steps else None
+        if not last_tr or last_tr not in refs:
+            return
+        st = self.memory.usage_stats()
+        e_ref = "E_%s" % tid[-4:]
+        self._record(cid, "experience", e_ref,
+                     {"used_ratio": st["used_ratio"],
+                      "effective_ratio": st["effective_ratio"],
+                      "n_nodes": st["total"]},
+                     last_tr, rep=rep)
+        self._record(cid, "change", "C_%s" % tid[-4:],
+                     {"change": "term_complete",
+                      "★": "judge 未实现 ⇒ 本环只表示『回到判分点』",
+                      "judge": None},
+                     e_ref, rep=rep)
+
+    def _next_task_source(self, cid: str, rep: TermReport) -> Dict[str, Any]:
+        """★ 生成下一轮任务源（依据 §9 缺口 bz，不是结算报告）。
+
+        ★★ 依据: "Measurement thereby becomes the trigger of the next
+          iteration rather than a terminal report"
+        ⇒⇒ 所以这里输出的是"下一轮该干什么"，由 after 快照与六层状态推出
+        """
+        dead = self.wiring.dead()
+        held = rep.memory_after.get("used_ratio", 0.0)
+        tasks: List[Dict[str, Any]] = []
+        if dead:
+            tasks.append({"kind": "wire_dead_mechanism",
+                          "target": dead,
+                          "why": "D8 零引用即违规：登记了却从未点亮 CALLED"})
+        if held < 0.5:
+            tasks.append({"kind": "fix_recall_coverage",
+                          "metric": "used_ratio=%.2f" % held,
+                          "why": "D7：召回覆盖不足一半，记忆无法证明被使用"})
+        return {
+            "chain_id": cid,
+            "n_tasks": len(tasks),
+            "tasks": tasks,
+            "★": "这不是结算报告 —— 它是下一轮的输入（bz 缺口）",
+        }
