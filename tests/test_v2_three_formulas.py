@@ -29,8 +29,9 @@ import pytest  # noqa: E402
 from dwc.organs.evolver import (  # noqa: E402
     COMPONENT_VOCAB, EVOLUTION_OBJECTS_21, K_META,
     NOVELTY_ELIGIBLE, OBJECT_TO_COMPONENT, STRUCTURAL,
-    editable_vocab, k1_coverage, novelty_score, prune_blockers,
-    prune_targets, touched_components, unexplored_components,
+    editable_vocab, exploration_signal, k1_coverage, novelty_score,
+    prune_blockers, prune_targets, stall_signal, touched_components,
+    unexplored_components,
 )
 
 
@@ -270,3 +271,120 @@ def test_novelty_default_refuses_to_invent_n_t():
     # ★ 记录里 component 为空/缺失 ⇒ **不许**被当成"已采纳"
     r = novelty_score(["skill"], [{"component": ""}, {}, {"component": None}])
     assert r["nu"] == 1, "★ 空 component 的记录不该算作已采纳"
+
+def test_r41_decision_a_zero_gain_is_not_pruned():
+    """★★★★★ R41 **裁决 A**（用户拍板）: `g = 0` **不许被剪**。
+
+    ★ 这条锁的不是"实现"，而是**裁决本身**:
+      · 论文式14 原文是 `≤ 0`（no strictly positive gain）
+      · 但实测量化阶梯 ⇒ 同台阶 gain 恒 0 ⇒ `≤ 0` **恒真**
+      ⇒⇒ 若用原文判据 ⇒ ℬ_t = 全部被测组件 ⇒ **灾难性误剪**
+      ⇒ ⇒★ 裁决 A: 改 `< 0`（g=0 = 卡台阶 ≠ 无价值）
+
+    ★★ 为什么必须有这条测试（而不是靠注释）:
+      注释会被后人当成"历史说明"而改回；测试会**红**
+      ⇒ 破坏性验证: 把 `&lt; 0.0` 改回 `&lt;= 0.0` ⇒ 本测试应红
+    """
+    import dwc.organs.evolver as ev
+    ev.prune_blockers = lambda: []        # 只验判据，暂清 blockers
+    try:
+        acc = [{"component": "skill"}, {"component": "memory"},
+               {"component": "config"}]
+        # ★ 三档: 严格负 / 恰好 0（量化台阶）/ 正
+        gains = {"skill": -0.3, "memory": 0.0, "config": 0.5}
+        r = ev.prune_targets(acc, gains_by_component=gains, enabled=True)
+        assert r["targets"] == ["skill"], \
+            ("★★★ R41 裁决 A 被改回去了（或没生效）: "
+             "g=0 的 memory 也被剪了 ⇒ 回到灾难性误剪. "
+             "targets=%s" % r["targets"])
+        # ★ 那正是 A 要防的: 原判据（≤ 0）会把 memory 一起剪
+        old_style = [c for c, gv in gains.items() if gv <= 0.0]
+        assert old_style == ["skill", "memory"], \
+            "（对照组失效）原文判据应把 memory 也标成目标"
+    finally:
+        ev.prune_blockers = prune_blockers
+
+
+def test_r41_decision_a_is_documented_as_deviation():
+    """★★ 裁决 A 的**文档+代码双留痕**（不许悄悄偏离原文）。
+
+    ★ 若只改代码不改文档 ⇒ 后人读设计以为在实现 `≤ 0` 的原文
+    """
+    import inspect
+    import dwc.organs.evolver as ev
+    # 代码里必须说清"偏离原文"
+    fn = inspect.getsource(ev.prune_targets)
+    assert "裁决 A" in fn and "偏离原文" in fn, \
+        "★ 代码要声明裁决 A 且说明它偏离论文式14"
+    # 设计文档也必须记（不许只在代码里）
+    doc = os.path.join(ROOT, "docs", "COMPONENT_VOCABULARY.md")
+    s = open(doc, encoding="utf-8", errors="replace").read()
+    # ★★ 注意 markdown 粗体: 实际文本是 `**裁决 A**（2026-10-06 用户拍板）`
+    #   我第一版写成连续的 `裁决 A（2026…` ⇒ 被粗体 `**` 隔开 ⇒ 假失败
+    assert "裁决 A" in s, "★ 设计要记录裁决 A"
+    assert "R41 **裁决 A**（2026-10-06 用户拍板）" in s, \
+        "★ 设计 §四③ 必须记裁决 A（含日期与拍板人）"
+    assert "量化阶梯" in s.split("裁决 A")[1][:900], \
+        "★ 裁决理由（量化阶梯）必须写进设计"
+
+# ══════════════════════════════════════════════════════════
+# σ_t 停滞判据 + ℰ_t 三元（伪码 line 6 / 9）
+# ══════════════════════════════════════════════════════════
+
+def test_stall_signal_boundary_is_inclusive_and_traceable():
+    """★★ σ_t: `Ŝ_t − Ŝ_{t−w} ≤ δ`（论文原式 **≤**）+ 依据可复核。"""
+    # 恰好等于 δ ⇒ 停滞（≤ 含边界）
+    assert stall_signal([0.0, 0.5], 1, 0.5)["sigma"] == 1
+    # 超过 δ ⇒ 不停滞
+    assert stall_signal([0.0, 0.6], 1, 0.5)["sigma"] == 0
+    # ★ 依据必须能自己重算（不许只给 0/1）
+    r = stall_signal([0.5, 0.5, 0.5, 0.5], 3, 0.01)
+    assert "Ŝ_t - Ŝ_{t-w}" in (r["basis"] or "")
+    assert r["delta_now"] == 0.0
+
+
+def test_stall_signal_no_default_parameters():
+    """★★ w/δ **必须显式给**（A11 死判据的教训: 不许拍脑袋定常数）。"""
+    import inspect
+    p = inspect.signature(stall_signal).parameters
+    for name in ("window", "delta"):
+        assert p[name].default is inspect.Parameter.empty, \
+            "★ %s 不该有默认值（死判据风险）" % name
+    # 非法参数必须报错，不静默
+    with pytest.raises(ValueError):
+        stall_signal([1, 2, 3], -1, 0.01)
+    with pytest.raises(ValueError):
+        stall_signal([1, 2, 3], 1, -0.5)
+
+
+def test_stall_signal_refuses_to_guess_on_short_history():
+    """★★★★ 历史不足 w+1 轮 ⇒ **不判**（不许用现有的短历史硬算）。
+
+    ★ 否则「只跑 1 轮」也算得出 σ ⇒ 那是编造依据
+    """
+    r = stall_signal([0.5], 3, 0.01)
+    assert r["sigma"] == 0
+    assert r["reason"], "★ 必须说清为什么没判（不许静默 sigma=0）"
+    assert "不足以回看" in r["reason"]
+    assert r["basis"] is None, "★ 没判就不许给算式"
+    assert r["now"] is None and r["past"] is None
+
+
+def test_exploration_signal_is_a_triple_and_reports_gaps():
+    """★★★ ℰ_t = (σ_t, 𝒰_t, m_draft)（伪码 line 9）· 三元不齐要报。"""
+    acc = [{"component": "skill"}]
+    # 停滞 + 有 draft ⇒ 激活且齐
+    r = exploration_signal([0.5] * 4, 3, 0.01, acc, draft={"slot": 1})
+    assert r["active"] is True and r["ready"] is True
+    assert r["unexplored"], "★ 𝒰_t 要在三元里"
+    # 未停滞 ⇒ 不激活，并说清为什么
+    r2 = exploration_signal([0.4, 0.6, 0.8, 0.95], 3, 0.01, acc, draft={1})
+    assert r2["active"] is False
+    assert "未停滞" in (r2["why_inactive"] or "")
+    # ★ 数据不足 ⇒ **不许** active=True（那是"数据不够就当停滞"）
+    r3 = exploration_signal([0.5], 3, 0.01, acc, draft={1})
+    assert r3["active"] is False and r3["ready"] is False
+    assert "不足以回看" in (r3["why_inactive"] or "")
+    # 三元缺 draft ⇒ ready=False（不许当完整 ℰ_t 用）
+    r4 = exploration_signal([0.5] * 4, 3, 0.01, acc, draft=None)
+    assert r4["active"] is True and r4["ready"] is False

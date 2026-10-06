@@ -292,6 +292,102 @@ def unexplored_components(accepted_rules) -> frozenset:
     return editable_vocab() - touched_components(accepted_rules)
 
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★ R41 · σ_t 停滞判据 + ℰ_t 三元（论文**伪码 line 6/9**，逐字核）
+#   6: σ_t ← 1[Ŝ_t − Ŝ_{t−w} ≤ δ]     ← progress **未超过**噪声带
+#   9: ℰ_t ← (σ_t, 𝒰_t, m_draft)       ← 停滞才**激活**探索
+#   论文原文: 「We treat the search as **stalled** when its progress
+#     over the previous w rounds remains within the empirical noise band δ.
+#     During a stall, a small portion of the proposal budget is **reserved**
+#     for components that have not yet been exercised」
+#
+# ★★★★ 参数 w/δ **不由我定死**（A11 死判据的教训: 定一个拍脑袋的常数
+#   ⇒ 死判据）。⇒ 本函数要求**显式传入**，并返回"依据"（可复核）。
+#   ★ δ 是「empirical noise band」= **实测得来**的（论文措辞），
+#     ⇒ ⇒★ 正确做法是先量噪声带再定 δ —— 现在没量 ⇒ 调用方必须自己给，
+#     这里只负责算判据 + 把依据留痕。
+#   ★ ★☆ 与 R40 的关系: B（窗口聚合 g_t）**依赖** ℒ_t + 组件级归因
+#     ⇒ 归因是**新设计问题**（哪个组件产生多少增益），未裁决前不实现
+#     ⇒ σ_t 不依赖归因（只看整体分数史）⇒ 先做它
+# ═══════════════════════════════════════════════════════════
+
+
+def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
+    """★★ σ_t —— 搜索是否停滞（伪码 line 6 · 论文式13 的第一项）。
+
+    ★ 参数:
+      score_history  **按轮次升序**的整体分数序列 Ŝ（最近的在最后）
+      window         w —— 回看几轮（论文 "previous w rounds"）
+      delta          δ —— 噪声带（论文 "empirical noise band"）
+    ★ 返回: {"sigma": 0/1, "now": Ŝ_t, "past": Ŝ_{t−w}, "delta": δ,
+             "window": w, "basis": 可复核的算式}
+    ★★ 三条硬要求:
+      ① **不做任何默认 w/δ**（死判据教训 ⇒ 必须显式给）
+      ② 数据不够 window+1 轮 ⇒ 返回 sigma=0 **并说清为什么**
+        （不许用现有多短算多短 —— 那会让"只跑 1 轮"也算出 σ）
+      ③ 边界: `Ŝ_t − Ŝ_{t−w} ≤ δ`（**≤**，论文原式）⇒ 停滞
+    """
+    h = list(score_history or [])
+    if window < 0 or not isinstance(window, int):
+        raise ValueError("★ window 必须是非负整数，实得 %r" % (window,))
+    if not isinstance(delta, (int, float)) or delta < 0:
+        raise ValueError("★ delta(δ) 必须是非负数，实得 %r" % (delta,))
+    if len(h) < window + 1:
+        # ★ 不许在数据不足时硬算（那是静默给个看似合理的 σ）
+        return {"sigma": 0, "now": None, "past": None, "delta": delta,
+                "window": window, "basis": None,
+                "reason": ("★ 历史只有 %d 轮，不足以回看 w=%d "
+                           "⇒ 不判（sigma=0 且不参与 ℰ_t 激活）"
+                           % (len(h), window))}
+    now, past = h[-1], h[-(window + 1)]
+    delta_now = float(now) - float(past)
+    sigma = 1 if delta_now <= float(delta) else 0
+    return {"sigma": sigma, "now": now, "past": past, "delta": delta,
+            "window": window, "delta_now": delta_now,
+            # ★ 依据可复核: 拿它能自己重算一遍
+            "basis": "Ŝ_t - Ŝ_{t-w} = %r - %r = %r, ≤ δ(%r) ? %s"
+                     % (now, past, delta_now, delta, sigma == 1),
+            "reason": None}
+
+
+def exploration_signal(score_history, window, delta, accepted_rules,
+                       draft: Any = None) -> Dict[str, Any]:
+    """★★★ ℰ_t 三元 = (σ_t, 𝒰_t, m_draft)（伪码 line 9）。
+
+    ★ 语义（论文原文）: **仅在停滞时**才把预算的一部分**保留给**
+      「components that have not yet been exercised」
+    ★ 返回:
+      · active  —— 是否激活（= σ_t == 1，且 σ_t 有效）
+      · sigma   —— σ_t 明细（含 basis，可复核）
+      · unexplored —— 𝒰_t = (𝒦 ∪ 𝒦_meta_editable) ∖ 𝒯_t（K6）
+      · draft   —— m_draft（本轮的探索草案位；没给就是 None）
+      · ready   —— 三元是否**齐**（任一缺 ⇒ ℰ_t 不完整，不许当完整用）
+    ★★★ 不许做的: σ_t 无效（历史不足）时**不许**返回 active=True
+      ⇒ 那等于"数据不够就当停滞"（G7 静默跳过的同类）
+    """
+    st = stall_signal(score_history, window, delta)
+    sigma_ok = "reason" not in st or st["reason"] is None
+    sigma = st.get("sigma", 0)
+    active = bool(sigma_ok and sigma == 1)
+    U = unexplored_components(accepted_rules)
+    ready = sigma_ok and draft is not None and bool(U)
+    # ★ 为什么没激活 —— **分步算**（我第一版写成嵌套三元 ⇒ 括号不配、
+    #   文件写坏了；教训: 复杂条件别塞进 dict 字面量）
+    if active:
+        why_inactive = None
+    elif not sigma_ok:
+        why_inactive = st.get("reason")
+    else:
+        why_inactive = st.get("reason")
+        if why_inactive is None:
+            why_inactive = (
+                "σ_t=0（进展 %r > δ %r ⇒ **未停滞** ⇒ 不激活探索）"
+                % (st.get("delta_now"), delta))
+    return {"active": active, "sigma": st, "unexplored": sorted(U),
+            "draft": draft, "ready": ready,
+            "why_inactive": why_inactive}
+
+
 def prune_blockers() -> List[str]:
     """★★★★ ℬ_t 的启用前提清单（**没满足就不许启用**）。
 
@@ -342,9 +438,19 @@ def prune_targets(accepted_rules, gains_by_component=None,
     T = touched_components(accepted_rules)
     # 交集（K5 关键）
     pool = T & editable_vocab()
+    # ★★★★★ R41 **裁决 A**（用户拍板）: `g_t ≤ 0` → `g_t < 0`
+    #   ⚠ 论文式14 原文是 `≤ 0`（"no strictly positive gain"）
+    #     —— 本行**偏离原文**，是 DWC 针对量化阶梯的裁决:
+    #     量化阶梯下 gain 恒 0（applier L43/46/47）⇒ 用 `≤ 0` 会把
+    #     **所有被测组件全标成删除目标**（灾难性误剪）
+    #   ⇒ ⇒★ `g = 0` 在本系统里 = 「卡在同一台阶」≠「无价值」
+    #   ⇒ ⇒★ 代价（必须知道）: 平台期 gain=0 的组件**不再被剪**
+    #     ⇒ 剪枝变保守（漏剪可接受，误剪不可接受）
+    #   ★ 若将来量化阶梯被解决（换连续 scorer 或窗口聚合生效），
+    #     应回到论文的 `≤ 0` —— 改回时**这条注释要一起改**
     targets = sorted(
         c for c in pool
-        if float(gains_by_component.get(c, 0.0)) <= 0.0)
+        if float(gains_by_component.get(c, 0.0)) < 0.0)
     return {"enabled": True, "targets": targets, "blockers": [],
             "touched": sorted(T), "pool": sorted(pool),
             "gains": {c: gains_by_component.get(c) for c in sorted(pool)}}
