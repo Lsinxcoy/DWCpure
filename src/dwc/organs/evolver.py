@@ -346,6 +346,69 @@ class Mutator:
         cls._loaded = True
         return cls.load_learned()
 
+    @classmethod
+    def entry_from_candidate(cls, cand: Any, rationale: str = ""
+                             ) -> Dict[str, Any]:
+        """★★★ R35 · 把**候选**组装成可固化的规则条目（7 字段）。
+
+        ★★★ 职责为什么在这里（不在 applier）:
+          · `RULE_ENTRY_FIELDS` / 词表是**进化侧的知识**
+          · applier 是通用写入器 ⇒ 它不懂 RULES 的结构
+          ⇒ ⇒★ 所以: evolver **组装**（懂 schema）+ applier **写**（懂机制）
+            —— 与『check_fn 注入』是同一个分工
+
+        ★★ 三条硬要求（缺一条就是坏规则）:
+          ① 7 字段**全齐**（缺字段 ⇒ 炸点在查表那一刻）
+          ② component/dimension **必须**来自候选
+            ⇒ 绝不默认值兜底（那等于我替模型编了 component）
+          ③ m 若是模型产的 ⇒ **必须带指纹**（provenance）
+            ⇒ 否则固化后无法回溯"这 m 哪次调用产的"，
+              且会被误读成「m 可复现」（温度 0.2 也不保证）
+        """
+        if cand is None:
+            raise ValueError("★ 没有候选 ⇒ 无可固化内容（不许空固化）")
+        comp = str(getattr(cand, "component", "") or "")
+        dim = str(getattr(cand, "dimension", "") or "")
+        if comp not in COMPONENT_VOCAB:
+            raise ValueError(
+                "★ candidate.component=%r 不在词表 ⇒ 拒绝固化"
+                "（**不猜默认值** —— 那就是编造）" % comp)
+        if dim not in DIMENSIONS:
+            raise ValueError("★ candidate.dimension=%r 不在九维 ⇒ 拒绝固化"
+                             % dim)
+        m = str(getattr(cand, "m", "") or "")
+        if not m:
+            raise ValueError("★ m 为空 ⇒ 这条规则没有机制假设，固化无意义")
+        m_source = str(getattr(cand, "m_source", "") or "none")
+        prov = dict(getattr(cand, "provenance", {}) or {})
+        entry = {
+            "component": comp,
+            "dimension": dim,
+            "target": str(getattr(cand, "target", "") or ""),
+            "m": m,
+            "m_source": m_source,
+            "patch": str(getattr(cand, "patch", "") or ""),
+            # ★ rationale 必须能回答"凭什么固化这条"
+            "rationale": (rationale.strip() or
+                          "R35 固化: source=%s rule=%s；grounding=%d 条"
+                          % (getattr(cand, "source", "?"),
+                             getattr(cand, "rule", "?"),
+                             len(getattr(cand, "grounding", []) or []))),
+        }
+        # ★★★ 模型产的 m ⇒ 指纹**必须**进条目（否则是"无源的 m"）
+        if m_source == "llm":
+            if not prov:
+                raise ValueError(
+                    "★ m_source=llm 但没有 provenance ⇒ "
+                    "这条 m **无源**（哪次调用产的不知道 ⇒ 拒绝）")
+            entry["_m_fingerprint"] = {
+                "prompt_ver": prov.get("prompt_ver", ""),
+                "model": prov.get("model", ""),
+                "n_diffs": prov.get("n_diffs"),
+                "raw_m": prov.get("raw_m", m),
+            }
+        return entry
+
     def propose(self, sig: Dict[str, str]) -> Optional[Proposal]:
         """★ 给一条失败签名 ⇒ 一个提案（无规则则 None）。
 

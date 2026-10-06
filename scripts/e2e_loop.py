@@ -502,6 +502,7 @@ else:
     _LFN = "is_palindrome"
     _LBUG = "def is_palindrome(s):\n    return s == s[::-1]"
     _LT = "code_fix_005"
+    TASK_NOTE = "is_palindrome 忘 .lower()"
     # 9a · 真判分
     _o9 = execute_task(Actor(), j, _LT, implementation=_LBUG)
     _v9 = j.evaluate(_LT, "dev", observed=_o9["observation"])
@@ -551,3 +552,96 @@ else:
               % _r9.get("source"))
         LLM_SEGMENT = "no_candidates"
     print("  LLM_SEGMENT=%s" % LLM_SEGMENT)
+
+# ══════════════════════════════════════════════════════════
+# step 10 · ★★★★★ **固化 LLM 候选**（R35 · 闭环最后一处断点）
+#   R34 的边界: 真 LLM 产出了、判分过了，但**没落 RULES**
+#   ⇒⇒ ⇒★ 学到的不留 ⇒ 下次同签名仍要重新调 LLM（花配额）
+#   ⇒ ⇒★ 链: LLM 产出 → judge 验 → 组装 entry → land_rule
+#            → 跨进程存活 → （退化时）retire
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 10 · 固化 LLM 候选（真端点）")
+print("=" * 60)
+if LLM_SEGMENT != "passed":
+    # ★★ 不静默跳过 —— 上一段没通过就没得固化
+    print("  ★ LLM_SEGMENT=%s ⇒ 本段**跳过**（无已验证候选）" % LLM_SEGMENT)
+    LAND_SEG = "skipped_no_candidate"
+else:
+    _cand = _passed[0]          # ★ 第一条通过判分的（排前的强假设）
+    print("  候选: rule=%s target=%r" % (_cand.rule, _cand.target))
+    print("       m=%r m_source=%s component=%s dim=%s"
+          % (_cand.m, _cand.m_source, _cand.component, _cand.dimension))
+    print("       provenance=%s" % json.dumps(
+        _cand.provenance, ensure_ascii=False))
+    # 10a · 组装 entry（evolver 懂 schema）
+    try:
+        _entry10 = Mutator.entry_from_candidate(
+            _cand,
+            rationale="R35 固化真 LLM 候选: judge 通过 · %s" % TASK_NOTE)
+    except ValueError as _e:
+        print("  ★ 组装被拒: %s" % str(_e)[:110])
+        LAND_SEG = "rejected_by_schema"
+    else:
+        _key10 = _M.key_for(_sig9)
+        print("  key = %s" % _key10)
+        print("  entry 7+1 字段: %s" % sorted(_entry10))
+        # 10b · schema 校验（evolver 注入）
+        _miss = _M.check_entry(_key10, _entry10)
+        print("  check_entry: %s" % (_miss or "合格 ✓"))
+        assert not _miss, "★ schema 不过 ⇒ 不许落"
+        # 10c · 固化（applier 三闸 + 读回 + 落盘）
+        _tgt10 = Target(getter=lambda: _M.RULES.get(_key10),
+                        setter=lambda v: _M.RULES.__setitem__(_key10, v),
+                        has_fn=lambda: _key10 in _M.RULES,
+                        delete_fn=lambda: _M.RULES.pop(_key10, None),
+                        flush_fn=_M.persist_learned)
+        _ev10 = {"success": True, "split": "dev", "task": _LT}
+        _res10 = ap.land_rule(_tgt10, _key10, _entry10, _ev10,
+                              _M.check_entry)
+        print("  ✓ 固化 readback=%s" % _res10.readback_ok)
+        print("    reason=%s" % _res10.reason[:96])
+        print("    m 指纹已入条目: %s" % bool(
+            (_M.RULES.get(_key10) or {}).get("_m_fingerprint")))
+        # 10d · 跨进程（真实 subprocess）
+        _probe10 = ("import sys, json\n"
+                    "sys.path.insert(0, json.loads(sys.argv[1]))\n"
+                    "from dwc.organs.evolver import Mutator, Evolver\n"
+                    "sig = json.loads(sys.argv[2])\n"
+                    "d = Evolver().diagnose([sig])\n"
+                    "hit = 1 if d['proposals'] else 0\n"
+                    "m_ok = ('_m_fingerprint' in (d['proposals'][0].entry "
+                    "if d['proposals'] and hasattr(d['proposals'][0],'entry') "
+                    "else {}))\n"
+                    "print('RULES=%d HIT=%d' % (len(Mutator.RULES), hit))\n")
+        _f10 = os.path.join(os.environ.get("TEMP", "."), "_e2e10.py")
+        open(_f10, "w", encoding="utf-8").write(_probe10)
+        _r10 = subprocess.run([sys.executable, _f10,
+                               json.dumps(os.path.join(ROOT, "src")),
+                               json.dumps(dict(_sig9))],
+                              capture_output=True, timeout=120)
+        _o10 = _r10.stdout.decode("utf-8", "replace").strip()
+        try: os.remove(_f10)
+        except OSError: pass
+        print("  跨进程: %s" % _o10)
+        _cross10 = _r10.returncode == 0 and " HIT=1" in _o10
+        print("  %s" % ("★★★★★ 真 LLM 学到的规则**跨进程存活**"
+                        if _cross10 else "★ 跨进程丢规则"))
+        # 10e · 效果: 再遇同签名 ⇒ 查表命中（不再调 LLM 省配额）
+        _d10 = Evolver().diagnose([dict(_sig9)])
+        print("  再诊断: n_proposals=%d（查表命中 ⇒ 不必再调 LLM）"
+              % len(_d10["proposals"]))
+        LAND_SEG = ("landed" if _cross10 and _d10["proposals"]
+                    else "landed_not_queryable")
+        # 10f · 自清洁（回滚 + 清落盘 —— 下次仍从零学起）
+        if _key10 in _M.RULES:
+            ap.rollback("LAND:" + _key10, _tgt10)
+            _M.persist_learned()
+        if os.path.exists(_M.LEARNED_PATH):
+            _left = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
+            if not (_left.get("learned") or {}):
+                os.remove(_M.LEARNED_PATH)
+        print("  自清洁: 回滚 %s · 落盘残留=%s"
+              % ("✓" if _key10 not in _M.RULES else "★失败",
+                 os.path.exists(_M.LEARNED_PATH)))
+    print("  LAND_SEG=%s" % LAND_SEG)

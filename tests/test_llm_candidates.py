@@ -37,9 +37,16 @@ def _mock(result):
     return M()
 
 
-def _ok(patches, m="offset_calibration"):
+def _ok(patches, m="offset_calibration",
+        component="control_flow", dimension="D7"):
+    """★ R35: mock 必须带**契约值** —— 实现现在要求 component/dimension
+      （RRSI 式12/15 的契约由模型在词表内选）
+    ⇒ 不给 ⇒ 契约校验整批拒（**不猜默认值**）—— 那是预期行为
+    """
     return LLMResult(ok=True, source="llm",
-                     text=json.dumps({"patches": patches, "m": m}))
+                     text=json.dumps({"patches": patches, "m": m,
+                                      "component": component,
+                                      "dimension": dimension}))
 
 
 # ══════════════════════════════════════════════════════════
@@ -268,3 +275,251 @@ def test_client_transport_error_is_degraded():
     r = c.complete("x")
     assert r.ok is False and r.degraded is True and r.error
     assert r.source == "error"
+
+def test_llm_contract_values_out_of_vocab_rejected():
+    """★★★★★ R35: 模型给的 component/dimension **不在契约内** ⇒ 整批拒。
+
+    ★★★ 这条是"不编造"的实现:
+      component 是 RRSI 式12 词表、dimension 是九维 —— 都是**契约**
+      ⇒ 若模型给 `component="banana"`，我**不能**:
+        a) 静默改用默认值（= 我替它编了 component）
+        b) 放行（= 契约形同虚设）
+      ⇒ ⇒★ 必须整批拒，且**原因透出来**
+    """
+    bad_cases = [
+        dict(component="banana"),          # 词表外
+        dict(dimension="D99"),             # 九维外
+        dict(component=""),                # 缺失
+        dict(dimension=""),
+    ]
+    for over in bad_cases:
+        kwargs = dict(patches=["return 1"], m="x")
+        kwargs.update(over)
+        g = CandidateGenerator(llm=_mock(LLMResult(
+            ok=True, source="llm", text=json.dumps(kwargs))))
+        r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+        assert r["n"] == 0, "★ 词表外的值竟放行了: %r" % over
+        assert "契约值不在范围内" in r["why"], \
+            "★ 拒绝原因必须透出来（否则 = 静默拒）"
+        assert str(over.get("component", over.get("dimension", "?"))) \
+            in r["why"] or "component=" in r["why"]
+
+
+def test_llm_candidate_has_provenance_fingerprint():
+    """★★★★ m 的**调用指纹**（R35: m 由模型产 ⇒ 两次措辞不同）。
+
+    ★★ 依据: 2603.25681 §6.4.3『报准确率必须同时报 test-time 配置』
+      ⇒ 同理: 记一条 m 必须记**它哪次调用产的**
+      ⇒ ⇒★ 否则固化后无法回溯，而且会被误读成"m 可复现"
+    """
+    g = CandidateGenerator(llm=_mock(_ok(["return 1"], m="loop_bound")))
+    r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    assert r["n"] >= 1
+    pr = r["candidates"][0].provenance
+    assert pr.get("prompt_ver") == CandidateGenerator.PROMPT_VER
+    assert pr.get("n_diffs") == len(DIFFS), "★ 要能回溯用了几条证据"
+    assert "raw_m" in pr, "★ 模型原话要留（措辞会变）"
+
+
+def test_prompt_contains_contract_vocab():
+    """★★★★ prompt 必须把**契约**给模型（否则它无从选起）。
+
+    ★ R35: component/dimension 改由模型选 ⇒ 词表必须在 prompt 里
+    """
+    seen = {}
+
+    class Spy:
+        def complete(self, prompt, **k):
+            seen["p"] = prompt
+            return _ok(["return 1"])
+
+    CandidateGenerator(llm=Spy()).generate(SIG, DIFFS, BASE,
+                                           fn_name="mystery")
+    p = seen["p"]
+    assert "control_flow" in p and "subagent" in p, \
+        "★ component 词表没进 prompt"
+    assert "D1" in p and "D9" in p, "★ 九维没进 prompt"
+    assert '"component"' in p and '"dimension"' in p, \
+        "★ 返回格式里没要求这两项"
+
+# ══════════════════════════════════════════════════════════
+# ④ R35 · 固化（候选 → 规则条目）—— evolver 组装，applier 写
+# ══════════════════════════════════════════════════════════
+
+def _mk_cand(**kw):
+    from dwc.organs.candidates import Candidate
+    base = dict(patch="return x", source="llm", rule="R_llm",
+                grounding=[{"index": 0, "actual": 1, "expected": 2}],
+                m="lower_case", m_source="llm",
+                component="control_flow", dimension="D7",
+                target="is_palindrome",
+                provenance={"prompt_ver": "v2", "model": "MiMo",
+                            "n_diffs": 1, "raw_m": "m"})
+    base.update(kw)
+    return Candidate(**base)
+
+
+def test_entry_from_candidate_full_schema():
+    """★★★★★ 正向: 候选 → 7 字段全齐 + m 指纹（可过 check_entry）。"""
+    from dwc.organs.evolver import Mutator
+    e = Mutator.entry_from_candidate(_mk_cand())
+    for f in Mutator.RULE_ENTRY_FIELDS:
+        assert str(e.get(f, "")).strip(), "★ 缺字段 %s（炸点在查表那一刻）" % f
+    assert e["m_source"] == "llm"
+    assert e["_m_fingerprint"]["prompt_ver"] == "v2"
+    assert e["_m_fingerprint"]["raw_m"] == "m", "★ 模型原话要留"
+    assert Mutator.check_entry("E:q:f", e) == [], "★ schema 应合格"
+
+
+def test_entry_rejects_out_of_contract_component():
+    """★★★★ component 不在词表 ⇒ 拒绝（**不猜默认值** = 不编造）。"""
+    from dwc.organs.evolver import Mutator
+    with pytest.raises(ValueError) as ex:
+        Mutator.entry_from_candidate(_mk_cand(component="banana"))
+    assert "词表" in str(ex.value) and "不猜默认值" in str(ex.value)
+    # ★ 指纹也不能被绕过（同一函数路径）
+    for bad in (dict(dimension="D99"), dict(m=""),
+                dict(component=""), dict(dimension="")):
+        with pytest.raises(ValueError):
+            Mutator.entry_from_candidate(_mk_cand(**bad))
+
+
+def test_entry_rejects_llm_m_without_fingerprint():
+    """★★★★ m_source=llm 但**无 provenance** ⇒ 拒绝（"无源的 m"）。
+
+    ★★★ 依据: 2603.25681 §6.4.3『报准确率必须同时报 test-time 配置』
+      ⇒ 同理: 记一条 m 必须记**哪次调用产的**
+      ⇒ ⇒★ 否则固化后无法回溯，且会被误读成「m 可复现」
+    """
+    from dwc.organs.evolver import Mutator
+    with pytest.raises(ValueError) as ex:
+        Mutator.entry_from_candidate(
+            _mk_cand(m_source="llm", provenance={}))
+    assert "无源" in str(ex.value)
+
+
+def test_entry_rejects_none_candidate():
+    """★ 空候选 ⇒ 拒绝（不许空固化）。"""
+    from dwc.organs.evolver import Mutator
+    with pytest.raises(ValueError):
+        Mutator.entry_from_candidate(None)
+
+
+def test_entry_accepts_rule_sourced_m_without_fingerprint():
+    """★ 对照: `m_source='rule'`（规则读来的）**不要求**指纹。"""
+    from dwc.organs.evolver import Mutator
+    e = Mutator.entry_from_candidate(
+        _mk_cand(m_source="rule", provenance={}))
+    assert "_m_fingerprint" not in e, "★ 规则来的 m 不该硬塞指纹"
+    assert e["m"] == "lower_case"
+
+
+def test_generation_sets_target_on_every_candidate():
+    """★★★★★ R35 抓到的断点: LLM 候选**必须带 target**。
+
+    ★★★ 实测: 我加了 component/dimension/provenance 却漏了 target
+      ⇒ 于是 check_entry 报缺 target ⇒ **固化流水线断在 schema**
+      ⇒⇒ ⇒★ 这是"加字段没同步构造"的又一次（R35 已是第 N 次）
+      ⇒ ⇒★ 现在 generate() 里有**统一收口**（缺的从 fn 推），
+        本测试锁它 —— 否则下次加字段还会漏
+    """
+    g = CandidateGenerator(llm=_mock(_ok(["return 1"])))
+    r = g.generate(SIG, DIFFS, BASE, fn_name="mystery")
+    assert r["n"] >= 1
+    for c in r["candidates"]:
+        assert c.target == "mystery", \
+            "★ 候选无 target ⇒ 固化必被 schema 拒"
+        # ★ 且能真过组装
+        from dwc.organs.evolver import Mutator
+        assert Mutator.check_entry(
+            Mutator.key_for(dict(SIG)), Mutator.entry_from_candidate(c)) == []
+
+
+def test_deterministic_candidates_also_get_target():
+    """★ 确定性候选同样要有 target（统一收口覆盖两侧）。
+
+    ★★ 我第一版用错了场景: `SIG/DIFFS/BASE`(mystery) 正是
+      「确定性推不出」的场景（我选它就是为了测 LLM）
+      ⇒⇒ 那条断言 `n >= 1` **必红** —— 是我把场景的前提搞反了
+      ⇒ ⇒★ 换成含 range 的场景（R1 能命中的那类）
+    """
+    sig = {"c": "E_VALUE", "q": "wrong_magnitude", "fn": "sum_first_n"}
+    diffs = [{"args": 3, "actual": 3, "expected": 6},
+             {"args": 5, "actual": 10, "expected": 15}]
+    buggy = "def sum_first_n(n):\n    return sum(range(n))"
+    g = CandidateGenerator()          # ★ 无 LLM ⇒ 纯确定性
+    r = g.generate(sig, diffs, buggy, fn_name="sum_first_n")
+    assert r["n"] >= 1, "★ 该场景确定性应能推（R1 的 delta_eq_args 命中）"
+    assert r.get("need_llm") is False
+    for c in r["candidates"]:
+        assert c.target == "sum_first_n", \
+            "★ 确定性候选也必须有 target（统一收口要覆盖两侧）"
+        from dwc.organs.evolver import Mutator
+        assert Mutator.check_entry(
+            Mutator.key_for(dict(sig)),
+            Mutator.entry_from_candidate(c)) == []
+
+def test_r1_contract_must_match_same_family_rules():
+    """★★★★★ R1 的契约属性必须**与 RULES 同族条目一致**（我注释里承诺的锁）。
+
+    ★★★ 我在 candidates.py 里写了:
+      「RULES 那条若改，这里要跟着改（测试会锁）」
+      ⇒ 本测试就是那把锁 —— 没它，注释就是**幻影承诺**
+
+    ★★ 依据: R1 改的是 range 的 stop/start = 与
+      `E_VALUE:wrong_magnitude:sum_first_n` **同一个机制**
+      ⇒ 那条已固化条目是 component=control_flow/D7/m=range_bounds
+      ⇒⇒ 三者若漂移 ⇒ R1 固化出来的规则会**与同族不一致**
+        （查表/审计时看不出它们是同一件事）
+    """
+    from dwc.organs.evolver import Mutator
+    ref_key = "E_VALUE:wrong_magnitude:sum_first_n"
+    ref = Mutator.RULES.get(ref_key)
+    assert ref, "★ 前置: 同族种子条目应该在（它一直是）"
+
+    g = CandidateGenerator()
+    sig = {"c": "E_VALUE", "q": "wrong_magnitude", "fn": "sum_first_n"}
+    diffs = [{"args": 3, "actual": 3, "expected": 6},
+             {"args": 5, "actual": 10, "expected": 15}]
+    r = g.generate(sig, diffs,
+                   "def sum_first_n(n):\n    return sum(range(n))",
+                   fn_name="sum_first_n")
+    assert r["n"] >= 1
+    c = next(x for x in r["candidates"] if x.rule.startswith("R1_"))
+    # ★★ 三个值逐个对齐同族条目
+    assert c.component == ref["component"], \
+        "R1.component 与同族条目漂移: %r vs %r" % (c.component, ref["component"])
+    assert c.dimension == ref["dimension"], \
+        "R1.dimension 与同族条目漂移: %r vs %r" % (c.dimension, ref["dimension"])
+    assert c.m == ref["m"], \
+        "R1.m 与同族条目漂移: %r vs %r" % (c.m, ref["m"])
+    assert c.m_source == "rule", "★ 确定性的 m 来源是 rule 不是 llm"
+
+
+def test_r2_has_no_contract_because_no_evidence():
+    """★★ R2 诚实留空 ⇒ 固化被拒（**这是对的**，不是缺陷）。
+
+    ★★ 我 R35 明确选择: RULES 里没有类型包装类条目 ⇒ 无依据 ⇒ 不填
+      ⇒ ⇒★ 于是 R2 候选固化时被 check_entry 拒
+        = 「没依据的规则先别固化」的实现
+      ⇒⇒ 若哪天有人把 component 随手填上，**这条测试会红**
+        —— 那正是要提醒: 你填的依据是什么?
+    """
+    from dwc.organs.candidates import CandidateGenerator as CG
+    from dwc.organs.evolver import Mutator
+    g = CG()
+    # R2 只在"期望 int 实测 str"时触发
+    diffs = [{"args": 1, "actual": "7", "expected": 7},
+             {"args": 2, "actual": "9", "expected": 9}]
+    sig = {"c": "E_TYPE", "q": "wrong_magnitude", "fn": "mystery"}
+    r = g.generate(sig, diffs, "def mystery(x):\n    return str(x * 2)",
+                   fn_name="mystery")
+    r2s = [c for c in r["candidates"] if c.rule.startswith("R2_")]
+    if not r2s:
+        return   # ★ R2 没触发（形态变了就不是本测试的范围）
+    c = r2s[0]
+    assert c.component == "", "★ R2 不该有 component（无依据）"
+    with pytest.raises(ValueError) as ex:
+        Mutator.entry_from_candidate(c)
+    assert "词表" in str(ex.value), \
+        "★ 无依据的 R2 竟固化通过 ⇒ 有人偷偷填了 component"

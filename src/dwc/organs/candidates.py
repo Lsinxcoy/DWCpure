@@ -76,6 +76,20 @@ class Candidate:
     m: str = ""
     #: ★ m 的来源（诚实标注: 是规则读来的还是模型假设的）
     m_source: str = "none"   # rule / llm / none
+    #: ★★★ R35 · component / dimension —— **谁来填**?
+    #:   按 RRSI 式12/15: 𝒦(9) 词表 + 九维是**契约**（受约束的选）
+    #:   ⇒ 确定性形态: 从 RULES 条目读（现成的）
+    #:   ⇒ LLM 形态: **让模型在词表内选**（prompt 给全词表 + 定义）
+    #:   ⇒⇒ ★★ 绝不自己瞎填 —— 那是编造（与纪律①同型）
+    #:     实测: 我 R32 固化时**手填**了 control_flow/D7，
+    #:     那次我有规则可依；这次是**无规则**场景 ⇒ 必须由证据产
+    component: str = ""
+    dimension: str = ""
+    #: ★★★ m 的**调用指纹**（R35: m 由模型产 ⇒ 两次措辞不同）
+    #:   ⇒ 若固化只记 m 本身 ⇒ 后人无法回溯"这条 m 哪次调用来的"
+    #:   ⇒ ⇒★ 记指纹 (model, n_diffs, prompt_ver, ts) ⇒ 可审计且
+    #:     **不假装 m 可复现**（温度 0.2 也不保证逐字一致）
+    provenance: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.grounding:
@@ -225,6 +239,17 @@ class CandidateGenerator:
         before_reject = len(cands)
         cands = [c for c in cands
                  if self.key_of(c) not in self.rejected]
+
+        # ★★★ R35 · 统一 target（**防"加字段没同步构造"再发生**）
+        #   ⇒ 我 R35 加了 component/dimension/provenance，却漏了 target
+        #     ⇒ 于是固定化流水线**断在 schema**（check_entry 报缺 target）
+        #   ⇒⇒ ⇒★★ 这类错我已犯多次 ⇒ 与其逐个补，不如**在此统一收口**:
+        #     缺 target 的候选一律从 fn 推（fn 是 generate 的入参，必有）
+        for _c in cands:
+            if not getattr(_c, "target", ""):
+                _c.target = fn
+        assert all(getattr(_c, "target", "") for _c in cands), \
+            "★ 统一 target 失败（不该走到这）"
         n_rejected_skip = before_reject - len(cands)
 
         # ★★★ G4 池子上限 + 超限行为（不静默截断 —— 要报数）
@@ -320,6 +345,14 @@ class CandidateGenerator:
 
     #: ★ 纪律④⑤ 对 LLM 候选**同样生效**（不是"模型说的就信"）
     LLM_MAX_CANDIDATES = 4
+    #: ★★ prompt 版本号 —— 进 m 的指纹（换 prompt ⇒ 指纹变 ⇒ 可审计）
+    #:   依据 2603.25681 §6.4.3『报准确率必须同时报 test-time 配置』
+    #:   ⇒ 同理: 记一条 m 必须记**它是哪个 prompt 版产的**
+    #:   ★★ 我第一次想加它时写了 `if "PROMPT_VER" not in s`
+    #:     而引用（④ 已写 self.PROMPT_VER）比定义**先落盘**
+    #:     ⇒ 条件恒假 ⇒ 定义被跳过 ⇒ 运行时 AttributeError
+    #:   ⇒⇒ ⇒★ 判"有没有定义"要看**定义**，不能看"有没有出现"
+    PROMPT_VER = "v2_r35_contract"
 
     def _llm_generate(self, sig, diffs, baseline_src, fn_name):
         """★ 用 LLM 生成候选。**不抛不吞**（返回带 cause 的结构）。
@@ -342,6 +375,7 @@ class CandidateGenerator:
             #   （我第一版凭记忆写 got/want ⇒ 与 judge 的
             #    actual/expected 不一致 ⇒ prompt 里证据**恒为 None**）
             from .judge import DIFF_FIELDS as _DF
+            from .evolver import (COMPONENT_VOCAB, DIMENSIONS)
             ev_lines.append({k: d.get(k) for k in _DF
                              if k in ("index", "fn", "args",
                                       "expected", "actual")})
@@ -355,8 +389,15 @@ class CandidateGenerator:
             json.dumps(ev_lines, ensure_ascii=False),
             "当前实现（要修的源码）:",
             tick + "python", baseline_src, tick,
+            # ★★ R35: component/dimension 必须由**模型在契约内选**
+            #   （RRSI 式12 词表 + 九维 = 契约；我瞎填 = 编造）
+            "component 只能从这些选一个: "
+            + ", ".join(sorted(COMPONENT_VOCAB)),
+            "dimension 只能从这些选一个: "
+            + ", ".join(sorted(DIMENSIONS)),
             '只返回 JSON: {"patches": ["<完整函数体，首行缩进为0>"], '
-            '"m": "<机制假设>"}',
+            '"m": "<机制假设>", '
+            '"component": "<词表之一>", "dimension": "<D1-D9>"}',
             "最多 %d 条，按可信度排序；没把握就返回空数组。"
             % self.LLM_MAX_CANDIDATES,
         ])
@@ -392,6 +433,16 @@ class CandidateGenerator:
             payload = json.loads(res.text)
             raw = payload.get("patches") or []
             m_hint = str(payload.get("m") or "")[:60]
+            # ★★★ 契约校验: 不在词表/九维内 ⇒ **整批拒**
+            #   （不猜、不回退默认值 —— 那就是编造 component）
+            _comp = str(payload.get("component") or "").strip()
+            _dim = str(payload.get("dimension") or "").strip()
+            if _comp not in COMPONENT_VOCAB or _dim not in DIMENSIONS:
+                return {"ok": False, "source": "error",
+                        "cause": ("LLM 给的契约值不在范围内 "
+                                  "(component=%r dimension=%r ⇒ "
+                                  "拒绝而非猜默认)" % (_comp, _dim)),
+                        "candidates": []}
         except Exception as e:
             return {"ok": False, "source": "error",
                     "cause": "LLM 返回不是合法 JSON: %s" % e,
@@ -429,7 +480,20 @@ class CandidateGenerator:
                      for l in body.strip().splitlines()]
             out.append(Candidate(
                 patch=nl.join(lines), source="llm", rule="R_llm",
-                grounding=gd, m=m_hint, m_source="llm"))
+                grounding=gd, m=m_hint, m_source="llm",
+                # ★★ R35 抓到的断点: 不设 target ⇒ 固化时 check_entry
+                #   报缺 target ⇒ **整条流水线断在 schema**
+                #   ⇒⇒ ⇒★ 这是"加了字段没同步构造"的又一次
+                #     （R35 已经是第 N 次 ⇒ 见下条的统一兜底）
+                target=fn_name,
+                component=_comp, dimension=_dim,
+                # ★ m 指纹: 让这条 m 可回溯到"哪次调用"
+                provenance={
+                    "prompt_ver": self.PROMPT_VER,
+                    "model": getattr(self.llm, "_model", "") or "",
+                    "n_diffs": len(ev_lines),
+                    "raw_m": str(payload.get("m") or ""),
+                }))
         self.n_llm_ok += len(out)
         return {"ok": bool(out), "source": "llm",
                 "cause": ("" if out else
@@ -556,6 +620,16 @@ class CandidateGenerator:
                 source="deterministic",
                 rule="R1_%s_%s" % (mode, where),
                 target=fn,
+                # ★★★ R35 · R1 的契约属性 —— **依据来自已有 RULES 条目**
+                #   同类修复（sum_first_n 的 range 偏移）在 RULES 里是:
+                #     component=control_flow · dimension=D7 · m=range_bounds
+                #   ⇒⇒ ★★ 我**不自己编**这三个值 —— 抄**同族已固化**的
+                #     （R1 改的正是 range 的 stop/start = 同一个机制）
+                #   ⇒ ⇒★ RULES 那条若改，这里要跟着改（测试会锁）
+                component="control_flow",
+                dimension="D7",
+                m="range_bounds",
+                m_source="rule",
                 grounding=[dict(d) for d, _, _ in pairs] + [{
                     "expr": m.group(0), "mode": mode,
                     "deltas": deltas, "args": args_vals,
@@ -590,6 +664,17 @@ class CandidateGenerator:
                 source="deterministic",
                 rule="R2_wrap_%s" % kind,
                 target=fn,
+                # ★★★ R35 · R2 的契约属性**故意留空**
+                #   理由: RULES 里**没有**类型包装类的已固化条目
+                #   ⇒⇒ ⇒★ 于是我没有**依据**填这三个值
+                #     （填 control_flow/D7 之类 = 我自己编 ⇒ 违纪律①）
+                #   ⇒ ⇒★ 结果: R2 候选固化时会被 check_entry **拒**
+                #     —— 那是**诚实的拒绝**，不是缺陷:
+                #       没依据的规则先别固化，等有同类固化样本再对齐
+                component="",
+                dimension="",
+                m="",
+                m_source="none",
                 grounding=[dict(d) for d in hit] +
                           [{"expr": m.group(0),
                             "rule": "期望 %s 型、实测 str"
