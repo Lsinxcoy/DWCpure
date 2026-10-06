@@ -319,3 +319,29 @@ def test_heading_guard_not_fooled_by_prose_quote():
     real = "正文\n## 五、可机械检查的判据（gate.py 候选，K1–K6）\nK1 …"
     assert any(ln.startswith("## 五、可机械检查的判据")
                for ln in real.split("\n"))
+
+def test_no_duplicated_k_criteria_or_section_headings():
+    """★★★★★ R43 全文复查抓到的**重复** —— 锁死不许再发生。
+
+    ★★ 事故链（我一个人造出来的两次问题）:
+      ① R40 我 `replace(§五标题行, 新节)` ⇒ **丢标题行**（内容还在）
+      ② R42 我「恢复」时**没先查内容还在不在** ⇒ 又插一份整块
+      ⇒⇒ ⇒★ 结果: K1–K6 **各出现 2 次**（孤儿块 + 标题下的正块）
+    ⇒ ⇒★ 所以这条守卫查两件事:
+      · K 判据**行首**恰好 1 次（多了=重复，少了=被吃）
+      · 章节标题**行首**恰好 1 次（重复=恢复过头）
+    ★★ 关键教训: 「恢复」和「破坏」一样要**先查现状** ——
+      否则恢复本身就是制造重复的动作
+    """
+    s = io.open(_KEY_DOC, encoding="utf-8", errors="replace").read()
+    lines = s.split("\n")
+    dup = []
+    for k in _REQUIRED_K:
+        n = sum(1 for ln in lines if ln.startswith(k))
+        if n != 1:
+            dup.append("%s 出现 %d 次（应恰好 1）" % (k, n))
+    for h in _REQUIRED_SECTIONS:
+        n = sum(1 for ln in lines if ln.startswith(h))
+        if n != 1:
+            dup.append("%r 出现 %d 次（应恰好 1）" % (h, n))
+    assert not dup, "★★★ 文档有**重复/丢失**（R40+R42 那类事故）: %s" % dup
