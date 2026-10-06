@@ -1,0 +1,49 @@
+{
+ "round": "R26 · organs/actor.py（行动者 3/7）+ 第一批真实观测",
+ "date": "2026-10-05",
+ "为什么现在做": "R25 接上 judge 后实测 pass_rate=1.00，但那条观测是 run_term 自造的（用 golden 关键词拼，必然通过）⇒⇒ 而用 golden 制造通过正是塌缩型评分器的做法⇒⇒⇒ 唯一能救的是真的执行任务产出观测的那个器官",
+ "实现": {
+  "模块": "src/dwc/organs/actor.py · 29,404 B",
+  "四条纪律（ACTOR_DESIGN 逐条核过）": [
+   "§3.3 actor 的 success 不许自己判（三来源 + NOT_EVALUATED）",
+   "§3.4 prediction / decision / outcome 三分离",
+   "§4.2 evolve 不进 actor（进化属 evolver）",
+   "接口 · actor 不得自己造任务（任务源唯一）"
+  ],
+  "Verified Coupling": "回执的 verified 依据是『两次取值一致』（读回校验）—— 不是『我返回了』⇒ 直接治母巢 P0-3（返回 ok:True 但零副作用）",
+  "确定性执行器": "dev 集那 6 条 behavior 任务都是纯函数，可直接执行⇒ 第一版不做 LLM（那会让可验证性依赖 LLM）"
+ },
+ "★★★ 本轮最重要的实测：actor 与 judge 矛盾过": {
+  "现象": "actor 自报 6 条全成功，judge 判 6 条全失败",
+  "根因1": "★ 我的契约有洞：judge 要求观测覆盖**全部**断言，而我只让 actor 跑第一条",
+  "根因2": "★★ judge 把 expected 当字符串比，而 golden 里是字面量文本（expected=\"'cba'\" 带引号 vs 实测值 'cba' 无引号）⇒⇒⇒ 字符串型断言永远挂 —— 那不是 actor 的错，是契约两侧对不上",
+  "修法": "judge 加 _as_literal/_eq 字面量归一 + actor 补 execute_task（跑全部断言）且 args 也传字面量（我先只修了值侧 ⇒ 又出现『值对了但匹配不上』的假失败）",
+  "修后": "6 pass / 0 fail / 12 条真痕迹 · pass_rate=1.0（全真跑）"
+ },
+ "★★ 声明了纪律但代码没强制（同族第三次）": {
+  "现象": "§3.2 原文写着『outcome 是枚举，不是自由字符串』，我在 docstring 抄了，__post_init__ 却没校验",
+  "更深的洞": "★★★ __post_init__ 只在构造那一刻跑，而 Trace 不是 frozen、act() 内部要事后设 outcome ⇒⇒ ★★ 纪律只在构造时生效 = 纪律没有生效",
+  "修法": "把校验提成 validate()，在 act() 的异常分支、正常分支、_push 落库前三处调用",
+  "★ 连带": "★ 我那测试写法也错了（用事后赋值去测构造期校验）⇒ 改成显式调 validate()"
+ },
+ "负面验证": {
+  "为什么必须做": "★★★ 只测通过路径时，actor 与 judge 两边都报成功、看不出任何问题 —— 只有错实现才能证明 judge 真的在判",
+  "结果": "错实现（off-by-one）⇒ judge 判 fail ✓；少跑断言 ⇒ fail ✓；完全没观测 ⇒ None 而非 False ✓",
+  "混合批次": "not_evaluated=4 时 pass_rate=1.0（分母只算判过的）；若当 fail 会变 0.6、当 pass 变 1.0 ⇒ 两个错值都验过"
+ },
+ "变异验证": {
+  "方法": "破坏 actor.py 与 judge.py 十一处",
+  "结果": "11/11 全抓到 —— ①未验证回执也算成功 ②success可直接赋值③outcome枚举校验被摘 ④evolve进维护动作 ⑤actor自造任务⑥沙箱白名单放开 ⑦只跑第一条断言 ⑧args传文本 ⑨字面量归一被摘⑩None当False ⑪hook失败仍记痕迹",
+  "还原": "actor.py md5 ec9553c7a6 · judge.py md5 9a0d6af94a · 302 passed"
+ },
+ "测试": "10 份 / 302 项（新增 test_actor.py 31 项）",
+ "诚实边界": [
+  "★★★ 第一批观测仍是 6 条 behavior 任务，4 条 keyword_match 未执行⇒ pass_rate=1.0 只覆盖 60% 的 dev 集",
+  "★★★ 确定性执行器跑的是**基准实现**，不是 agent 的产出⇒⇒ ★★ 所以它验证的是『判分链路通』，不是『DWC 能修 bug』",
+  "★★ actor 尚无真实任务源（world_model 未实现）⇒ legal_actions 只有测试用桩",
+  "★★ π（evolver）与 U（改动评估器）仍未实现 ⇒ 五元盘点仍 3/5",
+  "★★ test split 未落地 ⇒ 终止条件③ 仍不是真正的保护组",
+  "★ PureFunctionExecutor 用 exec 编译源码字符串（虽限白名单单函数）⇒ 仍非真正沙箱",
+  "★★★ 本轮全部结论未经第二人复核"
+ ]
+}

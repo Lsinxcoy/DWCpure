@@ -33,6 +33,7 @@
 """
 from __future__ import annotations
 
+import ast
 import io
 import json
 import os
@@ -109,6 +110,32 @@ class Verdict:
 # ══════════════════════════════════════════════════════════
 # 判分器
 # ══════════════════════════════════════════════════════════
+
+
+def _as_literal(txt: str) -> Any:
+    """★ 把文本归一成 python 字面量（失败则原样返回）。
+
+    ★★ 为什么需要它（R26 实测）: golden 里的 expected 是**字面量文本**
+      （"'cba'" / "True" / "0.0"），而实测值是 python 对象
+      ⇒ 不归一就 str 比 ⇒ 字符串型断言永远不等
+    ★ 安全: 只用 ast.literal_eval（不执行任意代码）
+    """
+    t = str(txt).strip()
+    try:
+        return ast.literal_eval(t)
+    except (ValueError, SyntaxError):
+        return t
+
+
+def _eq(a: Any, b: Any) -> bool:
+    """★ 值相等判定。
+
+    ★★ 先比同型（避免 int 1 与 float 1.0 的歧义按 str 走），
+      再退到 str 比（当某一侧解析失败时）
+    """
+    if isinstance(a, (int, float, bool)) and isinstance(b, (int, float, bool)):
+        return type(a) is type(b) and a == b
+    return str(a) == str(b)
 
 
 class Judge:
@@ -292,20 +319,30 @@ class Judge:
 
         if kind == "behavior":
             # observed 形态: {fn_name: [[args, actual_value], ...]}
+            #★★★★ R26 实测修正（真跑 actor 才暴露的契约缺口）:
+            #   初版把 expected 当**字符串**比（str(c["expected"])）
+            #   ⇒ 而 golden 里的 expected 是**字面量文本**
+            #     "reverse_string('abc')=='cba'" ⇒ expected = "'cba'"（带引号）
+            #   ⇒⇒ 而实测值是 python 对象 'cba'（str，无引号）
+            #     str('cba') == "'cba'" ⇒ ★ 永远不等 ⇒ 字符串型断言全挂
+            #   ⇒⇒★★ 而实测表现: 5 pass / 1 fail，fail 的正是字符串那条
+            #     ⇒⇒ 那不是 actor 的错，是**契约两侧对不上**
+            # ⇒★ 正确做法: 两侧都归一到 **python 字面量** 再比
             for c in checks:
                 fn = c.get("fn")
-                want = str(c.get("expected", ""))
-                args = str(c.get("args", ""))
+                want_txt = str(c.get("expected", ""))
+                args_txt = str(c.get("args", ""))
+                want = _as_literal(want_txt)     # ★ 字面量归一
+                args = _as_literal(args_txt)
                 calls = observed.get(fn)
                 if calls is None:
                     return False
-                # ★ 逐条比对：找到 args 匹配的那次调用，看返回值对不对
                 hit = False
                 for call in calls:
                     if not isinstance(call, (list, tuple)) or len(call) < 2:
                         continue
-                    if str(call[0]) == args:
-                        if str(call[1]) != want:
+                    if _eq(call[0], args):
+                        if not _eq(call[1], want):
                             return False
                         hit = True
                         break
