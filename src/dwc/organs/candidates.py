@@ -495,9 +495,8 @@ class CandidateGenerator:
                 #   ⇒⇒ ⇒★ 由 component 推（§四① 真值表是机械的）:
                 #     𝒦 ⇒ assets · 𝒦_meta ⇒ architecture
                 #   ⇒ 词表外 ⇒ 保持空 ⇒ K2 拒（不编造层）
-                _layer = (layer_of(_comp)
-                          if (_comp in COMPONENT_VOCAB
-                              or _comp in K_META) else "")
+                _layer = (layer_of(_comp) if check_component(_comp) == []
+                          else "")
             _dim = str(payload.get("dimension") or "").strip()
             # ★★★★ R37 我在**同一轮里**犯的"改一处不同步另一处":
             #   prompt 给了**两表**（𝒦 9 + 𝒦_meta 5）—— 模型真选了

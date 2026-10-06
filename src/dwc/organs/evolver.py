@@ -211,7 +211,10 @@ def _migrate_target_layer(table: Dict[str, Dict[str, Any]]) -> int:
         if v.get("target_layer"):
             continue
         comp = str(v.get("component") or "")
-        if comp in COMPONENT_VOCAB or comp in K_META:
+        # ★★★ R39 审计抓到: 这里原本展开写 `in COMPONENT_VOCAB or in K_META`
+        #   = **第 8 个来源**（A1 门正是为抓它而写）
+        #   ⇒ 收敛到 `check_component`（真源 = layer_of）
+        if check_component(comp) == []:
             v["target_layer"] = layer_of(comp)
             n += 1
         else:
@@ -688,7 +691,11 @@ class ProposalGate:
             # ★ R37: 先判词表 ⇒ **无异常**（G7 抓过我这里的 except: pass）
             #   词表外的由 ② bad_component 报（不越权、也不吞）
             _pc = str(p.component or "")
-            if _pc in COMPONENT_VOCAB or _pc in K_META:
+            # ★★★ R39 审计: 这里原本展开写
+            #   `in COMPONENT_VOCAB or in K_META`
+            #   = 同一判据的**第 7 个来源**（我 R37 踩过 5 个）
+            #   ⇒ 收敛到 `check_component`（真源 = layer_of）
+            if check_component(_pc) == []:
                 _lay = layer_of(_pc)
                 p.target_layer = _lay
         _pk = check_pairing(str(p.component or ""), _lay)
