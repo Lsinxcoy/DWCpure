@@ -1,0 +1,35 @@
+{
+ "round": "R24 · organs/judge.py（判分器 2/7）+ dev 真值源",
+ "date": "2026-10-05",
+ "为什么现在做": "R23 的 run_term 暴露三处失效都因 judge 缺位：五元盘点 V=None / change 环 judge=None / 终止条件③无法判定",
+ "真值源": {
+  "config/anchors/dev.json": "10 条（6 behavior + 4 keyword_match）· 从 ARSI sealed_tasks.yaml **复制**（非引用）",
+  "为什么复制": "GAI §2.2 grounded 条件②『base 在 agent 外』—— 指向 E:/ARSI 则 agent 能写那个路径 ⇒ grounded 不成立",
+  "只增不改": "2606.14249 守门人单调性：只能加新探针，不能删旧探针",
+  "★★ test split": "显式标记未落地（test_sealed.NOT_BUILT.json）· JUDGE_DESIGN §4.5 原文『test 锁定任务: 必须另建』⇒ 绝不能用 dev 副本顶替"
+ },
+ "核心纪律": [
+  "success=None 表示未评价，不许当 False 也不许当 True（ACTOR_DESIGN §4.5）",
+  "pass_rate 分母只算判过的；全未评价时返回 None 而非 0",
+  "fallback 必须同契约（拒 ARSI 的 structure_only，JUDGE_DESIGN §3.3）",
+  "agent 自报不改判（三分离）但不一致要记下来",
+  "judge 不进递归；无 self-grading 接口"
+ ],
+ "★★★ 本轮六次自我修正": [
+  "① _compare 按 dict 迭代而 checks 是 list ⇒ AttributeError ⇒ 原因是我从没喂过真实数据",
+  "② 4 条 reasoning 任务被我静默失格 —— 实际用 expected_keywords 而我只解析 expected_behavior",
+  "③ code_fix_006 的 expected_behavior 在 ARSI 源文件里就是残缺的（引号未闭合）⇒ 剔除该断言并登记",
+  "④ _load 要求每条有 success 字段 ⇒ 但 success 是判分结果不是真值源的一部分",
+  "⑤ _check_truth_source 要求所有声明文件存在 ⇒ 而 test 是故意未落地 ⇒ 区分『未落地』与『丢了』",
+  "⑥ ★★ regression_check 用『两侧 not_evaluated 都为0』当可比条件 ⇒ 正确判据是『两边判过的任务集相同』"
+ ],
+ "测试": "9 份 / 262 项（新增 test_judge.py 29 项）",
+ "诚实边界": [
+  "★★★ 第三条变异（test 未落地改放行）未命中 ⇒ 因为 evaluate 与 score 两处都有检查，删一处另一处还在 ⇒ 该变异设计有缺陷，不是实现漏网",
+  "★★★ dev 真值源是 ARSI sealed 的前 10 条复制而来 ⇒ 它们本身未经 DWC 独立验证 ⇒ 若 ARSI 那批判据有错，DWC 会继承",
+  "★★ behavior 形态的观测格式是我定的（{fn: [[args, value]]}）⇒ 而 actor 尚未实现 ⇒ 这个契约还没被任何真实实现验证过",
+  "★★ keyword_match 判据本身弱（只查关键词是否出现）⇒ 『换个说法说对的事』会被判 fail —— 这是 ARSI 原判据的固有问题，DWC 未修",
+  "★★ test split 未落地 ⇒ 终止条件③ 的完整形态（真保护组）仍不可用，当前只能判 dev 上的同批回归",
+  "★★ 本轮全部结论未经第二人复核"
+ ]
+}
