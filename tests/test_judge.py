@@ -146,13 +146,33 @@ def test_keyword_match_all_keywords_required(j):
 
 
 def test_behavior_compares_actual_values(j):
-    """★★★ 意图: behavior 形态比对**实测返回值**，不比对自报。"""
-    obs = {"sum_first_n": [["3", "6"], ["5", "15"]]}
+    """★★★★ 意图: behavior 形态比对**实测返回值**，不比对自报。
+
+    ★★★★ R30: 观测格式由 **字符串入参** 改为**字面量入参**
+      ⇒ 原因: 该测试的 `["3","6"]` 是 R26 的遗留形态，
+        而 actor 自 R26 起就传字面量（calls.append([_as_literal(..), ..])）
+      ⇒⇒ 而我修的跨类型 bug 让 _eq("3", 3) 由 True 变 False
+        ⇒⇒ ⇒★ 于是它卡在**一个 actor 根本不会产出的场景**上
+      ⇒ ⇒★ 过时的测试比没有测试更危险 —— 它会让人以为那行为仍被保护
+      ⇒ ⇒★ 另: 入参比较必须严格，否则"压根没调这个入参"这个判据
+        会因任何入参都匹配上而**失效**（漏跑检测就废了）
+    """
+    obs = {"sum_first_n": [[3, 6], [5, 15]]}
     v = j.evaluate("code_fix_001", SPLIT_DEV, observed=obs)
     assert v.success is True, "返回值与 golden 一致 ⇒ pass"
-    obs_bad = {"sum_first_n": [["3", "5"], ["5", "14"]]}
-    v2 = j.evaluate("code_fix_001", SPLIT_DEV, observed=obs_bad)
-    assert v2.success is False, "返回值不符 ⇒ fail"
+    # ★ 覆盖力: 同一条路径下，值错必须 fail（不许因为"自报过"就过）
+    bad = {"sum_first_n": [[3, 7], [5, 15]]}
+    v2 = j.evaluate("code_fix_001", SPLIT_DEV, observed=bad)
+    assert v2.success is False
+    # ★★★ R30 新判据: 字符串入参不匹配 int 判据（跨类型严格）
+    str_args = {"sum_first_n": [["3", "6"], ["5", "15"]]}
+    v3 = j.evaluate("code_fix_001", SPLIT_DEV, observed=str_args)
+    assert v3.success is False, "调 f(\"3\") != 调 f(3) ⇒ 没跑那个入参"
+    assert v3.failure_signature is not None
+    assert v3.failure_signature["c"] in ("E_NO_RESULT", "E_MISMATCH")
+
+
+
 
 
 def test_behavior_missing_call_fails(j):

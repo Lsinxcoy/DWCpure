@@ -32,8 +32,23 @@ def ev():
     return Evolver()
 
 
-def _sig(c="E_OFF_BY_ONE", q="sum_first_n", m="code_repair"):
-    return {"c": c, "q": q, "m": m}
+def _sig(c="E_VALUE", q="wrong_magnitude", fn="sum_first_n", m=""):
+    """★★ R30: 签名格式随结构修正改版 —— 与 RULES 的**查询键**对齐。
+
+    ★★ 变更（每条都有实测依据）:
+      c: E_OFF_BY_ONE → **E_VALUE**
+        ⇒ 实测差值是 3 和 5（n=3: 3 vs 6 · n=5: 10 vs 15）
+          ⇒⇒ 不是 1 ⇒ classify_c 判 E_VALUE 正确
+          ⇒⇒ 而 E_OFF_BY_ONE 是我 R27 **凭常识标的**（数据错误）
+      q: sum_first_n → **wrong_magnitude**
+        ⇒ 原文 q = causal role（因果状态），不是"被改对象"
+          ⇒⇒ 我 R27 读原文后按直觉映射成函数名 ⇒ 语义错
+      新增 **fn** —— 定位维度（查询键 = c:q:fn）
+        ⇒ 三元组不含"要改哪" ⇒ 必须显式
+      m: code_repair → **""**
+        ⇒ 原文分工: m 由**模型**填 ⇒ 第一版无 LLM ⇒ 留空并由 RULES 补
+    """
+    return {"c": c, "q": q, "fn": fn, "m": m}
 
 
 def _p(**kw):
@@ -421,20 +436,69 @@ def test_failure_signature_q_is_the_changed_object():
 
 
 def test_proposal_matches_signature_from_trace():
-    """★★★★★ 闭环: actor 的失败签名 ⇒ evolver 能提出对应提案。
+    """★★★★★ 闭环: **judge 的**失败签名 ⇒ evolver 能提出提案。
 
-    ⇒⇒ 这条把两侧契约**接起来**了（R27 之前是断的）
+    ★★★★ R30 方向修正（R27 那版测错了方向）:
+      R27 版测的是 `actor 的签名 → evolver`，
+      而原文 φ(r_i) 的 **r_i 是 verifier 结果**
+        ⇒⇒ ⇒★ evolver 只该收 **verifier 层**的签名（judge 产）
+          ⇒⇒ ⇒★★ actor 的签名 c 来自**回执 error_code**（执行层）
+            ⇒ 那是 trace 里诊断执行问题用的，**不是** evolver 输入
+      ⇒⇒ ⇒★★★ 而 R27 那版把 actor 签名喂给 diagnose
+        ⇒ 它用 error_code 当 c ⇒ 与 RULES 的 verifier 值域对不上
+          ⇒⇒ 一旦 RULES 改对（R30），它就**测不出真实契约**了
+
+    ⇒ ⇒★ 本条现在测的是**真实闭环**方向，并显式锁住两层不混用
+    """
+    from dwc.organs.judge import Judge
+    j = Judge()
+    # ★ 真实闭环: 带 bug 的实现 → verifier 拒绝 → judge 产签名
+    v = j.evaluate("code_fix_001", "dev",
+                   observed={"sum_first_n": [[3, 3], [5, 10]]})
+    assert v.success is False
+    sig = v.failure_signature
+    assert sig is not None, "judge 必须产签名（R30 的根因修复）"
+    # ★ 签名是 verifier 层（fn 已带定位维度）
+    assert sig["c"] == "E_VALUE" and sig["fn"] == "sum_first_n"
+    # ★★ 它必须**查得到**规则（这是闭环的关键）
+    d = Evolver().diagnose([dict(sig)])
+    assert len(d["proposals"]) == 1, \
+        "verifier 签名必须对上 evolver 的规则（R30: 键=c:q:fn）"
+    assert d["proposals"][0].target == "sum_first_n"
+
+
+def test_actor_signature_is_executor_layer_not_verifier():
+    """★★★★★ 意图: actor 签名**不是** evolver 的输入（两层不混用）。
+
+    ★★★★ 依据: 原文 c = "**verifier**-level cause"
+      ⇒ actor 的 c 来自回执 error_code ⇒ 属**执行层**
+      ⇒⇒ 而 evolver 收的是 verifier 层 ⇒ 两者 c 值域不同，不能互换
+      ⇒⇒ ⇒★ 显式锁住，否则将来有人会把 actor 签名喂给 diagnose
+        然后"修 RULES 键去迁就它" ⇒ 那会让真值分类被污染
     """
     from dwc.organs.actor import Actor, Receipt
     a = Actor()
 
     class Reject:
         def __call__(self, t):
-            return Receipt(ok=False, detail={"error_code": "E_OFF_BY_ONE"},
+            return Receipt(ok=False,
+                           detail={"error_code": "E_EXEC_FAIL"},
                            verified=True)
 
     tr = a.act({"task_id": "code_fix_001", "kind": "code_repair",
                 "fn": "sum_first_n", "args": "3"}, Reject())
-    d = Evolver().diagnose([tr.failure_signature])
-    assert len(d["proposals"]) == 1, "签名应直接对上 evolver 的规则"
-    assert d["proposals"][0].target == "sum_first_n"
+    sig = tr.failure_signature
+    assert sig["sig_layer"] == "executor", \
+        "actor 签名必须标注为 executor 层"
+    assert sig["fn"] == "sum_first_n", "定位维度必须有"
+    # ★★ 它的 c 来自 error_code，而 verifier 层的 c 来自差异分类
+    assert sig["c"] == "E_EXEC_FAIL"
+    # ★ 而 judge 对同一任务给的是另一套 c（差异分类）
+    from dwc.organs.judge import Judge
+    v = Judge().evaluate("code_fix_001", "dev",
+                         observed={"sum_first_n": [[3, 3], [5, 10]]})
+    assert v.failure_signature["c"] == "E_VALUE"
+    assert v.failure_signature.get("sig_layer") != "executor", \
+        "judge 产的是 verifier 层（默认无 executor 标）"
+
+

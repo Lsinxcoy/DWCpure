@@ -345,10 +345,31 @@ class Actor:
           ⇒★ 而 task_id 另有其位（Trace 自身有 task 上下文）
         """
         c = str((rc.detail or {}).get("error_code", "executor_rejected"))
+        fn = str(task.get("fn") or task.get("target") or "")
+        # ★★★ R30: **fn 是定位维度，单独一个字段**
+        #   原文三元组 (c,q,m) 是**聚类**语义，不含"要改哪"；
+        #   而查 RULES 需要 (c, q, fn)
+        #   ⇒⇒ ★ R27 我把 fn 塞进 q 位置 ⇒ 「定位碰巧对、语义错」
+        #   ⇒⇒ ★ 而 R27 那条测试 test_failure_signature_q_is_the_changed_object
+        #     **锁住了那个错误语义** ⇒ 两侧都改对后它反而成了障碍
+        #
+        # ★★★★ 更要紧的（结构性，待裁决）:
+        #   本签名的 c 来自**回执 error_code**（执行层失败）
+        #   而 judge 的 c 来自**实测差异**（verifier 层）
+        #   ⇒⇒ ⇒★ 原文 φ(r_i) 的 r_i 是 **verifier 结果** ⇒ evolver 只该收后者
+        #     ⇒⇒ ⇒★★ 于是 actor 这条签名**不是 evolver 的输入**，
+        #       它属于执行层 trace（诊断执行问题）
+        #     ⇒⇒ ⇒★★★ 而 R27 的 test_proposal_matches_signature_from_trace
+        #       测的正是 actor→evolver ⇒ **方向错了**（本轮已改）
         return {"c": c,
+                # ★ q 仍是 actor 能给的那份（执行层视角的因果状态）
                 "q": str(task.get("fn") or task.get("target")
                          or "unknown_object"),
-                "m": str(task.get("kind", "unknown_action"))}
+                # ★ 定位维度（非三元组成员，但查询要用）
+                "fn": fn,
+                "m": str(task.get("kind", "unknown_action")),
+                # ★★ 显式标注来源，避免与 verifier 签名混用
+                "sig_layer": "executor"}
 
     @staticmethod
     def _signature(exc: BaseException,
@@ -429,15 +450,37 @@ class PureFunctionExecutor:
         "reverse_string": "def reverse_string(s):\n    return s[::-1]",
     }
 
-    def __init__(self, fn_name: str):
+    def __init__(self, fn_name: str, source: Optional[str] = None):
+        """★ source 缺省用 REFERENCE（基准）；可传入**待评的实现**。
+
+        ★★★★ R30 端到端实测发现的断点①:
+          execute_task 此前只跑 REFERENCE ⇒ 带 bug 的实现**跑不了**
+          ⇒⇒ 而 REFERENCE 是**正确**的 ⇒ 每次 judge 必然 success=True
+          ⇒⇒ ⇒★ 也就是说: **agent 的产出从未被评过分**
+          ⇒⇒ ⇒★★ 那正是 R26 标过的诚实边界（第 4 条），这次是它卡住了闭环
+        ⇒ ⇒★ 修法: 让实现可传入；**缺省仍为 REFERENCE**（不改既有行为）
+        ⇒⇒ ⇒★ 但 `source_from` 必须记下这次跑的是谁的实现 ——
+          否则"评测的是哪个实现"又变成不可审计（原则 3/7）
+        """
         if fn_name not in self.ALLOWED:
             raise ActorError(
                 "函数 %r 不在沙箱白名单 %r 内"
                 % (fn_name, list(self.ALLOWED)))
         self.fn_name = fn_name
+        self.source_from = "reference" if source is None else "provided"
+        body = self.REFERENCE[fn_name] if source is None else source
         ns: Dict[str, Any] = {}
         # ★ 只编译白名单里那一个函数（不做任意 exec）
-        exec(compile(self.REFERENCE[fn_name], "<ref>", "exec"), ns)
+        try:
+            exec(compile(body, "<%s>" % self.source_from, "exec"), ns)
+        except SyntaxError as e:
+            raise ActorError(
+                "实现 %r 编译失败（%s）: %s"
+                % (self.source_from, fn_name, e))
+        if fn_name not in ns:
+            raise ActorError(
+                "实现 %r 里没有定义 %r（eval 侧缺定义 ⇒ 必然失败）"
+                % (self.source_from, fn_name))
         self.fn = ns[fn_name]
         self.calls: List[Tuple[str, Any]] = []
 
@@ -482,9 +525,56 @@ def _as_literal(txt: str) -> Any:
         return str(txt).strip()
 
 
+def build_implementation(fn_name: str, base_source: str,
+                         patch: str) -> str:
+    """★ 用 patch 构建一个**候选实现**（2606.09498 的 line 9）。
+
+    ★★★★ R30 实测: 这一步此前**根本不存在** ⇒ patch 没有消费者
+      ⇒⇒ ⇒★ 而我上一轮误把 patch 交给 applier 落地，
+        于是撞上 APPLIER_DESIGN §六（丙类·代码替换·第一版只开甲类）
+      ⇒⇒ ⇒★★ 但那是**我路由错**，不是设计矛盾:
+        · patch 的消费者是**执行器**（构造待评候选）⇒ 属**执行层**
+        · applier 落地的是 RULES 条目（元层数据）⇒ 属**甲类**
+        · 而"构建候选"≠"落地生产" —— 只有 commit 到生产才是丙类
+      ⇒⇒ ⇒★★ 所以 applier **始终不需要碰代码**
+
+    ★★★ patch 的缩进约定（R30 逐条核过三条数据后定的）:
+      · patch = 函数体，**第一行相对 def 行缩进 0**，嵌套 +4
+      · 应用时所有行 **整体 +4**（因为 def 在 0 列，体在 4 列）
+      · ★★ 实测: RULES 第三条此前是 0/8/4 ⇒ +4 ⇒ 4/12/8 ✗
+        ⇒ 那是 R27 写数据时的**字面 bug**，
+          而因为**没有应用方**一直测不到
+        ⇒⇒ ⇒★★ 这是端到端暴出的第三类问题（**数据错误**，非代码错）
+
+    ★★★ 校验（不许静默拼错）:
+      · def 行必须存在（否则拼不出）
+      · 编译必须通过（否则语法错在落地后才炸）
+    """
+    lines = base_source.split("\n")
+    head = lines[0]
+    if not head.strip().startswith("def "):
+        raise ActorError(
+            "基线实现第一行不是 def: %r" % head)
+    if not fn_name + "(" in head:
+        raise ActorError(
+            "基线实现不是 %r 的定义: %r" % (fn_name, head))
+    # ★ 所有 patch 行整体 +4（约定: 第一行相对 def 缩进 0）
+    indented = "\n".join(("    " + ln) if ln.strip() else ln
+                          for ln in patch.split("\n"))
+    body = head + "\n" + indented
+    # ★ 编译校验 —— 语法错必须在这里暴露，不许带到落地之后
+    try:
+        compile(body, "<candidate>", "exec")
+    except SyntaxError as e:
+        raise ActorError(
+            "候选实现编译失败（%s）: %s" % (fn_name, e))
+    return body
+
+
 def execute_task(actor: "Actor", judge: Any, task_id: str,
                  decision_source: str = "heuristic",
-                 trace_hook=None) -> Dict[str, Any]:
+                 trace_hook=None,
+                 implementation: Optional[str] = None) -> Dict[str, Any]:
     """★ 执行一个 dev 任务，产出 **judge 的观测契约**格式。
 
     ★★★★ R26 实测发现的契约洞 —— 这次矛盾的根因:
@@ -511,7 +601,8 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
             % sorted(fns))
     fn_name = checks[0]["fn"]
 
-    ex = PureFunctionExecutor(fn_name)
+    # ★★★ R30 断点①的修法: 实现可传入（缺省仍是 REFERENCE）
+    ex = PureFunctionExecutor(fn_name, source=implementation)
     traces = []
     calls: List[List[Any]] = []
     for c in checks:                 # ★★★ 全部断言，不只第一条
@@ -533,6 +624,12 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
             "observation": {fn_name: calls},
             "traces": traces,
             "n_checks": len(checks),
+            # ★ 原则 3/7: 明说评测的是**谁的**实现
+            #   （否则"agent 产出 vs 基准" 又混在一起 = R26 那个洞）
+            "implementation_source": ex.source_from,
+            # ★ 便于调用方用 build_implementation 重建候选（闭环要用）
+            "baseline_source": (PureFunctionExecutor
+                                .REFERENCE.get(fn_name)),
             "★": ("观测覆盖全部 %d 条断言 —— judge 的契约要求全量"
                   % len(checks))}
 

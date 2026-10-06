@@ -158,33 +158,47 @@ class Mutator:
       ⇒⇒ ⇒★ LLM 版留作可插拔的第二个 Mutator（诚实边界④）
     """
 
-    #: ★ 失败签名 (c,q,m) → 提案的声明式规则
+    #: ★ 查询键 = **(c, q, fn)** → 提案
+#:   · c/q 是原文三元组的前两段（规则填）
+#:   · ★★ **fn 是定位维度** —— 不在三元组里!
+#:     三元组是聚类语义（什么失败/什么行为/什么机制），
+#:     而"要改哪个函数"是定位 ⇒ 必须显式在键里
+#:   · m 由**条目产出**（R30 结构修正: m 不能是查询输入）
     #:
     #: ★★ 这里刻意做成**数据**而不是代码 —— 因为
     #:   「失败签名 → 该改哪」这条映射本身就是假设，
     #:   把它写成数据就能被门检查、能被测试、能被审计
     RULES: Dict[str, Dict[str, str]] = {
         # ★ 示例规则：sum_first_n 少算一个（off-by-one）
-        "E_OFF_BY_ONE:sum_first_n:code_repair": {
+        "E_VALUE:wrong_magnitude:sum_first_n": {
             "component": "control_flow",
             "dimension": "D7",
             "target": "sum_first_n",
+            "m": "range_bounds",
+            "m_source": "rule",
             "patch": "return sum(range(n + 1))",
             "rationale": "range(1,n+1) 漏掉 n；按 c 判据只应累加 1..n"},
         # ★ 示例规则：average 空列表除零
-        "E_ZERO_DIV:average:code_repair": {
+        "E_ZERO_DIV:wrong_magnitude:average": {
             "component": "control_flow",
             "dimension": "D7",
             "target": "average",
+            "m": "empty_input_guard",
+            "m_source": "rule",
             "patch": "return (sum(xs) / len(xs)) if xs else 0.0",
             "rationale": "空列表 len=0 ⇒ 除零；按判据应返回 0.0"},
         # ★ 示例规则：factorial 无限递归
-        "E_NO_BASE:factorial:code_repair": {
+        "E_NO_RESULT:abstained_or_missing:factorial": {
             "component": "control_flow",
             "dimension": "D7",
             "target": "factorial",
-            "patch": ("if n <= 1:\n        return 1\n"
-                      "    return n * factorial(n - 1)"),
+            "m": "recursive_base_case",
+            "m_source": "rule",
+            # ★★★ R30 数据修正: 此前是 0/8/4（+4 ⇒ 4/12/8 ✗ 应 4/8/4）
+            #   ⇒ 因为**没有应用方**，这个 bug 一直测不到
+            #   ⇒⇒ ⇒★★ 端到端暴出的第三类问题（数据错误，非代码错）
+            "patch": ("if n <= 1:\n    return 1\n"
+                      "return n * factorial(n - 1)"),
             "rationale": "缺递归基 ⇒ 无限递归；按判据 0!/1! 都应为 1"},
     }
 
@@ -194,12 +208,26 @@ class Mutator:
         ★★ 关键: 返回 None 是**合法**结果（该机制我们不会改）
           ⇒ 而若强行给提案 ⇒ 那就是"为改而改"
         """
-        key = "%s:%s:%s" % (sig.get("c"), sig.get("q"), sig.get("m"))
-        rule = self.RULES.get(key)
+        # ★★★★ R30 结构修正: 查询键只用 (c, q)
+        #   原文分工（2609.06396）: c/q 由**规则**填 · m 由**模型假设**填
+        #   ⇒⇒ ⇒★ 于是 m 必须在诊断里**产出来**，不能是查询的**输入**
+        #   ⇒⇒ ⇒★★ 而我第一版把 RULES 的键也写成 (c,q,m) ⇒ 死锁:
+        #     要查 RULES 需要 m → m 要规则推 → 而推它的规则在 RULES 里
+        #   ⇒⇒ ⇒★★ 这与 R27 同源: 我拿**聚类语义**当了**实现接口**
+        #     （R27: q 我当函数名 · R30: m 我当查询键 —— 同一种错）
+        #   ⇒ ⇒★ 签名**语义**不变（仍三元组用于聚类），变的是规则表的键
+        lookup = "%s:%s:%s" % (sig.get("c"), sig.get("q"),
+                                 sig.get("fn", ""))
+        rule = self.RULES.get(lookup)
         if rule is None:
             return None
-        pid = "P_" + hashlib.sha256(key.encode()).hexdigest()[:8]
-        return Proposal(proposal_id=pid, failure_signature=dict(sig),
+        pid = "P_" + hashlib.sha256(lookup.encode()).hexdigest()[:8]
+        # ★★ 产出的签名**补全** m（由规则给出 —— 第一版无 LLM ⇒ 规则填，
+        #   并在 rule 里标注 mechanism_source 以免冒充"模型假设"）
+        full = dict(sig)
+        full["m"] = rule.get("m", "")
+        full["m_source"] = rule.get("m_source", "rule")
+        return Proposal(proposal_id=pid, failure_signature=full,
                         component=rule["component"], target=rule["target"],
                         patch=rule["patch"], rationale=rule["rationale"],
                         dimension=rule.get("dimension"))
@@ -296,17 +324,34 @@ class Evolver:
         out: List[Proposal] = []
         unmapped: List[Dict[str, str]] = []
         clusters: Dict[str, int] = {}
+
+        def _cluster(sig_in: Dict[str, str],
+                     m: str) -> None:
+            """★ 聚类计数 —— 键是**补全后**的 (c,q,m)。"""
+            k = "%s:%s:%s" % (sig_in.get("c"), sig_in.get("q"), m)
+            clusters[k] = clusters.get(k, 0) + 1
+
         for sig in signatures:
-            if not all(sig.get(k) for k in ("c", "q", "m")):
+            # ★★★★ R30 结构修正（与 propose 的键改动配套）:
+            #   诊断**输入**只需 (c, q) —— 它是查询 RULES 的键
+            #   而 m 是**诊断的输出**（由 RULES 条目补全，R30 结构修正）
+            #   ⇒⇒ ⇒★ 所以这里不再强制 m 非空
+            #     （强制了就会拒掉 judge 产的 `m=""` —— 实测正是断点）
+            #   ⇒⇒ ⇒★★ 而 2609.06396 原文分工本就是:
+            #     c/q **规则**填 · m **模型假设**填 ⇒ m 允许待定
+            # ★★ 查询键 = (c, q, **fn**) ⇒ 三者必填（缺 fn 定位不了）
+            #   而 m **允许空**（由 RULES 条目产出 —— 原文分工）
+            if not all(sig.get(k) for k in ("c", "q", "fn")):
                 raise EvolverError(
-                    "失败签名缺字段（须含 c/q/m）: %r"
-                    % (sig,))          # ★ D5: 缺字段必须显式暴露
-            clusters["%s:%s:%s" % (sig["c"], sig["q"], sig["m"])] = \
-                clusters.get("%s:%s:%s" % (sig["c"], sig["q"], sig["m"]), 0) + 1
+                    "失败签名缺 c/q/fn（查询键所需；m 可空）: %r" % (sig,))
             p = self.mutator.propose(sig)
             if p is None:
-                unmapped.append(dict(sig))     # ★ 合法: 该机制不会改
-                continue
+                # ★ 聚类也要算 —— unmapped 同样是"三点一致"里的一簇
+                #   （它的机制未知 ⇒ m 空串，聚类键如实带空）
+                unmapped.append(dict(sig))
+                _cluster(sig, sig.get("m") or "")
+                continue            # ★ 合法: 该机制我们不会改
+            _cluster(sig, p.failure_signature.get("m") or "")
             if p.key() in self._seen:
                 continue                        # ★ 去重
             self._seen.add(p.key())
@@ -314,8 +359,8 @@ class Evolver:
         return {"proposals": out, "n_unmapped": len(unmapped),
                 "unmapped": unmapped,
                 "n_clusters": len(clusters),
-                "★": ("聚类按三元组**精确一致**（2606.09498）"
-                      "⇒ 不按 c 单独合并"),
+                "★": ("聚类按**补全后**三元组精确一致（2606.09498）"
+                      "⇒ 不按 c 单独合并；m 由 RULES 条目产出"),
                 }
 
     # ══════════════════════════════════════════════

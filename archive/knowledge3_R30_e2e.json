@@ -1,0 +1,80 @@
+{
+ "round": "R30 · 端到端闭环 —— 分段绿 != 链路通（实测 5 个断点）",
+ "date": "2026-10-06",
+ "5 个断点": [
+  "端到端五段一次跑完，实测暴露 5 个断点（分段测试全部都是绿的）:",
+  "  断点1  execute_task 只跑 REFERENCE ⇒ 带 bug 的实现**跑不了**",
+  "         ⇒ 而 REFERENCE 正确 ⇒ judge 每次必然 success=True",
+  "         ⇒⇒ ★★ 也就是说 agent 的产出**从未被评过分**",
+  "  断点2  我把 patch 交给 applier 落地 ⇒ 撞上丙类（代码替换·第一版只开甲类）",
+  "         ⇒★ 而那是**我路由错**: patch 消费者是执行器（构造候选），",
+  "           applier 落地的是 RULES 条目（甲类）⇒ applier 根本不用碰代码",
+  "  断点3  judge 不产失败签名 + actor 只在**异常**时产",
+  "         ⇒⇒ ★★★ '值错误'这条路径上**三端都不产签名**",
+  "           ⇒⇒ 我被迫手填 ⇒ 与 RULES 键不匹配 ⇒ 断在 step4",
+  "  断点4  三元组语义错: c/q/m 被我当 (错误类, 函数名, 动作)",
+  "         ⇒★ 原文: c=verifier 终止原因 / q=因果状态 / m=抽象机制",
+  "  断点5  applier.apply_on_copy 对**不存在的键**留下 key:None 垃圾",
+  "         ⇒ 而 line 9 要求主干在 commit 前未被触碰"
+ ],
+ "★★★ 三元组的结构修正": [
+  "★★★★ 分类器 E_OFF_BY_ONE 是错的",
+  "  实测差值: n=3 ⇒ 3 vs 6 差 3 · n=5 ⇒ 10 vs 15 差 5 ⇒ **不是 1**",
+  "  ⇒ classify_c 判 E_VALUE 正确，而我 R27 标的 E_OFF_BY_ONE",
+  "    是**凭常识**标的（数据错误）",
+  "  ⇒⇒ ★★ c 必须由**实际差异**推出，不能'我知道它错在哪'先入为主",
+  "",
+  "★★★ 三元组：查询键必须含定位维度 fn",
+  "  三元组是**聚类**语义（什么失败/什么行为/什么机制），",
+  "  而'要改哪个函数'是**定位**维度 ⇒ 不在三元组里 ⇒ 必须显式",
+  "  ⇒ R27 我把 fn 塞进 q 位置 ⇒ '定位碰巧对、语义错'",
+  "  ⇒ 而 RULES 键从 (c,q,m) 改成 (c,q,fn) ⇒ m 由条目产出",
+  "    ⇒ 消除了'要查需 m、推 m 的规则在 RULES 里'的**死锁**"
+ ],
+ "另两个真 bug": [
+  "★★★ _eq 的 str 兜底让 **_eq('6', 6) = True**",
+  "  ⇒ 字符串值被判成通过（期望是 int 6）",
+  "  ⇒⇒ ★★ 而 judge 是**真值源** —— 让类型错通过 = 真值门失效",
+  "  ⇒ 我 R28 加 str 比当万能兜底，却没注意它跨类型",
+  "  ⇒★ 同族第三次（R26 字面量 / R28 容器空格 / 现在跨类型）",
+  "  ⇒ 修: 一方是数字另一方不是 ⇒ 类型不匹配直接 False",
+  "",
+  "★★ G7 静默门抓到我在 judge 里写 `except: pass`",
+  "  ⇒ 我 R29 刚写过『不许静默』，转头在 judge 又犯",
+  "  ⇒⇒ 同族第三次（memory 里'大声报错'那条）",
+  "  ⇒ 修: 把异常**反映进结果**（non_numeric_diff:TypeError），不吞"
+ ],
+ "测试方向的修正": [
+  "★★★ 测试方向错了（唯一测两侧匹配的那条）",
+  "  test_proposal_matches_signature_from_trace 测的是 **actor→evolver**",
+  "  而原文 phi(r_i) 的 r_i 是 **verifier 结果** ⇒ evolver 只收 judge 的",
+  "  ⇒⇒ actor 的 c 来自回执 error_code（执行层）⇒ 不是 evolver 输入",
+  "  ⇒⇒ ★★ 而 R27 那条 test_failure_signature_q_is_the_changed_object",
+  "    **锁住了错误语义**（q=函数名, m=action）⇒ 它改对后反而成障碍",
+  "  ⇒ 改法: 测 judge→evolver + 新增'两层不混用'的锁（sig_layer 字段）",
+  "",
+  "★★ 同族第三次: 我两次手填签名时填得还不一样",
+  "  R27 填 m=code_repair · R30 填 m=code_fix_001 ⇒ 都不符合原文",
+  "  ⇒⇒ 而**所有分段测试都绿**，因为分段里我两边都手填 ⇒ 必然一致",
+  "  ⇒⇒ ⇒★★ 这是'分段绿 != 链路通'最强的证据"
+ ],
+ "端到端结果": {
+  "step2 base": "0.0（带 bug 实现 · implementation_source=provided）",
+  "step3 签名": "judge 产 c=E_VALUE q=wrong_magnitude fn=sum_first_n",
+  "step4 提案": "n_proposals=1 · patch='return sum(range(n + 1))'",
+  "step5 落地": "规则已存在 ⇒ 无新规则可落；单独验证不污染 ✓ 清理=delete",
+  "step6 重判": "1.0（候选实现 · implementation_source=provided）",
+  "step7 结算": "base=0.0 current=1.0 gain=1.0 ⇒ **keep**"
+ },
+ "测试": "13 份 / 358 项（新增 2 项: judge→evolver 方向 + 两层不混用）",
+ "门": "7/7 全绿（G7 抓到 judge 的静默 except ⇒ 已修）",
+ "诚实边界": [
+  "★★★ 端到端**只跑通一条** (sum_first_n 的 off-by-one) ⇒ 单点证明",
+  "★★★ step5 **没有真落地过**（规则已存在 ⇒ 跳过）⇒ commit 路径在本轮未被端到端覆盖（R29 只有分段测试）",
+  "★★★ '学习新规则'是另一条闭环（本次未触发）⇒ RULES 只有 3 条，靠手写 ⇒ 进化的'增量'还没发生过",
+  "★★ 两条 c 值域（verifier 层 E_VALUE vs executor 层 error_code）尚未在 RULES 里分别覆盖 ⇒ executor 签名现在必 unmapped",
+  "★★★ actor 的 q 仍是函数名（R27 遗留语义）⇒ 与 judge 的 causal role **不同源** ⇒ 已用 sig_layer 标注但未统一",
+  "★★ 判分只用 dev split；test split 未接入端到端（约束3 仍靠手传）",
+  "★★★ 本轮全部结论未经第二人复核"
+ ]
+}

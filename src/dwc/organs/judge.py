@@ -95,6 +95,16 @@ class Verdict:
     truth_category: Optional[str] = None
     #: 若 success 是 None，缺什么
     missing: Optional[str] = None
+    # ★★★ R30: 失败签名 —— 由**规则**填 c/q（2609.06396 原文分工）
+    #   ⇒ 此前 judge 完全不产签名，而 actor 只在**异常**时产
+    #     ⇒⇒ 于是"值错误"这条路径上**三端都不产签名**
+    #       ⇒⇒ ⇒★ 被迫手填 ⇒ 与 RULES 键不匹配 ⇒ 端到端断
+    #   ⇒ ⇒★ 所以这是补**根因**，不是加功能
+    failure_signature: Optional[Dict[str, str]] = None
+    #: ★ 逐条差异（judge 判 fail 时必须说**哪条**、差在哪）
+    #:   ⇒ 此前 reason 是通用文案（"按 golden reference 比较实测"）
+    #:     ⇒⇒ 那等于没说 ⇒ c 的原料根本没有
+    diffs: Optional[List[Dict[str, Any]]] = None
 
     def is_pass(self) -> bool:
         """★ 只有显式 True 才算通过（None 不算）。"""
@@ -110,6 +120,97 @@ class Verdict:
 # ══════════════════════════════════════════════════════════
 # 判分器
 # ══════════════════════════════════════════════════════════
+
+
+
+
+# ══════════════════════════════════════════════════════════
+# 失败签名 phi(r) = (c, q, m) —— 两篇原文收敛的三段式
+# ══════════════════════════════════════════════════════════
+# 2606.09498 §3.3: c = terminal verifier-level cause
+#                  q = causal status of agent behavior
+#                  m = abstract agent mechanism exposed by trace
+# 2609.06396 Eq.10: chi terminal cause / psi causal role / mu reusable
+#
+# ★★ 分工（2609.06396 原文）: **前两段由规则分配，第三段由模型假设**
+#   ⇒ 所以 c/q 必须是**规则**（代码），m 才归 LLM
+#   ⇒⇒ ★ 于是 judge 是**唯一**该产出 c/q 的位置 ——
+#     因为 c 是 "verifier-level cause"，而 judge 就是 verifier
+#
+# ★★★ R30 端到端实测的根因:
+#   actor   只在**异常**时产签名（L287/L309）⇒ 值错误时 signature=None
+#   judge   此前**不产签名**、也不说哪条失败、差在哪
+#   evolver.diagnose 收签名（不收 TraceRecord）
+#   ⇒⇒ ★★★ 三端都不产 ⇒ 手填 ⇒ 与 RULES 键不匹配 ⇒ 闭环断在 step4
+#   ⇒⇒ ⇒★ 而**此前所有分段测试都绿** —— 因为分段里签名也是手填的
+#     ⇒⇒ ⇒★★ 手填把接口不匹配完全遮蔽（"分段绿 != 链路通"最强证据）
+
+
+def classify_c(expected: Any, actual: Any) -> str:
+    """c: 终止原因（verifier 拒绝了什么）—— **规则**分类，非 LLM。
+
+    ★★ 只从「期望 vs 实测」的**差异形态**分类
+      ⇒ 不按任务、不按函数 —— 那些属于 q/m
+    """
+    if actual is None:
+        return "E_NO_RESULT"
+    both_num = (isinstance(expected, (int, float))
+                and isinstance(actual, (int, float))
+                and not isinstance(expected, bool)
+                and not isinstance(actual, bool))
+    if not both_num and type(expected) is not type(actual):
+        return "E_TYPE"
+    if both_num:
+        d = abs(float(expected) - float(actual))
+        if d == 1.0:
+            return "E_OFF_BY_ONE"
+        if d == 0.0:
+            return "E_NONE"
+        return "E_VALUE"
+    if isinstance(expected, bool) and isinstance(actual, bool):
+        if expected is False and actual is True:
+            return "E_FALSE_POSITIVE"
+        if expected is True and actual is False:
+            return "E_FALSE_NEGATIVE"
+        return "E_NONE"
+    return "E_MISMATCH"
+
+
+def classify_q(expected: Any, actual: Any) -> str:
+    """q: 因果角色（agent 行为如何促成该拒绝）—— **规则**分类，非 LLM。
+
+    ★★ 2606.09498 的警示原文:
+      "两个 run 可能共享同一个 verifier 结果（如 timeout 或缺失产物），
+       却需要**不同的** harness 改动"
+    ⇒ 所以 q 不能是"发生了什么"（那已归 c），要问**行为模式**
+    """
+    if actual is None:
+        return "abstained_or_missing"
+    if isinstance(actual, bool) and isinstance(expected, bool):
+        return "consistent" if actual == expected else "wrong_polarity"
+    if (isinstance(expected, (int, float))
+            and isinstance(actual, (int, float))
+            and not isinstance(expected, bool)
+            and not isinstance(actual, bool)):
+        try:
+            if float(expected) != 0.0 and abs(
+                    float(expected) - float(actual)) == 1.0:
+                return "off_by_one_in_range"
+        except (TypeError, ValueError) as e:
+            # ★★★ G7 静默门抓到我这处 `except: pass`（本轮）
+            #   ⇒ 我 R29 刚写过「不许静默」，转头在 judge 里又犯
+            #   ⇒⇒ ★ 同族第三次（memory 里"大声报错"那条）
+            #   ⇒ ⇒★ 修: 把异常**反映进结果**，不吞
+            #     （否则排查时分不出"真有差 1"还是"算不出来"）
+            return "non_numeric_diff:%s" % type(e).__name__
+        return "wrong_magnitude"
+    if isinstance(expected, str) and isinstance(actual, str):
+        if len(actual) < len(expected):
+            return "truncated_or_missing_tail"
+        if len(actual) > len(expected):
+            return "extra_content"
+        return "wrong_content"
+    return "value_mismatch"
 
 
 def _as_literal(txt: str) -> Any:
@@ -146,7 +247,15 @@ def _eq(a: Any, b: Any) -> bool:
             return False
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
             return type(a) is type(b) and a == b
-        return str(a) == str(b)
+        # ★★★★ R30 实测抓到的**严重判分 bug**:
+        #   此前这里是 `return str(a) == str(b)`（我 R28 加的兜底）
+        #   ⇒ _eq("6", 6) ⇒ str("6")=="6"、str(6)=="6" ⇒ **True**
+        #   ⇒⇒ ★★ 于是"值是字符串 6"被判成**通过**（期望是 int 6）
+        #   ⇒⇒ ⇒★★ 而 judge 是**真值源** —— 让类型错通过 = 真值门失效
+        #   ⇒ ⇒★ 根因: 我把 str 比当成万能兜底，却没注意它会跨类型
+        #   ⇒ ⇒★ 同族已犯三次（R26 字面量 / R28 容器空格 / 现在跨类型）
+        # ⇒ 修: **一方是数字而另一方不是 ⇒ 类型不匹配，直接 False**
+        return False
     # ★ 容器: 逐元素比（不做 str 比 —— 那会被空白差异骗）
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         if len(a) != len(b):
@@ -316,18 +425,139 @@ class Judge:
             self._log.append(v)
             return v
 
-        ok = self._compare(golden, observed)
+        # ★★★★ R30: 比较走 _diff（唯一真源）⇒ _compare 与签名同源
+        diffs = self._diff(golden, observed)
+        ok = all(d["ok"] for d in diffs)
         note = ""
         if predicted is not None:
             agree = (bool(predicted) == ok)
             #★ 用条件取值，不在字符串里嵌 %s 再套 %（R24 踩过两次）
             verdict = "一致" if agree else "**不一致**"
             note = "｜agent 自报与实测" + verdict
+
+        sig: Optional[Dict[str, str]] = None
+        bad = [d for d in diffs if not d["ok"]]
+        if not ok:
+            # ★★★ 产出失败签名（c/q 由**规则**分配 —— 2609.06396 原文）
+            #   ⇒ 这是**根因修复**: 此前三端都不产签名（judge 不产、
+            #     actor 只在异常时产、evolver 只收）⇒ 闭环断
+            # ⇒ ★ c = 第一条失败的「verifier 级终止原因」
+            # ⇒ ★ q = 由「期望 vs 实测」的**行为模式**推（不按任务/函数 ——
+            #     那些属于 m，而 m 按原文归 LLM，第一版留空）
+            first = bad[0]
+            # ★★ R30: **target 不在三元组里** —— 三元组是聚类语义
+            #   （什么失败 / 什么行为 / 什么机制），
+            #   而"要改哪个"是**定位**维度 ⇒ 必须显式带 fn
+            #   ⇒⇒ 我此前把 fn 塞进 q 位置 ⇒ 「定位碰巧对、语义错」
+            fn = first.get("fn") or first.get("kw") or ""
+            sig = {"c": classify_c(first.get("expected"),
+                                   first.get("actual")),
+                   "q": classify_q(first.get("expected"),
+                                   first.get("actual")),
+                   # ★ 定位维度（非三元组成员，但查询要用）
+                   "fn": fn,
+                   # ★ 第一版确定性 ⇒ 无 LLM ⇒ m 留空并**显式标注**
+                   #   （不许拿规则编一个 m 冒充"模型假设"）
+                   "m": "",
+                   "q_note": first.get("reason", ""),
+                   "n_failed": str(len(bad)),
+                   "split": split, "task": task_id}
         v = Verdict(task_id, split, ok,
                     "按 %s 的 golden reference 比较实测%s" % (cat, note),
-                    cat)
+                    cat,
+                    failure_signature=sig,
+                    # ★ 逐条差异（判 fail 时**必须**说哪条、差在哪）
+                    #   ⇒ 此前 reason 是通用文案 ⇒ 等于没说
+                    diffs=[{k: d.get(k) for k in
+                            ("index", "kind", "fn", "kw", "args",
+                             "expected", "actual", "ok", "reason")}
+                           for d in bad] if not ok else [])
         self._log.append(v)
         return v
+
+    @staticmethod
+    def _diff(golden: Dict[str, Any],
+              observed: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """★ 逐条差异 —— **_compare 的唯一真源**。
+
+        ★★★★ R30: 我原本要「另写一个 diff 版本」给签名用
+          ⇒ 但那会让两份比较逻辑各写一遍
+          ⇒⇒ ★★ 两份必然漂移（这是评审最常见的真 bug）
+          ⇒⇒ ⇒★ 所以: diff 是真源，compare 调它 ⇒ 口径**必然**一致
+            compare = not any(未通过的条目)
+
+        ★ 返回每条的: {index, kind, fn, args, expected, actual, ok, reason}
+          ⇒ reason 是**c 的原料**（"verifier 拒绝了什么"）
+        """
+        kind = golden.get("verifier_kind")
+        checks = golden.get("checks") or []
+        if not checks:
+            # ★ 没有可执行判据 ⇒ 不许判通过（原则 1）
+            return [{"index": -1, "kind": kind, "ok": False,
+                     "reason": "无 checks ⇒ 按原则 1 不许判通过"}]
+
+        out: List[Dict[str, Any]] = []
+        if kind == "keyword_match":
+            text = str(observed.get("answer", observed.get("text", "")))
+            for i, c in enumerate(checks):
+                kw = c.get("kw")
+                hit = (kw in text) if kw else False
+                out.append({"index": i, "kind": kind, "kw": kw,
+                            "expected": kw, "actual": text[:80] if not hit else kw,
+                            "ok": hit,
+                            "reason": "关键词 %r 未出现在答案中" % kw
+                            if not hit else "命中"})
+            return out
+
+        if kind == "behavior":
+            for i, c in enumerate(checks):
+                fn = c.get("fn")
+                want_txt = str(c.get("expected", ""))
+                args_txt = str(c.get("args", ""))
+                want = _as_literal(want_txt)
+                args = _as_literal(args_txt)
+                calls = observed.get(fn)
+                if calls is None:
+                    out.append({"index": i, "kind": kind, "fn": fn,
+                                "args": args, "expected": want, "actual": None,
+                                "ok": False,
+                                "reason": "压根没跑这个函数 %r" % fn})
+                    continue
+                hit = False
+                for call in calls:
+                    if not isinstance(call, (list, tuple)) or len(call) < 2:
+                        continue
+                    if _eq(call[0], args):
+                        hit = True
+                        if not _eq(call[1], want):
+                            out.append({"index": i, "kind": kind, "fn": fn,
+                                        "args": args, "expected": want,
+                                        "actual": call[1], "ok": False,
+                                        "reason": "值不匹配"})
+                            break
+                        out.append({"index": i, "kind": kind, "fn": fn,
+                                    "args": args, "expected": want,
+                                    "actual": call[1], "ok": True,
+                                    "reason": "命中"})
+                        break
+                else:
+                    # ★ for-else: 没有一条命中这个入参
+                    out.append({"index": i, "kind": kind, "fn": fn,
+                                "args": args, "expected": want,
+                                "actual": None, "ok": False,
+                                "reason": "压根没调这个入参 %r" % args})
+                if not hit:
+                    # 已在上面 add 过（命中但值错 / 没调）
+                    if not any(d["index"] == i for d in out):
+                        out.append({"index": i, "kind": kind, "fn": fn,
+                                    "args": args, "expected": want,
+                                    "actual": None, "ok": False,
+                                    "reason": "未命中"})
+            return out
+
+        # ★ 未知形态 ⇒ 不许判通过（保守）
+        return [{"index": -1, "kind": kind, "ok": False,
+                 "reason": "未知 verifier_kind %r ⇒ 不许判通过" % kind}]
 
     @staticmethod
     def _compare(golden: Dict[str, Any],
@@ -336,61 +566,19 @@ class Judge:
 
         ★★★★ R24 实测修正: 初版只按 dict 迭代 checks
           ⇒ 而 dev.json 的 checks 是 **list** ⇒ 直接 AttributeError
-          ⇒⇒ ★ 原因: 我写了 _compare 但从没喂过真实数据
+          ⇒⇒ ★ 原因: 我写了 _compare 从没喂过真实数据
             ⇒⇒ ⇒★ 这是我自己的老毛病: 「实现了就以为能用」
 
-        ★★ 两种形态（JUDGE_DESIGN 的判据分流）:
+        ★★★★ R30: 实现改为**委托给 _diff**（不再自己写比较）
+          ⇒ 否则 diff 与 compare 两份逻辑必然漂移
+          ⇒⇒ 而签名与判定若不同源，会给出矛盾结论
+
+        ★ 两种形态（JUDGE_DESIGN 的判据分流）:
           behavior       —— fn(args) == expected，结构化断言
           keyword_match  —— 答案文本里含 expected_keywords 全部
         ⇒⇒ 而两者都**不许**用 agent 自报当判据（三分离）
         """
-        kind = golden.get("verifier_kind")
-        checks = golden.get("checks") or []
-        if not checks:
-            #★ 没有可执行判据 ⇒ 不许判通过（原则 1）
-            return False
-
-        if kind == "keyword_match":
-            text = str(observed.get("answer", observed.get("text", "")))
-            missing = [c["kw"] for c in checks
-                       if c.get("kw") and c["kw"] not in text]
-            return not missing
-
-        if kind == "behavior":
-            # observed 形态: {fn_name: [[args, actual_value], ...]}
-            #★★★★ R26 实测修正（真跑 actor 才暴露的契约缺口）:
-            #   初版把 expected 当**字符串**比（str(c["expected"])）
-            #   ⇒ 而 golden 里的 expected 是**字面量文本**
-            #     "reverse_string('abc')=='cba'" ⇒ expected = "'cba'"（带引号）
-            #   ⇒⇒ 而实测值是 python 对象 'cba'（str，无引号）
-            #     str('cba') == "'cba'" ⇒ ★ 永远不等 ⇒ 字符串型断言全挂
-            #   ⇒⇒★★ 而实测表现: 5 pass / 1 fail，fail 的正是字符串那条
-            #     ⇒⇒ 那不是 actor 的错，是**契约两侧对不上**
-            # ⇒★ 正确做法: 两侧都归一到 **python 字面量** 再比
-            for c in checks:
-                fn = c.get("fn")
-                want_txt = str(c.get("expected", ""))
-                args_txt = str(c.get("args", ""))
-                want = _as_literal(want_txt)     # ★ 字面量归一
-                args = _as_literal(args_txt)
-                calls = observed.get(fn)
-                if calls is None:
-                    return False
-                hit = False
-                for call in calls:
-                    if not isinstance(call, (list, tuple)) or len(call) < 2:
-                        continue
-                    if _eq(call[0], args):
-                        if not _eq(call[1], want):
-                            return False
-                        hit = True
-                        break
-                if not hit:
-                    return False        # ★ 压根没调这个入参 ⇒ fail
-            return True
-
-        # ★ 未知形态 ⇒ 不许判通过（保守）
-        return False
+        return all(d["ok"] for d in Judge._diff(golden, observed))
 
     # ══════════════════════════════════════════════
     # fallback（★ 必须同契约 —— JUDGE_DESIGN §3.3）

@@ -142,10 +142,28 @@ class Target:
 
     def __init__(self, getter: Callable[[], Any],
                  setter: Callable[[Any], None],
-                 copier: Optional[Callable[[Any], Any]] = None):
+                 copier: Optional[Callable[[Any], Any]] = None,
+                 has_fn: Optional[Callable[[], bool]] = None,
+                 delete_fn: Optional[Callable[[], None]] = None):
         self._get = getter
         self._set = setter
         self._copy = copier or copy.deepcopy
+        self.has_fn = has_fn
+        self.delete_fn = delete_fn
+
+    def has(self) -> Optional[bool]:
+        """★ 该键/属性是否**原本存在**（None = 未知，调用方未提供）。"""
+        if self.has_fn is None:
+            return None
+        return bool(self.has_fn())
+
+    def delete(self) -> None:
+        """★ 删除（还原到"原本不存在"）。★ 未提供 ⇒ raise，不静默。"""
+        if self.delete_fn is None:
+            raise ApplierError(
+                "★ 该 Target 未提供 delete_fn ⇒ 无法还原到"
+                "'原本不存在'的状态（不许静默留下 None 条目）")
+        self.delete_fn()
 
     def read(self) -> Any:
         return self._get()
@@ -196,14 +214,30 @@ class Applier:
         ★★ 这是 2606.09498 的 line 9 ⇒ 生产主干在 commit 前未被触碰
         ⇒⇒ 而母巢的影子方向相反（先落生产）—— 方向已修正
         """
+        # ★★★★ R30 实测修的真 bug（端到端 step5 抓到）:
+        #   此前只写回 old ⇒ 而 old 是 `snapshot()`（键**不存在**时 = None）
+        #   ⇒⇒ ⇒★ 于是 `write(None)` 把 `key: None` **永久留**在主干里
+        #     ⇒⇒ ⇒★★ 而"试写后主干不动"是 2606.09498 line 9 的**硬要求**
+        #   ⇒⇒ ⇒★★★ 为什么分段测试没抓到:
+        #     分段里我用的是**已存在的键**（{"v": "old"}）⇒ 污染不可见
+        #       ⇒⇒ ⇒★ 端到端用了**不存在的键** ⇒ 污染当场暴露
+        #   ⇒ ⇒★ 这正是"分段绿 != 链路通"的第 5 个实例
+        had = target.has()
         old = target.snapshot()
         ok, got = target.write(patch)      # 写候选值
-        # ★★ 但我们在**副本**语义下: 立即写回旧值，主干保持不动
-        #   ⇒ 因为这一阶段只是"试写"，评估还没做
-        target.write(old)
+        # ★★ 还原: **原本不存在**就删掉，**原本存在**才写回 old
+        if had is True:
+            target.write(old)
+        elif had is False:
+            target.delete()
+        else:
+            # ★ 未知（调用方没给 has_fn）⇒ 至少写回旧值并**显式报告**
+            target.write(old)
+        restored_ok = (got == patch)
         return {"proposal_id": proposal_id, "on_copy": True,
                 "candidate": patch, "readback_at_copy": ok,
-                "restored": True, "old_value": old,
+                "restored": True, "had_before": had, "old_value": old,
+                "cleaned": "delete" if had is False else "write_back",
                 "got_at_copy": got}
 
     # ── 判据 1 · 读回校验（commit 时强制）──
