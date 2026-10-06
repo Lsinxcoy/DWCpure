@@ -34,6 +34,7 @@ from dwc.organs.actor import (Actor, execute_task, build_implementation,
                               PureFunctionExecutor)
 from dwc.organs.evolver import Evolver, Mutator, Proposal
 from dwc.organs.applier import Applier, Target, ApplierError
+from dwc.organs.candidates import CandidateGenerator
 
 # ★══★★★ 必须用 subprocess 跑，否则 kernel 里的旧模块读不到改动（本轮已踩）
 j = Judge()
@@ -79,16 +80,42 @@ sigs = [dict(v1.failure_signature)]
 print("  ★ 签名由 judge 产出，非手填")
 
 # ── 4 · evolver 提案 ──────────────────────────────────────
-step(4, "evolver 提案（签名 → patch）")
+# ── 4 · 诊断 → 提案 → ★ 若未命中则转**候选生成**（R31 学习半边）──
+step(4, "诊断 + 提案 + 学习半边（R31 新增生成器）")
 d = ev.diagnose(sigs)
 props = d["proposals"]
-# ★★ 我第一版写的是 d["n_proposals"] —— 该键不存在
-#   实际 diagnose 返回: proposals / n_unmapped / unmapped / n_clusters
-print("  n_proposals=%d n_unmapped=%d n_clusters=%d"
+print("  查表: n_proposals=%d n_unmapped=%d n_clusters=%d"
       % (len(props), d["n_unmapped"], d["n_clusters"]))
-p = props[0]
-print("  proposal=%s target=%s" % (p.proposal_id, p.target))
-print("  patch = %r" % p.patch)
+
+gen = CandidateGenerator()
+# ★★ 无论查表结果如何，都跑一次生成器（验证它与查表**并存**）
+#   基线必须是**带 bug 的实现**（R31 纪律④: 传错会被拒）
+r_gen = gen.generate(sigs[0], v1.diffs, BUGGY, fn_name=FN)
+print("  生成: n=%d need_llm=%s" % (r_gen["n"], r_gen["need_llm"]))
+print("        why=%s" % r_gen["why"][:70])
+
+if props:
+    p = props[0]
+    print("  ★ 查表命中 ⇒ 走既有规则（学习半边不触发）")
+    print("    proposal=%s target=%s patch=%r"
+          % (p.proposal_id, p.target, p.patch))
+else:
+    # ★★★ 这就是"学习"的入口 —— R31 之前 unmapped 是**终点**
+    print("  ★★ 查表未命中 ⇒ R31 前这里是终点（从失败学不到东西）")
+    if r_gen["candidates"]:
+        p = None
+        print("    ⇒ 现在转候选生成（trace-grounded）:")
+        for c in r_gen["candidates"]:
+            print("      [%s] %r  grounding=%d"
+                  % (c.rule, c.patch, len(c.grounding)))
+    else:
+        p = None
+        print("    ⇒ 生成器也推不出 ⇒ need_llm=%s（诚实标注）"
+              % r_gen["need_llm"])
+
+LEARN = r_gen
+LEARN_SOURCE = "lookup" if props else (
+    "generated" if r_gen["candidates"] else "need_llm")
 
 # ── 5 · applier 落地 RULES 条目（甲类）────────────────────
 step(5, "applier 落地 RULES 条目（甲类 · 不是丙类代码替换）")
@@ -177,3 +204,103 @@ ok = (base_score == 0.0 and cur_score == 1.0
       and st.get("verdict") == "keep")
 print("\n  %s" % ("★★★★★ 五段真接通了: 分数从 0 → 1 且判 keep"
                  if ok else "★ 链路未达成预期（看上面哪段不对）"))
+
+# ══════════════════════════════════════════════════════════
+# ★★★★★ step 8 · **学习闭环**（R31: 查表未命中 ⇒ 生成候选 ⇒ 试 ⇒ 淘汰）
+#    这是"进化增量"的唯一证据 —— 前面七步走的都是**已有知识**
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 8 · 学习闭环（RULES 里**没有**的失败 ⇒ 走生成器）")
+print("=" * 60)
+
+# ★ 用 RULES 未覆盖的函数（R1 需源码含 range ⇒ 选 fibonacci）
+LEARN_FN = "fibonacci"
+BUGGY2 = ("def fibonacci(n):\n    a, b = 0, 1\n"
+          "    for _ in range(n - 1):\n        a, b = b, a + b\n"
+          "    return a")
+print("  目标: %s（RULES 未覆盖）" % LEARN_FN)
+print("  带 bug 实现: %r" % BUGGY2)
+
+# 8a · 执行 + 判分
+T2 = None
+for k in j.anchors:
+    if not k.startswith("_"):
+        fns = {c.get("fn") for c in (j.anchors[k].get("checks") or [])
+               if c.get("fn")}
+        if fns == {LEARN_FN}:
+            T2 = k
+            break
+assert T2, "★ dev 里找不到 %s 的任务（前提变了）" % LEARN_FN
+print("  任务: %s" % T2)
+out8 = execute_task(Actor(), j, T2, implementation=BUGGY2)
+v8 = j.evaluate(T2, "dev", observed=out8["observation"])
+print("  judge: success=%s" % v8.success)
+assert v8.failure_signature, "★ 必须产出失败签名"
+sig8 = v8.failure_signature
+print("  sig: c=%s q=%s fn=%s" % (sig8["c"], sig8["q"], sig8["fn"]))
+
+# 8b · 查表（应未命中 ⇒ RULES 没这条）
+d8 = ev.diagnose([dict(sig8)])
+print("  查表: n_proposals=%d n_unmapped=%d"
+      % (len(d8["proposals"]), d8["n_unmapped"]))
+assert not d8["proposals"], "★ 该签名应**不在** RULES 里（前提变了）"
+print("  ★★★ R31 之前这里是**终点** —— 学不到任何东西")
+
+# 8c · 生成候选（trace-grounded · 基线 = 带 bug 实现）
+gen2 = CandidateGenerator()
+r8 = gen2.generate(sig8, v8.diffs, BUGGY2, fn_name=LEARN_FN)
+print("  生成: n=%d need_llm=%s why=%s"
+      % (r8["n"], r8["need_llm"], r8["why"][:56]))
+for c in r8["candidates"]:
+    print("    [%s] %r" % (c.rule, c.patch))
+
+# 8d · ★ 逐个候选: 构建 → 判分 → 采纳 or **淘汰**
+print("\n  ── 试错（判分决定去留）──")
+best = None
+for c in r8["candidates"]:
+    try:
+        src = build_implementation(LEARN_FN, BUGGY2, c.patch)
+    except Exception as e:
+        print("    %-40s 构建失败 %s" % (c.rule, str(e)[:24]))
+        gen2.record_rejection(c, "构建失败: %s" % type(e).__name__)
+        continue
+    o = execute_task(Actor(), j, T2, implementation=src)
+    vv = j.evaluate(T2, "dev", observed=o["observation"])
+    if vv.success and best is None:
+        best = (c, src)
+        print("    %-40s judge=%s ★采纳" % (c.rule, vv.success))
+    else:
+        print("    %-40s judge=%s 淘汰" % (c.rule, vv.success))
+        gen2.record_rejection(c, "judge 判 fail（不修好）")
+
+# 8e · ★ 淘汰表生效（同轮再生成 ⇒ 已否决的不重出）
+print("\n  ── 淘汰表生效检查（G4）──")
+r8b = gen2.generate(sig8, v8.diffs, BUGGY2, fn_name=LEARN_FN)
+print("    再生成: n=%d（原 %d）· 淘汰池=%d"
+      % (r8b["n"], r8["n"], len(gen2.rejected)))
+if r8["n"] > 0 and r8b["n"] < r8["n"]:
+    print("    ✓ 已否决的候选不再重出（否则每轮空转）")
+
+# 8f · 用采纳的候选重判（学习的**结果**）
+if best:
+    c_ok, src_ok = best
+    v8f = j.evaluate(
+        T2, "dev",
+        observed=execute_task(Actor(), j, T2,
+                              implementation=src_ok)["observation"])
+    print("\n  ★★★ 学习结果: 采纳 %s" % c_ok.rule)
+    print("     原实现判 %s → 修后判 %s" % (v8.success, v8f.success))
+    LEARN_RESULT = ("learned_and_verified" if v8f.success
+                    else "adopted_but_not_verified")
+else:
+    print("\n  ★ 无候选通过判分 ⇒ 记为**未学到**（不假装学会）")
+    LEARN_RESULT = ("need_llm" if r8["need_llm"] else "no_valid_candidate")
+
+print("\n" + "=" * 60)
+print("★ 学习闭环结果: %s" % LEARN_RESULT)
+print("=" * 60)
+print("  生成器产出: %d 条候选 · 淘汰池 %d"
+      % (r8["n"], len(gen2.rejected)))
+print("  %s" % ("★★★ 从失败里学到了新东西（此前这是终点）"
+               if LEARN_RESULT == "learned_and_verified"
+               else "★ 本轮未学到 —— 但**显式**报告了原因"))
