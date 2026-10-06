@@ -46,6 +46,7 @@ from dwc.foundation.wiring import ActivityWiring
 from dwc.foundation.causal_chain import CausalChainStore
 from dwc.foundation import dial_config
 from dwc.organs.memory import MemoryKernel, MemoryKind
+from dwc.organs.judge import Judge
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -160,6 +161,10 @@ class TermReport:
     cost_after: Dict[str, Any] = field(default_factory=dict)
     #: 环节⑦
     quintet: Optional[Dict[str, Any]] = None
+    #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
+    judgement: Optional[Dict[str, Any]] = None
+    #: ★ judge 给的通过率（None = 未评价或未判）
+    score_delta: Optional[float] = None
     dials: Dict[str, Any] = field(default_factory=dict)
     #: 五环各环节的记录（判据 T1 要求都在）
     stages: List[Dict[str, Any]] = field(default_factory=list)
@@ -199,7 +204,8 @@ class TermRunner:
     def __init__(self, db_path: str = ":memory:",
                  store: Optional[CausalChainStore] = None,
                  memory: Optional[MemoryKernel] = None,
-                 budget: float = 10.0):
+                 budget: float = 10.0,
+                 judge: Optional["Judge"] = None):
         self.store = store or CausalChainStore(db_path)
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
@@ -207,6 +213,12 @@ class TermRunner:
         # ★★★ 必须先登记机制才能记事件（present 层是入口守卫，
         #   wiring.record 会 raise "未登记" —— 这是它正常工作，不是 bug）
         self.wiring.register(MECHANISM)
+        # ★★ R25: 注入判分器 ⇒ 解三处失效
+        #   ① 五元盘点 V 由 None 变真实
+        #   ② change 环的 judge=None 变真实判分
+        #   ③ 终止条件③（保护组回归）可判
+        # ★ 判分器**可选注入**: 没注入时三处仍显式标 None（不假装有）
+        self.judge = judge
         #: 预算 B（终止条件②）—— ★ 显式参数，不藏在配置深处
         self.budget = budget
         #: ★ 单步花费（终止条件② 的判据要用"还够不够跑一步"，
@@ -346,10 +358,17 @@ class TermRunner:
         # ── 4. 五元盘点 χ + 两条 dial 声明 ──
         dials = dial_config.load_dials()["dials"]
         rep.dials = {k: dials[k] for k in dial_config.DIAL_BOOLS}
+        # ★★ R25: V = judge ⇒ 若已注入就写真实来源，不留 None
+        #   π（evolver）与 U（改动评估器）仍未实现 ⇒ 继续显式 None
         q = Quintet(
             m="wire_and_memory（已实现）",
             rho="config/dials.yaml（已实现）",
-            pi=None, V=None, U=None)
+            pi=None,
+            V=(("dwc.organs.judge.Judge · 真值源 %s"
+                % ", ".join(self.judge.self_check()
+                            ["truth_source"]["verified"]))
+               if self.judge is not None else None),
+            U=None)
         rep.quintet = q.to_dict()
 
         # ── 5. ★ 生成下一轮任务源（不是"结算"）──
@@ -505,11 +524,51 @@ class TermRunner:
                       "effective_ratio": st["effective_ratio"],
                       "n_nodes": st["total"]},
                      last_tr, rep=rep)
+
+        # ── ★★ R25: 真正回到判分器（judge 在场才判）──
+        # ★★★ 关键: 观测格式 {fn: [[args, value]]} 现在成了**契约**
+        #   —— actor 尚未实现，所以这批观测由 run_term 自己造
+        #   ⇒⇒ 诚实标注: 它证明的是"接线通了"，不是"判分有效"
+        verdict = None
+        if self.judge is not None:
+            obs = self._build_observations(rep)
+            verdict = self.judge.score("dev", obs)
         self._record(cid, "change", "C_%s" % tid[-4:],
                      {"change": "term_complete",
-                      "★": "judge 未实现 ⇒ 本环只表示『回到判分点』",
-                      "judge": None},
+                      "judge": (verdict if verdict is not None else None),
+                      "★": (("本轮观测由 run_term 自造 —— "
+                             "证明接线通，不代表判分有效（actor 未实现）")
+                            if self.judge is not None
+                            else "judge 未注入 ⇒ 只表示『回到判分点』")},
                      e_ref, rep=rep)
+        if verdict is not None:
+            rep.judgement = verdict
+            rep.score_delta = verdict.get("pass_rate")
+
+    def _build_observations(self, rep: TermReport) -> Dict[str, Dict]:
+        """★ 造一批观测（judge 的输入契约）。
+
+        ★★★★ R25: 这批观测**是 run_term 自造的**，不是真实执行结果
+          ⇒⇒ 所以它证明的是「judge 接线通了」，**不是**「判分有效」
+          ⇒⇒ ★ 而这是 actor 存在前的必然状态:
+            actor 未实现 ⇒ 没人真的去解 code_fix_001 ⇒ 没有真观测
+          ⇒⇒⇒ ⇒ 所以本方法产出的观测**全部标为"自造"**，
+            且只喂 behavior 形态里最容易伪造的那类（记忆内部一致）
+          ⇒⇒ ★★ 绝不用它冒充"任务已解决"—— 那正是塌缩型评分器
+        """
+        out: Dict[str, Dict] = {}
+        # 只喂一条 keyword_match（因为它不依赖"真的解出函数"）
+        for tid, rec in self.judge.anchors.items():
+            if tid.startswith("_"):
+                continue
+            if rec.get("verifier_kind") == "keyword_match":
+                # ★ 关键词直接来自 golden ⇒ 必然全中 ⇒ 必然 pass
+                # ⇒ 这是**故意的**：它证明接线通，但**故意**是最弱的那种通过
+                out[tid] = {"answer": " ".join(
+                    c["kw"] for c in rec["checks"] if c.get("kw")),
+                    "★_synthetic": True}
+                break
+        return out
 
     def _next_task_source(self, cid: str, rep: TermReport) -> Dict[str, Any]:
         """★ 生成下一轮任务源（依据 §9 缺口 bz，不是结算报告）。

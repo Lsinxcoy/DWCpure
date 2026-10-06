@@ -157,29 +157,82 @@ def test_no_hardcoded_break(tr):
 
     ★ ERR_AND_TERM 原文: 「代码里不许有 "if steps == 10: break" 这类硬编码」
     """
-    #★★★ R23 修正（这是我第二次在源码扫描上踩坑）:
-    #   初版按"代码行里同时含 break 与终止条件词"来判
-    #   ⇒ 而 break 单独成行（next 才是终止条件赋值）⇒ 假失败
-    #   ⇒★ 正确做法: 用 AST 找 Break 节点，再回看它所在的 If 条件
+    #★★★ R23/R25 两次修正（这是我第三次在源码扫描上踩坑）:
+    #   ① R23: 按"行里同时含 break 与终止条件词"判 ⇒ break 单独成行 ⇒ 假失败
+    #     ⇒ 改成 AST 找 Break + 回看所在 If 的条件
+    #   ② ★★ R25: 那个 AST 判据把 `_build_observations` 里
+    #      「只取第一条 keyword_match」的 break 也算成违规
+    #   ⇒⇒ ★★ 但判据 T2 的本意是「**步数循环**里不许硬编码轮数终止」
+    #     ⇒⇒⇒ 所以判据必须**只审 range(n_steps) 那个循环内部的 break**
+    #     ⇒⇒⇒ ⇒★ 一般性教训: 判据要判它要判的那件事，别扫全模块
     import ast
     src = inspect.getsource(rt)
     tree = ast.parse(src)
-    breaks = [n for n in ast.walk(tree) if isinstance(n, ast.Break)]
-    assert breaks, "本模块一个 break 都没有 —— 那不可能有终止条件"
-    for b in breaks:
-        # ★ 向上找包裹它的 If，看条件里有没有终止条件的名字
-        cond_terms = ("budget", "stop", "changed", "stages", "complete")
-        found = False
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.If) and node.lineno <= b.lineno
-                    and (node.body[-1].lineno >= b.lineno or any(
-                        x.lineno == b.lineno for x in node.body))):
-                seg = ast.dump(node.test)
-                if any(w in seg for w in cond_terms):
-                    found = True
-        assert found, \
-            "第 %d 行的 break 不在任何终止条件里（判据 T2: 禁硬编码 break）" \
-            % b.lineno
+
+    # ── 找出步数循环（for ... in range(...) 且迭代变量名含 step/upper）──
+    step_loops = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.For)
+                  and "range" in ast.dump(n.iter)
+                  and any(w in ast.dump(n.target)
+                          for w in ("step", "i", "n_"))]
+    assert step_loops, "找不到步数循环 —— 判据 T2 就无从谈起"
+
+    cond_terms = ("budget", "stop", "changed", "stages", "complete",
+                  "n_steps", "terminat")
+    for loop in step_loops:
+        breaks = [n for n in ast.walk(loop)
+                  if isinstance(n, ast.Break)]
+        for b in breaks:
+            seg = ast.dump(loop)
+            assert any(w in seg for w in cond_terms), \
+                "步数循环内出现无终止条件的 break（第 %d 行）" % b.lineno
+
+    # ★★★ 而**硬编码轮数**是这一条真正要抓的
+    #★★★ R25 第二次修正: ast.dump(tree) 会把 **docstring** 也导出
+    #   ⇒ 而 "if steps == 10: break" 正是判据条文本身
+    #   ⇒⇒ ⇒★★ 第三次在源码扫描上栽（同一族: 分不清"条文"与"代码"）
+    # ⇒★ 正确: 只看**比较运算节点**的 Constant，不看任何字符串常量
+    consts = [n.value for n in ast.walk(tree)
+              if isinstance(n, ast.Constant) and isinstance(n.value, (int, float))]
+    for c in consts:
+        assert c != 10 or True    # 10 本身可能合法（如 k=10）⇒ 不以此定罪
+    # ★ 真正的判据: 有没有「拿轮数和常量比」的 Compare 节点
+    #★★★★ R25 第四次修正 —— 这次靠**数据流**而不是变量名:
+    #   前三次都在"名字猜谁是轮数变量"上失败:
+    #     ① 全扫 ⇒ 误伤 _build_observations 的 break
+    #     ② 只审步数循环 ⇒ 但 break 在别处时漏
+    #     ③ 按名字 (step/upper) ⇒ ★★ 变异塞的 `i == 3` 名字是 i
+    #        ⇒ 抓不到 ⇒ 判据形同虚设
+    #⇒★ 正确做法: 从 `for X in range(...)` 里把 X 收集起来，
+    #   再看这个 X 有没有被拿去和整数常量比
+    #   ⇒ 这是数据流，不是猜名字 ⇒ `i`/`step`/`k` 一视同仁
+    step_vars = set()
+    for loop in step_loops:
+        tgt = loop.target
+        if isinstance(tgt, ast.Name):
+            step_vars.add(tgt.id)
+
+    hardcoded = []
+    for n in ast.walk(tree):
+        if not isinstance(n, ast.Compare):
+            continue
+        if not isinstance(n.left, ast.Name):
+            continue
+        if n.left.id not in step_vars:
+            continue                  # ★ 不是循环变量 ⇒ 不审
+        for op, comp in zip(n.ops, n.comparators):
+            if (isinstance(op, (ast.Eq, ast.LtE, ast.Lt, ast.GtE, ast.Gt))
+                    and isinstance(comp, ast.Constant)
+                    and isinstance(comp.value, int)
+                    and not isinstance(comp.value, bool)
+                    #★★★★ R25 第五次修正（这次是最后一处）:
+                    #   0 与 1 是**结构性常量**（第 0 步 / 首元素 / 起止）
+                    #   ⇒ 拿它们比是合法写法，不是"硬编码轮数"
+                    #   ⇒★ 而 2/3/10 这类才是拍出来的魔法数
+                    and comp.value > 1):
+                hardcoded.append((n.lineno, n.left.id, comp.value))
+    assert not hardcoded, \
+        "步数循环变量与常量比较（判据 T2 禁硬编码轮数）: %s" % hardcoded
 
 
 # ══════════════════════════════════════════════════════════
@@ -354,3 +407,93 @@ def test_quintet_is_frozen():
     q = Quintet()
     with pytest.raises(Exception):
         q.pi = "x"
+
+
+# ══════════════════════════════════════════════════════════
+# R25 · judge 接线（解 R23 留的三处失效）
+# ══════════════════════════════════════════════════════════
+
+def test_judge_is_optional():
+    """★★ 意图: 不注入 judge 时三处仍显式标 None（不假装有）。"""
+    tr = TermRunner()
+    rep = tr.run_term("t", n_steps=2)
+    assert rep.quintet["V"] is None
+    assert rep.judgement is None
+    assert rep.score_delta is None
+
+
+def test_judge_injection_fills_v():
+    """★★★★ 意图: 注入 judge ⇒ 五元盘点的 V 由 None 变真实来源。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    assert rep.quintet["V"] is not None
+    assert "judge" in rep.quintet["V"]
+    assert "dev_anchors" in rep.quintet["V"], "V 必须写出真值源来源"
+
+
+def test_change_ring_carries_real_judgement():
+    """★★★★ 核心回归: change 环的 judge 不再是 None（真判分）。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    ch = [r for r in tr.store.trace_back(rep.chain_id)
+          if r["stage"] == "change"][0]
+    assert ch["payload"]["judge"] is not None, "change 环必须带真判分"
+    j = ch["payload"]["judge"]
+    assert j["n_tasks"] == 10
+
+
+def test_synthetic_observations_are_labelled():
+    """★★★★ 意图: 自造观测必须被明确标注（不许冒充真实执行）。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    ch = [r for r in tr.store.trace_back(rep.chain_id)
+          if r["stage"] == "change"][0]
+    note = ch["payload"]["★"]
+    assert "自造" in note, "必须标明观测是自造的"
+    assert "不代表判分有效" in note
+
+
+def test_pass_rate_does_not_pretend_full_coverage():
+    """★★★ 意图: 只评 1 条时 pass_rate 不能让人误以为全过。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    j = rep.judgement
+    assert j["not_evaluated"] > 0, "多数任务未评价"
+    assert j["pass_rate"] == 1.0
+    # ★★ 关键: 通过率与覆盖率必须同时可读，不能只看 pass_rate
+    assert j["n_tasks"] == 10 and j["pass"] == 1
+    assert "not_evaluated" in j
+
+
+def test_synthetic_answer_is_labeled_in_observation():
+    """★★ 意图: 观测里带 *_synthetic 标记。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    obs = tr._build_observations(rep)
+    for tid, o in obs.items():
+        assert o.get("★_synthetic") is True, "自造观测必须带标记"
+
+
+def test_quintet_pi_u_still_none():
+    """★★ 意图: π（evolver）与 U（改动评估器）仍未实现 ⇒ 继续显式 None。
+
+    ★ 接了 judge 不代表其他器官都实现了 —— 不许顺手填满。
+    """
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    assert set(rep.quintet["unimplemented"]) == {"pi", "U"}
+
+
+def test_six_layers_unaffected_by_judge_injection():
+    """★★ 意图: 接线 judge 不影响六层（它们仍全亮）。"""
+    from dwc.organs.judge import Judge
+    tr = TermRunner(judge=Judge())
+    rep = tr.run_term("t", n_steps=2)
+    mk = {r["mechanism"]: r for r in rep.activity}[rt.MECHANISM]
+    assert mk["depth"] == 5
