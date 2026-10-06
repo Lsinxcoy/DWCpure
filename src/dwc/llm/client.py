@@ -139,8 +139,11 @@ class LLMClient:
     def __init__(self, base_url: Optional[str] = None,
                  api_key: Optional[str] = None,
                  model: Optional[str] = None,
-                 timeout: float = 30.0,
+                 timeout: Optional[float] = None,
                  probe: bool = False):
+        # ★★★ R36: timeout 默认必须是 **None**（不是 30.0）
+        #   否则"不传参数"= 传了 30 ⇒ env/config 文件永远被盖住
+        #   ⇒⇒ 而 docstring 说「参数 > env > 文件」⇒ 又一处不对齐
         # ★ 优先级: 显式参数 > 环境变量 > config/llm.json（docstring 承诺）
         _fc = _load_file_config()
         self._base = (base_url or os.environ.get(ENV_BASE, "")
@@ -151,17 +154,41 @@ class LLMClient:
         self._model = (model or os.environ.get(ENV_MODEL, "")
                        or _fc.get("model", "")).strip()
         try:
-            self.timeout = float(os.environ.get(ENV_TIMEOUT, "")
-                                 or _fc.get("timeout", "") or timeout)
+            # ★★★ R36 修的**优先级 bug**:
+            #   docstring 说「显式参数 > 环境变量 > config 文件」
+            #   而我实现成了 `env or 文件 or 参数` ⇒ **参数最低**
+            #   ⇒⇒ ⇒★ 实测后果: 测试传 timeout=2 想造超时，
+            #     却被 config 里的 60 **覆盖** ⇒ 永不超时
+            #     ⇒⇒ 连带: 我的重试测试**测不到重试**（断言因此红）
+            #   ⇒⇒ ⇒★★ 这是『名字与实现不对齐』（我 R34 刚立的规矩）
+            #   ⇒ ⇒★ 修成与 base/key/model **同一口径**
+            if timeout is not None:
+                self.timeout = float(timeout)
+            else:
+                self.timeout = float(os.environ.get(ENV_TIMEOUT, "")
+                                     or _fc.get("timeout", "") or 30.0)
         except ValueError:
             self.timeout = float(timeout)
         #: ★★ 三态分开（纪律③）: configured 是**静态**的
         self.configured = bool(self._base and self._key and self._model)
         self._probe = probe
+        # ★★★ R36 · 重试（**只对传输类错误** —— 不是无脑重试）
+        #   实测: e2e 里 LLM 超时一次 ⇒ 整段 step9 就跳过了
+        #   ⇒⇒ ⇒★ 而超时通常是**暂时的**（端点抖动）
+        #     ⇒ 一次重试能把"白跑 45s"救回来
+        #   ⇒⇒ ⇒★ 但**只**对 transport/timeout 重试:
+        #     · 4xx（key错/欠费）重试**必然**再失败 ⇒ 浪费
+        #     · 解析失败重试也没用（同样的 prompt 大概率同样返回）
+        #   ⇒ 配 DWC_LLM_RETRIES 可关（默认 1 次）
+        try:
+            self.retries = int(os.environ.get("DWC_LLM_RETRIES", "") or 1)
+        except ValueError:
+            self.retries = 1
         #: 调用账本（可审计: 试了几次、成几次）
         self.n_calls = 0
         self.n_ok = 0
         self.n_fail = 0
+        self.n_retries = 0
 
     # ── 凭证护栏（纪律①）─────────────────────────────────
 
@@ -238,6 +265,8 @@ class LLMClient:
             body["response_format"] = {"type": "json_object"}
 
         self.n_calls += 1
+        if not hasattr(self, "_attempts"):
+            self._attempts = 0
         url = self._base.rstrip("/") + "/chat/completions"
         req = urllib.request.Request(
             url, data=json.dumps(body).encode("utf-8"),
@@ -258,11 +287,19 @@ class LLMClient:
             return LLMResult(ok=False, source="error",
                              error="HTTP %s: %s" % (e.code, e.reason),
                              meta={"http_code": e.code})
-        except Exception as e:      # ★ 网络/超时/解析 —— 统一收敛
+        except Exception as e:      # ★ 网络/超时 —— 统一收敛
+            # ★★★ R36: **传输类**错误才重试（见 __init__ 的理由）
+            if self.retries > 0 and self._attempts < self.retries:
+                self.n_retries += 1
+                self._attempts += 1
+                return self.complete(prompt, system=system,
+                                     max_tokens=max_tokens,
+                                     json_mode=json_mode)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="%s: %s" % (type(e).__name__, e),
-                             meta={"kind": "transport"})
+                             meta={"kind": "transport",
+                                   "n_retry_used": self._attempts})
         try:
             data = json.loads(raw)
             text = data["choices"][0]["message"]["content"]
@@ -277,6 +314,7 @@ class LLMClient:
                              error="返回内容为空（不许静默当成功）",
                              meta={"kind": "empty"})
         self.n_ok += 1
+        self._attempts = 0      # ★ 成功后归零（下次调用从头数）
         return LLMResult(ok=True, text=text, source="llm",
                          meta={"model": self._model,   # ★ model 名可记
                                "n_chars": len(text)})
@@ -285,5 +323,6 @@ class LLMClient:
         """★ 调用账本（不含量任何凭证）。"""
         return {"configured": self.configured, "model": self._model,
                 "n_calls": self.n_calls, "n_ok": self.n_ok,
-                "n_fail": self.n_fail,
+                "n_fail": self.n_fail, "n_retries": self.n_retries,
+                "retries": self.retries,
                 "★": "凭证不在此处任何字段里（纪律①）"}

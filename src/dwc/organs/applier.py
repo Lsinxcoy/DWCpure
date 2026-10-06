@@ -369,11 +369,30 @@ class Applier:
                 "★ 判据 1: 退役后键仍存在 ⇒ delete 未生效，不许静默")
         self._history["RETIRE:" + key] = before
         self._origin["RETIRE:" + key] = False   # ★ 退役后 = "不存在"
+        # ★★★★ R36 实测抓到的**生灭不对称**:
+        #   `land_rule` 落地后调了 `target.flush()`（R34 加的）
+        #   而 `retire_rule` **没调** ⇒ 内存删了、**落盘没同步**
+        #   ⇒⇒ ⇒★ e2e 实测: 进程内 `HIT=0`，但跨进程仍 `HIT=1`
+        #     （新进程从落盘加载 ⇒ 退化的规则**还活着**）
+        #   ⇒⇒ ⇒★★ 那是"改一处不同步另一处"的又一例，而且这次
+        #     让 G4 的『能生也要能死』在跨进程上**失效**
+        #   ⇒ ⇒★ 修: 死也要 flush（生灭必须**对称**）
+        _flushed11 = target.flush()
         res.action = "retire"  # ★ 与 rollback 分开（不是"回滚"）
-        res.reason = ("★ 退役: reason✓ 危害证据✓ 读回✓；"
-                      "**已从表中移除**（delete，不是写 None —— "
-                      "写 None 会留垃圾条目，那是 R30/R32 同族第 3 次）；"
-                      "理由=%s" % reason.strip()[:56])
+        _flush_note = ("**已落盘同步**" if _flushed11 != "noop"
+                        else "仅内存（target 未给 flush）")
+        # ★★★ R36: 上一版把表达式夹进**隐式字符串拼接**里
+        #   ⇒ `"字面量" ("%s；" % x)` 被解析成**函数调用**
+        #   ⇒ ⇒★ SyntaxWarning + TypeError ⇒ 3 个 retire 测试全红
+        #   ⇒ ⇒★ 教训: 隐式拼接只吃**相邻字面量**，夹表达式必须显式 +
+        res.reason = (
+            "★ 退役: reason✓ 危害证据✓ 读回✓；"
+            + "**已从表中移除**（delete，不是写 None —— "
+            + "写 None 会留垃圾条目，那是 R30/R32 同族第 3 次）；"
+            # ★ 落盘状态必须进 reason（否则"退役了"与
+            #   "退役且同步了"不可区分 = 静默）
+            + _flush_note + "；"
+            + "理由=%s" % reason.strip()[:56])
         return res
 
     # ┐

@@ -20,6 +20,7 @@ ROOT = r"E:/Divine Wisdom Core"
 sys.path.insert(0, os.path.join(ROOT, "src"))  # noqa: E402
 
 from dwc.llm import LLMClient, LLMResult
+from dwc.organs.applier import Applier, Target
 from dwc.organs.candidates import CandidateGenerator
 
 SIG = {"c": "E_VALUE", "q": "wrong_magnitude", "fn": "mystery"}
@@ -346,6 +347,19 @@ def test_prompt_contains_contract_vocab():
 # ④ R35 · 固化（候选 → 规则条目）—— evolver 组装，applier 写
 # ══════════════════════════════════════════════════════════
 
+def _entry(**over):
+    e = {"component": "control_flow", "dimension": "D7",
+         "target": "f", "m": "m", "m_source": "rule",
+         "patch": "p", "rationale": "r"}
+    e.update(over)
+    return e
+
+
+def _check(key, entry):
+    from dwc.organs.evolver import Mutator
+    return Mutator.check_entry(key, entry)
+
+
 def _mk_cand(**kw):
     from dwc.organs.candidates import Candidate
     base = dict(patch="return x", source="llm", rule="R_llm",
@@ -523,3 +537,152 @@ def test_r2_has_no_contract_because_no_evidence():
         Mutator.entry_from_candidate(c)
     assert "词表" in str(ex.value), \
         "★ 无依据的 R2 竟固化通过 ⇒ 有人偷偷填了 component"
+
+# ══════════════════════════════════════════════════════════
+# ⑤ R36 · 配置优先级 + 传输类重试
+# ══════════════════════════════════════════════════════════
+
+def test_timeout_param_beats_config_file(tmp_path, monkeypatch):
+    """★★★★★ 配置优先级: **显式参数 > 环境变量 > config 文件**。
+
+    ★★★ R36 实测抓到的 bug:
+      docstring 写「参数 > env > 文件」，而 timeout 的实现是
+        `env or 文件 or 参数` ⇒ **参数最低**
+      ⇒⇒ 实测后果: 测试传 timeout=2 想造超时，
+        却被 config 里的 60 **覆盖** ⇒ 永不超时
+        ⇒⇒ 连带: 我的重试测试**测不到重试**（断言因此红）
+      ⇒⇒ ⇒★★ 这是『名字与实现不对齐』（R34 立的规矩）
+      ⇒ ⇒★ 本测试锁四个字段的优先级**必须一致**
+    """
+    from dwc.llm.client import _load_file_config
+    cfg = {"base_url": "https://file.invalid/v1",
+           "api_key": "FILE_KEY", "model": "file-model",
+           "timeout": "60"}
+    real = os.path.join(tmp_path, "llm.json")
+    # ★ 临时把 LEARNED 式的路径换掉 ⇒ 简单法: monkeypatch loader
+    import dwc.llm.client as L
+
+    def fake_loader():
+        return cfg
+    old = L._load_file_config
+    L._load_file_config = fake_loader
+    monkeypatch.setenv("DWC_LLM_BASE_URL", "https://env.invalid/v1")
+    monkeypatch.setenv("DWC_LLM_API_KEY", "ENV_KEY")
+    monkeypatch.setenv("DWC_LLM_MODEL", "env-model")
+    monkeypatch.setenv("DWC_LLM_TIMEOUT", "45")
+    try:
+        c = LLMClient(base_url="https://param.invalid/v1",
+                      api_key="PARAM_KEY", model="param-model",
+                      timeout=2)
+        # ★ 参数应**全胜**
+        assert c._base == "https://param.invalid/v1"
+        assert c._model == "param-model"
+        assert c.timeout == 2, \
+            ("★★★ 显式 timeout 被文件/环境覆盖了（实测 %s）"
+             " ⇒ 造超时场景失效、重试测试测不到" % c.timeout)
+        # ★ 不传参数 ⇒ env 胜过文件
+        c2 = LLMClient()
+        assert c2._base == "https://env.invalid/v1"
+        assert c2._model == "env-model"
+        assert c2.timeout == 45, "★ env 应胜过文件"
+    finally:
+        L._load_file_config = old
+
+
+def test_transport_error_retries_but_4xx_does_not(tmp_path):
+    """★★★★ 重试**只对传输类**（4xx 重试必然再失败 ⇒ 浪费）。"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    hits = []
+
+    class Slow(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            hits.append(1)
+            if len(hits) == 1:
+                import time as _t
+                _t.sleep(3)          # ★ 第一次拖到超时
+
+            out = {"choices": [{"message": {"content": "ok"}}]}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(out).encode())
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        c = LLMClient(base_url="http://127.0.0.1:%d/v1"
+                      % srv.server_address[1],
+                      api_key="k", model="m", timeout=2)
+        r = c.complete("x")
+        assert r.ok, "★ 重试后应成功"
+        assert len(hits) == 2, "★ 超时应重试一次（实测 %d 次请求）" % len(hits)
+        assert c.stats()["n_retries"] == 1, "★ 重试要进账本（可审计）"
+    finally:
+        srv.shutdown()
+
+    hits.clear()
+
+    class Unauthorized(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            hits.append(1)
+            self.send_response(401)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"bad")
+
+        def log_message(self, *a):
+            pass
+
+    srv2 = HTTPServer(("127.0.0.1", 0), Unauthorized)
+    threading.Thread(target=srv2.serve_forever, daemon=True).start()
+    try:
+        c2 = LLMClient(base_url="http://127.0.0.1:%d/v1"
+                       % srv2.server_address[1],
+                       api_key="k", model="m", timeout=3)
+        r2 = c2.complete("x")
+        assert not r2.ok and r2.source == "error"
+        assert len(hits) == 1, "★★ 4xx 不该重试（key/配额错重试必然再失败）"
+        assert c2.stats()["n_retries"] == 0
+    finally:
+        srv2.shutdown()
+
+
+def test_retire_flushes_to_disk():
+    """★★★★★ R36 抓到的**生灭不对称**: retire 也必须 flush。
+
+    ★★★ 实测: land_rule 落地后 flush（R34 加的），
+      而 retire_rule **没调** ⇒ 内存删了、落盘没同步
+      ⇒⇒ e2e 实测: 进程内 `HIT=0`，跨进程仍 `HIT=1`
+        （新进程从落盘加载 ⇒ 退化的规则**还活着**）
+      ⇒⇒ ⇒★★ 让 G4『能生也要能死』在跨进程上**失效**
+      ⇒ ⇒★ 生灭必须**对称**（本测试锁它）
+    """
+    ap = Applier(window=2)
+    key = "E_FL:q:fl"
+    calls = {"n": 0}
+
+    def _flush():
+        calls["n"] += 1
+        return "written"
+
+    st = {}
+    t = Target(getter=lambda: st.get(key),
+               setter=lambda v: st.__setitem__(key, v),
+               has_fn=lambda: key in st,
+               delete_fn=lambda: st.pop(key, None),
+               flush_fn=_flush)
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    n_after_land = calls["n"]
+    assert n_after_land == 1, "★ land 必须 flush"
+    ap.retire_rule(t, key, "r", {"success": False}, _check)
+    assert calls["n"] == 2, \
+        ("★★★ retire **没 flush** ⇒ 内存删了但落盘还留着 ⇒ "
+         "跨进程时退化规则复活（G4 生灭在跨进程失效）")
+    assert "已落盘同步" in ap.log[-1].reason, \
+        "★ reason 要报落盘状态（否则『退役了』与『退役且同步』不可区分）"

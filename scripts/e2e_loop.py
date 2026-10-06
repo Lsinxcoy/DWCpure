@@ -262,8 +262,25 @@ if os.path.exists(_M.LEARNED_PATH):
     if not (_ld.get("learned") or {}):
         os.remove(_M.LEARNED_PATH)
         print("    ✓ 落盘已清（learned 空 ⇒ 删除文件）")
+# ★★★★ R36 扩大: 上面只清了 `_sig8_key`（fibonacci），
+#   而实测**上一轮的残留**（is_palindrome 那条）把本轮污染了:
+#     起跑时 RULES 里已有它 ⇒ step9 的查表口径被打乱
+#   ⇒⇒ ⇒★ 自清洁只清"我这个场景的键" = **盲区**
+#     （异常中断/别的场景留的残，我一个都清不掉）
+#   ⇒ ⇒★ 改成: 清**所有非种子**键（learned 全空 ⇒ 从零学起）
+_seed_snapshot = set(_M.SEED_KEYS)
+_stale = [k for k in list(_M.RULES) if k not in _seed_snapshot]
+if _stale:
+    for _k in _stale:
+        _M.RULES.pop(_k, None)
+    _M.persist_learned()
+    print("    ★ 清上轮残留 %d 条: %s" % (len(_stale), _stale[:2]))
+if os.path.exists(_M.LEARNED_PATH):
+    os.remove(_M.LEARNED_PATH)
+    print("    ✓ learned 落盘整文件删除（保证从零）")
 assert _sig8_key not in _M.RULES, "★ 前置自清洁未生效"
-print("    ✓ 已就绪（RULES=%d 条，不含 fibonacci）" % len(_M.RULES))
+assert all(k in _M.RULES for k in _seed_snapshot), "★ 种子不许被清掉"
+print("    ✓ 已就绪（RULES=%d 条 = 只剩种子）" % len(_M.RULES))
 out8 = execute_task(Actor(), j, T2, implementation=BUGGY2)
 v8 = j.evaluate(T2, "dev", observed=out8["observation"])
 print("  judge: success=%s" % v8.success)
@@ -522,7 +539,12 @@ else:
     print("  真 LLM: n=%d source=%s （**仅认 llm 来源** n=%d）"
           % (_r9["n"], _r9.get("source"), len(_llm_only)))
     print("    m_hint=%r" % _r9.get("m_hint"))
-    print("    账本: calls=%d ok=%d" % (_g9.n_llm_calls, _g9.n_llm_ok))
+    print("    账本: calls=%d ok=%d fail=%d"
+          % (_g9.n_llm_calls, _g9.n_llm_ok,
+             getattr(_g9, "n_llm_fail", 0)))
+    # ★★★ 必须打 why（R36 跑时它 n=0 却**没打原因** ⇒ 查不了）
+    #   ⇒⇒ ⇒★ "n=0 不说为什么" = 静默（G7 同族）
+    print("    why=%s" % str(_r9.get("why"))[:220])
     # 9d · 判分
     _passed = []
     print("  ── 判分 ──")
@@ -645,3 +667,112 @@ else:
               % ("✓" if _key10 not in _M.RULES else "★失败",
                  os.path.exists(_M.LEARNED_PATH)))
     print("  LAND_SEG=%s" % LAND_SEG)
+    # ══════════════════════════════════════════════════════
+    # step 11 · ★★★★★ **LLM 场景的「死」**（生灭闭环在真端点验完）
+    #   R33 做了 retire，但只在**手工构造**的场景跑过
+    #   ⇒ 而真端点场景下"规则退化 → 危害证据 → 退役"从未验过
+    #   ⇒⇒ ⇒★ 生灭只验了半边（只有 land）
+    #
+    # ★★ 危害证据的来源（关键: 必须**真跑 judge**，不许我编）
+    #   固化的规则本是对的（judge pass）⇒ 要造危害就得**规则退化**
+    #   真实场景: 外部改动 / 错误合并 / 模型幻觉被采纳 ⇒ patch 变坏
+    #   ⇒ 用**退化后的** patch 去修 ⇒ judge 真判 fail
+    #   ⇒ 那个 False 就是 evidence（不是我手写一个字典）
+    # ══════════════════════════════════════════════════════
+    print("\n" + "=" * 60)
+    print("step 11 · 退役（LLM 规则退化 → 危害证据 → 生灭闭环）")
+    print("=" * 60)
+    if LAND_SEG != "landed":
+        print("  ★ LAND_SEG=%s ⇒ 本段**跳过**（没有已固化的 LLM 规则）"
+              % LAND_SEG)
+        RETIRE_SEG = "skipped_no_rule"
+    else:
+        # 11a · step10 已自清洁 ⇒ 这里**重新固化**（同一条）
+        if _key10 not in _M.RULES:
+            _res11 = ap.land_rule(_tgt10, _key10, _entry10, _ev10,
+                                  _M.check_entry)
+            print("  11a 重新固化: readback=%s" % _res11.readback_ok)
+        assert _key10 in _M.RULES, "★ 前置: 规则应在位"
+        _good_patch = _M.RULES[_key10]["patch"]
+        print("  规则在位 · patch=%r" % _good_patch[:60])
+
+        # 11b · ★★ 制造**规则退化**（模拟外部改动/错误合并）
+        _degraded = "return s == s[::-1].lower()"   # ★ 忘了 s.lower()
+        _M.RULES[_key10]["patch"] = _degraded
+        _M.persist_learned()
+        print("  11b 规则退化为: %r（模拟外部改坏）" % _degraded)
+
+        # 11c · ★★★ **真跑 judge** 取危害证据（不是我手写 False）
+        _src11 = build_implementation(_LFN, _LBUG, _degraded)
+        _o11 = execute_task(Actor(), j, _LT, implementation=_src11)
+        _v11 = j.evaluate(_LT, "dev", observed=_o11["observation"])
+        _evi11 = {"success": _v11.success, "split": "dev", "task": _LT}
+        print("  11c judge: success=%s c=%s"
+              % (_v11.success, (_v11.failure_signature or {}).get("c")))
+        if _v11.success:
+            # ★★ 退化后**仍能修好** ⇒ 没有危害 ⇒ 不许退役
+            print("  ★ 退化后仍判 pass ⇒ **无危害证据** ⇒ 不退役（不硬退）")
+            RETIRE_SEG = "no_harm_evidence"
+        else:
+            # 11d · 三闸镜像（reason 必填 + evidence.success is False）
+            print("  11d 退役（三闸镜像）…")
+            # ★ 负面: 用**通过**的证据去退 ⇒ 必须被拒
+            try:
+                ap.retire_rule(_tgt10, _key10, "假",
+                               {"success": True}, None)
+                print("  ★ 用 pass 证据竟退役成功（闸②失效）")
+            except Exception as _e:
+                print("    ✓ 负面: pass 证据被拒 %s" % str(_e)[:50])
+            _res11b = ap.retire_rule(
+                _tgt10, _key10,
+                "R36: 规则退化后 judge 真判 fail（c=%s）⇒ 危害证据"
+                % ((_v11.failure_signature or {}).get("c") or "?"),
+                _evi11, None)
+            print("    ✓ 退役 reason=%s" % _res11b.reason[:88])
+            print("    条目已从表中移除: %s" % (_key10 not in _M.RULES))
+            print("    stats=%s" % {k: v for k, v in ap.stats().items()
+                                   if k.startswith("n_")})
+
+            # 11e · 跨进程验**消失**（生灭的「死」也必须跨进程）
+            _pr11 = ("import sys, json\n"
+                     "sys.path.insert(0, json.loads(sys.argv[1]))\n"
+                     "from dwc.organs.evolver import Mutator, Evolver\n"
+                     "sig = json.loads(sys.argv[2])\n"
+                     "d = Evolver().diagnose([sig])\n"
+                     "print('RULES=%d HIT=%d' % (len(Mutator.RULES), "
+                     "1 if d['proposals'] else 0))\n")
+            _f11 = os.path.join(os.environ.get("TEMP", "."), "_e2e11.py")
+            open(_f11, "w", encoding="utf-8").write(_pr11)
+            _r11 = subprocess.run([sys.executable, _f11,
+                                   json.dumps(os.path.join(ROOT, "src")),
+                                   json.dumps(dict(_sig9))],
+                                  capture_output=True, timeout=120)
+            _o11p = _r11.stdout.decode("utf-8", "replace").strip()
+            try: os.remove(_f11)
+            except OSError: pass
+            print("  11e 跨进程: %s" % _o11p)
+            _gone11 = _r11.returncode == 0 and " HIT=0" in _o11p
+            print("  %s" % ("★★★★★ 退化规则**跨进程已消失**"
+                            "（生灭在真端点闭环）"
+                            if _gone11 else "★ 跨进程仍命中（退役没落盘）"))
+            RETIRE_SEG = ("retired" if _gone11 else "retired_not_persisted")
+
+        # 11f · 自清洁（RULES 已无该键 ⇒ 只清落盘）
+        if _key10 in _M.RULES:
+            ap.rollback("LAND:" + _key10, _tgt10)
+            _M.persist_learned()
+        if os.path.exists(_M.LEARNED_PATH):
+            _left = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
+            if not (_left.get("learned") or {}):
+                os.remove(_M.LEARNED_PATH)
+        print("  11f 自清洁: 键在=%s 落盘在=%s"
+              % (_key10 in _M.RULES, os.path.exists(_M.LEARNED_PATH)))
+        print("  RETIRE_SEG=%s" % RETIRE_SEG)
+
+    print("\n" + "=" * 60)
+    print("★ 生灭闭环（真端点）: LLM_SEG=%s · LAND=%s · RETIRE=%s"
+          % (LLM_SEGMENT, LAND_SEG, RETIRE_SEG))
+    print("=" * 60)
+    print("  生: LLM 产出 → judge 验 → 固化 → **跨进程存活**")
+    print("  死: 规则退化 → judge 真判 fail（危害证据）→ 退役 →")
+    print("     **跨进程消失**（R33 的死那半在真端点验完）")
