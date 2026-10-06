@@ -54,6 +54,7 @@
 """
 
 from __future__ import annotations
+import datetime
 # ★★★★ TRUTH_SOURCE（判据 G2）
 #   ★★ 本模块**不判分** ⇒ 它没有真值源
 #   ★★ 它产出的是「是否落地 / 是否回滚」的状态，而**分数**由 judge 算
@@ -84,6 +85,14 @@ import json
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+
+def _now() -> str:
+    """★ 时间戳（可审计 —— 但**不承重**：判据不依赖它）。"""
+    try:
+        return datetime.datetime.now().isoformat(timespec="seconds")
+    except Exception:
+        return ""
 
 
 class ApplierError(Exception):
@@ -303,6 +312,71 @@ class Applier:
         return res
 
     # ┐
+    # │ ★★★★★ R33 · 退役（G4 生灭门的**死**那一半）
+    # │
+    # │ ★ 与 land_rule **三闸镜像**:
+    # │   生: evidence.success is True  ⇒ 才能固化
+    # │   死: evidence.success is False ⇒ 才能退役
+    # │   ⇒⇒ ★★ 这样"删一条规则"必须有**危害证据** —— 不许任意删
+    # │     （否则退役会变成"不想看就删"，审计就断了）
+    # │
+    # │ ★ 为什么需要它（R32 留的诚实边界）:
+    # │   从**落盘**恢复的规则，本次 `_history` 里没有 ⇒ rollback 报错
+    # │   ⇒⇒ ⇒★ 而"撤掉上次固化的坏规则"是**真需求**
+    # │   ⇒ ⇒★ retire_rule 不依赖 `_history`（它删的是**现存**状态）
+    # │     ⇒ 跨进程可用 ⇒ 生灭闭环补上
+    # ┘
+
+    def retire_rule(self, target: Any, key: str, reason: str,
+                    evidence: Dict[str, Any],
+                    check_fn: Optional[Any] = None) -> AppliedResult:
+        """★★★ 退役一条规则（生灭的"死"）—— 三闸镜像 land_rule。
+
+        ★ 三闸:
+          ① `key` 必须**存在**（退不存在的 = 幻影操作）
+          ② reason 非空 + evidence.success **is False**（危害证据）
+          ③ 删除后读回确认（判据 1）+ `_origin` 决定 delete/write_back
+        ★★★ 与 land 的差别: 这里**不查 schema**
+          （退役不写新结构，schema 是"写入时"的要求）
+        """
+        if not isinstance(reason, str) or not reason.strip():
+            raise ApplierError(
+                "★ 退役必须给 reason —— 没有理由的删除会**弄断审计链**")
+        if not isinstance(evidence, dict):
+            raise ApplierError("★ 退役必须给 evidence（危害证据）")
+        if evidence.get("success") is not False:
+            raise ApplierError(
+                "★ ★★ evidence.success=%r ≠ False ⇒ 没有危害证据，"
+                "不许退役（三闸镜像: 证明**有害**才能删）"
+                % evidence.get("success"))
+        if not target.has():
+            raise ApplierError(
+                "★ 退役不存在的规则 %r —— 幻影操作不许做" % key)
+        # ★★★★★ R33 我第一版**又犯了同款错**:
+        #   我复用了 rollback 的语义（origin=False ⇒ delete，否则 write_back）
+        #   ⇒ 对"原本存在"的规则 ⇒ **写回 None** ⇒ 留下 key:None 垃圾
+        #   ⇒⇒ ⇒★ 而这正是 R30(apply_on_copy) / R32(commit/rollback)
+        #     抓到的**同一族**问题的第 3 个变体
+        #   ⇒ ⇒★ 根因: 我把"回滚"（恢复原值）的语义套到了"退役"上
+        #     ⇒⇒ ★★ 而退役 = **从表里移除该规则**
+        #       （不论它当初是新增还是覆盖）⇒ **一律 delete**
+        #     ⇒ ⇒★ 两个操作的语义必须分开，不可复用
+        before = target.snapshot()
+        res = self.commit("RETIRE:" + key, target, None)   # ★ 中间态留痕
+        target.delete()                                    # ★ 一律移除
+        if target.has() is not False:
+            raise ApplierError(
+                "★ 判据 1: 退役后键仍存在 ⇒ delete 未生效，不许静默")
+        self._history["RETIRE:" + key] = before
+        self._origin["RETIRE:" + key] = False   # ★ 退役后 = "不存在"
+        res.action = "retire"  # ★ 与 rollback 分开（不是"回滚"）
+        res.reason = ("★ 退役: reason✓ 危害证据✓ 读回✓；"
+                      "**已从表中移除**（delete，不是写 None —— "
+                      "写 None 会留垃圾条目，那是 R30/R32 同族第 3 次）；"
+                      "理由=%s" % reason.strip()[:56])
+        return res
+
+    # ┐
     # │ ★★★★ R32 · 固化（**闭环的最后一段**）
     # │
     # │ 依据: 2606.09498 Algorithm 1 **line 23**
@@ -358,10 +432,31 @@ class Applier:
                     "★ 固化被 schema 拒（缺 %s）—— 否则炸点在查表那一刻"
                     % (missing,))
         # ── 闸③: 写 + 读回（走 commit ⇒ 复用判据 1/2 全套）──
+        # ★★ 元数据取值必须在**写入之前**（否则拿到的是写入后的状态）
+        had_before = target.has()
+        old_snapshot = target.snapshot()
+        # ★★★ R33: 把**落地元数据**写进条目本身
+        #   理由: applier 的 `_history`/`_origin` 是**进程内**的
+        #     ⇒⇒ 跨进程时那次落地"不存在" ⇒ 既 rollback 不了，
+        #       也无法回溯"这规则当初怎么来的"
+        #   ⇒ ⇒★ 元数据入条目 ⇒ 与规则**一起**落盘 ⇒ 天然同源
+        #   ⇒ ⇒★★ 这样 `retire_rule` 跨进程也知道 origin（该 delete
+        #     还是 write_back），而审计也有了来源链
+        entry = dict(entry)   # ★ 不改调用方的 dict（避免副作用）
+        entry["_land"] = {
+            "origin": had_before,          # ★ 落地前是否存在
+            "old": json.dumps(old_snapshot, ensure_ascii=False,
+                              default=str)[:400],
+            "landed_at": _now(),
+            "evidence": {k: v for k, v in evidence.items()
+                         if k in ("success", "split", "task")},
+            "proposal_id": "LAND:" + key,
+        }
         res = self.commit("LAND:" + key, target, entry)
         # ★ 只改 reason（commit 已经 append 过 log 了 —— 不许重复记账，
         #   否则 stats 的 commit 计数会**虚高**）
         flushed = target.flush()
+        res.action = "land"    # ★ 与原始 commit 分开（否则 stats 混在一起）
         res.reason = ("★ 固化: schema✓ evidence✓ 读回✓"
                       + ("；**新增键**（回滚=delete）"
                          if self._origin.get("LAND:" + key) is False
@@ -485,11 +580,20 @@ class Applier:
     def stats(self) -> Dict[str, Any]:
         n_commit = sum(1 for x in self.log if x.action == "commit")
         n_rollback = sum(1 for x in self.log if x.action == "rollback")
+        # ★★★ R33: land/retire **必须分开计** —— 否则
+        #   「1 次 land + 1 次 retire」在 stats 里 = `n_commit=2`
+        #   ⇒⇒ 审计时**分不清**是固化了两次，还是一生一死
+        #   ⇒ ⇒★ 而"生灭"这件事本身就需要可数（G4 要求）
+        n_land = sum(1 for x in self.log if x.action == "land")
+        n_retire = sum(1 for x in self.log if x.action == "retire")
         return {"n_log": len(self.log), "n_commit": n_commit,
                 "n_rollback": n_rollback,
+                "n_land": n_land, "n_retire": n_retire,
                 "window": self.window,
                 "★": ("★ 判据: commit 必带读回校验；rollback 必有旧值"
-                      "（两者都在 __post_init__ 里强制）")}
+                      "（两者都在 __post_init__ 里强制）"),
+                "★★": ("★ R33: land=固化(生) · retire=退役(死)"
+                     " 分开计，否则生灭不可数（G4 要求）")}
 
 
 if __name__ == "__main__":

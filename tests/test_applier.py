@@ -502,8 +502,14 @@ def test_land_rule_counts_once_in_stats():
     t, table, key = _rule_setup()
     ap.land_rule(t, key, _entry(), {"success": True}, _check)
     st = ap.stats()
-    assert st["n_commit"] == 1, "★ 一次固化只该记 1 次 commit"
-    assert st["n_log"] == 1
+    # ★★★ R33 我把 land 的 `action` 从 "commit" 改成了 "land"
+    #   ⇒ R32 这条断言 `n_commit == 1` **过时了**（实测：它红了）
+    #   ⇒⇒ ⇒★ 那正是"过时的测试比没有测试更危险"的又一例:
+    #     改了实现，断言没跟 ⇒ 红灯**逼**你重新想清楚语义
+    #   ⇒ ⇒★ 现在的语义: n_land=固化 · n_commit=原始写入
+    assert st["n_land"] == 1, "★ 一次固化记 1 次 land"
+    assert st["n_commit"] == 0, "★ land **不算**原始 commit（action 已分）"
+    assert st["n_log"] == 1, "★ 只记 1 条（不许重复记账）"
 
 
 def test_key_for_requires_cqf_and_excludes_m():
@@ -799,3 +805,180 @@ def test_module_level_load_without_explicit_call(tmp_path):
         Mutator._loaded = True
         if (tmp_path / "r.json").exists():
             (tmp_path / "r.json").unlink()
+
+# ══════════════════════════════════════════════════════════
+# ★★★★★ R33 · 退役（G4 生灭门的**死**那一半）
+#    三闸镜像 land_rule: 证明**有害**才能删
+# ══════════════════════════════════════════════════════════
+
+def _ret_setup():
+    ap = Applier(window=2)
+    st = {}
+    key = "E_R:q:r"
+    t = Target(getter=lambda: st.get(key),
+               setter=lambda v: st.__setitem__(key, v),
+               has_fn=lambda: key in st,
+               delete_fn=lambda: st.pop(key, None),
+               flush_fn=lambda: "written")
+    return ap, t, st, key
+
+
+def _land_then_retire(ap, t, st, key, reason="judge 回归证据"):
+    entry = _entry(target="f")
+    ap.land_rule(t, key, entry, {"success": True}, _check)
+    assert key in st
+    return ap.retire_rule(t, key, reason, {"success": False}, _check)
+
+
+def test_retire_removes_key_completely():
+    """★★★★★ 退役 = **从表里移除**（不是写 None 留垃圾）。"""
+    ap, t, st, key = _ret_setup()
+    r = _land_then_retire(ap, t, st, key)
+    assert key not in st, "★★★ 退役后键必须消失（写 None 会留垃圾）"
+    assert r.readback_ok is True
+    assert "已从表中移除" in r.reason
+    assert "R30/R32 同族第 3 次" in r.reason, "★ 要记下这是同族第 3 次"
+
+
+def test_retire_requires_harmful_evidence():
+    """★★★★ 三闸镜像: **必须**证明有害（success is False）才删。"""
+    ap, t, st, key = _ret_setup()
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    for ev in ({}, {"success": True}, {"success": None},
+               {"success": "false"}, []):
+        with pytest.raises(ApplierError) as e:
+            ap.retire_rule(t, key, "r", ev, _check)
+        assert "success" in str(e.value) or "evidence" in str(e.value)
+    assert key in st, "★★ 被拒的退役必须**零副作用**"
+    assert st[key]["patch"] == _entry()["patch"], "★ 原条目不许被动过"
+
+
+def test_retire_requires_reason():
+    """★★ 无 reason 的删除会**弄断审计链** ⇒ 必须 raise。"""
+    ap, t, st, key = _ret_setup()
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    for bad in ("", "   ", None, 123):
+        with pytest.raises(ApplierError) as e:
+            ap.retire_rule(t, key, bad, {"success": False}, _check)
+        assert "reason" in str(e.value)
+    assert key in st
+
+
+def test_retire_nonexistent_key_is_rejected():
+    """★★ 幻影操作不许做: 退不存在的规则。"""
+    ap, t, st, key = _ret_setup()
+    with pytest.raises(ApplierError) as e:
+        ap.retire_rule(t, "NOPE", "r", {"success": False}, None)
+    assert "幻影" in str(e.value)
+
+
+def test_land_writes_land_metadata():
+    """★★★★ _land 元数据入条目 ⇒ **跨进程**可回溯来源与 origin。
+
+    ★★ 理由: applier 的 `_history` 是进程内的 ⇒ 跨进程那条落地
+      "不存在" ⇒ 既 rollback 不了，也不知道它当初怎么来的
+    """
+    ap, t, st, key = _ret_setup()
+    ap.land_rule(t, key, _entry(), {"success": True, "task": "T1"}, _check)
+    meta = st[key]["_land"]
+    assert meta["origin"] is False, "★ 新增键 ⇒ origin=False"
+    assert meta["evidence"]["task"] == "T1", "★ 证据要能回溯"
+    assert meta["proposal_id"] == "LAND:" + key
+    assert meta["landed_at"], "★ 要有时间（不承重但要可审计）"
+    # ★ 对照: **原本就存在**的键 ⇒ origin=True
+    #   ★★ 我第一版连错两次（都是**测试数据**问题，不是实现）:
+    #     ① 用 "k" 当 key ⇒ schema 拒『key 必须是 c:q:fn 三段』
+    #     ② 改了 key 格式，却**没把它放进 st2** ⇒ 不存在 ⇒ origin 仍是 False
+    #   ⇒⇒ ⇒★ 两处都是"我想要的那个前提**没被建立**"
+    #     （key 格式要求 / 键在表中）⇒ 断言测的不是我以为的东西
+    _k2 = "E_META:q:m2"
+    st2 = {_k2: "orig"}                    # ★★ 关键: 先让键存在
+    t2 = Target(getter=lambda: st2.get(_k2),
+                setter=lambda v: st2.__setitem__(_k2, v),
+                has_fn=lambda: _k2 in st2,
+                delete_fn=lambda: st2.pop(_k2, None))
+    ap2 = Applier(window=2)
+    assert t2.has() is True, "★ 前置: 该键必须已存在"
+    ap2.land_rule(t2, _k2, _entry(), {"success": True}, _check)
+    assert st2[_k2]["_land"]["origin"] is True, \
+        "★ 原本存在的键 ⇒ origin 必须 True（回滚才走 write_back）"
+
+
+def test_land_does_not_mutate_caller_dict():
+    """★★ land_rule 不许改调用方的 dict（我 copy 了才没出事）。"""
+    ap, t, st, key = _ret_setup()
+    entry = _entry()
+    before = dict(entry)
+    ap.land_rule(t, key, entry, {"success": True}, _check)
+    assert entry == before, "★ 调用方的 entry 不许被塞进 _land"
+    assert "_land" in st[key], "★ 但落进去的那份要带"
+
+
+def test_stats_distinguishes_land_and_retire():
+    """★★★★ 生灭**必须可数**（G4 要求）: n_land / n_nretire 分开。
+
+    ★★★ 若不分 ⇒ 「1 land + 1 retire」在 stats 里是 `n_commit=2`
+      ⇒ 审计分不清是固化两次还是一生一死
+    """
+    ap, t, st, key = _ret_setup()
+    assert ap.stats()["n_land"] == 0 and ap.stats()["n_retire"] == 0
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    s1 = ap.stats()
+    assert s1["n_land"] == 1 and s1["n_retire"] == 0
+    ap.retire_rule(t, key, "r", {"success": False}, _check)
+    s2 = ap.stats()
+    assert s2["n_land"] == 1, "★ land 计数不许被 retire 污染"
+    assert s2["n_retire"] == 1
+    assert s2["n_commit"] == 0, "★ land/retire **不是**原始 commit"
+    assert s2["n_log"] == 2
+
+
+def test_retire_then_reland():
+    """★★ 生灭是**可循环**的: 死后还能再生（新证据）。"""
+    ap, t, st, key = _ret_setup()
+    _land_then_retire(ap, t, st, key)
+    assert key not in st
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    assert key in st, "★ 再次固化应成功"
+    assert ap.stats()["n_land"] == 2
+    assert ap.stats()["n_retire"] == 1
+
+def test_retire_raises_when_delete_fn_is_noop():
+    """★★★★★ 破坏性测试: `delete_fn` 无效时退役必须**报错**。
+
+    ★★★ 变异验证抓到的盲区: 摘掉『退役后检查键是否真消失』⇒ 全套仍绿
+      ⇒⇒ 因为我的 `delete_fn` **一直有效** ⇒ 那道检查永远走不到
+      ⇒⇒ ⇒★ 于是它是**形同虚设**的防御（没测 = 不知道它承不承重）
+      ⇒ ⇒★ 本测试把 delete_fn 变成 **no-op**（故意让防御失效）
+        ⇒ 若检查在 ⇒ raise；若不在 ⇒ **静默留垃圾** ⇒ 断言失败
+    """
+    ap = Applier(window=2)
+    key = "E_NOOP:q:n"
+    st = {key: {"patch": "p"}}
+    t = Target(getter=lambda: st.get(key),
+               setter=lambda v: st.__setitem__(key, v),
+               has_fn=lambda: key in st,
+               delete_fn=lambda: None)          # ★★ no-op（删不掉）
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    with pytest.raises(ApplierError) as e:
+        ap.retire_rule(t, key, "r", {"success": False}, _check)
+    assert "delete 未生效" in str(e.value), \
+        ("★★★ delete_fn 是 no-op ⇒ 退役竟**没报错** ⇒ "
+         "规则还在表里却被记成已退役（G4 死不干净）")
+    assert key in st, "★ 条目确实还在（证明上面 raise 是对的）"
+
+
+def test_retire_raises_when_delete_fn_is_weak():
+    """★ 变体: delete_fn 只删一半（值变成 None 但键还在）。"""
+    ap = Applier(window=2)
+    key = "E_WEAK:q:w"
+    st = {key: {"patch": "p"}}
+    t = Target(getter=lambda: st.get(key),
+               setter=lambda v: st.__setitem__(key, v),
+               has_fn=lambda: key in st,
+               delete_fn=lambda: st.__setitem__(key, None))  # ★ 退化成 None
+    ap.land_rule(t, key, _entry(), {"success": True}, _check)
+    with pytest.raises(ApplierError) as e:
+        ap.retire_rule(t, key, "r", {"success": False}, _check)
+    assert "delete 未生效" in str(e.value)
+    assert key in st, "★★★ 键还在（值 None）—— 那正是要拦的垃圾条目"
