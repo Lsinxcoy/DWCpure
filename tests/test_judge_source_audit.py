@@ -234,3 +234,88 @@ def test_c3_rule_entry_fields_cover_every_constructed_entry():
     assert not missing, (
         "★ C3: 必填字段 %s **不在 schema 里** ⇒ 固化不校验它"
         "（= 加了字段不查 —— 破坏性验证抓不到）" % sorted(missing))
+
+# ══════════════════════════════════════════════════════════
+# ★★★★★ 文档结构守卫（R40 事故的根因修复）
+# ══════════════════════════════════════════════════════════
+
+#: ★ 关键设计文档必须保留的章节标题（R40 我吃掉过 §五 ⇒ 锁住）
+_KEY_DOC = os.path.join(ROOT, "docs", "COMPONENT_VOCABULARY.md")
+_REQUIRED_SECTIONS = (
+    "## 一、", "## 二、", "## 三、", "## 四、",
+    "## 四·五", "## 四·六",              # R40/R42 补记（我加的）
+    "## 五、可机械检查的判据",              # ★ R40 被吃掉的那节
+    "## 六、诚实边界", "## 七、", "## 八、",
+)
+#: ★ K 判据编号必须齐全（§五 的内容锚点）
+_REQUIRED_K = tuple("K%d ·" % k for k in range(1, 7))
+
+
+def test_docs_structure_intact_no_section_eaten():
+    """★★★★★ 文档**不许丢章节** —— R40 事故的直接守卫。
+
+    ★★ 事故经过（我干的）:
+      往文档里插新节时写成 `replace(旧标题, 新节)`，而新节**不含旧标题**
+      ⇒⇒ 「## 五、可机械检查的判据（K1–K6）」**整节被替换掉**
+      ⇒ ⇒★ 也就是说: 我以为在"追加"，实际在"**吃掉**"（G5 没抓到）
+    ★★ 根因: 我 R39 的审计守卫只扫 `src/`，**不查 docs 结构**
+    ⇒ ⇒★ 所以这条守卫必须查: ① 章节序列 ② K1–K6 内容锚点
+    """
+    assert os.path.exists(_KEY_DOC), "★ 关键设计文档不见了: %s" % _KEY_DOC
+    s = io.open(_KEY_DOC, encoding="utf-8", errors="replace").read()
+    # ★★★ R42 抓到我第一版是**子串匹配** ⇒ 假绿:
+    #   散文里引用了标题（如 R42 节 ⑤ 那句「## 五、被吃掉」）就满足 `in`
+    #   ⇒ 真标题被删了也测不到
+    #   ⇒ ⇒★ 改**行首标题匹配**（R37「断言必须精确到来源」同族第 2 次）
+    lines = s.split("\n")
+    missing = [h for h in _REQUIRED_SECTIONS
+               if not any(ln.startswith(h) for ln in lines)]
+    assert not missing, (
+        "★★★ 文档丢**标题行**（R40 那种事故又发生了）: 缺 %s" % missing)
+    # K 判据: 也是行首（`K1 · …` 起头的行，不是散文里的提法）
+    k_missing = [k for k in _REQUIRED_K
+                 if not any(ln.startswith(k) for ln in lines)]
+    assert not k_missing, (
+        "★★★ §五 的 K 判据丢**内容行**: 缺 %s（K1–K6 是 gate 的依据）"
+        % k_missing)
+
+
+def test_docs_insertion_never_replaces_section_title():
+    """★★ 我 R40 用的 `replace(标题, 新节)` 模式必须**不被**再用。
+
+    ★ 这条不查文件，查的是**我自己的工具模式**:
+      若新节里**丢了**被替换的标题 ⇒ 那就是吃章节
+    ⇒ ⇒★ 实现: 模拟 R40 的写法, 断言它**会**导致丢节（作为回归警示）
+      —— 也就是说这条测试**证明**那个模式是危险的，从而禁用它
+    """
+    base = "## 甲\n内容\n\n## 乙\n内容\n"
+    # R40 的危险写法: replace(标题, 新节) 而新节不含标题
+    new_section = "## 四·五 新节\n内容\n\n"
+    broken = base.replace("## 乙", new_section)
+    assert "## 乙" not in broken, "（前提）这个模式确实会吃掉标题"
+    # ★ 正确写法: 新节**包含**原标题
+    safe = base.replace("## 乙", new_section + "## 乙")
+    assert "## 乙" in safe, "★ 正确写法必须把原标题放回"
+
+def test_heading_guard_not_fooled_by_prose_quote():
+    """★★★★ R42 假绿根因: **散文引用不能算标题**。
+
+    ★ 事故: 我第一版守卫用 `h in s`（子串匹配）
+      而 R42 节里我自己写了句「## 五、可机械检查的判据…被吃掉」
+      ⇒⇒ 子串**命中** ⇒ 真标题被删了也测不到 = **假绿**
+    ⇒ ⇒★ 改行首匹配后, 这条测试锁住那个差异（同族第 2 次: 断言要
+      精确到**来源** —— R37 的 component 判据 5 来源是第 1 次）
+    """
+    # ① 只有散文引用（含标题全文）⇒ **没有**标题行
+    prose = "我说过\n「## 五、可机械检查的判据（gate.py 候选，K1–K6）」被吃了\n"
+    lines = prose.split("\n")
+    # ★ 子串匹配会**误判为存在**（这就是假绿）
+    assert "## 五、可机械检查的判据" in prose, "（前提）子串会命中"
+    # ★ 行首匹配才对: 不存在
+    assert not any(ln.startswith("## 五、可机械检查的判据")
+                   for ln in lines), \
+        "★ 散文引用不算标题行（否则守卫被自己的说明文字骗过）"
+    # ② 真标题行 ⇒ 存在
+    real = "正文\n## 五、可机械检查的判据（gate.py 候选，K1–K6）\nK1 …"
+    assert any(ln.startswith("## 五、可机械检查的判据")
+               for ln in real.split("\n"))

@@ -268,6 +268,133 @@ def editable_vocab() -> frozenset:
         k for k, ok in K_META.items() if ok)
 
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R42 · ℒ_t 信用日志（RRSI **式10/11 逐字**）—— 用户裁决「乙」
+#   ① 我 R41 给的「乙」引用错依据: 我说「§9 (bm) A_t 三元 =
+#      (hypothesis, component, hunk)」—— 实测两处错:
+#        · (bm) 不是第25项缺口（GAP_AUDIT: 已落第20/2项）
+#        · `hunk` 全库仅 1 次，且 RRSI 笔记明说「按**函数/文件**边界切，
+#          **不按 hunk 切**」
+#      ⇒ ⇒★ 但用户的**意图**（细粒度归因）正是式10 ⇒ 按原文实现
+#   ② 论文原文（2609.24972 式10，逐字核）:
+#        ℒ_t = { (t_i, ℓ_i, h_i, d_i, ΔS_i, ΔC_i, a_i) : i ≤ n_t }
+#        a_i ∈ {0,1}；每个被评估候选里的每个**原子编辑**打三个标签:
+#        组件 ℓ / 假设 h / 源码 diff d
+#      · `a_i = 1` ⟺ 携带编辑 i 的候选成为**该轮赢家**
+#      · `a_i = 0` 且通过所有门 ⇒ "admissible but lost"（**有用信息**，
+#        论文原话 —— 不是失败记录，要能查到）
+#   ③ 派生（式11，★ 逐字）:
+#        𝒯_t  = { ℓ_i : i ≤ n_t }
+#        g_t(ℓ) = max{ ΔS_i : ℓ_i = ℓ, t − t_i ≤ n_prune },  max∅ = **−∞**
+#      ★★★ `max∅ = −∞` 的作用 —— **我 R42 初版注释写错了, 这里更正**:
+#        初版说「交集挡不住没测过 ⇒ −∞ ⇒ 被剪」**是错的**。重推:
+#          · 并集: 𝒯_t ∪ 𝒦_editable 会把 **𝒯_t 外**的项拉进来
+#                  ⇒ 那些项无记录 ⇒ g_t = −∞ ⇒ `≤0` 恒真 ⇒ **全被标删**
+#          · 交集: 𝒯_t ∩ 𝒦_editable 只看 **𝒯_t 内**
+#                  ⇒ 每项至少一条记录 ⇒ g_t **不可能是 −∞** ⇒ 语义自洽
+#        ⇒ ⇒★ 所以交集**同时**解决了两件事: ① 不可编辑项被标删
+#          ② `max∅ = −∞` 导致的未测项误剪（文档 §七 说的正是并集的坑）
+#        ⇒ ⇒★ 我初版把 ② 当成"交集没解决" —— 属**声称与实测不符**, 已更正
+# ═══════════════════════════════════════════════════════════
+
+#: ★ 式10 的七元字段名（顺序即论文顺序）
+LIQUIDITY_FIELDS = ("t_i", "ℓ_i", "h_i", "d_i", "ΔS_i", "ΔC_i", "a_i")
+
+# ★★★ R42 执行事故（两连）:
+#   ① 我把 `LIQUIDITY_PATH`（用 os.path）放在了 `import os`（L652）**之前**
+#      ⇒ 模块级 NameError —— 同族第 3 次「引用先于定义/导入」
+#   ② 修的时候又把 `os.path.join` 写成 `os.join`（丢了 `.path` ⇒
+#      `os` 模块**没有** join 属性）⇒ AttributeError
+#   ⇒ ⇒★ 教训: 改 import 时**照抄原样**，别顺手改路径写法
+import os as _os4path  # noqa: E402
+import glob as _glob4wired  # noqa: E402
+
+#: ★ 归档落点（式10 的持久化位置 —— 与 RULES 分开: 那是规则, 这是历史）
+LIQUIDITY_PATH = _os4path.path.join(
+    _os4path.path.dirname(_os4path.path.dirname(__file__)),
+    "config", "anchors", "liquidity.jsonl")
+
+
+def record_edit(liquidity: List[Dict[str, Any]], round_no: int, component: str,
+                hypothesis: str, diff: str, delta_s: float, delta_c: float,
+                is_winner: bool, path: str = None) -> Dict[str, Any]:
+    """★★ 记一条式10 的编辑记录 (t_i, ℓ_i, h_i, d_i, ΔS_i, ΔC_i, a_i)。
+
+    ★ 三条硬要求:
+      ① **三个标签必须齐**（ℓ/h/d 缺一 ⇒ 归因不成立 ⇒ 拒记, 不静默补空）
+      ② `a_i` 只有 0/1 —— "admissible but lost"（过了门但输分）记 **0**,
+        但**要留痕**（论文说它是有用信息, 不是失败）
+      ③ `ΔS_i`/`ΔC_i` **不许用 0 充数**: 没测到就该报错, 因为 g_t 用 max,
+        填 0 会污染 `max{ΔS}` 的语义（0 比 −∞ 好 ⇒ 假装测过）
+    """
+    if not component or not hypothesis:
+        raise ValueError(
+            "★ 式10 三标签必须齐: ℓ=%r h=%r —— 缺任一 ⇒ 归因不成立"
+            % (component, hypothesis))
+    if not isinstance(is_winner, bool):
+        raise ValueError("★ a_i ∈ {0,1}，实得 %r（不是 bool）" % (is_winner,))
+    if delta_s is None or delta_c is None:
+        raise ValueError(
+            "★ ΔS_i/ΔC_i 必须实测（不许 None/0 充数）—— "
+            "g_t = max{ΔS} 用 max，填 0 会让没测过的组件假装测过")
+    rec = {"t_i": int(round_no), "ℓ_i": str(component),
+           "h_i": str(hypothesis), "d_i": str(diff),
+           "ΔS_i": float(delta_s), "ΔC_i": float(delta_c),
+           "a_i": 1 if is_winner else 0}
+    liquidity.append(rec)
+    if path:
+        with io.open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return rec
+
+
+def touched_from_liquidity(liq) -> frozenset:
+    """𝒯_t = { ℓ_i : i ≤ n_t }（式11 第一式 · **逐字**）。"""
+    return frozenset(r["ℓ_i"] for r in (liq or []) if r.get("ℓ_i"))
+
+
+def gain(liq, component: str, now_round: int, window: int) -> float:
+    """★★★ g_t(ℓ) = max{ ΔS_i : ℓ_i = ℓ, now − t_i ≤ window }（式11）。
+
+    ★★ 三处**逐字**（不许改语义）:
+      ① **max 不是 sum/mean**（论文原式）
+      ② **窗口**: `now − t_i ≤ window`（`n_prune`, 剪枝窗）
+      ③ `max∅ = **−∞**` —— 没有合格记录 ⇒ **-inf**（不是 0!）
+         ⇒⇒ 填 0 会让「没测过」看起来像「测过且平」 ⇒ 语义错
+    """
+    if window < 0:
+        raise ValueError("★ window(剪枝窗) 必须非负，实得 %r" % (window,))
+    best = None
+    for r in (liq or []):
+        if r.get("ℓ_i") != component:
+            continue
+        if now_round - int(r.get("t_i", now_round)) > window:
+            continue
+        v = float(r.get("ΔS_i"))
+        if best is None or v > best:
+            best = v
+    # ★ max∅ = −∞（论文原式, 不是 0）
+    return float("-inf") if best is None else float(best)
+
+
+def liquidity_summary(liq, now_round: int, window: int) -> Dict[str, Any]:
+    """式11 的三个派生量（一次算齐, 供 ℬ_t/𝒯_t/ν_t 共用）。"""
+    T = touched_from_liquidity(liq)
+    return {
+        "n_records": len(liq or []),
+        "T_t": sorted(T),
+        # ★★ 已被测过**且**增益>0 的组件（可留在候选集）
+        "g_t": {c: gain(liq, c, now_round, window) for c in sorted(T)},
+        # ★ 未被测过的组件按定义 g_t = −∞（式11 max∅）
+        "unmeasured": None,
+        "winners": sorted({r["ℓ_i"] for r in (liq or []) if r.get("a_i") == 1}),
+        # ★ "admissible but lost"（过了门但输分）—— 论文说它**有用**
+        "admissible_but_lost": sorted({
+            r["h_i"] for r in (liq or [])
+            if r.get("a_i") == 0 and r.get("h_i")}),
+    }
+
+
 def touched_components(accepted_rules) -> frozenset:
     """𝒯_t 的**近似** —— 已留下采纳记录的组件集合。
 
@@ -395,21 +522,34 @@ def prune_blockers() -> List[str]:
     ⇒ 返回空 = 可以启用；非空 = 每一条都是**硬阻塞**
     """
     out: List[str] = []
-    # ① ℒ_t 信用日志（论文式11 的数据源）
+    # ① ★ R42 更新: ℒ_t **已实现**（`record_edit` 式10 七元）
+    #   ⇒ blocker 从「不存在」变成「**没接线**」: 没有任何调用点在记它
+    #   ⇒ ⇒★ 这是准确的降级 —— 有数据结构 ≠ 有数据
+    wired = False
     try:
-        from ..foundation import causal_chain as _cc
-        has_change = any(
-            getattr(_cc, n, None) is not None
-            for n in ("record_change", "log_change", "change"))
+        # 查有没有调用点: 全库 search `record_edit(`
+        for _fp in _glob4wired.glob(
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+                    __file__))), "**", "*.py"), recursive=True):
+            if os.path.abspath(_fp) == os.path.abspath(__file__):
+                continue
+            if "record_edit(" in io.open(
+                    _fp, encoding="utf-8", errors="replace").read():
+                wired = True
+                break
     except Exception:
-        has_change = False
-    if not has_change:
-        out.append("ℒ_t 信用日志缺失: causal_chain 无 change 写入函数"
-                   " ⇒ 论文式11 的 𝒯_t 无数据源（只有近似）")
-    # ② 组件级 g_t（不是整体 gain）+ 量化阶梯
-    out.append("g_t(ℓ) 无组件级实现（系统只有整体 "
-               "`current_score - base_score`）；且 scorer 是**量化阶梯**"
-               " ⇒ 同台阶 gain 恒 0 ⇒ 照式14 会**全体剪枝**（灾难）")
+        wired = False
+    if not wired:
+        out.append("ℒ_t **没接线**: 式10 的 `record_edit` 已实现但**无调用点**"
+                   "（只有结构没数据）⇒ 𝒯_t/g_t 仍无真源（只有近似）")
+    # ② ★ R42 更新: g_t **已实现**（式11 `gain()` = max, max∅=−∞）
+    #   且量化阶梯的灾难**已由裁决 A 缓解**（`≤0` → `<0`）
+    #     · ΔS_i 若因阶梯恒 0 ⇒ max{0}=0 ⇒ `<0` 不成立 ⇒ **不剪** ✓
+    #     · 有负增益记录 ⇒ 剪 ✓ ⇒ 语义已自洽
+    #   ⇒ ⇒★ 所以 (b) 降级为: **只缺接线**（与 ① 同源）
+    out.append("g_t(ℓ) 已实现（式11 max）但**没接线**（与 ① 同一缺口: "
+               "record_edit 无调用点 ⇒ 无真实 ΔS_i 记录）；"
+               "量化阶梯灾难已由裁决 A 缓解（`<0` 不误剪零增益）")
     return out
 
 

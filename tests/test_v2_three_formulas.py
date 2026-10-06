@@ -29,9 +29,10 @@ import pytest  # noqa: E402
 from dwc.organs.evolver import (  # noqa: E402
     COMPONENT_VOCAB, EVOLUTION_OBJECTS_21, K_META,
     NOVELTY_ELIGIBLE, OBJECT_TO_COMPONENT, STRUCTURAL,
-    editable_vocab, exploration_signal, k1_coverage, novelty_score,
-    prune_blockers, prune_targets, stall_signal, touched_components,
-    unexplored_components,
+    LIQUIDITY_FIELDS, editable_vocab, exploration_signal, gain,
+    k1_coverage, liquidity_summary, novelty_score, prune_blockers,
+    prune_targets, record_edit, stall_signal, touched_components,
+    touched_from_liquidity, unexplored_components,
 )
 
 
@@ -149,17 +150,30 @@ def test_editable_vocab_excludes_readonly_meta():
 # ══════════════════════════════════════════════════════════
 
 def test_prune_blockers_report_liquidity_and_quantisation():
-    """★★★★★ ℬ_t 的两个 blocker 必须**如实报出**（不许静默）。
+    """★★★★★ ℬ_t 的 blocker 必须**如实报出**（不许静默）。
 
-    ① ℒ_t 缺失（chain 无 change 写入）
-    ② 量化阶梯 ⇒ 组件级 gain 恒 0 ⇒ 照式14 全体剪枝
+    ★★ 状态随 R42 变了 —— 测试**跟着状态更新**，但**意图不变**:
+      · R40: ① ℒ_t **缺失**（chain 无 change 写入）+ ② 量化阶梯灾难
+      · R42: ① ℒ_t **已实现但没接线**（record_edit 无调用点 ⇒ 没数据）
+             ② g_t 已实现 + 量化阶梯灾难**已由裁决 A 缓解**
+             ⇒ 两条归到同一根因: **没接线**
+    ★ 断言打的是「现在的真状态」，不是旧文案（否则改状态就红 ——
+      那不是守住意图，是锁死措辞）
     """
     b = prune_blockers()
-    assert b, "★ blockers 不该为空（R40 实测两个硬阻塞还在）"
+    assert b, "★ blockers 不该为空（接线未做 ⇒ 仍阻塞）"
     joined = " ".join(b)
-    assert "ℒ_t" in joined and "信用日志" in joined, "① 要报 ℒ_t 缺失"
-    assert "量化阶梯" in joined, "② 要报量化阶梯（那会让 g_t 恒 0）"
-    assert "全体剪枝" in joined, "② 要说清后果（灾难）"
+    assert "ℒ_t" in joined, "① 要报 ℒ_t 状态"
+    # ★ 关键: 必须是**现在的**真状态（没接线），不许退回"缺失"
+    assert "没接线" in joined, \
+        "① ℒ_t 已实现 ⇒ blocker 应报「没接线」而非「缺失」"
+    assert "record_edit" in joined, "① 要指名缺的是什么（可执行）"
+    # ② 量化阶梯要么报要么明确说已缓解（不许含糊）
+    assert "量化阶梯" in joined, "② 要提量化阶梯"
+    assert "裁决 A" in joined, "② 要说清灾难已被裁决 A 缓解"
+    # ★ 两条**都**归到没接线（R42 的结论，可复核）
+    assert all("接线" in x for x in b), \
+        "★ R42: 两个 blocker 同源（没接线），实得: %s" % b
 
 
 def test_prune_disabled_by_default_and_refuses_even_when_forced():
@@ -324,8 +338,15 @@ def test_r41_decision_a_is_documented_as_deviation():
     assert "裁决 A" in s, "★ 设计要记录裁决 A"
     assert "R41 **裁决 A**（2026-10-06 用户拍板）" in s, \
         "★ 设计 §四③ 必须记裁决 A（含日期与拍板人）"
-    assert "量化阶梯" in s.split("裁决 A")[1][:900], \
-        "★ 裁决理由（量化阶梯）必须写进设计"
+    # ★★★ R42 抓到我这个断言**脆弱**: `s.split("裁决 A")[1][:900]`
+    #   依赖"第一次出现的位置 + 900 字符窗口" —— 而我 R42 节又**引用**了
+    #   一次"裁决 A"（L338 早于原段 L431）⇒ split 命中引用处 ⇒ 后面 900
+    #   字符没有量化阶梯 ⇒ **假失败**（不是设计丢内容）
+    #   ⇒ ⇒★ 修: 精确定位**原段**（`R41 **裁决 A**（2026-10-06…`）再查
+    HEAD = "R41 **裁决 A**（2026-10-06 用户拍板）"
+    seg = s[s.find(HEAD):s.find(HEAD) + 900]
+    assert "量化阶梯" in seg, \
+        "★ 裁决理由（量化阶梯）必须写进**裁决原段**（紧邻，非全文搜）"
 
 # ══════════════════════════════════════════════════════════
 # σ_t 停滞判据 + ℰ_t 三元（伪码 line 6 / 9）
@@ -388,3 +409,89 @@ def test_exploration_signal_is_a_triple_and_reports_gaps():
     # 三元缺 draft ⇒ ready=False（不许当完整 ℰ_t 用）
     r4 = exploration_signal([0.5] * 4, 3, 0.01, acc, draft=None)
     assert r4["active"] is True and r4["ready"] is False
+
+# ══════════════════════════════════════════════════════════
+# ℒ_t 信用日志（RRSI 式10/11 · 用户裁决「乙」）
+# ══════════════════════════════════════════════════════════
+
+def test_liquidity_is_seven_tuple_with_three_labels():
+    """★★★ 式10: ℒ_t = (t_i, ℓ_i, h_i, d_i, ΔS_i, ΔC_i, a_i) 七元。
+
+    ★ 论文原话: 每个原子编辑打**三个标签** 组件 ℓ / 假设 h / **diff d**
+    ★★ 我 R41 给用户的「乙」说的是 (hypothesis, component, **hunk**) ——
+      第三项**错了**（设计里 hunk 全库仅 1 次，且 RRSI 笔记明说
+      「按函数/文件边界切，**不按 hunk 切**」）
+    """
+    assert LIQUIDITY_FIELDS == ("t_i", "ℓ_i", "h_i", "d_i",
+                                "ΔS_i", "ΔC_i", "a_i")
+    # 三标签缺任一 ⇒ 拒（不静默补空）
+    liq = []
+    with pytest.raises(ValueError) as e1:
+        record_edit(liq, 1, None, "h", "d", 0.1, 0.0, True)
+    with pytest.raises(ValueError):
+        record_edit(liq, 1, "skill", None, "d", 0.1, 0.0, True)
+    assert "归因不成立" in str(e1.value)
+    assert liq == [], "★ 拒记时不许留半条"
+
+
+def test_liquidity_refuses_to_invent_measurements():
+    """★★★★ ΔS/ΔC 不许用 0/None 充数 —— 因为 g_t 用 max。
+
+    ★ 若允许 None→0 ⇒ 没测过的组件会被"记一笔 0" ⇒ max{0} > −∞
+      ⇒ 假装测过（污染 g_t 语义）
+    """
+    liq = []
+    with pytest.raises(ValueError) as e:
+        record_edit(liq, 1, "skill", "h", "d", None, 0.0, True)
+    assert "不许" in str(e.value)
+    # a_i 只能 0/1（bool）
+    with pytest.raises(ValueError):
+        record_edit(liq, 1, "skill", "h", "d", 0.1, 0.0, "yes")
+
+
+def test_gain_is_max_not_sum_and_window_scoped():
+    """★★★ 式11: g_t(ℓ) = max{ΔS_i : ℓ_i=ℓ, now−t_i ≤ window}。"""
+    liq = []
+    record_edit(liq, 1, "skill", "h1", "d1", 0.5, 0.1, True)
+    record_edit(liq, 2, "skill", "h2", "d2", 0.9, 0.2, True)
+    record_edit(liq, 3, "skill", "h3", "d3", -0.4, 0.0, False)
+    # ★ max 不是 sum（0.9 ≠ 1.0, 也 ≠ 0.5+0.9−0.4）
+    assert gain(liq, "skill", 3, 10) == 0.9, "★ 是 max"
+    # ★ 窗口: now − t_i ≤ window
+    assert gain(liq, "skill", 3, 1) == 0.9, "t=2 在窗内(3-2=1)"
+    # ★ 窗口=0 ⇒ 只留 t_i == now(3) 的记录 ⇒ skill 第3条 = −0.4
+    #   （我第一版断言写成 −inf —— 是**我构造数据时把自己绕晕**:
+    #    第3条 ℓ_i 就是 skill，不是别的组件 ⇒ 实现 −0.4 才对）
+    assert gain(liq, "skill", 3, 0) == -0.4, \
+        "★ 窗口0 只留 now 那轮的记录（t=3, skill, ΔS=−0.4）"
+    # 真正的"窗外空" ⇒ 换个组件: t=3 没有它的记录
+    assert gain(liq, "memory", 3, 0) == float("-inf"), \
+        "★ memory 在 now 无记录 ⇒ max∅ = −∞"
+    # ★ max∅ = −∞（**不是 0**）
+    assert gain(liq, "code", 3, 10) == float("-inf"), \
+        "★ 论文原式 max∅ = −∞；填 0 就是「没测过 = 测过且平」(语义错)"
+
+
+def test_gain_empty_is_negative_infinity_not_zero():
+    """★★★ `max∅ = −∞` 单独锁（它决定交集是否自洽）。"""
+    assert gain([], "skill", 1, 5) == float("-inf")
+    # 有记录但全在窗外 ⇒ 仍 −∞（等价于该窗内空集）
+    liq = []
+    record_edit(liq, 1, "skill", "h", "d", 0.7, 0.0, True)
+    assert gain(liq, "skill", 100, 1) == float("-inf")
+
+
+def test_liquidity_summary_reports_winners_and_lost():
+    """★★ 「admissible but lost」(过了门但输分) 必须能查到。
+
+    论文原话: a_i=0 且通过所有门的**是有用信息**，不是失败记录
+    """
+    liq = []
+    record_edit(liq, 1, "skill", "h_win", "d", 0.5, 0.1, True)
+    record_edit(liq, 1, "prompt", "h_lost", "d", -0.1, 0.0, False)
+    s = liquidity_summary(liq, 1, 10)
+    assert s["winners"] == ["skill"]
+    assert "h_lost" in s["admissible_but_lost"], \
+        "★ 输分的候选要留痕（论文: 有用信息）"
+    assert s["T_t"] == ["prompt", "skill"], "式11 第一式 𝒯_t"
+    assert s["n_records"] == 2
