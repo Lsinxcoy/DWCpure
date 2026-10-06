@@ -502,4 +502,41 @@ def test_actor_signature_is_executor_layer_not_verifier():
     assert v.failure_signature.get("sig_layer") != "executor", \
         "judge 产的是 verifier 层（默认无 executor 标）"
 
+def test_constraint4_single_change_is_enforced():
+    """★★★★★ R44 · 约束 4「一个提案只改一处」**真的拦**。
 
+    ★★ 背景（R44 核出的声称 vs 实现）:
+      `Proposal` docstring 原写「所以我**加了** `_assert_single_change()`
+      在构造时就拦」—— 而全库实测**只有那句 docstring**（函数不存在）
+      ⇒⇒ ⇒★ 声称有、实现 0 ⇒ 约束 4 根本没被强制
+      ⇒ 而它是**归因的前提**（2606.09498: 「一簇对应一处干预」，
+        多处 ⇒ 测量无法归因）—— 所以接线 ℒ_t 前必须先补
+    """
+    import pytest
+    from dwc.organs.evolver import Proposal, EvolverError
+    base = dict(component="prompt", rationale="依据",
+                failure_signature={"k": "v"})
+    # ① 合法: 单 target + 单行 patch
+    p = Proposal(proposal_id="ok", target="fibonacci",
+                 patch="return 0", **base)
+    assert p._assert_single_change() is None
+    # ② target 含逗号 = 多目标 ⇒ 拒
+    with pytest.raises(EvolverError) as e1:
+        Proposal(proposal_id="a", target="foo,bar", patch="x", **base)
+    assert "多处变更" in str(e1.value)
+    # ③ target 含分号 = 多语句 ⇒ 拒
+    with pytest.raises(EvolverError):
+        Proposal(proposal_id="b", target="foo;bar", patch="x", **base)
+    # ④ patch 含多个 @@ = 多 hunk ⇒ 拒
+    with pytest.raises(EvolverError) as e2:
+        Proposal(proposal_id="c", target="foo",
+                 patch="@@ -1 +1 @@\na\n@@ -5 +5 @@\nb", **base)
+    assert "hunk" in str(e2.value)
+    # ⑤ 多行 patch **合法**（改一个函数多行 = 还是一处）
+    Proposal(proposal_id="d", target="foo",
+             patch="def foo():\n    return 0", **base)
+    # ⑥ 空 target / 空 patch ⇒ 拒
+    with pytest.raises(EvolverError):
+        Proposal(proposal_id="e", target="", patch="x", **base)
+    with pytest.raises(EvolverError):
+        Proposal(proposal_id="f", target="foo", patch="   ", **base)

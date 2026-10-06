@@ -150,54 +150,95 @@ def test_editable_vocab_excludes_readonly_meta():
 # ══════════════════════════════════════════════════════════
 
 def test_prune_blockers_report_liquidity_and_quantisation():
-    """★★★★★ ℬ_t 的 blocker 必须**如实报出**（不许静默）。
+    """★★★★★ ℬ_t 的 blocker —— 状态已**随 R44 接线清空**，测试跟状态走。
 
-    ★★ 状态随 R42 变了 —— 测试**跟着状态更新**，但**意图不变**:
-      · R40: ① ℒ_t **缺失**（chain 无 change 写入）+ ② 量化阶梯灾难
-      · R42: ① ℒ_t **已实现但没接线**（record_edit 无调用点 ⇒ 没数据）
-             ② g_t 已实现 + 量化阶梯灾难**已由裁决 A 缓解**
-             ⇒ 两条归到同一根因: **没接线**
-    ★ 断言打的是「现在的真状态」，不是旧文案（否则改状态就红 ——
-      那不是守住意图，是锁死措辞）
+    ★ 状态演化（**意图不变，文案随实测变**）:
+      · R40: ① ℒ_t 缺失 ② 量化阶梯灾难（两条都硬阻塞）
+      · R42: ① ℒ_t 已实现但**没接线** ② 灾难已由裁决 A 缓解
+      · R44: **接线完成** ⇒ wired=True ⇒ **两条同时消失**（同源同开关）
+    ★★★ R44 抓到的 bug: R42 我把 ② 写成**无条件 append**
+      ⇒ ① 清了 ② 还在 = blocker **自相矛盾**
+      ⇒ ⇒★ 教训: 同源的 blocker 必须**同一个开关**
     """
     b = prune_blockers()
-    assert b, "★ blockers 不该为空（接线未做 ⇒ 仍阻塞）"
-    joined = " ".join(b)
-    assert "ℒ_t" in joined, "① 要报 ℒ_t 状态"
-    # ★ 关键: 必须是**现在的**真状态（没接线），不许退回"缺失"
-    assert "没接线" in joined, \
-        "① ℒ_t 已实现 ⇒ blocker 应报「没接线」而非「缺失」"
-    assert "record_edit" in joined, "① 要指名缺的是什么（可执行）"
-    # ② 量化阶梯要么报要么明确说已缓解（不许含糊）
-    assert "量化阶梯" in joined, "② 要提量化阶梯"
-    assert "裁决 A" in joined, "② 要说清灾难已被裁决 A 缓解"
-    # ★ 两条**都**归到没接线（R42 的结论，可复核）
-    assert all("接线" in x for x in b), \
-        "★ R42: 两个 blocker 同源（没接线），实得: %s" % b
+    # ★ 接线后应清空（wired=True）—— 不是"blockers 不该为空"
+    assert b == [], "★ R44 已接线 ⇒ blockers 应清空，实得: %s" % b
+    # ★ 但**开关本身必须存在**（不许删函数 —— 否则将来接线断了没东西报）
+    import inspect
+    assert "wired" in inspect.getsource(prune_blockers), \
+        "★ prune_blockers 必须保留 wired 判定（否则断线时会静默）"
+    # ★ 且 ℬ_t 默认仍关（接线 ≠ 默认启用 —— 由调用方决定）
+    r = prune_targets([{"component": "skill"}],
+                      gains_by_component={"skill": -0.1})
+    assert r["enabled"] is False, "★ 接线了但**默认仍关**（不擅自启用）"
 
 
-def test_prune_disabled_by_default_and_refuses_even_when_forced():
-    """★★★★ ℬ_t 默认关；强开也会因 blockers 拒（不许假装在跑）。"""
-    acc = [{"component": "skill"}]
-    r = prune_targets(acc)
-    assert r["enabled"] is False and r["targets"] == []
-    assert r["blockers"], "★ 默认调用必须带出 blockers（否则 = 静默跳过）"
-    # 强行 enabled=True ⇒ blockers 未清仍拒
-    r2 = prune_targets(acc, enabled=True)
-    assert r2["enabled"] is False
-    assert "不许启用" in r2["why"]
-    # ★ 即便 blockers 清了、但没给组件级 gains ⇒ 必须 raise
-    #   （不许用 0 充数 —— 量化阶梯下 0 就是「恒 ≤0」⇒ 全剪）
+def test_prune_refuses_when_wired_is_false():
+    """★★★ 断线时必须重新报 blocker（**接线是可逆的**）。
+
+    ★ 只测"接线后清空"是不够的 —— 那等于验一个恒真分支
+    ⇒ ⇒★ 破坏性: 模拟 `wired=False` ⇒ blockers 必须回来
+    """
     import dwc.organs.evolver as ev
+    src = open(ev.__file__, encoding="utf-8", errors="replace").read()
+    # 只验判据本身存在且会给结果（不真删调用点 —— 那会破坏别的）
+    assert 'if not wired:' in src, "★ wired=False 分支必须在"
+    assert "没接线" in src, "★ 断线文案必须在（可执行的诊断）"
+    # ★★★ R44 破坏性验证抓到我原断言**太弱**:
+    #   `assert 'if not wired:' in src` —— 有两个同源分支,
+    #   **只破一个**时字符串仍命中 ⇒ 测不到（同族第 3 次: 断言要精确）
+    #   ⇒ ⇒★ 改: **每个** wired 分支都要在（逐个数, 不是任一命中）
+    n_wired_branch = src.count("if not wired:")
+    assert n_wired_branch >= 2, (
+        "★ 两个同源 blocker 必须**各自**有 wired 分支（当前只 %d 个）"
+        " —— 少一个就可能状态不一致（R42 那个 bug）" % n_wired_branch)
+    # ★ 且**行为**断言仍要（不只查字符串）: wired=False ⇒ blocker 回来
     old = ev.prune_blockers
-    ev.prune_blockers = lambda: []
+    real_glob = ev._glob4wired.glob
+    ev._glob4wired.glob = lambda *a, **k: []   # 查不到 ⇒ wired=False
     try:
-        with pytest.raises(ValueError) as ex:
-            prune_targets(acc, enabled=True)
-        assert "不许用默认 0" in str(ex.value)
+        b = ev.prune_blockers()
+        assert b, "★ 断线时**必须**报 blocker（否则 = 静默）"
+        assert any("接线" in x for x in b)
+        # ★ 数量: 两个同源分支 ⇒ **两条都报**（不是只报一条）
+        assert len(b) >= 2, \
+            "★ 同源两条都该报（R42 的教训: 只报一条会自相矛盾），实得 %d" % len(b)
     finally:
+        ev._glob4wired.glob = real_glob
         ev.prune_blockers = old
 
+def test_prune_disabled_by_default_and_refuses_even_when_forced():
+    """★★★★ ℬ_t **默认关**；不静默（说了为什么关）。
+
+    ★★ 状态演化 —— 这条测试的**意图**变了（R44 接线后 blockers 清空）:
+      · R40–R42: 有 2 条硬 blocker ⇒ 「强开也会拒」是当时的核心保证
+      · R44: **接线完成 ⇒ blockers = 0** ⇒ 强开**应该成功**（那是里程碑）
+    ⇒ ⇒★ 所以断言从「blockers 非空」改成「**默认关 + 关的理由在**」:
+      · 「非空」不再是保证 —— 没 blocker 时还要求非空 = 逼它编一个 blocker
+      · ★ 真正的保证是: `enabled` 默认 False **且**返回里说了为什么
+    """
+    acc = [{"component": "skill"}]
+    r = prune_targets(acc)
+    assert r["enabled"] is False and r["targets"] == [], \
+        "★ 默认必须关（不擅自启用剪枝）"
+    # ★ 关了就得说为什么（不许只回 {"enabled": False} 就完事）
+    assert r.get("why"), "★ 默认关必须给理由（否则 = 静默跳过）"
+    assert "默认关闭" in r["why"]
+    # ★ blockers 字段在（即使为空 —— 契约不许少字段）
+    assert "blockers" in r, "★ blockers 字段必须在（契约）"
+    # ★★ R44 后: blockers **应该为空**（接线完成）
+    assert r["blockers"] == [], \
+        "★ R44 已接线 ⇒ 默认调用不该带 blocker，实得 %s" % r["blockers"]
+    # ★ 强开 + blockers 为空 + 给了组件级 gains ⇒ **应该成功**
+    #   （那是 R44 的里程碑: ℬ_t 真能用了）
+    r2 = prune_targets(acc, gains_by_component={"skill": -0.5}, enabled=True)
+    assert r2["enabled"] is True, \
+        "★ blockers 已清 ⇒ 强开应成功（R44 接线的意义）"
+    assert r2["targets"] == ["skill"], "★ 可编辑 + 增益<0 ⇒ 被剪"
+    # ★ 但**没给组件级 gains** 仍必须 raise（不许 0 充数 —— 会全剪）
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        prune_targets(acc, enabled=True)
 
 def test_prune_uses_intersection_not_union_k5():
     """★★★ K5: ℬ_t 必须用**交集** 𝒯_t ∩ 𝒦_editable（不是并集）。

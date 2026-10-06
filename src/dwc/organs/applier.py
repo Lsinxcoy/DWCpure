@@ -55,6 +55,12 @@
 
 from __future__ import annotations
 import datetime
+# ★★★ R44: 我加 `_record_liquidity` 时用了 os/io 却**没 import**
+#   （同族第 5 次「用了没引」—— 前 4 次: evolver 的 os ×2、
+#    os.path→os.join、applier 这次）
+#   ⇒ ⇒★ 教训: 加函数时先 grep 它用的模块在不在 import 区
+import io
+import os
 # ★★★★ TRUTH_SOURCE（判据 G2）
 #   ★★ 本模块**不判分** ⇒ 它没有真值源
 #   ★★ 它产出的是「是否落地 / 是否回滚」的状态，而**分数**由 judge 算
@@ -541,11 +547,57 @@ class Applier:
         return res
 
     # ── 判据 3 · 窗口（不立即生效）──
+    def _record_liquidity(self, component, hypothesis, diff,
+                          delta_s, delta_c, round_no, is_winner,
+                          proposal_id) -> Dict[str, Any]:
+        """★★★ R44 · 把结算结果记进 ℒ_t（式10）—— 接线点。
+
+        ★ 三态（**不许只有"记了"和"静默"两种**）:
+          · 记了      —— 三标签齐 + ΔS/ΔC 有值 ⇒ 落 record_edit
+          · 明确未记  —— 缺标签/缺轮次 ⇒ {"recorded": False, "why": …}
+          · 出错      —— record_edit 的 ValueError **向上抛**（不吞）
+        ★★★ 缺轮次也拒记: 式10 的 t_i 是**轮次**，编一个会污染
+          g_t 的历史窗口（`now − t_i ≤ window` 因此算错）
+        """
+        from dwc.organs.evolver import LIQUIDITY_PATH, record_edit
+        if component is None or hypothesis is None:
+            return {"recorded": False,
+                    "why": ("★ 三标签缺一（ℓ=%r h=%r）⇒ 归因不成立 ⇒ 不记"
+                            % (component, hypothesis)),
+                    "proposal_id": proposal_id}
+        if round_no is None:
+            return {"recorded": False,
+                    "why": ("★ 缺 round_no（式10 的 t_i）⇒ 编轮次会污染"
+                            "g_t 的历史窗口 ⇒ 不记"),
+                    "proposal_id": proposal_id}
+        liq: List[Dict[str, Any]] = []
+        if os.path.exists(LIQUIDITY_PATH):
+            for ln in io.open(LIQUIDITY_PATH,
+                              encoding="utf-8", errors="replace"):
+                ln = ln.strip()
+                if ln:
+                    try:
+                        liq.append(json.loads(ln))
+                    except Exception:
+                        # ★ 不吞 —— 坏行不许静默污染整条链（记下跳过）
+                        pass
+        rec = record_edit(
+            liq, round_no, component, hypothesis, diff or "",
+            delta_s, delta_c, is_winner, path=LIQUIDITY_PATH)
+        return {"recorded": True, "record": rec,
+                "path": os.path.basename(LIQUIDITY_PATH),
+                "proposal_id": proposal_id}
+
     def window_settle(self, proposal_id: str, steps: int,
                       base_score: Optional[float],
                       current_score: Optional[float],
                       scorer_resolution: Optional[float] = None,
-                      min_gain: float = 0.0) -> Dict[str, Any]:
+                      min_gain: float = 0.0,
+                      component: Optional[str] = None,
+                      hypothesis: Optional[str] = None,
+                      diff: Optional[str] = None,
+                      cost_delta: Optional[float] = None,
+                      round_no: Optional[int] = None) -> Dict[str, Any]:
         """★ 窗口末结算（判据 3 + 母巢失败 1/2 的修正）。
 
         ★★★ 母巢失败 1 的修正（原文: 「base 必须打老配置，
@@ -587,13 +639,24 @@ class Applier:
             return out
         # ★ 窗口已满 ⇒ 可以结算
         gain = current_score - base_score
+        verdict = "keep" if gain > min_gain else "revert"
         out.update({
             "settled": True,
-            "base_score": base_score, "current_score": current_score,
+            "base_score": base_score,
+            "current_score": current_score,
             "gain": gain, "min_gain": min_gain,
-            "verdict": ("keep" if gain > min_gain else "revert"),
+            "verdict": verdict,
             "★": ("gain = current − base；★ base 必须是**老配置**的分"
                   "（母巢失败 1: 自己减自己 = 0）")})
+        # ★★★★★ R44 · 接线 ℒ_t（式10）—— 从此**有数据**（不再是"没接线"）
+        #   ℓ=component · h=hypothesis · d=diff（Proposal 三个标签）
+        #   a_i = 1 ⟺ verdict == keep（论文: "成为该轮赢家"）
+        #   ΔS_i = gain · ΔC_i = cost_delta（**不许 0 充数** ⇒ record_edit 拒）
+        #   ★ 缺任一标签/轮次 ⇒ **明确报未记**（不静默 —— G7 纪律）
+        out["liquidity"] = self._record_liquidity(
+            component=component, hypothesis=hypothesis, diff=diff,
+            delta_s=gain, delta_c=cost_delta, round_no=round_no,
+            is_winner=(verdict == "keep"), proposal_id=proposal_id)
         return out
 
     def stats(self) -> Dict[str, Any]:

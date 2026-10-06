@@ -984,3 +984,48 @@ def test_retire_raises_when_delete_fn_is_weak():
         ap.retire_rule(t, key, "r", {"success": False}, _check)
     assert "delete 未生效" in str(e.value)
     assert key in st, "★★★ 键还在（值 None）—— 那正是要拦的垃圾条目"
+
+def test_liquidity_wired_on_settle(tmp_path):
+    """★★★★★ R44 · 接线 ℒ_t（式10）—— 结算时真的记进历史。
+
+    ★ 这是「接线」的**唯一证据**: 没有它, `record_edit` 只是"有结构没数据"
+    """
+    import json as _json
+    from dwc.organs import evolver as _ev
+    p = str(tmp_path / "liq.jsonl")
+    _ev.LIQUIDITY_PATH = p          # ★ 用可清理的临时文件
+    ap = Applier(window=1)
+    # ① 三标签齐 + 有 ΔS/ΔC ⇒ 记（a_i 按 verdict）
+    r = ap.window_settle("p1", 1, 0.4, 0.7, scorer_resolution=0.1,
+                         component="skill", hypothesis="h1", diff="patch A",
+                         cost_delta=0.05, round_no=1)
+    assert r["liquidity"]["recorded"] is True
+    assert r["liquidity"]["record"]["a_i"] == 1, "★ keep ⇒ a_i=1"
+    assert r["liquidity"]["record"]["ℓ_i"] == "skill"
+    rows = [_json.loads(l) for l in open(p, encoding="utf-8") if l.strip()]
+    assert len(rows) == 1 and rows[0]["t_i"] == 1
+    # ② 缺标签 ⇒ **明确未记**（不静默）
+    r2 = ap.window_settle("p2", 1, 0.4, 0.7, scorer_resolution=0.1,
+                          component=None, hypothesis="h", diff="d",
+                          cost_delta=0.0, round_no=1)
+    assert r2["liquidity"]["recorded"] is False
+    assert "归因不成立" in r2["liquidity"]["why"]
+    # ③ 缺轮次 ⇒ 明确未记（编轮次会污染 g_t 窗口）
+    r3 = ap.window_settle("p3", 1, 0.4, 0.7, scorer_resolution=0.1,
+                          component="skill", hypothesis="h", diff="d",
+                          cost_delta=0.0, round_no=None)
+    assert r3["liquidity"]["recorded"] is False
+    # ④ revert ⇒ a_i=0（过了但输分 = "admissible but lost"）
+    r4 = ap.window_settle("p4", 1, 0.5, 0.5, scorer_resolution=0.1,
+                          component="prompt", hypothesis="h4", diff="d",
+                          cost_delta=0.0, round_no=2)
+    assert r4["liquidity"]["record"]["a_i"] == 0
+    # ⑤ 不传新参数（**旧调用点兼容**）⇒ 不炸 + 明确未记
+    r5 = ap.window_settle("p5", 1, 0.4, 0.7, scorer_resolution=0.1)
+    assert r5["settled"] is True and r5["liquidity"]["recorded"] is False
+    # ⑥ ΔC=None ⇒ **向上抛**（不许 0 充数）
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        ap.window_settle("p6", 1, 0.4, 0.7, scorer_resolution=0.1,
+                         component="skill", hypothesis="h", diff="d",
+                         cost_delta=None, round_no=1)

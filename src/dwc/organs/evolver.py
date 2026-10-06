@@ -310,8 +310,15 @@ import os as _os4path  # noqa: E402
 import glob as _glob4wired  # noqa: E402
 
 #: ★ 归档落点（式10 的持久化位置 —— 与 RULES 分开: 那是规则, 这是历史）
+#: ★★★ R44 修: 我 R42 写成 dirname×2 ⇒ 算出 `src/dwc/config/anchors/`
+#:   （目录不存在, 接线前没暴露）—— 而 `LEARNED_PATH` 用的是
+#:   dirname×4 + abspath ⇒ `E:/…/config/anchors/rules.json` ✓
+#:   ⇒ ⇒★ 我 R42 注释刚写过「照抄原样别顺手改路径写法」，**第 3 次没照抄**
+#:     （同族: ① os 引用先于 import ② os.path→os.join ③ 这次层数少）
+#:   ⇒ 现在**逐字照抄** LEARNED_PATH 的写法（只换文件名）
 LIQUIDITY_PATH = _os4path.path.join(
-    _os4path.path.dirname(_os4path.path.dirname(__file__)),
+    _os4path.path.dirname(_os4path.path.dirname(_os4path.path.dirname(
+        _os4path.path.dirname(_os4path.path.abspath(__file__))))),
     "config", "anchors", "liquidity.jsonl")
 
 
@@ -343,6 +350,10 @@ def record_edit(liquidity: List[Dict[str, Any]], round_no: int, component: str,
            "a_i": 1 if is_winner else 0}
     liquidity.append(rec)
     if path:
+        # ★ 照 LEARNED_PATH/land_rule 的做法: 目录不存在就建（否则炸）
+        d = os.path.dirname(path)
+        if d and not os.path.isdir(d):
+            os.makedirs(d, exist_ok=True)
         with io.open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return rec
@@ -542,14 +553,14 @@ def prune_blockers() -> List[str]:
     if not wired:
         out.append("ℒ_t **没接线**: 式10 的 `record_edit` 已实现但**无调用点**"
                    "（只有结构没数据）⇒ 𝒯_t/g_t 仍无真源（只有近似）")
-    # ② ★ R42 更新: g_t **已实现**（式11 `gain()` = max, max∅=−∞）
-    #   且量化阶梯的灾难**已由裁决 A 缓解**（`≤0` → `<0`）
-    #     · ΔS_i 若因阶梯恒 0 ⇒ max{0}=0 ⇒ `<0` 不成立 ⇒ **不剪** ✓
-    #     · 有负增益记录 ⇒ 剪 ✓ ⇒ 语义已自洽
-    #   ⇒ ⇒★ 所以 (b) 降级为: **只缺接线**（与 ① 同源）
-    out.append("g_t(ℓ) 已实现（式11 max）但**没接线**（与 ① 同一缺口: "
-               "record_edit 无调用点 ⇒ 无真实 ΔS_i 记录）；"
-               "量化阶梯灾难已由裁决 A 缓解（`<0` 不误剪零增益）")
+    # ② ★ R44 更新: g_t 已实现 + 量化阶梯已由裁决 A 缓解 + **已接线**
+    #   ⇒ 与 ① **同源同一个 wired 判定** —— 接线后**两条一起消失**
+    #   ★★ R42 我把 ② 写成**无条件 append** ⇒ ① 清了 ② 还在（状态不一致）
+    #     ⇒⇒ ⇒★ 教训: 同源的 blocker 必须**同一个开关**（否则会自相矛盾）
+    if not wired:
+        out.append("g_t(ℓ) 已实现（式11 max）但**没接线**（与 ① 同一缺口: "
+                   "record_edit 无调用点 ⇒ 无真实 ΔS_i 记录）；"
+                   "量化阶梯灾难已由裁决 A 缓解（`<0` 不误剪零增益）")
     return out
 
 
@@ -800,8 +811,54 @@ class Proposal:
             raise EvolverError(
                 "★ rationale 必填 —— 不许『看着办』"
                 "（约束 4: 变更可归因 ⇒ 必须说清依据）")
+        # ★★★ R44: 约束 4 的**实际**拦截（docstring 声称过但一直没实现）
+        self._assert_single_change()
         self.is_structural = self.component in STRUCTURAL
         self.created_at = self.created_at or time.time()
+
+    def _assert_single_change(self) -> None:
+        """★★★★ R44 · 约束 4「一个提案只改一处」的**实际**实现。
+
+        ★★ 声称 vs 实测（R44 核出）:
+          docstring 原写「所以我**加了** `_assert_single_change()` 在构造时就拦」
+          ⇒⇒ 而全库实测: **只有那句 docstring**（函数不存在）
+          module docstring L34 也说「本模块硬性限制: 一个提案只改一处」
+          ⇒⇒ ⇒★ 声称有、**实现 0** —— 约束 4 根本没被强制
+          ⇒ 而它正是**归因的前提**（2606.09498: 「一簇对应一处干预」，
+            若多处 ⇒ 任何测量都无法归因）
+          ⇒ ⇒★ 所以接线 ℒ_t（R42）前必须先补它 —— 否则 ℒ_t 记的是
+            「**假定**单变更」，归因是空的
+
+        ★★★ 判据依据（**用实测数据定，不拍脑袋**）:
+          · 实测 target 5 个全为**单标识/路径**（fibonacci / config/…/dev.json）
+            ⇒ 多处的形态是: 含 `,` `;` 换行（多值/多语句/多目标）
+          · 实测 patch 5 个全为**单行表达式**
+            ⇒ 多处的形态是: 多个 `@@`（diff 多 hunk）
+          ★★ **多行 patch 是合法的**（改一个函数的多行 = 还是**一处**）
+            ⇒ 所以**不禁换行**，只禁「多个 diff 头」
+        """
+        t = str(self.target or "")
+        p = str(self.patch or "")
+        # ① target 必须是**单个**目标（不含多值/多语句分隔）
+        if not t.strip():
+            raise EvolverError("★ target 必填（单变更约束: 得有个确定的目标）")
+        for sep, what in ((",", "多个目标(逗号分隔)"), (";", "多条语句(分号)")):
+            if sep in t:
+                raise EvolverError(
+                    "★ 约束 4: target 含 %s = **多处变更** (%r) ⇒ 无法归因 "
+                    "（2606.09498「一簇对应一处干预」）" % (what, t[:50]))
+        if "\n" in t or "\r" in t:
+            raise EvolverError(
+                "★ 约束 4: target 含换行 = 指向多处 (%r)" % t[:50])
+        # ② patch: 多个 diff 头 = 多 hunk（多处）；**多行本身合法**
+        n_hunks = p.count("@@")
+        if n_hunks > 1:
+            raise EvolverError(
+                "★ 约束 4: patch 含 %d 个 `@@`(多 hunk) = **多处变更** "
+                "⇒ 测量无法归因；一处干预只需一个 hunk" % n_hunks)
+        # ③ 空 patch（什么都改不了）也拒
+        if not p.strip():
+            raise EvolverError("★ patch 必填 —— 空 patch = 没有干预")
 
     def key(self) -> str:
         """★ 提案指纹（去重 + 可归因）。"""
