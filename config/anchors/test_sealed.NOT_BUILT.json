@@ -1,0 +1,7 @@
+{
+ "★ 未落地": true,
+ "why": "2607.12790 §2.2: test 是**locked** split，『no part of metric evolution reads it』 ⇒⇒ 而 DWC 现在还没有独立于 dev 的 test 集",
+ "JUDGE_DESIGN §4.5": "★『test 锁定任务: 必须另建』—— 还没建",
+ "★★ 绝不能怎么做": "★★ 绝不能用 dev 的副本冒充 test —— 那会让『测试集』与『训练可见的锚点集』是同一批数据 ⇒ 回归检测形同虚设（因为分子分母都来自同一处，改了哪边都算过）",
+ "落地条件": "需要一批**独立编写**的断言（有 golden reference）"
+}

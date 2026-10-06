@@ -1,0 +1,237 @@
+{
+ "code_fix_001": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 sum_first_n 函数中的 off-by-one 错误，使其计算 1 到 n 的和",
+  "verifier_kind": "behavior",
+  "expected_behavior": "sum_first_n(3)==6 and sum_first_n(5)==15",
+  "checks": [
+   {
+    "fn": "sum_first_n",
+    "args": "3",
+    "expected": "6"
+   },
+   {
+    "fn": "sum_first_n",
+    "args": "5",
+    "expected": "15"
+   }
+  ]
+ },
+ "code_fix_002": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 average 函数，空列表返回 0.0 不抛异常",
+  "verifier_kind": "behavior",
+  "expected_behavior": "average([])==0.0 and average([1,2,3])==2.0",
+  "checks": [
+   {
+    "fn": "average",
+    "args": "[]",
+    "expected": "0.0"
+   },
+   {
+    "fn": "average",
+    "args": "[1,2,3]",
+    "expected": "2.0"
+   }
+  ]
+ },
+ "code_fix_003": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 factorial 函数的无限递归，使其正确计算阶乘",
+  "verifier_kind": "behavior",
+  "expected_behavior": "factorial(5)==120 and factorial(0)==1",
+  "checks": [
+   {
+    "fn": "factorial",
+    "args": "5",
+    "expected": "120"
+   },
+   {
+    "fn": "factorial",
+    "args": "0",
+    "expected": "1"
+   }
+  ]
+ },
+ "code_fix_004": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "实现 fibonacci 函数，返回第 n 个斐波那契数（fib(0)=0, fib(1)=1）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "fibonacci(0)==0 and fibonacci(1)==1 and fibonacci(10)==55",
+  "checks": [
+   {
+    "fn": "fibonacci",
+    "args": "0",
+    "expected": "0"
+   },
+   {
+    "fn": "fibonacci",
+    "args": "1",
+    "expected": "1"
+   },
+   {
+    "fn": "fibonacci",
+    "args": "10",
+    "expected": "55"
+   }
+  ]
+ },
+ "code_fix_005": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "实现 is_palindrome 函数，判断字符串是否为回文（忽略大小写）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "is_palindrome('Racecar')==True and is_palindrome('hello')==False",
+  "checks": [
+   {
+    "fn": "is_palindrome",
+    "args": "'Racecar'",
+    "expected": "True"
+   },
+   {
+    "fn": "is_palindrome",
+    "args": "'hello'",
+    "expected": "False"
+   }
+  ]
+ },
+ "code_fix_006": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "实现 reverse_string 函数，反转字符串",
+  "verifier_kind": "behavior",
+  "expected_behavior": "reverse_string('abc')=='cba' and reverse_string('')=='",
+  "checks": [
+   {
+    "fn": "reverse_string",
+    "args": "'abc'",
+    "expected": "'cba'"
+   }
+  ]
+ },
+ "reasoning_001": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "解释为什么快速排序最坏时间复杂度是 O(n²)，要求提到 pivot 和递归深度",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "expected_keywords": [
+   "pivot",
+   "递归",
+   "最坏"
+  ],
+  "checks": [
+   {
+    "kw": "pivot"
+   },
+   {
+    "kw": "递归"
+   },
+   {
+    "kw": "最坏"
+   }
+  ]
+ },
+ "reasoning_002": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "什么是 CAP 定理？三个属性分别是什么？",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "expected_keywords": [
+   "一致性",
+   "可用性",
+   "分区容错"
+  ],
+  "checks": [
+   {
+    "kw": "一致性"
+   },
+   {
+    "kw": "可用性"
+   },
+   {
+    "kw": "分区容错"
+   }
+  ]
+ },
+ "reasoning_003": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "解释 TCP 三次握手的过程，以及为什么需要三次而不是两次",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "expected_keywords": [
+   "SYN",
+   "ACK",
+   "三次",
+   "握手"
+  ],
+  "checks": [
+   {
+    "kw": "SYN"
+   },
+   {
+    "kw": "ACK"
+   },
+   {
+    "kw": "三次"
+   },
+   {
+    "kw": "握手"
+   }
+  ]
+ },
+ "reasoning_004": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "什么是数据库索引？为什么 B+ 树比二叉搜索树更适合数据库索引？",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "expected_keywords": [
+   "索引",
+   "B+树",
+   "平衡",
+   "磁盘"
+  ],
+  "checks": [
+   {
+    "kw": "索引"
+   },
+   {
+    "kw": "B+树"
+   },
+   {
+    "kw": "平衡"
+   },
+   {
+    "kw": "磁盘"
+   }
+  ]
+ },
+ "_provenance": {
+  "derived_from": "E:/ARSI/config/sealed_tasks.yaml",
+  "derived_at": "2026-10-05",
+  "why": "JUDGE_DESIGN §4.5: 『DWC 起步: 复用 ARSI sealed_tasks 15 条』· 而 dev 要恒小（2607.12790 原文 dev 恒为 10 条）⇒ 取前 10",
+  "★ 这是复制而非引用": "GAI §2.2 grounded 条件②『base 本身在 agent 外』：若指向 E:/ARSI，agent 能写那个路径 ⇒ grounded 不成立",
+  "★ 只增不改": "2606.14249 守门人单调性：只能加新探针，不能删旧探针",
+  "★ 排除的": {
+   "n": 0,
+   "ids": [],
+   "why": "★ 这几条在 ARSI 源文件里就没有可执行判据（expected_behavior 残缺/为空）⇒ 留着会让 judge 判不了，却混在真值源里⇒ ⇒ 一并排除并如实登记",
+   "★ 该怎么修": "回 ARSI 补齐判据，或在 DWC 另写（但那是新探针，要记）"
+  },
+  "★ 修正记录": [
+   "code_fix_006 的 expected_behavior 在 ARSI 源文件里就是残缺的：`reverse_string('')=='`（字符串未闭合）⇒ 第二段断言无法执行 ⇒ 已剔除该段",
+   "★ 这不是我的解析问题，是**上游数据缺陷** —— 应回 ARSI 补齐",
+   "⇒ 若剔除后该任务 checks 为空 ⇒ 整个任务从 dev 移除（留着等于判不了却混在真值源里）",
+   "code_fix_006 第二段 expected 为 \"'\"（引号未闭合 ⇒ 字符串残缺）⇒ 判定方式: 引号数为奇数 ⇒ 不可执行 ⇒ 剔除"
+  ],
+  "n_excluded": 0,
+  "excluded_ids": []
+ }
+}
