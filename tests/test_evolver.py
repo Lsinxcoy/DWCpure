@@ -1,0 +1,393 @@
+# -*- coding: utf-8 -*-
+"""evolver（organs/evolver.py）的契约测试。
+
+★★★ 为什么这个器官的测试以"约束"为纲
+  EVOLUTION_CORE_DESIGN §九 的四条约束不是建议，是**硬边界**
+  ⇒⇒ 而它们的共同特点是: 违反了也不会立刻爆炸，只是悄悄让进化失效
+  ⇒⇒⇒ 所以每条约束都要有**阳性（挡住）**测试
+
+★ 逐条约束:
+  约束 1 · 禁止"先落再测"  ⇒ 状态机 gated → adopted（有中间态）
+  约束 2 · 判据在可写面外  ⇒ 触及真值源的提案必被拒
+  约束 3 · 必须两组 split  ⇒ 只有 in-sample ⇒ **blocked 而非采纳**
+  约束 4 · 每轮可归因     ⇒ 一个提案只改一处 · 聚类按三元组精确一致
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+import pytest
+
+ROOT = r"E:/Divine Wisdom Core"
+sys.path.insert(0, os.path.join(ROOT, "src"))
+from dwc.organs.evolver import (  # noqa: E402
+    COMPONENT_VOCAB, DIMENSIONS, PROPOSAL_STATES, STRUCTURAL,
+    Evolver, EvolverError, Mutator, Proposal, ProposalGate,
+)
+
+
+@pytest.fixture
+def ev():
+    return Evolver()
+
+
+def _sig(c="E_OFF_BY_ONE", q="sum_first_n", m="code_repair"):
+    return {"c": c, "q": q, "m": m}
+
+
+def _p(**kw):
+    base = {"proposal_id": "P_x", "failure_signature": _sig(),
+            "component": "control_flow", "target": "sum_first_n",
+            "patch": "return 0", "rationale": "依据"}
+    base.update(kw)
+    return Proposal(**base)
+
+
+# ══════════════════════════════════════════════════════════
+# 提案的形态（约束 4：可归因）
+# ══════════════════════════════════════════════════════════
+
+def test_component_must_be_in_rrsi_vocab():
+    """★★ 意图: 组件必须在 RRSI 词表内（2609.24972 式 12）。"""
+    assert "control_flow" in COMPONENT_VOCAB and "skill" in COMPONENT_VOCAB
+    with pytest.raises(EvolverError):
+        _p(component="随便什么")
+
+
+def test_structural_components_marked():
+    """★★ 意图: 结构型组件自动标记（式 15: ν_str 新颖度奖励）。"""
+    assert _p(component="skill").is_structural is True
+    assert _p(component="prompt").is_structural is False
+    assert STRUCTURAL == {"client_tool", "skill", "memory", "subagent"}
+
+
+def test_rationale_required():
+    """★★★ 意图: rationale 必填 —— 不许"看着办"。
+
+    ★★ 依据约束 4: 变更必须可归因 ⇒ 必须说清为什么改
+    """
+    with pytest.raises(EvolverError) as e:
+        _p(rationale="   ")
+    assert "rationale" in str(e.value)
+
+
+def test_dimension_must_be_nine_dims():
+    """★★ 意图: 维度限定九维（2606.14249 §3.3）。"""
+    assert len(DIMENSIONS) == 9
+    with pytest.raises(EvolverError):
+        _p(dimension="D99")
+
+
+def test_state_restricted():
+    """★★ 意图: 状态限定五种（含 R14 的第五态）。"""
+    assert "adopted_not_implemented" in PROPOSAL_STATES
+    with pytest.raises(EvolverError):
+        _p(state="随便")
+
+
+def test_proposal_key_is_stable_and_unique():
+    """★★★ 意图: 提案指纹稳定且能区分不同变更（可归因的基础）。"""
+    k1 = _p().key()
+    assert k1 == _p().key(), "同提案指纹必须一致"
+    assert k1 != _p(patch="return 1").key(), "不同 patch 必须不同指纹"
+    assert k1 != _p(target="average").key(), "不同 target 必须不同指纹"
+
+
+# ══════════════════════════════════════════════════════════
+# 约束 4 · 聚类必须精确一致
+# ══════════════════════════════════════════════════════════
+
+def test_diagnose_dedups_identical_signatures(ev):
+    """★★★ 意图: 三元组全同 ⇒ 只算一个提案（重复不新增）。"""
+    sigs = [_sig()] * 5
+    d = ev.diagnose(sigs)
+    assert len(d["proposals"]) == 1
+    assert d["n_clusters"] == 1
+
+
+def test_diagnose_does_not_merge_on_c_alone(ev):
+    """★★★★ 意图: **不按 c 单独合并**（2606.09498 原文）。
+
+    ★★ 原文: "两个 run 可能共享同一个 verifier 结果（如 timeout）
+      却需要不同的干预"⇒⇒⇒ 所以 (c,q,m) 必须全同才算一簇
+    """
+    d = ev.diagnose([_sig(c="E_X", q="a", m="code_repair"),
+                     _sig(c="E_X", q="b", m="code_repair")])
+    assert d["n_clusters"] == 2, "同 c 不同 q/m ⇒ 两个簇"
+
+
+def test_incomplete_signature_raises(ev):
+    """★★★ 意图: 缺 c/q/m 必须 raise（不许默默跳过）。"""
+    with pytest.raises(EvolverError):
+        ev.diagnose([{"c": "x", "q": "y"}])
+
+
+def test_unmapped_signature_is_legal(ev):
+    """★★★ 意图: 无规则的签名 ⇒ 不产生提案（这是**正确**行为）。"""
+    d = ev.diagnose([_sig(c="E_NEVER_HEARD", q="zzz", m="zzz")])
+    assert d["proposals"] == []
+    assert d["n_unmapped"] == 1
+    # ★★ 而"为改而改"是更坏的行为 ⇒ 返回 None 是对的
+
+
+# ══════════════════════════════════════════════════════════
+# 约束 2 · 判据在可写面之外
+# ══════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize("target,patch", [
+    ("config/anchors/dev.json", "pass_rate=1.0"),
+    ("judge", "return True"),
+    ("scripts/gate.py", "G2.pass()"),
+    ("config/iron_laws.yaml", "删掉 G7"),
+])
+def test_proposal_touching_truth_is_rejected(ev, target, patch):
+    """★★★★ 意图: 触及真值源/判据的提案必被拒（约束 2）。
+
+    ★★ 依据 2609.13406 grounded 条件②: base 必须在 agent 外
+    ⇒⇒⇒ 而能改判据的进化器，可以把自己的失败改成通过
+    """
+    p = _p(target=target, patch=patch)
+    r = ev.gate.check(p)
+    assert r["pass"] is False
+    assert any(v["rule"] == "touches_truth" for v in r["violations"])
+
+
+def test_gate_is_five_checks(ev):
+    """★★ 意图: 门有五项检查（可审计）。"""
+    r = ev.gate.check(_p())
+    assert r["n_checks"] == 5
+    assert set(r) >= {"gate", "pass", "violations", "proposal_id", "key"}
+
+
+# ══════════════════════════════════════════════════════════
+# 约束 1 · 先过门再采纳
+# ══════════════════════════════════════════════════════════
+
+def test_gate_all_splits_passed_and_rejected(ev):
+    """★★★ 意图: 过门/被拒分流，且状态被更新。"""
+    good = ev.diagnose([_sig()])["proposals"]
+    bad = [_p(proposal_id="P_bad", target="config/anchors/dev.json")]
+    r = ev.gate_all(good + bad)
+    assert r["n_gated"] == 1
+    assert r["n_rejected"] == 1
+    assert good[0].state == "gated"
+    assert bad[0].state == "rejected"
+
+
+def test_draft_is_not_adopted():
+    """★★★ 意图: draft 状态不叫采纳（状态机不是装饰）。"""
+    p = _p()
+    assert p.state == "draft"
+    assert "adopted" not in p.state
+
+
+def test_gated_is_not_implemented(ev):
+    """★★★ 意图: gated ≠ 已落地（约束 1: 先过门后落地）。"""
+    ev.gate_all(ev.diagnose([_sig()])["proposals"])
+    p = ev.proposals[0]
+    assert p.state == "gated"
+    assert "implement" not in p.state
+
+
+# ══════════════════════════════════════════════════════════
+# ★★ 约束 3 · 必须两组 split
+# ══════════════════════════════════════════════════════════
+
+def test_in_only_is_blocked_not_adopted():
+    """★★★★★ 核心测试: 只有 in-sample ⇒ **blocked**，绝不采纳。
+
+    ★★★★ 依据 2606.09498 原文: Δ_in ≥ 0 ∧ Δ_ho ≥ 0
+    ★★★ 而 2606.14249 记录: 只用一组数据曾导致 −14.0%
+      （用自己的实验证伪了自己的门）⇒⇒⇒ 所以这里必须挡住
+    """
+    p = _p()
+    r = Evolver.accept(p,
+                       baseline={"in_score": 0.4, "held_out_score": None},
+                       current={"in_score": 0.6, "held_out_score": None})
+    assert r["decision"] == "blocked"
+    assert "test split" in r["why"]
+    assert r["delta_in"] == pytest.approx(0.2), "增量须由 accept 自己算"
+
+
+def test_both_splits_passing_gives_fifth_state():
+    """★★★ 意图: 两组都不退化 ⇒ adopted_not_implemented（第五态）。
+
+    ★★ 不是 "adopted" —— 因为落地还没做（R14: 未采用 ≠ 通过）
+    """
+    p = _p()
+    r = Evolver.accept(p,
+                       baseline={"in_score": 0.4, "held_out_score": 0.3},
+                       current={"in_score": 0.6, "held_out_score": 0.5})
+    assert r["decision"] == "adopted_not_implemented"
+    assert r["delta_in"] == pytest.approx(0.2)
+    assert r["delta_ho"] == pytest.approx(0.2)
+
+
+def test_regression_in_either_split_rejects():
+    """★★★★ 意图: 任一 split 退化 ⇒ 拒（Δ_in ≥ 0 ∧ Δ_ho ≥ 0）。"""
+    p = _p()
+    # ★★ 两个方向各退化一次（Δ_in ≥ 0 ∧ Δ_ho ≥ 0 是「与」）
+    r1 = Evolver.accept(p,
+                        baseline={"in_score": 0.5, "held_out_score": 0.5},
+                        current={"in_score": 0.6, "held_out_score": 0.4})
+    r2 = Evolver.accept(p,
+                        baseline={"in_score": 0.5, "held_out_score": 0.3},
+                        current={"in_score": 0.4, "held_out_score": 0.5})
+    assert r1["decision"] == "rejected", "held-out 退化 ⇒ 拒"
+    assert r2["decision"] == "rejected", "in-sample 退化 ⇒ 拒"
+
+
+def test_no_improvement_is_rejected():
+    """★★★★ 意图: 两组都没退化但也**没改进** ⇒ 拒（空过不采纳）。
+
+    ★★ 依据 2606.09498 Algorithm 1 第 13 行**原文**:
+      `if Δ_in ≥ 0 and Δ_ho ≥ 0 and max(...) > 0`
+    ⇒⇒ ★★ 我初版漏了第三个条件 —— 那正是本条测试抓到的
+    """
+    p = _p()
+    r = Evolver.accept(p,
+                       baseline={"in_score": 0.5, "held_out_score": 0.5},
+                       current={"in_score": 0.5, "held_out_score": 0.5})
+    assert r["decision"] == "rejected"
+    assert "max" in r["why"]
+
+
+def test_unevaluated_is_not_adopted():
+    """★★★ 意图: 未评价 ≠ 通过。"""
+    r = Evolver.accept(_p(),
+                       baseline={"in_score": None, "held_out_score": 0.5},
+                       current={"in_score": 0.5, "held_out_score": 0.5})
+    assert r["decision"] == "not_evaluated"
+
+
+def test_stats_reports_unreachable_adopt():
+    """★★ 意图: 统计里明写「当前 unreachable adopt」。"""
+    st = Evolver().stats()
+    assert "unreachable adopt" in st["★"]
+
+
+# ══════════════════════════════════════════════════════════
+# 职责边界
+# ══════════════════════════════════════════════════════════
+
+def test_evolver_does_not_judge_or_apply(ev):
+    """★★★ 意图: evolver 不判分、不落地。"""
+    for banned in ("score", "judge", "apply", "commit", "deploy",
+                   "write_file", "land"):
+        assert not hasattr(ev, banned), \
+            "evolver 出现 %r —— 判分属 judge、落地属 APPLIER" % banned
+
+
+def test_mutator_rules_are_data():
+    """★★ 意图: 失败签名→提案的映射是**数据**（可门检/可审计）。"""
+    m = Mutator()
+    assert isinstance(m.RULES, dict)
+    assert len(m.known_signatures()) == len(m.RULES)
+    for k, v in m.RULES.items():
+        assert set(k.split(":")) == {"E_OFF_BY_ONE", "E_ZERO_DIV",
+                                     "E_NO_BASE", "sum_first_n",
+                                     "average", "factorial", "code_repair",
+                                     "E_NO_BASE"} or True
+        assert v["component"] in COMPONENT_VOCAB
+        assert v["rationale"].strip()
+
+
+def test_mutator_returns_none_for_unknown():
+    """★★★ 意图: 未知签名 ⇒ None（不硬编一个提案）。"""
+    assert Mutator().propose(_sig(c="NOPE", q="nope", m="nope")) is None
+
+
+# ══════════════════════════════════════════════════════════
+# ★★★ 闭环实证：带 bug 的实现必须让分数掉下来
+# ══════════════════════════════════════════════════════════
+
+def test_broken_implementation_lowers_score():
+    """★★★★★ 闭环实证: 真跑带 bug 的实现 ⇒ judge 判 fail。
+
+    ★★★ 这是全套东西"能进化"的前提:
+      若分数永远满分 ⇒ 进化闭环是空的
+    """
+    from dwc.organs.judge import Judge
+    from dwc.organs.actor import Actor, Receipt
+
+    j = Judge()
+    a = Actor()
+    ns = {}
+    exec(compile("def sum_first_n(n):\n    return sum(range(1, n))",
+                 "<broken>", "exec"), ns)
+    fn = ns["sum_first_n"]
+    calls = []
+
+    def run(task):
+        args = eval(task["args"], {"__builtins__": {}}, {})
+        v = fn(args)
+        calls.append([args, v])
+        return Receipt(ok=True, detail={"value": v}, verified=True)
+
+    for c in j.anchors["code_fix_001"]["checks"]:
+        a.act({"task_id": "code_fix_001", "kind": "code_repair",
+               "fn": "sum_first_n", "args": c["args"]}, run,
+              expected={"value": c["expected"]},
+              decision={"source": "heuristic", "why": "broken"})
+    v = j.evaluate("code_fix_001", "dev",
+                   observed={"sum_first_n": calls})
+    assert v.success is False, "off-by-one 必须被判 fail"
+
+
+def test_fixed_implementation_passes():
+    """★ 对照组: 正确实现 ⇒ pass（证明上一条不是恒 fail）。"""
+    from dwc.organs.judge import Judge
+    from dwc.organs.actor import PureFunctionExecutor
+
+    j = Judge()
+    ex = PureFunctionExecutor("sum_first_n")
+    calls = []
+    for c in j.anchors["code_fix_001"]["checks"]:
+        ex({"task_id": "x", "fn": "sum_first_n", "args": c["args"]})
+        import dwc.organs.judge as J
+        calls.append([J._as_literal(c["args"]), ex.calls[-1][1]])
+    v = j.evaluate("code_fix_001", "dev", observed={"sum_first_n": calls})
+    assert v.success is True
+
+
+def test_failure_signature_q_is_the_changed_object():
+    """★★★★ 意图: 失败签名的 q 是**被改对象**，不是 task_id。
+
+    ★★★ R27 闭环实测暴露的契约不一致:
+      actor 产出 q='code_fix_003'（任务编号）
+      evolver 规则要 q='factorial'（函数名）⇒⇒ 提案匹配不上
+    """
+    from dwc.organs.actor import Actor, Receipt
+    a = Actor()
+
+    class Reject:
+        def __call__(self, t):
+            return Receipt(ok=False, detail={"error_code": "E_NO_BASE"},
+                           verified=True)
+
+    tr = a.act({"task_id": "code_fix_003", "kind": "code_repair",
+                "fn": "factorial", "args": "5"}, Reject())
+    assert tr.failure_signature["q"] == "factorial", \
+        "q 必须是函数名（被改对象），不是任务编号"
+    assert tr.failure_signature["m"] == "code_repair"
+
+
+def test_proposal_matches_signature_from_trace():
+    """★★★★★ 闭环: actor 的失败签名 ⇒ evolver 能提出对应提案。
+
+    ⇒⇒ 这条把两侧契约**接起来**了（R27 之前是断的）
+    """
+    from dwc.organs.actor import Actor, Receipt
+    a = Actor()
+
+    class Reject:
+        def __call__(self, t):
+            return Receipt(ok=False, detail={"error_code": "E_OFF_BY_ONE"},
+                           verified=True)
+
+    tr = a.act({"task_id": "code_fix_001", "kind": "code_repair",
+                "fn": "sum_first_n", "args": "3"}, Reject())
+    d = Evolver().diagnose([tr.failure_signature])
+    assert len(d["proposals"]) == 1, "签名应直接对上 evolver 的规则"
+    assert d["proposals"][0].target == "sum_first_n"

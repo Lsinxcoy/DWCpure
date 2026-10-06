@@ -330,9 +330,24 @@ class Actor:
     @staticmethod
     def _signature_from_receipt(rc: Receipt,
                                 task: Dict[str, Any]) -> Dict[str, str]:
+        """★★ R27 修正（闭环实测暴露）: q 必须是**被改对象**而非 task_id。
+
+        ★★★ 实测: 闭环跑起来后，evolver 的规则键对不上
+          · actor 产出 q = 'code_fix_003'（任务编号）
+          · evolver 规则要 q = 'factorial'（函数名）
+          ⇒⇒ ★★ 两者语义不一致 ⇒ 提案匹配不上 ⇒ 闭环断在诊断这一环
+
+        ★★ 依据（EVOLUTION_CORE_DESIGN §2.1 两篇原文）:
+          c_i : 终止级 verifier 原因
+          q_i : 相关 agent 行为的**因果状态** —— 即"哪个东西坏了"
+          m_i : trace 暴露出的**抽象 agent 机制** —— 即"哪类能力"
+        ⇒⇒ ⇒★ 所以 q = 被改对象（task 的 fn 字段），不是任务编号
+          ⇒★ 而 task_id 另有其位（Trace 自身有 task 上下文）
+        """
         c = str((rc.detail or {}).get("error_code", "executor_rejected"))
         return {"c": c,
-                "q": str(task.get("task_id", "unknown")),
+                "q": str(task.get("fn") or task.get("target")
+                         or "unknown_object"),
                 "m": str(task.get("kind", "unknown_action"))}
 
     @staticmethod
@@ -345,8 +360,10 @@ class Actor:
         ★ m = 抽象机制名（任务种类）
         ⇒ 格式与 D5 一致（ACTOR_DESIGN §3.3 的硬要求）
         """
+        # ★★ R27: 同上 —— q 是被改对象（见 _signature_from_receipt 的依据）
         return {"c": type(exc).__name__,
-                "q": str(task.get("task_id", "unknown")),
+                "q": str(task.get("fn") or task.get("target")
+                         or "unknown_object"),
                 "m": str(task.get("kind", "unknown_action"))}
 
     # ══════════════════════════════════════════════
