@@ -33,7 +33,9 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.organs.judge import Judge
 from dwc.organs.actor import (Actor, execute_task, build_implementation,
                               PureFunctionExecutor)
-from dwc.organs.evolver import Evolver, Mutator, Proposal, layer_of
+from dwc.organs.evolver import (
+    Evolver, Mutator, Proposal, layer_of, LIQUIDITY_PATH)  # ★ R44 加末尾
+  #   （模块级常量 —— 不在 Mutator 类里, 所以不能写 `_M.LIQUIDITY_PATH`）
 from dwc.organs.applier import Applier, Target, ApplierError
 from dwc.organs.candidates import CandidateGenerator
 
@@ -277,6 +279,17 @@ if _stale:
     print("    ★ 清上轮残留 %d 条: %s" % (len(_stale), _stale[:2]))
 if os.path.exists(_M.LEARNED_PATH):
     os.remove(_M.LEARNED_PATH)
+# ★★★ R44 · 同款清 ℒ_t（**与 rules 双保险**: 入口防上次中断的残留）
+#   否则我的接线验证会把**测试假数据**留在生产库里（R44 实测踩过）
+#   ★★★ 我改这条弄错**两层**（都记下来）:
+#     ① 第一版 `_ev.LIQUIDITY_PATH` —— e2e **没 import _ev**
+#        ⇒ 「用了没引」**同族第 6 次**，而同文件上半段刚写过这教训
+#     ② "修"的时候又换成 `_M.LIQUIDITY_PATH` —— `_M` 是 **Mutator 类**,
+#        `LIQUIDITY_PATH` 是**模块级**常量 ⇒ AttributeError
+#        ⇒ ⇒★ 教训: 「照抄现有别名」也要照抄**层级**（类属性 vs 模块级）
+#        ⇒ 正解: 在 L36 的 `from …evolver import …` 里**加一个名字**
+if os.path.exists(LIQUIDITY_PATH):
+    os.remove(LIQUIDITY_PATH)
     print("    ✓ learned 落盘整文件删除（保证从零）")
 assert _sig8_key not in _M.RULES, "★ 前置自清洁未生效"
 assert all(k in _M.RULES for k in _seed_snapshot), "★ 种子不许被清掉"
@@ -486,6 +499,13 @@ print("\n  ── 出口自清洁（回滚固化 + 清落盘）──")
 if sig_key in _M.RULES:
     ap.rollback("LAND:" + sig_key, tgt_rule)
     _M.persist_learned()
+# ★ R44 · 出口也清 ℒ_t（与入口双保险 —— 同 rules 的纪律）
+if os.path.exists(LIQUIDITY_PATH):
+    _liq_left = sum(1 for _l in io.open(LIQUIDITY_PATH,
+                                        encoding="utf-8") if _l.strip())
+    os.remove(LIQUIDITY_PATH)
+    print("  ℒ_t 自清洁: 清掉 %d 条测试记录 · 文件删=%s"
+          % (_liq_left, not os.path.exists(LIQUIDITY_PATH)))
 if os.path.exists(_M.LEARNED_PATH):
     left = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
     if not (left.get("learned") or {}):

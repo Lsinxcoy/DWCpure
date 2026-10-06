@@ -96,3 +96,9 @@ hot_chain/
 #   母巢的 HIVE_TOKEN 教训: 凭证一旦进 git 历史就洗不掉
 config/llm.json
 *.llm.json
+
+# ★★★ R44 · 运行时学习数据（e2e 每次生成又自清洁 ⇒ **不许进 git**）
+#   教训: 我 `git add -A` 时把接线验证的**测试假数据**提交了 2 条
+#   ⇒ ⇒★ rules.json 从未被跟踪（对的）, liquidity 那次是我 add -A 加错
+config/anchors/rules.json
+config/anchors/liquidity.jsonl
