@@ -89,6 +89,10 @@ class CandidateGenerator:
         self.rejected: Dict[str, str] = {}
         self.pool_limit = (pool_limit if pool_limit is not None
                            else self.MAX_POOL)
+        #: ★★★ R32 · 静默跳过的**痕迹**（G7 的盲区在补）
+        #:   ⇒ 编不过的候选仍不产出（不产垃圾），但**必须可审计**
+        self.n_syntax_rejected = 0
+        self.syntax_rejects: List[Dict[str, Any]] = []
 
     def key_of(self, c: "Candidate") -> str:
         """★ 候选身份（淘汰表用）—— patch + rule。"""
@@ -317,8 +321,19 @@ class CandidateGenerator:
             new_src = src[:m.start()] + expr + src[m.end():]
             try:
                 compile(new_src, "<cand>", "exec")
-            except SyntaxError:
-                continue        # ★ 编不过的不算候选（不产垃圾）
+            except SyntaxError as e:
+                # ★★★ R32: 我第一版这里是**静默 continue**（丢掉编不过的）
+                #   ⇒ G7 静默门**没抓到**它 —— 因为 G7 的判据是
+                #     `except\w*:\s*pass`（只匹配 pass，不匹配 continue）
+                #   ⇒⇒ ⇒★★ 也就是说 **G7 有字面量盲区**
+                #     （已记入诚实边界，判据改动需单独裁决）
+                #   ⇒ ⇒★ 而我 R31 用同一标准改过 judge 的 `except: pass`
+                #     ⇒ 这里就该**一致**处理: 计数 + 说明，不静默
+                self.n_syntax_rejected += 1
+                self.syntax_rejects.append(
+                    {"expr": expr, "rule": "R1_%s_%s" % (mode, where),
+                     "err": "%s: %s" % (type(e).__name__, e)})
+                continue        # ★ 仍不产垃圾，但**留下了痕迹**
             out.append(Candidate(
                 patch=self._body_of(new_src, fn),
                 source="deterministic",

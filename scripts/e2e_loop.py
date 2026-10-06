@@ -24,6 +24,7 @@ R30 · 端到端闭环 —— 五段一次跑完，分数必须真来自两端�
        ⇒★ 上次那两个是手工传的（gain=0.1 是假的）
 """
 import os, sys, json, traceback
+import subprocess
 # ★★ 以脚本位置定位仓库根（可从任意 cwd 跑）
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -232,6 +233,37 @@ for k in j.anchors:
             break
 assert T2, "★ dev 里找不到 %s 的任务（前提变了）" % LEARN_FN
 print("  任务: %s" % T2)
+
+# ★★★★ R32 · **进入场景时**自清洁（不是结束时）
+#   ★ 实测教训: 上一次跑因 CROSS_OK 的 NameError **中断** ⇒
+#     放在结尾的自清洁**没执行** ⇒ fibonacci 规则残留 ⇒
+#     这次开跑 `n_proposals=1` ⇒ 8b 的"应不在 RULES"前提炸
+#   ⇒⇒ ⇒★★ 结论: 自清洁必须在**用到前提之前**做
+#     —— 否则它防不住"上次异常中断"（而异常恰恰最可能留下脏状态）
+print("  ── 前置自清洁（确保从零学起）──")
+from dwc.organs.evolver import Mutator as _M   # ★ 提到这里（8g 之前就用）
+_sig8_key = "%s:%s:%s" % ("E_OFF_BY_ONE", "off_by_one_in_range", LEARN_FN)
+if _sig8_key in _M.RULES:
+    # ★★★★ R32 实测: 这里**不能**用 ap.rollback ——
+    #   那条规则是**上一个进程**落地的，本次 applier 没有它的 `_history`
+    #   ⇒ 实测 raise "无落地历史 ⇒ 无法回滚"
+    #   ⇒⇒ ⇒★★ 暴露持久化引入的**语义不对称**:
+    #     · rollback = 撤销**本次进程**的落地（有 history 才成立）
+    #     · 清理残留 = 删**上次进程**留下的（本次 history 里根本没有）
+    #   ⇒ ⇒★ 两者**不是一回事**，不该复用同一个操作
+    #   ⇒⇒ ⇒★ 而这还留了个缺口: 落地历史**不持久化** ⇒
+    #     跨进程无法"回滚上次的固化"（已记入诚实边界）
+    print("    ★ 检测到残留规则 ⇒ **直接清理**（不是 rollback，本次无它的历史）")
+    _M.RULES.pop(_sig8_key, None)
+    _M.persist_learned()
+    print("    ✓ 已清理 + 落盘同步")
+if os.path.exists(_M.LEARNED_PATH):
+    _ld = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
+    if not (_ld.get("learned") or {}):
+        os.remove(_M.LEARNED_PATH)
+        print("    ✓ 落盘已清（learned 空 ⇒ 删除文件）")
+assert _sig8_key not in _M.RULES, "★ 前置自清洁未生效"
+print("    ✓ 已就绪（RULES=%d 条，不含 fibonacci）" % len(_M.RULES))
 out8 = execute_task(Actor(), j, T2, implementation=BUGGY2)
 v8 = j.evaluate(T2, "dev", observed=out8["observation"])
 print("  judge: success=%s" % v8.success)
@@ -304,3 +336,143 @@ print("  生成器产出: %d 条候选 · 淘汰池 %d"
 print("  %s" % ("★★★ 从失败里学到了新东西（此前这是终点）"
                if LEARN_RESULT == "learned_and_verified"
                else "★ 本轮未学到 —— 但**显式**报告了原因"))
+
+
+# ══════════════════════════════════════════════════════════
+# ★★★★★ step 8g · **固化**（2606.09498 line 23 MergeAccepted）
+#    R31 学到的东西此前**无法累积** —— 缺的就是这条通路
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 8g · 固化（把验证过的候选写进 RULES）")
+print("=" * 60)
+from dwc.organs.evolver import Mutator as _M
+
+assert best is not None, "★ 没有验证通过的候选 ⇒ 不许固化（不假装学会）"
+c_ok, src_ok = best
+sig_key = _M.key_for(sig8)
+print("  键 = %s" % sig_key)
+print("  固化前 RULES 含该键: %s" % (sig_key in _M.RULES))
+
+entry = {
+    "component": "control_flow",
+    "dimension": "D7",
+    "target": LEARN_FN,
+    "m": "loop_bound",
+    "m_source": "rule",
+    "patch": c_ok.patch,
+    "rationale": ("R31/R32 固化: %s 由 judge 验证（%s → %s）· "
+                  "grounding=%d 条 diff"
+                  % (c_ok.rule, v8.success, v8f.success,
+                     len(c_ok.grounding))),
+}
+# ★ R32: 给 flush 能力 ⇒ 固化时**落盘**（否则进程结束就丢）
+tgt_rule = Target(getter=lambda: _M.RULES.get(sig_key),
+                  setter=lambda v: _M.RULES.__setitem__(sig_key, v),
+                  has_fn=lambda: sig_key in _M.RULES,
+                  delete_fn=lambda: _M.RULES.pop(sig_key, None),
+                  flush_fn=_M.persist_learned)
+evi = {"success": v8f.success, "split": "dev", "task": T2}
+res_l = ap.land_rule(tgt_rule, sig_key, entry, evi, _M.check_entry)
+print("  ✓ 固化: readback_ok=%s" % res_l.readback_ok)
+print("    reason = %s" % res_l.reason)
+print("  固化后 RULES 含该键: %s" % (sig_key in _M.RULES))
+
+# ★ 负面: 未验证的证据必须被拒（不许"顺手"固化）
+try:
+    ap.land_rule(tgt_rule, sig_key, entry,
+                 {"success": False, "task": T2}, _M.check_entry)
+    print("  ★ 未验证的证据居然通过了（闸②失效）")
+except Exception as e:
+    print("  ✓ 未验证证据被拒: %s" % str(e)[:56])
+
+# ══════════════════════════════════════════════════════════
+# step 8h · ★★★ 固化的**效果**: 下次同类失败直接查表命中
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 8h · 固化的效果（再次遭遇同一失败 ⇒ 直接命中）")
+print("=" * 60)
+d_again = ev.diagnose([dict(sig8)])
+print("  再诊断: n_proposals=%d n_unmapped=%d"
+      % (len(d_again["proposals"]), d_again["n_unmapped"]))
+hit = bool(d_again["proposals"])
+print("  %s" % ("★★★★★ 命中！不必再试错 —— R31 前这里是 unmapped"
+               if hit else "★ 仍未命中（固化口径有问题）"))
+if hit:
+    p_after = d_again["proposals"][0]
+    print("    target=%s patch=%r" % (p_after.target, p_after.patch))
+    src_l = build_implementation(LEARN_FN, BUGGY2, p_after.patch)
+    v_l = j.evaluate(
+        T2, "dev",
+        observed=execute_task(Actor(), j, T2,
+                              implementation=src_l)["observation"])
+    print("    用固化规则跑: success=%s" % v_l.success)
+    assert v_l.success, "★ 固化的规则必须仍能修好（否则是坏规则）"
+
+print("\n" + "=" * 60)
+print("★ 学习→固化 全链: %s"
+      % ("learned_and_verified → **landed**" if hit
+         else "landed but not queryable"))
+print("=" * 60)
+print("  生成 %d 条 → 试错采纳 1 条 → 固化 1 条 → 再查表%s"
+      % (r8["n"], "**命中**" if hit else "**未命中**"))
+print("  淘汰池 %d（已否决不重试）· 可回滚（G4 能生能死）"
+      % len(gen2.rejected))
+# step 8i · ★★★★★ **跨进程**存活（2606.09498 line 23 的实质）
+#   "MergeAccepted 合并进主干" ⇒ 合并的东西必须**跨进程还在**
+#   ⇒⇒ 否则固化只是"本进程内有效" ⇒ 下次跑又要重学
+# ══════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("step 8i · 跨进程存活（固化的成果会不会丢）")
+print("=" * 60)
+print("  land_rule reason: %s" % res_l.reason[-46:])
+if os.path.exists(_M.LEARNED_PATH):
+    _evd = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
+    print("  落盘 learned 条目: %s" % list(_evd.get("learned") or {}))
+else:
+    print("  ★★ 落盘文件不存在 ⇒ flush 没生效")
+    _evd = {}
+
+# ★ spawn 一个**全新进程**查表（"跨进程"的唯一真验证）
+_probe = ("import sys, json\n"
+          "sys.path.insert(0, %r)\n"
+          "from dwc.organs.evolver import Mutator, Evolver\n"
+          "sig = json.loads(sys.argv[1])\n"
+          "d = Evolver().diagnose([sig])\n"
+          "print('RULES=%%d HIT=%%d' %% (len(Mutator.RULES), "
+          "len(d['proposals'])))\n") % (os.path.join(ROOT, "src"))
+_tmp = os.path.join(os.environ.get("TEMP", "."), "_e2e_probe.py")
+open(_tmp, "w", encoding="utf-8").write(_probe)
+_r = subprocess.run([sys.executable, _tmp, json.dumps(dict(sig8))],
+                    capture_output=True, timeout=120)
+_out = _r.stdout.decode("utf-8", "replace").strip()
+print("  新进程: %s" % _out)
+try:
+    os.remove(_tmp)
+except OSError:
+    pass
+cross_ok = _r.returncode == 0 and " HIT=1" in _out
+print("  %s" % ("★★★★★ 跨进程**仍能查到** ⇒ 固化真的留存了"
+                if cross_ok else "★ 跨进程丢规则（未落盘/未加载）"))
+CROSS_OK = cross_ok
+
+print("  applier stats: %s"
+      % {k: v for k, v in ap.stats().items() if k.startswith("n_")})
+print("  ★ 跨进程存活: %s" % ("✓（line 23 的实质）" if CROSS_OK else "✗"))
+# ★★ 出口自清洁（与入口**双保险** —— 入口那份防"上次中断"，
+#   出口这份防"本次异常在别处断" ⇒ 两处都做才稳）
+print("\n  ── 出口自清洁（回滚固化 + 清落盘）──")
+if sig_key in _M.RULES:
+    ap.rollback("LAND:" + sig_key, tgt_rule)
+    _M.persist_learned()
+if os.path.exists(_M.LEARNED_PATH):
+    left = json.load(open(_M.LEARNED_PATH, encoding="utf-8"))
+    if not (left.get("learned") or {}):
+        os.remove(_M.LEARNED_PATH)
+    print("    ✓ 出口: 回滚 %s · 落盘剩 %d 条"
+          % ("成功" if sig_key not in _M.RULES else "★失败",
+             len(left.get("learned") or {})))
+else:
+    print("    ✓ 出口: 回滚 %s · 无落盘文件"
+          % ("成功" if sig_key not in _M.RULES else "★失败"))
+
+# ══════════════════════════════════════════════════════════

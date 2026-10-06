@@ -144,12 +144,14 @@ class Target:
                  setter: Callable[[Any], None],
                  copier: Optional[Callable[[Any], Any]] = None,
                  has_fn: Optional[Callable[[], bool]] = None,
-                 delete_fn: Optional[Callable[[], None]] = None):
+                 delete_fn: Optional[Callable[[], None]] = None,
+                 flush_fn: Optional[Callable[[], Any]] = None):
         self._get = getter
         self._set = setter
         self._copy = copier or copy.deepcopy
         self.has_fn = has_fn
         self.delete_fn = delete_fn
+        self.flush_fn = flush_fn
 
     def has(self) -> Optional[bool]:
         """★ 该键/属性是否**原本存在**（None = 未知，调用方未提供）。"""
@@ -164,6 +166,26 @@ class Target:
                 "★ 该 Target 未提供 delete_fn ⇒ 无法还原到"
                 "'原本不存在'的状态（不许静默留下 None 条目）")
         self.delete_fn()
+
+    def flush(self) -> str:
+        """★ ★★★ R32 · 落盘（持久化是 **target 的属性**，不是 applier 的）。
+
+        ★★★ 为什么这样分（否则职责会错位）:
+          · applier **不知道**数据结构（RULES 是什么字段、放哪个文件）
+            —— 那是 evolver 的知识
+          · 但 applier 是**唯一写可写面的器官** ⇒ 它必须能触发持久化
+          ⇒⇒ ⇒★ 所以: 持久化**能力**由 target 提供，
+            applier 只在写成功后**调用它**
+            ⇒⇒ ⇒★★ 与 "schema 由 evolver 注入 (check_fn)" 同一模式:
+              通用机制在 applier，专用知识由调用方注入
+
+        ★★ 未提供 ⇒ 返回 "noop"（**不报错**）—— 纯内存表是合法用法
+          （测试里常这样）；但必须**返回值**让调用方知道有没有落盘
+          （否则 "固化了" 与 "固化且持久化了" 不可区分 = 静默）
+        """
+        if self.flush_fn is None:
+            return "noop"
+        return str(self.flush_fn())
 
     def read(self) -> Any:
         return self._get()
@@ -203,6 +225,12 @@ class Applier:
         self.window = window
         #: ★ 回滚用：目标 id → 旧值（判据 2）
         self._history: Dict[str, Any] = {}
+        #: ★★★ R32: 落地**之前**该键是否存在
+        #   ⇒ 回滚对"原本不存在"的键必须 **delete**，而不是写回 None
+        #   ⇒⇒ R30 我修了 apply_on_copy 的同款问题，**漏了 commit 路径**
+        #     ⇒⇒ ⇒★ 实测: commit 一个新键 → rollback ⇒ 键仍在但值 None
+        #       （G4 生灭门要求"能生也要能死"⇒ 那是**死不干净**）
+        self._origin: Dict[str, bool] = {}
         #: ★ 状态：目标 id → (proposal_id, action, AppliedResult)
         self.log: List[AppliedResult] = []
 
@@ -248,6 +276,8 @@ class Applier:
         ★★ 判据 1: 写完**必须**读回，读回不符 ⇒ raise（不许静默）
         ★★ 判据 2: 先存旧值（回滚要用）
         """
+        # ★★ R32: 先记"原本是否存在"（回滚要靠它决定 delete vs write_back）
+        had_before = target.has()
         old = target.snapshot()
         ok, got = target.write(patch)
         if not ok:
@@ -265,7 +295,82 @@ class Applier:
                             window=self.window,
                             reason="读回校验通过 + 旧值已存")
         self._history[proposal_id] = old
+        self._origin[proposal_id] = had_before
+        res.reason = ("读回校验通过 + 旧值已存"
+                      + ("" if had_before is not False else
+                         " + **新增键**（回滚将 delete 而非写回 None）"))
         self.log.append(res)
+        return res
+
+    # ┐
+    # │ ★★★★ R32 · 固化（**闭环的最后一段**）
+    # │
+    # │ 依据: 2606.09498 Algorithm 1 **line 23**
+    # │   `h_{t+1} ← MergeAccepted(h_t, A_t)` —— 通过才**合并进主干**
+    # │ ⇒⇒ ★★ 位置: **在候选副本上评估通过之后**（line 9/10/15 之后）
+    # │ ⇒⇒ ⇒★ 而 R31 的学习成果**此前无法累积** —— 因为没这条通路:
+    # │     学到的候选只在进程内，下次同类失败仍要重新试
+    # ┘
+
+    def land_rule(self, target: Any, key: str, entry: Dict[str, Any],
+                  evidence: Dict[str, Any],
+                  check_fn: Optional[Any] = None) -> AppliedResult:
+        """★ 固化一条**已验证**的规则（LearnedRule 落进可写面）。
+
+        ★★★ 职责边界（这段最重要，别理解成 applier 在判分）:
+          · `check_fn(key, entry)` 是 **evolver 注入的 schema 校验**
+            ⇒ 它校**数据完整性**（字段齐不齐、词表对不对）
+            ⇒ applier **不 import evolver**（否则职责越界 + 循环依赖）
+          · `evidence` 是 **judge 的判分结论**（形状校验）
+            ⇒ 这里检查的是「调用方**引用**了成功的判定」
+            ⇒ 而**不是重新判定** —— 分离仍是三分离:
+                judge 判分 · evolver 生成 · applier 写与读回
+            ⇒⇒ ★ 它与"检查读回值"同型（都只比对，不产生结论）
+
+        ★ 三重闸（缺一不可）:
+          ① schema 通过（check_fn 无缺失）—— 否则固化坏规则，
+             炸点会在**查表那一刻**（KeyError）
+          ② evidence.success is True —— 没验证过的不许固化
+          ③ 写入后读回一致（判据 1）—— 否则 raise，不许静默
+
+        ★★★ 还有一条比"能不能固化"更要紧的:
+          **键必须与 propose 的查询键同口径**
+          ⇒ 否则固化成功却**永远查不到**（ARSI C4 "写了没人读"）
+          ⇒⇒ 这就是为什么 key 由调用方用 `Mutator.key_for` 传入
+        """
+        # ── 闸②: 必须有**成功**的验证证据 ──
+        if not isinstance(evidence, dict):
+            raise ApplierError(
+                "★ 固化必须给 evidence（judge 的判分结论）—— 没验证不许固化")
+        if "success" not in evidence:
+            raise ApplierError(
+                "★ evidence 缺 `success` 字段 ⇒ 无法证明它**验证过**")
+        if evidence.get("success") is not True:
+            raise ApplierError(
+                "★ ★★ evidence.success=%r ≠ True ⇒ 未通过验证，"
+                "不许固化（2606.09498 line 15 Accept 才到 line 23）"
+                % evidence.get("success"))
+        # ── 闸①: schema（由 evolver 注入，不 import 它）──
+        if check_fn is not None:
+            missing = check_fn(key, entry)
+            if missing:
+                raise ApplierError(
+                    "★ 固化被 schema 拒（缺 %s）—— 否则炸点在查表那一刻"
+                    % (missing,))
+        # ── 闸③: 写 + 读回（走 commit ⇒ 复用判据 1/2 全套）──
+        res = self.commit("LAND:" + key, target, entry)
+        # ★ 只改 reason（commit 已经 append 过 log 了 —— 不许重复记账，
+        #   否则 stats 的 commit 计数会**虚高**）
+        flushed = target.flush()
+        res.reason = ("★ 固化: schema✓ evidence✓ 读回✓"
+                      + ("；**新增键**（回滚=delete）"
+                         if self._origin.get("LAND:" + key) is False
+                         else "；覆盖已有键（回滚=写回旧值）")
+                      # ★★★ 落盘状态**必须进 reason** —— 否则
+                      #   "固化了"与"固化且持久化了"不可区分
+                      #   ⇒⇒ 那正是静默要防的（进程结束就丢）
+                      + ("；**已落盘**" if flushed != "noop"
+                         else "；仅内存（target 未给 flush 能力）"))
         return res
 
     # ── 判据 2 · 回滚（写回 + 读回确认）──
@@ -280,17 +385,44 @@ class Applier:
                 "★ 判据 2: 提案 %r 无落地历史 ⇒ 无法回滚"
                 "（回滚必须基于落地前存的旧值）" % proposal_id)
         old = self._history[proposal_id]
-        ok, got = target.write(old)
+        had_before = self._origin.get(proposal_id)
+        # ★★★★ R32: has() 返回 None（调用方未给 has_fn）时**不许当 True**
+        #   ⇒ 我初版的 else 分支把它当"原本存在"处理 ⇒ 写回 old
+        #     ⇒⇒ 而若原本不存在（且 old 是 None）⇒ 又留下 key:None 垃圾
+        #   ⇒⇒ ⇒★ 这与我在 apply_on_copy 里处理的**三态**是同一件事
+        #     ⇒⇒ ⇒★ 而 rollback 是**终态**（不是试写）⇒ 必须确定
+        #     ⇒⇒ ⇒★★ 所以 None ⇒ raise（不许猜"原本存不存在"）
+        #     （试写可"写回+报告"，因为主干本就不许被它改）
+        if had_before is None:
+            raise ApplierError(
+                "★ 判据 2: 无法判定该键**原本是否存在**"
+                "（Target 未提供 has_fn）⇒ 回滚是终态，不许靠猜。"
+                "  若原本不存在，写回 None 会留下垃圾条目（G4 死不干净）")
+        # ★★★★ R32 修的真 bug（实测: commit 新键 → rollback ⇒ 键仍在值 None）
+        #   此前**一律** write(old) ⇒ 而 old 是 None ⇒ 留下 `key: None` 垃圾
+        #   ⇒⇒ ⇒★ 与 R30 修的 apply_on_copy **同款**，我漏了这条路径
+        #   ⇒ ⇒★ 修: 原本不存在 ⇒ delete（还原到"没有"）
+        if had_before is False:
+            target.delete()          # ★ 没有 delete_fn 会 raise（不许静默）
+            ok, got = True, None
+        else:
+            ok, got = target.write(old)
         if not ok:
             raise ApplierError(
                 "★ 判据 2: 回滚写回后读回不符（写 %r，读回 %r）"
                 " ⇒ 回滚失败，不许静默" % (old, got))
+        # ★ 读回确认（判据 2 的后半）
+        if had_before is False and target.has() is not False:
+            raise ApplierError(
+                "★ 判据 2: 回滚后该键**仍存在** ⇒ delete 未生效，不许静默")
         res = AppliedResult(proposal_id=proposal_id, action="rollback",
                             readback_ok=True, old_value=None,
                             new_value=json.dumps(
                                 got, ensure_ascii=False, default=str)[:400],
                             window=self.window,
-                            reason="回滚 = 写回旧值 + 读回确认")
+                            reason=("回滚 = **delete**（原本不存在）+ 读回确认"
+                                    if had_before is False
+                                    else "回滚 = 写回旧值 + 读回确认"))
         self.log.append(res)
         return res
 

@@ -64,6 +64,7 @@ PROPOSAL_STATES = ("draft", "gated", "rejected", "adopted",
 import hashlib
 import io
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -168,6 +169,114 @@ class Mutator:
     #: ★★ 这里刻意做成**数据**而不是代码 —— 因为
     #:   「失败签名 → 该改哪」这条映射本身就是假设，
     #:   把它写成数据就能被门检查、能被测试、能被审计
+
+    # ══════════════════════════════════════════════════════
+    # ★★★ R32 · 固化（把验证过的候选写进 RULES）
+    #   依据: 2606.09498 Algorithm 1 **line 23**
+    #     `h_{t+1} ← MergeAccepted(h_t, A_t)` —— 通过才**合并进主干**
+    #   ⇒⇒ ⇒★ 位置: **在候选副本上评估通过之后**
+    #   ⇒⇒ ⇒★★ 于是 R31 的学习成果才能**累积**（否则每次重试）
+    # ══════════════════════════════════════════════════════
+
+    #: ★ 条目的**必填**字段（propose 用下标读 ⇒ 缺了就 KeyError）
+    #:   ⇒ 固化前必须校验，否则固化一条坏规则会炸在**查表那一刻**
+    RULE_ENTRY_FIELDS = ("component", "dimension", "target",
+                         "m", "m_source", "patch", "rationale")
+
+    #: ★ 允许的 component（RRSI 式12 词表）—— 与 Proposal 校验同源
+    #: ★★★ R32 · **学到的**规则的落盘位置
+    #   ⇒ 种子（代码里那 3 条，人工写的）留在 evolver.py —— 可被门/评审管
+    #   ⇒ 而**固化产生的**规则落盘 —— 否则进程结束就丢
+    #   ⇒⇒ ⇒★ 分开放的理由: 代码改动要走评审（G5），
+    #     落盘的是**系统自己学的**（要能持久，且不改代码）
+    LEARNED_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))),
+        "config", "anchors", "rules.json")
+
+    #: ★ 种子键（**代码里定义的**）—— persist 时排除它们
+    SEED_KEYS: frozenset = frozenset()
+
+    @classmethod
+    def load_learned(cls) -> int:
+        """★ 把**落盘学到的**规则合并进 RULES（进程启动时调）。
+
+        ★ 返回合并条数；文件不存在 ⇒ 0（**不报错** —— 没学到过是常态）
+        ★★★ 合并而非替换: 种子（代码）与学到的（落盘）必须并存
+        """
+        try:
+            with io.open(cls.LEARNED_PATH, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return 0
+        n = 0
+        for k, v in (data.get("learned") or {}).items():
+            if k not in cls.RULES and isinstance(v, dict):
+                cls.RULES[k] = v
+                n += 1
+        return n
+
+    @classmethod
+    def persist_learned(cls) -> Dict[str, Any]:
+        """★★★ 把 RULES 里**非种子**的条目写盘（固化后的持久化）。
+
+        ★ 只写「学到的」⇒ 种子不进 json（否则代码与 json **双源**）
+        ★ 返回 {path, n_written, n_seed} —— 可审计
+        """
+        learned = {k: v for k, v in cls.RULES.items()
+                   if k not in cls.SEED_KEYS}
+        os.makedirs(os.path.dirname(cls.LEARNED_PATH), exist_ok=True)
+        payload = {
+            "_provenance": {
+                "why": ("★ R32: 2606.09498 line 23 MergeAccepted —— "
+                        "通过才合并进主干；而『合并』必须**跨进程存活**"),
+                "seed_location": ("src/dwc/organs/evolver.py 的 "
+                                  "Mutator.RULES（人工写，可评审）"),
+                "★ 分流": ("种子留代码 · 学到的落盘 —— "
+                       "否则代码与 json 双源，或学到的随进程消失"),
+            },
+            "learned": learned,
+        }
+        with io.open(cls.LEARNED_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=1)
+        return {"path": cls.LEARNED_PATH, "n_written": len(learned),
+                "n_seed": len(cls.SEED_KEYS)}
+
+    @staticmethod
+    def key_for(sig: Dict[str, str]) -> str:
+        """★ 由失败签名构造**查询键** (c:q:fn) —— 与 propose 同口径。
+
+        ★★ 这个函数存在的理由: 固化方若自己拼键，
+          与 propose 拼的不一致 ⇒ 固化了**永远查不到**
+          ⇒⇒ ⇒★ 那是"写了没人读"的老病（ARSI C4 同款）
+        ⇒ ⇒★ 所以键的构造必须收敛成**一个**函数（两侧共用）
+        """
+        if not all(sig.get(k) for k in ("c", "q", "fn")):
+            raise ValueError(
+                "★ 查询键需 (c,q,fn)，m 不参与（R30 结构修正）: %r"
+                % (sig,))
+        return "%s:%s:%s" % (sig["c"], sig["q"], sig["fn"])
+
+    @classmethod
+    def check_entry(cls, key: str, entry: Dict[str, Any]
+                    ) -> List[str]:
+        """★ 固化前的字段校验（**数据完整性**，不是判分）。
+
+        ★ 返回缺失字段列表；空 = 合格
+        ⇒⇒ ★ 为什么在 evolver 而不在 applier:
+          schema 是**进化侧的知识**，applier 是通用写入器
+          ⇒⇒ 让 applier 懂 RULES 的结构 = 职责越界
+        """
+        missing = [f for f in cls.RULE_ENTRY_FIELDS
+                   if not str(entry.get(f, "")).strip()]
+        if entry.get("component") not in COMPONENT_VOCAB:
+            missing.append("component∉词表:%s" % entry.get("component"))
+        if entry.get("dimension") not in DIMENSIONS:
+            missing.append("dimension∉九维:%s" % entry.get("dimension"))
+        if not key.count(":") == 2:
+            missing.append("key 必须是 c:q:fn 三段")
+        return missing
+
     RULES: Dict[str, Dict[str, str]] = {
         # ★ 示例规则：sum_first_n 少算一个（off-by-one）
         "E_VALUE:wrong_magnitude:sum_first_n": {
@@ -201,6 +310,41 @@ class Mutator:
                       "return n * factorial(n - 1)"),
             "rationale": "缺递归基 ⇒ 无限递归；按判据 0!/1! 都应为 1"},
     }
+
+    # ★★★ R32: RULES 定义**之后**立刻捕获种子
+    #   ⇒ 顺序要紧: 先有种子（代码字面量）⇒ 再判哪些是"学到的"
+    #   ⇒⇒ 若不捕获 SEED_KEYS ⇒ persist 会把种子也写进 json ⇒ 双源
+    SEED_KEYS = frozenset(RULES)
+
+    #: ★★ 加载的**触发点** = 模块级（import 即生效）
+    #   ★★★ 两次踩同一个坑，都记下:
+    #   ① 第一版: 类体里 `try: load_learned() except: pass`
+    #      ⇒ 类定义时 classmethod 还没绑 ⇒ 必抛 ⇒ **被 pass 吞掉**
+    #      ⇒ 于是它**从未被调用**（写了但没接 = 形同没写）
+    #   ② 第二版: 挂进 `Mutator.__init__`（实例构造）
+    #      ⇒ 而 `RULES` 是**类属性**，调用方写 `Mutator.RULES`（类访问）
+    #        ⇒ 实例从未构造 ⇒ `ensure_loaded` 从未被调
+    #      ⇒⇒ 实测: 跨进程**读不到**落盘的规则（查表 n_proposals=0）
+    #   ⇒⇒ ⇒★★ 结论: 挂在"类访问"之外的东西上，就等于没挂
+    #      ⇒ ⇒★ 只有**模块级**对"用类属性的调用方"必然生效
+    _loaded = False
+
+    @classmethod
+    def ensure_loaded(cls) -> int:
+        """★ 幂等加载（**幂等**靠 `_loaded` 守卫，不靠调用时机）。
+
+        ★★★ R32 变异验证的结论（**这个守卫是冗余的**）:
+          摘掉 `if cls._loaded: return 0` 后实测: 第 1 次=1、第 2 次=0
+          ⇒⇒ 因为 `load_learned` 里已有 `if k not in RULES` ⇒ **自身就幂等**
+          ⇒⇒ ⇒★ 所以本守卫**不承重** —— 它只让 `_loaded` 这个标志
+            有语义（测试与排查时能问"加载过了吗"）
+          ⇒ ⇒★ 显式标注，免得后人以为它承重而"小心翼翼地维护"
+            （幻影承重与幻影代码同型: 名字与实现不对齐）
+        """
+        if cls._loaded:
+            return 0
+        cls._loaded = True
+        return cls.load_learned()
 
     def propose(self, sig: Dict[str, str]) -> Optional[Proposal]:
         """★ 给一条失败签名 ⇒ 一个提案（无规则则 None）。
@@ -467,6 +611,12 @@ class Evolver:
                 "★": ("★ R28 起 test split 已落地 ⇒ 约束 3 的 Δ_ho 可算"
                       "⇒★ ⇒★ adopt 现在可达（但落地仍未实现 ⇒ 第五态）")}
 
+
+
+# ★★★★★ R32 · 模块级触发 —— **这是唯一对"类属性访问方"必然生效的位置**
+#   理由见 Mutator.ensure_loaded 的注释（两次踩坑的记录）
+#   ★ 不抛异常: 没学到过（文件不存在）是**常态**，不是错误
+_MUTATOR_LOADED_AT_IMPORT = Mutator.ensure_loaded()
 
 if __name__ == "__main__":
     ev = Evolver()
