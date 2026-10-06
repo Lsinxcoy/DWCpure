@@ -419,8 +419,8 @@ class Evolver:
         return {"n_proposals": len(self.proposals),
                 "by_state": by_state,
                 "known_signatures": len(self.mutator.known_signatures()),
-                "★": ("★ 当前 unreachable adopt: 约束 3 需 test split，"
-                      "而它未落地")}
+                "★": ("★ R28 起 test split 已落地 ⇒ 约束 3 的 Δ_ho 可算"
+                      "⇒★ ⇒★ adopt 现在可达（但落地仍未实现 ⇒ 第五态）")}
 
 
 if __name__ == "__main__":

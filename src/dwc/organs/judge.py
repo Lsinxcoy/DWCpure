@@ -38,7 +38,7 @@ import io
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -128,14 +128,41 @@ def _as_literal(txt: str) -> Any:
 
 
 def _eq(a: Any, b: Any) -> bool:
-    """★ 值相等判定。
+    """★ 值相等判定（按类型分层，不靠 str 比）。
 
-    ★★ 先比同型（避免 int 1 与 float 1.0 的歧义按 str 走），
-      再退到 str 比（当某一侧解析失败时）
+    ★★★★ R28 实测修正（这是 R26 那个洞的**第三种形态**）:
+      R26 修的是「字面量文本 vs python 对象」（值侧 + 入参侧）
+      ⇒⇒ ★★ 而 test split 出现了**容器类型**入参（list），
+        那时 str 比就失效了:
+          a='[3,7,2]'（观测侧字符串） b=[3,7,2]（golden 侧 list）
+          str(a)='[3,7,2]'  str(b)='[3, 7, 2]'   ← ★ 有空格差异 ⇒ 不等
+        ⇒⇒⇒ 而那会让**完全正确的实现**被判 fail
+      ⇒⇒⇒ ⇒★ ⇒★ 教训: str 比只在两侧都解析失败时才可用；
+        能解析的一律走对象比较
     """
-    if isinstance(a, (int, float, bool)) and isinstance(b, (int, float, bool)):
-        return type(a) is type(b) and a == b
-    return str(a) == str(b)
+    # ── 数值/布尔: 类型必须一致（1 与 1.0 不算同一个）──
+    if isinstance(a, (int, float, bool)) or isinstance(b, (int, float, bool)):
+        if isinstance(a, bool) != isinstance(b, bool):
+            return False
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            return type(a) is type(b) and a == b
+        return str(a) == str(b)
+    # ★ 容器: 逐元素比（不做 str 比 —— 那会被空白差异骗）
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        if len(a) != len(b):
+            return False
+        return all(_eq(x, y) for x, y in zip(a, b))
+    # ★ str 与「看起来像容器的字符串」: 先尝试归一再比
+    if isinstance(a, str) and isinstance(b, (list, tuple, dict)):
+        return _as_literal(a) == b
+    if isinstance(b, str) and isinstance(a, (list, tuple, dict)):
+        return _as_literal(b) == a
+    if isinstance(a, str) and isinstance(b, str):
+        return a == b
+    # ★ dict: 键值逐对
+    if isinstance(a, dict) and isinstance(b, dict):
+        return set(a) == set(b) and all(_eq(a[k], b[k]) for k in a)
+    return a == b
 
 
 class Judge:
@@ -204,6 +231,18 @@ class Judge:
                             "（引号未闭合）⇒ 该断言不可执行"
                             % (path, tid, e))
         return data
+
+    @staticmethod
+    def _task_ids(src: Dict[str, Dict[str, Any]]) -> Set[str]:
+        """★ 任务 id 集合（**排除**元数据键）。
+
+        ★★★★ R28: 我 R24 修过一次「_provenance 被当任务」的 bug
+          （n_tasks=11 而实际 10），但 self_check 那条路径漏了
+          ⇒⇒ ⇒★ 结果 splits_disjoint 恒为 False（两个 split
+            的 _provenance 键必然相交）⇒ 一个永远错的断言
+          ⇒⇒ ⇒★ 元数据过滤必须收敛成**一个**函数，否则到处漏
+        """
+        return {k for k in src if not k.startswith("_")}
 
     def _check_truth_source(self) -> Dict[str, List[str]]:
         """★ 启动自检: 已落地的真值源必须存在；未落地的要显式列名。
@@ -513,14 +552,20 @@ class Judge:
             "truth_source": ts,
             "dev_tasks": len([k for k in self.anchors
                               if not k.startswith("_")]),
-            "test_tasks": (len(self.sealed)
+            "test_tasks": (len(self._task_ids(self.sealed))
                            if self.sealed is not None else None),
             "test_built": self.sealed is not None,
+            #★★★ R28 修正（又是元数据被当任务·同 R24 那次）:
+            #   set(self.anchors) 含 _provenance ⇒ 与 test 的 _provenance
+            #   **必然相交** ⇒ splits_disjoint 永远是 False
+            #   ⇒⇒ 而我 R24 修过一次同类 bug（n_tasks=11），
+            #     却在 self_check 这条路径上漏了 ⇒ ⇒ 同族第二次
             "splits_disjoint": (
                 None if self.sealed is None
-                else not (set(self.anchors) & set(self.sealed))),
+                else not (self._task_ids(self.anchors)
+                          & self._task_ids(self.sealed))),
             "fallbacks": sorted(self._fallbacks),
-            "★": "dev 真值源已验证存在（G2/原则 1）；test 未落地 ⇒ 如实标 None",
+            "★": ("真值源已验证存在（G2/原则 1）；未落地项在 not_built 里"),
         }
 
 

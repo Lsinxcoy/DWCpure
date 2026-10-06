@@ -1,0 +1,207 @@
+{
+ "test_math_001": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 max_of(xs)，返回列表最大元素；空列表返回 None",
+  "checks": [
+   {
+    "fn": "max_of",
+    "args": "[3,7,2]",
+    "expected": "7"
+   },
+   {
+    "fn": "max_of",
+    "args": "[]",
+    "expected": "None"
+   }
+  ]
+ },
+ "test_math_002": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 gcd(a,b)，返回最大公约数（辗转相除）",
+  "checks": [
+   {
+    "fn": "gcd",
+    "args": "12,18",
+    "expected": "6"
+   },
+   {
+    "fn": "gcd",
+    "args": "17,5",
+    "expected": "1"
+   }
+  ]
+ },
+ "test_math_003": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 is_prime(n)，判断 n 是否为质数",
+  "checks": [
+   {
+    "fn": "is_prime",
+    "args": "7",
+    "expected": "True"
+   },
+   {
+    "fn": "is_prime",
+    "args": "9",
+    "expected": "False"
+   },
+   {
+    "fn": "is_prime",
+    "args": "2",
+    "expected": "True"
+   }
+  ]
+ },
+ "test_math_004": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 flatten(xs)，把嵌套列表展平成一维",
+  "checks": [
+   {
+    "fn": "flatten",
+    "args": "[1,[2,[3,4]]]",
+    "expected": "[1,2,3,4]"
+   },
+   {
+    "fn": "flatten",
+    "args": "[]",
+    "expected": "[]"
+   }
+  ]
+ },
+ "test_str_001": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 is_anagram(a,b)，判断两词是否互为变位词",
+  "checks": [
+   {
+    "fn": "is_anagram",
+    "args": "'listen','silent'",
+    "expected": "True"
+   },
+   {
+    "fn": "is_anagram",
+    "args": "'abc','abd'",
+    "expected": "False"
+   }
+  ]
+ },
+ "test_str_002": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 word_count(s)，统计空白分隔的词数",
+  "checks": [
+   {
+    "fn": "word_count",
+    "args": "'a b c'",
+    "expected": "3"
+   },
+   {
+    "fn": "word_count",
+    "args": "'one'",
+    "expected": "1"
+   }
+  ]
+ },
+ "test_list_001": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "verifier_rung": 2,
+  "prompt": "实现 unique(xs)，保序去重",
+  "checks": [
+   {
+    "fn": "unique",
+    "args": "[1,2,1,3]",
+    "expected": "[1,2,3]"
+   }
+  ]
+ },
+ "test_reasoning_001": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "verifier_rung": 2,
+  "scoring": "keyword_match",
+  "prompt": "解释什么是哈希冲突，以及两种常见解决办法",
+  "checks": [
+   {
+    "kw": "哈希"
+   },
+   {
+    "kw": "冲突"
+   },
+   {
+    "kw": "链地址"
+   },
+   {
+    "kw": "开放寻址"
+   }
+  ]
+ },
+ "test_reasoning_002": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "verifier_rung": 2,
+  "scoring": "keyword_match",
+  "prompt": "解释进程与线程的区别，以及为什么需要线程",
+  "checks": [
+   {
+    "kw": "进程"
+   },
+   {
+    "kw": "线程"
+   },
+   {
+    "kw": "地址空间"
+   },
+   {
+    "kw": "并发"
+   }
+  ]
+ },
+ "test_reasoning_003": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "verifier_rung": 2,
+  "scoring": "keyword_match",
+  "prompt": "解释什么是读写分离，以及它解决了什么问题",
+  "checks": [
+   {
+    "kw": "主库"
+   },
+   {
+    "kw": "从库"
+   },
+   {
+    "kw": "复制"
+   },
+   {
+    "kw": "延迟"
+   }
+  ]
+ },
+ "_provenance": {
+  "derived_at": "2026-10-05",
+  "why": "2607.12790 §2.2: test 是 locked split，『no part of metric evolution reads it』⇒⇒ 而 R27 时它未落地 ⇒ 约束 3 的 Δ_ho 永远算不出⇒⇒⇒ ⇒★ 所以补上它 —— 一个缺口同时解三处",
+  "★ 与 dev 的关系": "机械互斥（已验证）: task_id 不相交 · 函数名不相交· 入参不相交 · 关键词不相交⇒ ⇒ 这使它成为 held-out **by construction**",
+  "★★★ 但不是 held-out by independence": "这些判据是**我写的**，而我已看过 dev 的全部内容⇒⇒ ★★ 所以『作者的独立性』这一层无法验证⇒⇒⇒ ⇒★ 正确的标签: 构造上互斥，不等于独立编写⇒⇒⇒ ⇒★ 真正的独立性要等未看过 dev 的人另编一批",
+  "★★★ 与 dev 在来源上不对称（不得说成一样）": "dev 那 10 条是从 ARSI 的 sealed_tasks.yaml **复制**而来⇒ ⇒ 它满足 GAI §2.2 grounded 条件①（内容来自系统外）⇒ ⇒ 而本 split 由我生成 ⇒ ★★ 尚**不**满足条件①⇒⇒⇒ ⇒★ 这是本 split 最大的弱点，不是遗漏",
+  "★ 顺带": "RRSI verifier_rung 本批全为 2（dev 全为 1）⇒⇒ ⇒★ 这不是为了『看起来不同』而改的 —— 而是 rung 2 的判据要求更强的验证器⇒ ⇒ 若 rung 语义不同，这一条应作废",
+  "★★ 禁用": "test 的内容**不得**被 evolver / metric 演化读取⇒ 而当前 evolver 只读失败签名、不读判据 ⇒ 尚满足",
+  "★ 入参与 dev 重合": {
+   "values": [
+    "[]"
+   ],
+   "★ 处置": "保留 —— 它们是边界值而非同一道题（函数不同、期望不同、考察能力不同）⇒⇒ 而删掉边界用例会损失判别力",
+   "★ 判据修正": "R28: 入参相交从**断言**降级为**告警**⇒★ 理由: 把方便的机械判据当成设计要求⇒⇒ 且机械判据不该损害设计目标"
+  }
+ }
+}

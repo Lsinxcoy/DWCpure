@@ -261,10 +261,57 @@ def test_unevaluated_is_not_adopted():
     assert r["decision"] == "not_evaluated"
 
 
-def test_stats_reports_unreachable_adopt():
-    """★★ 意图: 统计里明写「当前 unreachable adopt」。"""
+def test_stats_reports_adopt_now_reachable():
+    """★★★★ 意图: R28 起 adopt 可达（test split 已落地）。
+
+    ★★★ R24/R27 时这里写的是「unreachable adopt」
+      ⇒★ ⇒★ 那条测试若不改，就会在能力提升后**继续要求不可达**
+        ⇒⇒ ⇒★ 过时的断言会阻止能力演进 —— 已按新事实重写
+    """
     st = Evolver().stats()
-    assert "unreachable adopt" in st["★"]
+    assert "unreachable" not in st["★"], "adopt 现已可达"
+    assert "Δ_ho" in st["★"]
+
+
+def test_adopt_is_reachable_with_real_splits():
+    """★★★★★ 实证: 用真实 judge 的两组分数，adopt 真能发生。"""
+    from dwc.organs.judge import Judge
+    j = Judge()
+    # ★★ 两组 split 各用自己的观测 —— 因为它们任务集不同
+    #   ⇒ 而我第一版用 dev 的观测去判 test ⇒ 全未评价 ⇒ pass_rate=None
+    #   ⇒⇒ ★ 那正是「不许用 dev 顶替 test」在起作用
+    d_obs = {"reasoning_001": {"answer": "pivot 递归 最坏"},
+             "reasoning_002": {"answer": "一致性 可用性 分区容错"}}
+    t_obs = {"test_reasoning_001":
+             {"answer": "哈希冲突可用链地址或开放寻址解决"},
+             "test_reasoning_002":
+             {"answer": "进程有独立地址空间，线程共享地址空间以实现并发"}}
+    d = j.score("dev", d_obs)
+    t = j.score("test", t_obs)
+    assert d["pass_rate"] is not None and t["pass_rate"] is not None, \
+        "两组都必须有真实分数才能谈约束 3"
+    r = Evolver.accept(
+        _p(),
+        {"in_score": d["pass_rate"], "held_out_score": t["pass_rate"]},
+        {"in_score": d["pass_rate"] + 0.1,
+         "held_out_score": t["pass_rate"] + 0.1})
+    assert r["decision"] == "adopted_not_implemented", \
+        "两组都有分数且都改进 ⇒ 采纳（第五态）"
+    assert r["delta_in"] > 0 and r["delta_ho"] > 0
+
+
+def test_dev_observations_cannot_substitute_for_test(j=None):
+    """★★★★★ 意图: dev 的观测**不能**拿来判 test（两组不可混用）。
+
+    ★★★ 这是 locked split 的实际保护效果：
+      若用 dev 的观测判 test ⇒ test 全未评价 ⇒ pass_rate=None
+      ⇒⇒ ★★ 分子分母就不同源了 ⇒ 回归检测形同虚设
+    """
+    from dwc.organs.judge import Judge
+    jj = Judge()
+    t = jj.score("test", {"reasoning_001": {"answer": "pivot"}})
+    assert t["not_evaluated"] == t["n_tasks"]
+    assert t["pass_rate"] is None
 
 
 # ══════════════════════════════════════════════════════════

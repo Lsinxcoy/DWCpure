@@ -57,11 +57,17 @@ def test_truth_source_declares_g2(j):
     assert "TRUTH_SOURCE" in src, "G2 真值门要求声明 TRUTH_SOURCE"
 
 
-def test_test_split_declared_not_built():
-    """★★★ 意图: test split 显式标记为**未落地**，不假装有。"""
-    assert "test_sealed" in TRUTH_NOT_BUILT
+def test_test_split_now_built():
+    """★★★★ 意图: test split **已落地**（R28 补上）且与 dev 互斥。
+
+    ★★ R24 时它是「未落地」⇒ 当时那几个测试是按那个语义写的
+      ⇒ R28 落地后它们全部过时 ⇒ 已按新语义重写
+      ⇒★ ⇒★ 过时的测试比没有测试更危险: 它会让人以为那行为仍被保护
+    """
     j = Judge()
-    assert j.sealed is None, "test 未落地时不该有数据"
+    assert j.sealed is not None, "test split 已落地"
+    assert len(j._task_ids(j.sealed)) == 10
+    assert j.self_check()["test_built"] is True
 
 
 def test_missing_truth_source_raises(tmp_path):
@@ -71,12 +77,14 @@ def test_missing_truth_source_raises(tmp_path):
     assert "真值源" in str(e.value)
 
 
-def test_self_check_lists_not_built(j):
-    """★★ 意图: 自检必须区分"已验证"与"未落地"。"""
+def test_self_check_all_verified(j):
+    """★★★ 意图: 两个 split 都已验证（无未落地项）。"""
     sc = j.self_check()
-    assert "dev_anchors" in sc["truth_source"]["verified"]
-    assert "test_sealed" in sc["truth_source"]["not_built"]
-    assert sc["test_built"] is False
+    assert set(sc["truth_source"]["verified"]) == {"dev_anchors",
+                                                   "test_sealed"}
+    assert sc["truth_source"]["not_built"] == []
+    assert sc["splits_disjoint"] is True, \
+        "两个 split 必须互斥（R28 修过一个恒 False 的断言）"
 
 
 # ══════════════════════════════════════════════════════════
@@ -208,23 +216,54 @@ def test_fallback_compliant_registers(j):
 # ⑤ test split 未落地
 # ══════════════════════════════════════════════════════════
 
-def test_test_split_raises(j):
-    """★★★★ 意图: test 未落地时必须 raise，**不许用 dev 顶替**。
+def test_test_split_task_is_unknown_to_dev(j):
+    """★★★★ 意图: test 的任务**不许**出现在 dev split 里（不许顶替）。
 
     ★★★ 若用 dev 顶替 ⇒ 保护组回归检测形同虚设
-      （分子分母同源，改了哪边都算过）。
+      （分子分母同源，改了哪边都算过）
+      ⇒⇒ ⇒★ R28 落地后这条从「未落地报错」变成「跨 split 报错」
+        —— 两种形态都守同一个不变量: 两组不可混用
     """
     with pytest.raises(JudgeError) as e:
+        j.evaluate("test_math_001", SPLIT_DEV, observed={})
+    assert "不在 dev split" in str(e.value)
+    with pytest.raises(JudgeError) as e:
         j.evaluate("code_fix_001", SPLIT_TEST, observed={})
-    assert "未落地" in str(e.value)
+    assert "不在 test split" in str(e.value)
 
 
-def test_test_split_score_reports_not_zero(j):
-    """★★★ 意图: test 未落地时 score 返回"无法判分"而非 0 分。"""
+def test_test_split_score_counts_its_own_tasks(j):
+    """★★★ 意图: test split 有 10 条自己的任务（不是 dev 的副本）。"""
     sc = j.score(SPLIT_TEST, {})
-    assert sc["pass_rate"] is None
-    assert sc["n_tasks"] == 0
-    assert "未落地" in sc["★"]
+    assert sc["n_tasks"] == 10
+    assert sc["pass_rate"] is None, "没跑 ⇒ None 而非 0"
+    assert sc["not_evaluated"] == 10
+
+
+def test_two_splits_have_disjoint_tasks(j):
+    """★★★★ 意图: 两组 split 的任务集**互斥**（约束 3 的前提）。"""
+    assert not (j._task_ids(j.anchors) & j._task_ids(j.sealed))
+    dev_fns = {c["fn"] for k, v in j.anchors.items()
+               if not k.startswith("_")
+               for c in v.get("checks", []) if c.get("fn")}
+    tst_fns = {c["fn"] for k, v in j.sealed.items()
+               if not k.startswith("_")
+               for c in v.get("checks", []) if c.get("fn")}
+    assert not (dev_fns & tst_fns), "函数名也不该相交"
+
+
+def test_container_args_compare_as_objects(j):
+    """★★★★ 意图: 容器入参要按**对象**比，不靠 str（空白差异会骗）。
+
+    ★★★★ R28 实测: `[3,7,2]`（观测侧字符串）vs `[3,7,2]`（golden 侧 list）
+      ⇒ str 比会因空格差异判不等 ⇒ 让**正确实现**被判 fail
+    """
+    good = {"max_of": [["[3,7,2]", 7], ["[]", None]]}
+    v = j.evaluate("test_math_001", SPLIT_TEST, observed=good)
+    assert v.success is True, "容器入参的正确实现必须 pass"
+    bad = {"max_of": [["[3,7,2]", 2], ["[]", None]]}
+    v2 = j.evaluate("test_math_001", SPLIT_TEST, observed=bad)
+    assert v2.success is False, "值错必须 fail"
 
 
 def test_train_split_always_raises(j):
