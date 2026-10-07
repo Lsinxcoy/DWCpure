@@ -31,7 +31,8 @@ from dwc.organs.evolver import (  # noqa: E402
     NOVELTY_ELIGIBLE, OBJECT_TO_COMPONENT, STRUCTURAL,
     LIQUIDITY_FIELDS, editable_vocab, exploration_signal, gain,
     k1_coverage, liquidity_summary, novelty_score, prune_blockers,
-    prune_targets, record_edit, stall_signal, touched_components,
+    prune_targets, record_edit, select_winner, stall_signal,
+    touched_components,
     touched_from_liquidity, unexplored_components,
 )
 
@@ -586,3 +587,58 @@ def test_prune_prefers_true_liquidity_over_approximation():
         assert r3["pool"] == [], "（对照）所以必须用 liquidity 而非近似"
     finally:
         ev.prune_blockers = prune_blockers
+
+# ══════════════════════════════════════════════════════════
+# select_winner（RRSI 式13 line 8-15 · R46 补的真缺口）
+# ══════════════════════════════════════════════════════════
+
+def test_select_winner_is_highest_score_not_first_success():
+    """★★★★ R46: 赢家是**最高分**，不是「先成功的那个」。
+
+    ★★ e2e 原代码 `if vv.success and best is None` = **first-success wins**
+      ⇒ 二值判分下**碰巧等价**（都 1.0 ⇒ 稳定排序取先到的）
+      —— 但一旦有中间分数就会分叉 ⇒ 必须把语义**写死**成最高分
+    """
+    r = select_winner([("A", 0.6, True), ("B", 0.9, True)])
+    assert r["winner"] == "B", "★ 最高分赢, 不是先到的赢"
+    assert r["losers"][0][0] == "A"
+    assert r["margin_vs_losers"][0][1] == pytest.approx(0.3)
+
+
+def test_select_winner_high_score_but_not_gated_loses():
+    """★★ 高分但**没过门**的不许赢（式13: Δ_in≥0 ∧ Δ_ho≥0 才 Accept）。"""
+    r = select_winner([("A", 0.9, False), ("B", 0.4, True)])
+    assert r["winner"] == "B", "★ 未过门的不许当赢家"
+    assert r["rejected"][0][0] == "A"
+    # ★ 未过门的**不进 ℒ_t**（论文: fail before valid measurement ⇒ ignored）
+    assert r["n_gate"] == 1 and r["n"] == 2
+
+
+def test_select_winner_reports_when_all_rejected():
+    """★ 全没过门 ⇒ winner=None 且**说清为什么**（不是空结果）。"""
+    r = select_winner([("A", 0.9, False), ("B", 0.4, False)])
+    assert r["winner"] is None
+    assert r["why"] and "没过门" in r["why"]
+    assert "不进 ℒ_t" in r["why"], "★ 要说清这些候选被忽略的依据"
+
+
+def test_select_winner_refuses_empty_pool_and_bad_scores():
+    """★★ 三条硬要求: 空池报错 · score 缺失报错 · passed_gate 必须 bool。"""
+    with pytest.raises(ValueError) as e:
+        select_winner([])
+    assert "空候选池" in str(e.value), "★ 不许静默返回没赢家"
+    # score=None 不许当 0（0 会让「没测」变成「平分」）
+    with pytest.raises(ValueError) as e2:
+        select_winner([("A", None, True)])
+    assert "不许默认" in str(e2.value)
+    with pytest.raises(ValueError):
+        select_winner([("A", 0.5, "yes")])
+    with pytest.raises(ValueError):
+        select_winner([("A", 0.5)])
+
+
+def test_select_winner_tie_is_stable():
+    """★ 同分 ⇒ 稳定（保持输入顺序, 不挑隐式偏好）。"""
+    r = select_winner([("A", 0.5, True), ("B", 0.5, True)])
+    assert r["winner"] == "A"
+    assert r["losers"][0][0] == "B"

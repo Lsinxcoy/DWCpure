@@ -424,6 +424,83 @@ def liquidity_summary(liq, now_round: int, window: int) -> Dict[str, Any]:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R46 · 多候选竞争 → 选赢家（RRSI **式13 line 8-15** 逐字）
+#   论文原文:
+#     P_t = {(Δ_j, a_j)}_{j=1..K}     ← K 个候选
+#     for each: evaluate → Δ_in^(j), Δ_ho^(j)
+#     if Δ_in ≥ 0 and Δ_ho ≥ 0 and max(...) > 0: Accept(Δ_j)   ← 通过门
+#     a_i = 1 iff candidate was **selected as the winner of its round**
+#     "Candidates that are **admissible but lose to a higher-scoring
+#      admissible candidate** have a_i = 0"  ← 论文说这是**有用信息**
+#
+# ★★★★ R46 核出的**真缺口**（我 R45 指错了地方）:
+#   · 我 R45 说「land 是 a_i=1 的本义」= **误读** —— 原文 a_i 在
+#     「评估 + 判赢家」那一刻就定（接线点 window_settle 是对的）
+#   · 真正缺的是: DWC 候选池**有**（`r_gen["candidates"]` 是 List）
+#     但**评估/竞争/选赢家没接** ⇒ e2e 只 `for c in …: print`
+#     ⇒ 于是 a_i 只能 = `verdict=="keep"`（**单候选近似**）
+#     ⇒ "admissible but lost" 这一类**根本不可能出现**
+#   ⇒ ⇒★ 本函数补上「竞争」这一步（纯排序, **不判分** ⇒ 不破三分离:
+#        judge 判分 · evolver 生成 · applier 写读）
+# ═══════════════════════════════════════════════════════════
+
+
+def select_winner(evaluated) -> Dict[str, Any]:
+    """★★ 多候选竞争 —— 选赢家（式13 line 8-15 的排序步）。
+
+    ★ 参数: `evaluated` = [(candidate, score, passed_gate: bool), …]
+      · `score` 必须是 **judge 产出**的（本函数不判分 —— 三分离）
+      · `passed_gate` = 是否通过非补偿门（Δ_in≥0 ∧ Δ_ho≥0 的结果）
+    ★ 返回:
+      · winner      —— 最高分**且过门**的那个（没过门的不许当赢家）
+      · losers      —— "admissible but lost"（过门但分数更低, a_i=0）
+      · rejected    —— 没过门的（**不进 ℒ_t** —— 论文: "candidates that
+                       fail before a valid measurement is obtained" 被忽略）
+      · n / n_gate  —— 总数 / 过门数（可复核）
+    ★★★ 三条硬要求:
+      ① **空池必须报错**（不许静默返回"没赢家" —— 那会假装竞争过）
+      ② `score` 缺失/非数 ⇒ 报错（不许默认 0 —— 会让"没测"= "平分"）
+      ③ 没有任何过门候选 ⇒ winner=None **且说清为什么**（不是空结果）
+    """
+    if not evaluated:
+        raise ValueError(
+            "★ 空候选池 —— 没有候选就没竞争过；"
+            "不许返回空赢家（那等于假装这轮选过了）")
+    # ② 分数必须是真值
+    for i, row in enumerate(evaluated):
+        if len(row) < 3:
+            raise ValueError(
+                "★ 第 %d 个候选缺字段（需 (candidate, score, passed_gate)）"
+                % i)
+        cand, score, ok = row[0], row[1], row[2]
+        if score is None or not isinstance(score, (int, float)):
+            raise ValueError(
+                "★ 第 %d 个候选的 score=%r 不是实测数 —— "
+                "不许默认 0（会让「没测」变成「平分」）" % (i, score))
+        if not isinstance(ok, bool):
+            raise ValueError("★ passed_gate 必须是 bool, 实得 %r" % (ok,))
+    gated = [r for r in evaluated if r[2]]        # 过门的
+    rejected = [r for r in evaluated if not r[2]]  # 没过门 ⇒ 不进 ℒ_t
+    if not gated:
+        return {"winner": None, "losers": [], "rejected": rejected,
+                "n": len(evaluated), "n_gate": 0,
+                "why": ("★ %d 个候选**都没过门**（Δ_in/Δ_ho 或 max>0 "
+                        "不满足）⇒ 无赢家, 且**都不进 ℒ_t**（论文: "
+                        "fail before a valid measurement 被忽略）"
+                        % len(evaluated))}
+    # 过门的按分数降序（同分: 保持输入顺序 —— **稳定**, 不挑隐式偏好）
+    order = sorted(gated, key=lambda r: -r[1])
+    winner = order[0]
+    losers = order[1:]                            # admissible but lost
+    return {"winner": winner[0], "winner_score": winner[1],
+            "losers": losers, "rejected": rejected,
+            "n": len(evaluated), "n_gate": len(gated),
+            "why": None,
+            # ★ 可复核: 赢家与各落选者的分差
+            "margin_vs_losers": [(l[1], winner[1] - l[1]) for l in losers]}
+
+
 def touched_components(accepted_rules) -> frozenset:
     """𝒯_t 的**近似** —— 已留下采纳记录的组件集合。
 

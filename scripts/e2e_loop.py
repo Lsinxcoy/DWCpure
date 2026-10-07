@@ -370,9 +370,17 @@ print("  生成: n=%d need_llm=%s why=%s"
 for c in r8["candidates"]:
     print("    [%s] %r" % (c.rule, c.patch))
 
-# 8d · ★ 逐个候选: 构建 → 判分 → 采纳 or **淘汰**
-print("\n  ── 试错（判分决定去留）──")
-best = None
+# 8d · ★ 逐个候选: 构建 → 判分 → **竞争选赢家** → 记 ℒ_t
+# ★★★ R46 改造（我核出的真 bug）:
+#   原代码: `if vv.success and best is None` = **first-success wins**
+#     ⇒ 谁先遍历到谁赢, 而论文式13 是**最高分赢**
+#     ★ 二值判分下两者**碰巧等价**（都 1.0 ⇒ 稳定排序取先到的）
+#       —— 但那是巧合: 一旦有中间分数就会分叉
+#   ⇒ ⇒★ 改用 `select_winner`（式13 line 8-15）: 语义**写死成**最高分
+#   ★ 且原代码**没记 a_i**（论文的 ℒ_t 要给赢家 1 / 落选 0）
+print("\n  ── 试错（**竞争选赢家** · 式13 line 8-15）──")
+_eval_rows = []          # [(candidate, score, passed_gate), …]
+_src_by_rule = {}        # 赢家的构建产物（8f 要用）
 for c in r8["candidates"]:
     try:
         src = build_implementation(LEARN_FN, BUGGY2, c.patch)
@@ -382,12 +390,67 @@ for c in r8["candidates"]:
         continue
     o = execute_task(Actor(), j, T2, implementation=src)
     vv = j.evaluate(T2, "dev", observed=o["observation"])
-    if vv.success and best is None:
-        best = (c, src)
-        print("    %-40s judge=%s ★采纳" % (c.rule, vv.success))
+    # ★ 二值判分 ⇒ score∈{0,1}; passed_gate = 判分过
+    #   （论文的门是 Δ_in≥0∧Δ_ho≥0, 而 e2e 只有 dev split ⇒ **近似**, 标注）
+    _sc = 1.0 if vv.success else 0.0
+    _eval_rows.append((c, _sc, bool(vv.success)))
+    _src_by_rule[c.rule] = src
+    print("    %-40s score=%.1f%s" % (c.rule, _sc, "" if vv.success else " ·未过门"))
+
+from dwc.organs.evolver import select_winner as _select_winner
+_w = _select_winner(_eval_rows)
+if _w["winner"] is not None:
+    # ★ select_winner 返回的 `winner` **就是 candidate**（不是元组）
+    #   我第一版又写了 [0] ⇒ TypeError（接口理解错）
+    best = (_w["winner"], _src_by_rule[_w["winner"].rule])
+    print("    ★ 赢家: %s (score=%.1f · 过门 %d/%d)"
+          % (_w["winner"].rule, _w["winner_score"], _w["n_gate"], _w["n"]))
+    if _w["losers"]:
+        print("    ★ admissible-but-losers: %s （论文: 有用信息, a_i=0）"
+              % [l[0].rule for l in _w["losers"]])
+else:
+    best = None
+    print("    ★ 无赢家: %s" % _w["why"][:76])
+# ★★★ 记 ℒ_t（式10）: 赢家 a_i=1 · 落选 a_i=0 · 没过门的**不记**
+#   （论文: "candidates that fail before a valid measurement ... ignored"）
+if _eval_rows:
+    _liq_out = None
+    if _w["winner"] is not None:
+        # 赢家的 ΔS 用它的 score（相对基线 0 的增益; e2e 无中间基线 ⇒ 标注）
+        _liq_out = ap.window_settle(
+            "competitor_" + _w["winner"].rule, steps=ap.window,   # ★ 必须 ≥ window（否则 settled=False ⇒ 不记账）
+            base_score=0.0, current_score=_w["winner_score"],
+            scorer_resolution=1.0, min_gain=0.0,
+            # ★★ ℓ 用 Candidate.**component**（词表项）—— 我第一版用
+            #   `rule`（规则名, 如 R1_delta_…）⇒ 𝒯_t 混入**非法值**
+            #   ⇒ 且不在 editable_vocab ⇒ pool 永远空（消费方失效）
+            component=(_w["winner"].component
+                       or _w["winner"].rule),   # 空 ⇒ 退 rule（会显式可见）
+            hypothesis=(_w["winner"].grounding[0]
+                        if _w["winner"].grounding else _w["winner"].rule),
+            diff=_w["winner"].patch,
+            cost_delta=None, round_no=1)
+    for _c, _s, _ok in _eval_rows:
+        if _w["winner"] is not None and _c.rule == _w["winner"].rule:
+            continue                      # 赢家已在上面记过（a_i=1）
+        if not _ok:
+            continue                      # ★ 没过门 ⇒ 不记（论文忽略）
+        _r = ap.window_settle(
+            "loser_" + _c.rule, steps=ap.window,   # ★ 必须 ≥ window（否则 settled=False ⇒ 不记账） base_score=0.0, current_score=_s,
+            scorer_resolution=1.0, min_gain=0.0,
+            component=(_c.component or _c.rule),
+            hypothesis=(_c.grounding[0] if _c.grounding else _c.rule),
+            diff=_c.patch, cost_delta=None, round_no=1)
+    # ★ R46 第一版这个 print 输出孤零零一个 `0`（三元优先级 + 文件不存在）
+    #   ⇒ ⇒★ 根因不是 print 而是 steps=1 < window ⇒ settled=False ⇒ 没记
+    if os.path.exists(LIQUIDITY_PATH):
+        _n_liq = sum(1 for _l in open(LIQUIDITY_PATH, encoding="utf-8")
+                     if _l.strip())
     else:
-        print("    %-40s judge=%s 淘汰" % (c.rule, vv.success))
-        gen2.record_rejection(c, "judge 判 fail（不修好）")
+        _n_liq = -1          # ★ 不存在 = **一条都没记**（-1 醒目, 不是 0）
+    print("    ℒ_t 记账: %d 条（赢家 a_i=1 · 落选 a_i=0 · 未过门不记）"
+          " %s" % (_n_liq,
+                  "★ 没记上（文件不存在）" if _n_liq < 0 else "✓"))
 
 # 8e · ★ 淘汰表生效（同轮再生成 ⇒ 已否决的不重出）
 print("\n  ── 淘汰表生效检查（G4）──")
@@ -555,7 +618,7 @@ if sig_key in _M.RULES:
     _M.persist_learned()
 # ★ R44 · 出口也清 ℒ_t（与入口双保险 —— 同 rules 的纪律）
 if os.path.exists(LIQUIDITY_PATH):
-    _liq_left = sum(1 for _l in io.open(LIQUIDITY_PATH,
+    _liq_left = sum(1 for _l in open(LIQUIDITY_PATH,
                                         encoding="utf-8") if _l.strip())
     os.remove(LIQUIDITY_PATH)
     print("  ℒ_t 自清洁: 清掉 %d 条测试记录 · 文件删=%s"
