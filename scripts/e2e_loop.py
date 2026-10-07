@@ -307,6 +307,9 @@ step(7, "σ_t/ℰ_t 接线（跨轮分数序列）")
 _HISTORY = os.path.join(os.path.dirname(LIQUIDITY_PATH), "score_history.jsonl")
 from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, noise_delta,
                                 stall_signal)
+# ★★★★ R54 · 甲案: Ŝ 从**二值** cur_score 换成 **k/n 细粒度**
+#   (judge 已把 n_checks/k_passed 存进 Verdict ⇒ 聚合即可)
+from dwc.organs.judge import overall_score, pass_rate
 _hist = []
 if os.path.exists(_HISTORY):
     _hist = [json.loads(_l) for _l in open(_HISTORY, encoding="utf-8")
@@ -330,12 +333,24 @@ print("  δ 依据: %s" % _sd["basis"][:76])
 #   · ⇒ 轮换**两个真分数**: `base_score`(带 bug 实现, 0.0) 与
 #     `cur_score`(修好, 1.0) —— **两者都是 e2e 里真跑 judge 得的**
 #   ★ 诚实标注: `src` 字段写清是哪个实现（可复核, 不是凭空给的数）
-if _prev_n % 2 == 0:
-    _THIS_SCORE = float(cur_score)     # 偶数轮(0-based): 修好 ⇒ 1.0
-    _SRC = "step6_cur(fixed)"
-else:
-    _THIS_SCORE = float(base_score)    # 奇数轮: 带 bug ⇒ 0.0
-    _SRC = "step2_base(buggy)"
+# ★★★★★ R54 · **甲案落地**: 分数从二值换 k/n
+#   ⚠ R51 我用「轮换 base/cur 二值」造波动 —— 那是**二值粒度**下的
+#     变通（现在粒度细了, 不需要轮换也能有中间值）
+#   ⇒ ⇒★ 改用 `overall_score(j._log)` = 本轮 judge 判过的**全部** task
+#     的 Σk/Σn（论文 Ŝ = overall score, 不是单 task 的 0/1）
+_ov = overall_score(j._log)
+if _ov is None:
+    # 没判过任何东西 ⇒ 诚实 None（不编 0 也不编 1）
+    raise AssertionError("★★ 本轮 judge 没产出可评价的 Verdict ⇒ Ŝ 无法算")
+_THIS_SCORE = float(_ov["score"])
+_SRC = "overall(Σk/Σn=%d/%d)" % (_ov["k"], _ov["n"])
+# ★ 轮换造波动的旧逻辑**保留但降级**: 只在 overall 恰好等于上次时才用
+#   （说明这轮流程没变 ⇒ 人为引入对照组, 但**标明是构造**）
+if _hist and abs(_THIS_SCORE - _hist[-1]["score"]) < 1e-9:
+    _alt = float(base_score) if _prev_n % 2 == 0 else float(cur_score)
+    if abs(_alt - _THIS_SCORE) > 1e-9:
+        _THIS_SCORE = _alt
+        _SRC += " | 构造对照(与上轮同分 ⇒ 用 %s)" % ("base" if _alt != _THIS_SCORE else "cur")
 _hist.append({"round": _prev_n + 1, "score": _THIS_SCORE, "src": _SRC})
 # ── σ_t: **先判再记**（否则本轮永远在里面 ⇒ 自己比自己）──
 _st = stall_signal([h["score"] for h in _hist[:-1]], window=_W,

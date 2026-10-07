@@ -113,6 +113,15 @@ class Verdict:
     #       ⇒⇒ ⇒★ 被迫手填 ⇒ 与 RULES 键不匹配 ⇒ 端到端断
     #   ⇒ ⇒★ 所以这是补**根因**，不是加功能
     failure_signature: Optional[Dict[str, str]] = None
+    #: ★★★★ R54 · **k/n 的分母/分子**（细粒度分数的原料）
+    #:   ⚠ 背景: `diffs` 字段存的是 **失败条目**（`bad`，成功时 = []）
+    #:     ⇒ 我第一版 `pass_rate` 拿 `len(v.diffs)` 当分母 = **完全错**
+    #:     （把「失败数」当「总数」）—— 我核了 `_diff` 却**没核 Verdict
+    #:     到底存了什么**（先读再写没做到）
+    #:   ⇒ ⇒★ 所以 judge 在 evaluate 时就把 k/n 存进来（它手里有全部 diffs）
+    #:   ★ None = 未评价（observed 缺 / 早期 return）—— 不许当 0/1
+    n_checks: Optional[int] = None
+    k_passed: Optional[int] = None
     #: ★ 逐条差异（judge 判 fail 时必须说**哪条**、差在哪）
     #:   ⇒ 此前 reason 是通用文案（"按 golden reference 比较实测"）
     #:     ⇒⇒ 那等于没说 ⇒ c 的原料根本没有
@@ -156,6 +165,97 @@ class Verdict:
 #   ⇒⇒ ★★★ 三端都不产 ⇒ 手填 ⇒ 与 RULES 键不匹配 ⇒ 闭环断在 step4
 #   ⇒⇒ ⇒★ 而**此前所有分段测试都绿** —— 因为分段里签名也是手填的
 #     ⇒⇒ ⇒★★ 手填把接口不匹配完全遮蔽（"分段绿 != 链路通"最强证据）
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R54 · **细粒度分数**（用户裁决「甲」: 多任务 pass_rate = k/n）
+#   ★ 背景: R50 我实测分数 ∈ {0,1} ⇒ δ 的可行域只剩 {0}（δ∈[0,1) 全等价、
+#     δ≥1 退化）⇒ **δ 没有调节空间**（且与 R41 量化阶梯同根）
+#   ⇒ 用户选**甲**: 多任务 pass_rate（论文原意）⇒ 分数连续 ⇒ δ 有意义
+#
+# === 为什么分母**已经存在**（不是新建数据集）===
+#   `_diff` 对每个 check 产一条 ⇒ `len(diffs)` 就是 n（11 task / 26 check）
+#   而 `success = all(ok)` 是**二值投影**（k==n ⇒ True）
+#   ⇒ ⇒★ 所以 pass_rate = k/n 是**同一批数据的另一种读法**
+#     （不改判据、不加检查 —— 只是不再把 k/n 压成 0/1）
+#
+# === 三个层级（每层都说清语义）===
+#   ① `pass_rate(v)` —— **单 task**: k/n over checks
+#   ② `overall_score(vs)` —— **聚合**（论文 Ŝ_t = overall）: sum(k)/sum(n)
+#      ★ 用 **micro 平均**（总 k / 总 n）而非 mean(ratio):
+#        后者会让 1-check 任务与 4-check 任务**等权** ⇒ 4 个 check 的
+#        任务信息量更大, 等权会放大单点噪声
+#   ③ 未评价（success=None）**排除**在分母外 —— 对齐「None 不许当 0/1」
+#
+# ★★ 硬要求（每条对应一个我犯过的坑）:
+#   ① `success is None` ⇒ 返回 **None**（未评价, 不许当 0 或 1）
+#   ② `diffs` 空 ⇒ 返回 **None**（无判据可算, 除零/当 1.0 都是编造）
+#   ③ 分母 0（全都没评价）⇒ 返回 **None**（不许 0/0 或默认满分）
+# ═══════════════════════════════════════════════════════════
+
+
+def pass_rate(v) -> Optional[float]:
+    """★ 单 task 的通过率 **k/n**（细粒度, 不再压成 0/1）。
+
+    ★ 输入 `Verdict`（judge 的产物）；返回 float ∈ [0,1] 或 **None**
+    ★ None 的两种含义（**都表示"没测出来"**, 不许当分数用）:
+        · `success is None` —— 未评价（observed 缺 / 无 checks / 未跑）
+        · `diffs` 空        —— 没有判据可算
+    ★★ 为什么 None 不当 0: R44/R50 的纪律 —— 「没测」与「测了是 0」
+      是两回事（None=诚实未测, 0=实测失败）；混起来会让
+      「未评价的 task」凭空拉低分数
+    """
+    if v is None:
+        return None
+    if getattr(v, "success", None) is None:
+        return None                     # ① 未评价 ⇒ 不是 0/1
+    # ★★★ R54 修: 分子分母取 **n_checks/k_passed**（judge 记的真值）
+    #   ⚠ 不许用 `v.diffs` —— 那是**只含失败**的条目（成功时 = []）
+    #     拿它当分母 = 把「失败数」当「总数」（我第一版就错了）
+    n = getattr(v, "n_checks", None)
+    k = getattr(v, "k_passed", None)
+    if n is None or k is None or n <= 0:
+        return None                     # ② 没记 k/n（早期 return/旧对象）
+    return k / n
+
+
+def overall_score(verdicts) -> Optional[float]:
+    """★★ 聚合分数 **Σk / Σn**（论文式13 的 `Ŝ_t` = overall score）。
+
+    ★ 输入: `Verdict` 的**可迭代**（一轮里所有 task 的判定）
+    ★ ★ 用 **micro 平均**: 总通过数 / 总 check 数
+      · 不用 mean(pass_rate): 那会让 1-check 任务与 4-check 任务**等权**
+      · 依据: 4-check 的任务携带更多信息, 等权会放大单点噪声
+    ★ 硬要求:
+      ① 空输入 / 全部未评价 ⇒ **None**（不许 0/0, 也不许默认满分）
+      ② 未评价的 task **排除在分母外**（对齐「None 不当 0/1」）
+      ③ 返回值带上 (k, n) 可复核（否则「0.5」看不出是 1/2 还是 5/10）
+    """
+    if not verdicts:
+        return None                     # ① 空
+    k_tot = n_tot = 0
+    n_skipped = 0
+    for v in verdicts:
+        if v is None or getattr(v, "success", None) is None:
+            n_skipped += 1               # ② 未评价 ⇒ 不进分母
+            continue
+        # ★ R54: 用 n_checks/k_passed（不是 v.diffs —— 那只含失败）
+        n = getattr(v, "n_checks", None)
+        k = getattr(v, "k_passed", None)
+        if not n or n <= 0 or k is None:
+            n_skipped += 1
+            continue
+        k_tot += k
+        n_tot += n
+    if n_tot == 0:
+        return None                     # ① 全都没评价 ⇒ None, 不是 0.0
+    return {
+        "score": k_tot / n_tot,
+        "k": k_tot, "n": n_tot,
+        "n_skipped": n_skipped,         # ③ 可复核
+        "basis": "Σk/Σn = %d/%d（未评价 %d 个 task 不进分母）"
+                 % (k_tot, n_tot, n_skipped),
+    }
 
 
 def classify_c(expected: Any, actual: Any) -> str:
@@ -481,7 +581,12 @@ class Judge:
                     # ★ 逐条差异（判 fail 时**必须**说哪条、差在哪）
                     #   ⇒ 此前 reason 是通用文案 ⇒ 等于没说
                     diffs=[{k: d.get(k) for k in DIFF_FIELDS}
-                           for d in bad] if not ok else [])
+                           for d in bad] if not ok else [],
+                    # ★★★★ R54: k/n —— `diffs` 只存**失败**的(成功=[]),
+                    #   所以分母必须在**这里**记(手里有全部 `diffs`)
+                    #   ⇒ 否则调用方会把「失败数」当「总数」(我第一版就错了)
+                    n_checks=len(diffs),
+                    k_passed=sum(1 for d in diffs if d.get("ok")))
         self._log.append(v)
         return v
 
