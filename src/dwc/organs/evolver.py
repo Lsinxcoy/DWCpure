@@ -670,6 +670,47 @@ def noise_delta() -> float:
     }
 
 
+def natural_rise(scores, srcs=None) -> dict:
+    """★★★★★ R55 · 验序列**自然涨过**（不是构造的）—— 判据单源。
+
+    ★ 背景: R51/R54 我一直在**构造**波动（轮换 base/cur 二值、与上轮
+      同分才轮换）⇒⇒ ★ 那分数是**编排出来的**, 不是**演化出来的**
+      ⇒ 这条把「必须真涨过」变成**可测函数**（e2e 与 pytest 同源）
+
+    硬要求（每条对应一个我犯过的错）:
+      ① 至少一次**严格上涨**（否则 = 从未涨过, 恒定/单调降）
+      ② 上涨那次的 `src` 不许含「构造对照」（不能是轮换造的）
+      ③ 分数**不许恒定**（恒定 = 细粒度没在演化中用上, R54 边界①）
+      ④ `srcs` 缺省 ⇒ 只验 ①③（**不能**因为没 src 就放过 ② ——
+        那是「验不了就不验」的偷懒 ⇒ 显式标 `src_checked=False`）
+
+    返回: {ok, risen, first_rise(from,to), n_rises, reasons[]}
+    """
+    reasons = []
+    scores = list(scores or [])
+    if not scores:
+        return {"ok": False, "reasons": ["空序列 ⇒ 无法验证"],
+                "risen": [], "n_rises": 0, "src_checked": bool(srcs)}
+    risen = [k for k in range(1, len(scores) if not srcs else len(scores))
+             if k < len(scores) and scores[k] > scores[k - 1]]
+    if not risen:
+        reasons.append("序列从未自然涨过: %s" % ["%.4f" % x for x in scores[:6]])
+    if len(set(scores)) <= 1:
+        reasons.append("分数恒定(%.4f) ⇒ 细粒度没在演化中用上" % scores[0])
+    src_checked = bool(srcs)
+    if srcs:
+        srcs = list(srcs)
+        # ★ 只对**最后一次**上涨查 src（第一次涨之后可能有新机制介入）
+        if risen and "构造对照" in str(srcs[risen[-1]]):
+            reasons.append("那次上涨是**构造**的(src=%s) — 要真演化"
+                           % srcs[risen[-1]])
+    out = {"ok": not reasons, "reasons": reasons, "risen": risen,
+           "n_rises": len(risen), "src_checked": src_checked}
+    if risen:
+        out["first_rise"] = (scores[risen[0] - 1], scores[risen[0]])
+    return out
+
+
 def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
     """★★ σ_t —— 搜索是否停滞（伪码 line 6 · 论文式13 的第一项）。
 

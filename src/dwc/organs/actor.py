@@ -619,7 +619,16 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
         #     ⇒ 入参匹配失败 ⇒ judge 判 fail（而值其实是对的）
         #   ⇒⇒ 而这正是"契约两侧类型不一致"—— 值侧我已归一，入参侧漏了
         # ⇒★ 源头修: actor 传字面量，与 judge 的 _as_literal 对齐
-        calls.append([_as_literal(c["args"]), ex.calls[-1][1]])
+        # ★★★★ R55 · 执行器**抛异常**时 `ex.calls` 是**空**的
+        #   （`act` 记 outcome="raised" 后 return ⇒ 没有 append）
+        #   ⇒ 此前 `ex.calls[-1][1]` **IndexError** 崩了整个 e2e
+        #   ⇒ ⇒★ 正解: 没有调用记录 ⇒ 诚实记 **None**
+        #     （judge 收到 actual=None ⇒ 判 fail = **对的**,
+        #      不是掩盖: 实现在异常时就该 fail）
+        #   ★ 这是「**读代码时只看了 happy path**」的错 —— act 的
+        #     异常分支我根本没读（先读再写没做到）
+        _val = ex.calls[-1][1] if ex.calls else None
+        calls.append([_as_literal(c["args"]), _val])
     return {"task_id": task_id,
             "observation": {fn_name: calls},
             "traces": traces,

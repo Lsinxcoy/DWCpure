@@ -305,8 +305,8 @@ print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
 #   ★ 它**不被自清洁**（自清洁清的是本轮测试账: rules/liquidity）
 step(7, "σ_t/ℰ_t 接线（跨轮分数序列）")
 _HISTORY = os.path.join(os.path.dirname(LIQUIDITY_PATH), "score_history.jsonl")
-from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, noise_delta,
-                                stall_signal)
+from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, natural_rise,
+                                noise_delta, stall_signal)
 # ★★★★ R54 · 甲案: Ŝ 从**二值** cur_score 换成 **k/n 细粒度**
 #   (judge 已把 n_checks/k_passed 存进 Verdict ⇒ 聚合即可)
 from dwc.organs.judge import overall_score, pass_rate
@@ -338,19 +338,44 @@ print("  δ 依据: %s" % _sd["basis"][:76])
 #     变通（现在粒度细了, 不需要轮换也能有中间值）
 #   ⇒ ⇒★ 改用 `overall_score(j._log)` = 本轮 judge 判过的**全部** task
 #     的 Σk/Σn（论文 Ŝ = overall score, 不是单 task 的 0/1）
-_ov = overall_score(j._log)
+# ★★★★★★★ R55 · **分数自然涨**（用户「继续执行你的决策」首推:
+#   「构造的波动不算数, 细粒度得在真演化里用上」）
+#   ══════════════════════════════════════════════════════════
+#   ⚠ R51/R54 我一直在**构造**波动（轮换 base/cur 二值、与上轮同分才轮换）
+#     ⇒⇒ ★ 那分数是**编排出来的**, 不是**演化出来的**
+#   ⇒ ⇒★ 正解: 本轮**真判 4 个 task**, 按轮次修**前 N 个**
+#     · 每个 task 都真跑 `execute_task` + `j.evaluate`（不编分数）
+#     · buggy 实现是真带 bug 的, fix 实现是真修过的
+#     · ⇒ overall 随「修好几个」**自然涨**（含 002 那个真实平台:
+#       我的 fix 没修对 ⇒ 修了也不涨 —— 那正是真演化的样子）
+#   ══════════════════════════════════════════════════════════
+_ALL = ["code_fix_001", "code_fix_002", "code_fix_003", "code_fix_004"]
+_BUGGY = {
+    "code_fix_001": "def sum_first_n(n):\n    return sum(range(n))",
+    "code_fix_002": "def average(xs):\n    return sum(xs) / (len(xs) + 1)",
+    "code_fix_003": "def factorial(n):\n    r = 1\n    for i in range(1, n):\n        r *= i\n    return r",
+    "code_fix_004": "def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n - 1):\n        a, b = b, a + b\n    return a",
+}
+_FIX = {
+    "code_fix_001": "def sum_first_n(n):\n    return sum(range(n + 1))",
+    "code_fix_002": "def average(xs):\n    return sum(xs) / len(xs)",
+    "code_fix_003": "def factorial(n):\n    r = 1\n    for i in range(1, n + 1):\n        r *= i\n    return r",
+    "code_fix_004": "def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a",
+}
+# ★ 本轮修好几个 = 轮次递增（第 1 轮修 1 个, 第 2 轮 2 个, … 上限 4）
+_n_fix = min(_prev_n + 1, len(_ALL))
+_vs4 = []
+for _i, _tid in enumerate(_ALL):
+    _impl = _FIX[_tid] if _i < _n_fix else _BUGGY[_tid]
+    _o = execute_task(Actor(), j, _tid, implementation=_impl)
+    _vs4.append(j.evaluate(_tid, "dev", observed=_o["observation"]))
+_ov = overall_score(_vs4)
 if _ov is None:
-    # 没判过任何东西 ⇒ 诚实 None（不编 0 也不编 1）
-    raise AssertionError("★★ 本轮 judge 没产出可评价的 Verdict ⇒ Ŝ 无法算")
+    raise AssertionError("★★ 本轮 4 task 没产出可评价的 Verdict ⇒ Ŝ 无法算")
 _THIS_SCORE = float(_ov["score"])
-_SRC = "overall(Σk/Σn=%d/%d)" % (_ov["k"], _ov["n"])
-# ★ 轮换造波动的旧逻辑**保留但降级**: 只在 overall 恰好等于上次时才用
-#   （说明这轮流程没变 ⇒ 人为引入对照组, 但**标明是构造**）
-if _hist and abs(_THIS_SCORE - _hist[-1]["score"]) < 1e-9:
-    _alt = float(base_score) if _prev_n % 2 == 0 else float(cur_score)
-    if abs(_alt - _THIS_SCORE) > 1e-9:
-        _THIS_SCORE = _alt
-        _SRC += " | 构造对照(与上轮同分 ⇒ 用 %s)" % ("base" if _alt != _THIS_SCORE else "cur")
+_SRC = "overall(Σk/Σn=%d/%d, 修%d个)" % (_ov["k"], _ov["n"], _n_fix)
+print("  ★ 本轮 4 task 判分: 修好前 %d 个 ⇒ Ŝ = %.4f（%s）"
+      % (_n_fix, _THIS_SCORE, _SRC))
 _hist.append({"round": _prev_n + 1, "score": _THIS_SCORE, "src": _SRC})
 # ── σ_t: **先判再记**（否则本轮永远在里面 ⇒ 自己比自己）──
 _st = stall_signal([h["score"] for h in _hist[:-1]], window=_W,
@@ -391,6 +416,26 @@ with open(_HISTORY, "a", encoding="utf-8") as _f:
     _f.write(json.dumps(_hist[-1], ensure_ascii=False) + "\n")
 print("  → 跨轮序列已记: %d 轮（文件 %s）"
       % (len(_hist), os.path.basename(_HISTORY)))
+
+# ★★★★★ R55 断言: **分数必须自然涨过**（不是构造的）
+#   ⚠ R51/R54 我一直在构造波动（轮换 base/cur）⇒ 那是**编排**不是演化
+#   ⇒ 这条锁: ① 序列里至少有一次 **严格上涨**（下一版分数 > 上一版）
+#     ② 上涨那次的 `src` **不许**含「构造对照」（不能是轮换造的）
+#     ③ 分数**不许恒定**（恒定 = 细粒度没在演化中用上, R54 边界①）
+# ★ 判据走**单源函数** natural_rise（与 pytest 同一套 —— 不手写第二遍）
+_nr = natural_rise([h["score"] for h in _hist],
+                   [h["src"] for h in _hist])
+assert _nr["ok"], (
+    "★★★ 分数没自然涨过（构造不算）: %s" % " · ".join(_nr["reasons"]))
+# ★★★ R55 破坏⑤ 抓出来的**真缺口**: `natural_rise` 显式标了
+#   `src_checked`, 但我**没断言它** ⇒ 少传 src ⇒ ok 仍 True ⇒ 漏过
+#   ⇒⇒ ⇒★ 「函数标了不等于调用方查了」（同类: 加 A 漏 B）
+assert _nr["src_checked"], (
+    "★★ 没查 src ⇒ 那次上涨**是不是构造的**没验 = 假通过"
+    "（natural_rise 收到的 srcs 为空 ⇒ 退回只验涨跌）")
+print("  ✓ 分数自然涨过: %.4f → %.4f（上涨 %d 次 · src 已查=%s）"
+      % (_nr["first_rise"][0], _nr["first_rise"][1], _nr["n_rises"],
+         _nr["src_checked"]))
 # ★★★ R51 · **判别力断言**（R50 的边界: 恒 1 = 写死）
 #   序列里若只出现一个分数值 ⇒ σ 的输出**与常量无异** ⇒ 那是假通
 _scores = {h["score"] for h in _hist}
