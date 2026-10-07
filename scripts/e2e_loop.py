@@ -293,6 +293,76 @@ assert "control_flow" in _s7["T_t"], "★ ℒ_t 的 ℓ 应进 𝒯_t"
 assert "evaluator" not in (_pr.get("pool") or [])
 print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
 
+# ── 7c · ★★★★★ R50 · σ_t/ℰ_t **第一次真接线**（R41 实现后一直空转）──
+#   ★ 我 R41 实现了 σ_t/ℰ_t, R50 量出了 δ —— 但**全库 0 个调用点**
+#     （e2e 里 stall_signal/exploration_signal/NOISE_DELTA 各 0 次）
+#   ⇒ ⇒★ 现在接: 跨轮分数序列 + σ_t（数据不足**要真的不判**）
+#
+# === 为什么是「跨轮」文件, 而不是本次内存里的序列 ===
+#   · Ŝ_t 的语义是「**第 t 轮** evolution instance 的分数」（论文式13）
+#   · **一次 e2e = 一轮** ⇒ 单次跑只有 1 个 Ŝ ⇒ `len < w+1` ⇒ 永远不判
+#   ⇒ ⇒★ 所以要真判 σ ⇒ 必须**跨轮累积**（这就是这个文件存在的理由）
+#   ★ 它**不被自清洁**（自清洁清的是本轮测试账: rules/liquidity）
+step(7, "σ_t/ℰ_t 接线（跨轮分数序列）")
+_HISTORY = os.path.join(os.path.dirname(LIQUIDITY_PATH), "score_history.jsonl")
+from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, noise_delta,
+                                stall_signal)
+_hist = []
+if os.path.exists(_HISTORY):
+    _hist = [json.loads(_l) for _l in open(_HISTORY, encoding="utf-8")
+             if _l.strip()]
+_prev_n = len(_hist)
+# ★ w: **数据约束**得出, 不是拍的 —— e2e 序列短, w>1 ⇒ `len < w+1` 恒不判
+#   ⇒ 当前唯一判得动的值是 w=1（回看 1 轮）。w>1 需要**更多轮次**。
+_W = 1
+_sd = noise_delta()
+print("  跨轮序列: %d 轮（上次 %d）· w=%d · δ=%s"
+      % (len(_hist), _prev_n, _W, _sd["delta"]))
+print("  δ 依据: %s" % _sd["basis"][:76])
+# ★ 本轮分数 = step6 的**真分数**（cur_score 来自 judge, 不是硬编）
+_THIS_SCORE = float(cur_score)
+_hist.append({"round": _prev_n + 1, "score": _THIS_SCORE,
+              "src": "step6_cur"})
+# ── σ_t: **先判再记**（否则本轮永远在里面 ⇒ 自己比自己）──
+_st = stall_signal([h["score"] for h in _hist[:-1]], window=_W,
+                   delta=float(_sd["delta"]))
+if _st.get("reason"):
+    print("  ★ σ_t 不判: %s" % _st["reason"][:88])
+else:
+    print("  ★ σ_t = %s（%s）" % (_st["sigma"], _st["basis"][:66]))
+# ── ℰ_t（三元: σ_t · 𝒰_t · m_draft）──
+# ★ R50 修: 我第一版传 `Mutator.RULES`（是 **dict**）⇒ touched_components
+#   要 **list of dict** ⇒ 'str' object has no attribute 'get'
+#   ⇒⇒ ★ 接口理解错（同 `_w[0]` 那类）—— **先读再写没做到**
+#   而且有真 ℒ_t 可用 ⇒ 传 liquidity（真源优先）
+_ev = exploration_signal([h["score"] for h in _hist[:-1]], _W,
+                         float(_sd["delta"]), Mutator.RULES,
+                         draft=None, liquidity=_liq_now)
+print("  ★ ℰ_t: active=%s · unexplored=%s · ready=%s · T_source=%s"
+      % (_ev["active"], _ev["unexplored"], _ev["ready"],
+         _ev.get("T_source")))
+if not _ev["active"] and _ev["why_inactive"]:
+    print("    未激活原因: %s" % _ev["why_inactive"][:88])
+# ★★★ R50 断言: ℰ_t 的 𝒯_t **必须走真源**（我 R45 给 prune_targets 加了
+#   这条断言, 却**漏了 ℰ_t** —— 同族第 2 次）
+assert str(_ev.get("T_source", "")).startswith("liquidity"), \
+    ("★★ ℰ_t 必须用**真 ℒ_t** 算 𝒯_t（近似 = 假打通, R45 的教训）"
+     "· 实得 %r" % _ev.get("T_source"))
+print("  ✓ ℰ_t 的 𝒯_t 走真源: %s" % _ev["T_source"])
+# ★ 断言: **历史不足时不许 active**（硬要求② 在真实流程里验）
+if _prev_n < _W:
+    assert _st.get("reason"), \
+        "★★★ 只有 %d 轮历史 ⇒ 必须给出『不判』的理由（静默算 σ = 编造）" % _prev_n
+    assert _ev["active"] is False, \
+        "★★ 历史不足 ⇒ ℰ_t 不许 active（否则等于数据不够就当停滞）"
+    print("  ✓ 验到硬要求②: 历史 %d < w+1 ⇒ **不判** 且 ℰ_t 不激活" % _prev_n)
+# 写回**跨轮**文件（追加本轮）
+os.makedirs(os.path.dirname(_HISTORY), exist_ok=True)
+with open(_HISTORY, "a", encoding="utf-8") as _f:
+    _f.write(json.dumps(_hist[-1], ensure_ascii=False) + "\n")
+print("  → 跨轮序列已记: %d 轮（文件 %s）"
+      % (len(_hist), os.path.basename(_HISTORY)))
+
 # ── 汇总 ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
 print("端到端结果")

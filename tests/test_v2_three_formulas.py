@@ -31,8 +31,8 @@ from dwc.organs.evolver import (  # noqa: E402
     NOVELTY_ELIGIBLE, OBJECT_TO_COMPONENT, STRUCTURAL,
     LIQUIDITY_FIELDS, editable_vocab, exploration_signal, gain,
     k1_coverage, liquidity_summary, novelty_score, prune_blockers,
-    liquidity_find, prune_targets, record_edit, select_winner,
-    stall_signal, touched_components,
+    NOISE_DELTA, liquidity_find, noise_delta, prune_targets,
+    record_edit, select_winner, stall_signal, touched_components,
     touched_from_liquidity, unexplored_components,
 )
 
@@ -741,3 +741,60 @@ def test_liquidity_find_requires_all_criteria_not_any():
     # ★ 无解组合 ⇒ 必须空（不许"命中一条就算"）
     assert liquidity_find(recs, d_i="A", t_i=2) == [], \
         "★ d_i=A 且 t_i=2 不存在 ⇒ 必须空"
+
+# ══════════════════════════════════════════════════════════
+# R50 · 噪声带 δ 的实测固化（我 R41 拒拍脑袋 ⇒ 这轮真量了）
+# ══════════════════════════════════════════════════════════
+
+def test_noise_delta_is_measured_not_guessed():
+    """★★★★★ δ 必须是**实测推导**的唯一非退化值（不是拍的）。
+
+    ★ 依据链（R50 实测, 每步都能复跑）:
+      ① judge 确定性 ⇒ 同实现重复判分 std=0.0 ⇒ 判分噪声=0
+      ② 分数∈{0,1} ⇒ Δ∈{−1,0,1}（只取整数）
+      ③ δ∈[0,1) 与 δ=0 **行为等价**; δ≥1 ⇒ σ 恒 1（连"涨"都算停滞）
+    """
+    assert NOISE_DELTA == 0.0, "★ R50 实测唯一非退化值是 0.0, 实得 %r" % NOISE_DELTA
+    # ③ 逐条验退化边界（数据来自上面实测的表）
+    hist_rise = [0.0, 1.0]       # 涨
+    hist_flat = [1.0, 1.0]       # 平
+    # δ=0: 涨→0 · 平→1（**能区分**）
+    assert stall_signal(hist_rise, 1, 0.0)["sigma"] == 0
+    assert stall_signal(hist_flat, 1, 0.0)["sigma"] == 1
+    # δ=0.5 与 0.0 **等价**（Δ 只整数 ⇒ 小数带无作用）
+    assert stall_signal(hist_rise, 1, 0.5)["sigma"] == stall_signal(
+        hist_rise, 1, 0.0)["sigma"]
+    assert stall_signal(hist_flat, 1, 0.5)["sigma"] == 1
+    # ★★ δ=1.0 ⇒ **退化**: 涨也算停滞（σ 恒 1）
+    assert stall_signal(hist_rise, 1, 1.0)["sigma"] == 1, \
+        "★ δ≥1 应退化成恒 1（这正是它不能取 ≥1 的原因）"
+    assert stall_signal(hist_flat, 1, 1.0)["sigma"] == 1
+    # ⇒ 结论: δ=0 是**唯一**既不恒 0 也不恒 1 的值（在当前粒度下）
+
+
+def test_noise_delta_carries_basis_and_precondition():
+    """★★ `noise_delta()` 要**带出依据** —— 裸常量看不出是实测还是拍的
+    （我 A11 踩过"死判据"）。
+    """
+    r = noise_delta()
+    assert r["delta"] == NOISE_DELTA
+    assert "实测" in r["basis"] and "std=0.0" in r["basis"]
+    # ★★ 前提必须写清: 粒度变了要重测（否则会被当成永久常数照抄）
+    assert "重测" in r["precondition"], \
+        "★ 前提要写明『粒度变 ⇒ 重测』, 否则下次会照抄"
+    # 并且要指明**粒度**是什么
+    assert "{0,1}" in r["precondition"] or "二值" in r["precondition"]
+
+
+def test_noise_delta_cannot_be_defaulted_in_stall_signal():
+    """★ 硬要求① 仍在: stall_signal **不许**给 w/δ 默认值。
+      ★ δ 现在有实测值了 ⇒ 但**仍须显式传**（w 是业务语义, 不是数据推的）
+    """
+    import inspect
+    sig = inspect.signature(stall_signal)
+    assert "delta" in sig.parameters and sig.parameters["delta"].default is None \
+        or sig.parameters["delta"].default == inspect.Parameter.empty, \
+        "★ delta 不许有默认值（拿 NOISE_DELTA 是**调用方的选择**）"
+    assert "window" in sig.parameters and \
+        sig.parameters["window"].default == inspect.Parameter.empty, \
+        "★ window 仍无默认（它是业务语义 —— R50 没能量出它）"

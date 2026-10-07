@@ -102,3 +102,6 @@ config/llm.json
 #   ⇒ ⇒★ rules.json 从未被跟踪（对的）, liquidity 那次是我 add -A 加错
 config/anchors/rules.json
 config/anchors/liquidity.jsonl
+# ★ R50 · **跨轮**分数序列（σ_t 的输入; 本轮 e2e 只有 1 轮
+#   ⇒ 不跨轮累积就永远『数据不足不判』⇒ 它不该进 git
+config/anchors/score_history.jsonl

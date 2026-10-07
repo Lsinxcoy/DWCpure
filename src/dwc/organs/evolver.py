@@ -579,12 +579,19 @@ def touched_components(accepted_rules) -> frozenset:
         for r in (accepted_rules or []) if (r or {}).get("component"))
 
 
-def unexplored_components(accepted_rules) -> frozenset:
+def unexplored_components(accepted_rules, liquidity=None) -> frozenset:
     """𝒰_t = (𝒦 ∪ 𝒦_meta_editable) ∖ 𝒯_t（式8 + DWC §四④）。
 
     ★ K6 判据的实现处: 探索**必须**含 𝒦_meta_editable，
       否则架构层永不被探索（文档 §四④ 原话）
     """
+    # ★★ R50: 加 `liquidity` 参数（**真源优先**）—— 与 R45 的
+    #   `prune_targets(liquidity=)` **对齐**
+    #   ★ 我 R45 给 prune_targets 加了真源, 却漏了这个同族接口
+    #   ⇒ 两处一个用真、一个用近似 = **同一个 𝒯_t 两种算法**
+    #   ⇒⇒ ★ 正是 R39 我记的「一个判据不许散多处」的新变体
+    if liquidity:
+        return editable_vocab() - touched_from_liquidity(liquidity)
     return editable_vocab() - touched_components(accepted_rules)
 
 
@@ -606,6 +613,62 @@ def unexplored_components(accepted_rules) -> frozenset:
 #     ⇒ 归因是**新设计问题**（哪个组件产生多少增益），未裁决前不实现
 #     ⇒ σ_t 不依赖归因（只看整体分数史）⇒ 先做它
 # ═══════════════════════════════════════════════════════════
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R50 · 噪声带 δ 的**实测**取值（我 R41 拒拍脑袋 ⇒ 现在量了）
+#   ★ 我 R41/R42 的纪律: w/δ **无默认值**（A11 死判据教训）——
+#     但那只是"不许猜", **从没跑过真数据去定它** ⇒ σ_t 一直空转
+#
+# === R50 实测（三组）===
+#   ① 同实现重复判分 5 次: [0.0×5] · **标准差 0.0**
+#      ⇒ 判分是**确定性**的（judge 零随机源: random/shuffle/seed 全 0 次）
+#      ⇒ 判分噪声 = 0
+#   ② 候选池分数: {0.0, 1.0} ⇒ **Δ ∈ {−1, 0, 1}**（二值粒度）
+#   ③ δ 可行域（w=1 逐个跑 stall_signal）:
+#        序列       δ=0.0   δ=0.5   δ=1.0
+#        涨(0→1)      0        0        1   ← δ≥1 后"涨"也算停滞 ⇒ 退化
+#        平(1→1)      1        1        1
+#        跌(1→0)      1        1        1
+#        抖(0/1/0/1)  0        0        1
+#
+# === 结论（**实测推导**, 不是拍脑袋）===
+#   · δ ∈ [0, 1) 全部**等价于 0**（Δ 只取整数 ⇒ 小数带无调节作用）
+#   · δ ≥ 1 ⇒ σ **恒 1**（连"涨"都算停滞）⇒ 违背 σ 的本义
+#     （式13: 仅停滞时把预算留给未探索组件 ⇒ 恒激活 = 这个信号没用）
+#   ⇒ ⇒★ **NOISE_DELTA = 0.0 是唯一非退化值**
+#
+# ★★★ 而这暴露**真问题**: 分数粒度 = 二值 ⇒ δ 没有调节空间
+#   —— 与 R41 裁决 A 的「量化阶梯」**同一根因**
+#   ⇒ 要让 δ 有意义 ⇒ 需要**细粒度分数**（如多任务 pass_rate = k/n）
+#   ⇒ 那是**设计问题**（未裁决）—— 本常量只在**当前粒度**下成立
+#
+# ★ w（回看几轮）**不在这里定**: 它是**业务语义**（"几轮没涨算停滞"），
+#   不是数据能推的 ⇒ 仍须显式给（保持 R41 的硬要求 ①）
+# ═══════════════════════════════════════════════════════════
+
+#: ★ R50 实测的噪声带 δ —— 依据见上方三组数据
+#:   ★ 前提: **分数粒度为二值 {0,1}**（judge 确定性 + 单任务）
+#:   ⇒ 粒度一变（如改多任务 pass_rate）这个值**必须重测**, 别照抄
+NOISE_DELTA = 0.0
+
+
+def noise_delta() -> float:
+    """★ 取实测噪声带 δ（返回常量, 但**带出依据**让调用方可复核）。
+
+    ★ 为什么给函数而不只是常量:
+      调用方 `stall_signal(hist, w, NOISE_DELTA)` 拿到的是个裸 0.0 ——
+      **看不出它是实测的还是拍的**（我 A11 踩过"死判据"）
+    ★ 返回 {"delta": 0.0, "basis": 实测依据, "precondition": 粒度前提}
+    """
+    return {
+        "delta": NOISE_DELTA,
+        "basis": ("R50 实测: ① 同实现重复判分 5 次 std=0.0(确定性) "
+                  "② 分数∈{0,1}⇒Δ∈{−1,0,1} ③ δ∈[0,1) 全等价于 0, "
+                  "δ≥1 ⇒ σ 恒 1 = 退化 ⇒ 唯一非退化值 0.0"),
+        "precondition": ("★ 分数粒度必须仍是二值 {0,1} —— "
+                         "改成细粒度(多任务 pass_rate) ⇒ **必须重测**"),
+    }
 
 
 def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
@@ -647,7 +710,7 @@ def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
 
 
 def exploration_signal(score_history, window, delta, accepted_rules,
-                       draft: Any = None) -> Dict[str, Any]:
+                       draft: Any = None, liquidity=None) -> Dict[str, Any]:
     """★★★ ℰ_t 三元 = (σ_t, 𝒰_t, m_draft)（伪码 line 9）。
 
     ★ 语义（论文原文）: **仅在停滞时**才把预算的一部分**保留给**
@@ -665,7 +728,8 @@ def exploration_signal(score_history, window, delta, accepted_rules,
     sigma_ok = "reason" not in st or st["reason"] is None
     sigma = st.get("sigma", 0)
     active = bool(sigma_ok and sigma == 1)
-    U = unexplored_components(accepted_rules)
+    # ★ R50: 真源优先（与 prune_targets 对齐）—— 近似仅 fallback
+    U = unexplored_components(accepted_rules, liquidity=liquidity)
     ready = sigma_ok and draft is not None and bool(U)
     # ★ 为什么没激活 —— **分步算**（我第一版写成嵌套三元 ⇒ 括号不配、
     #   文件写坏了；教训: 复杂条件别塞进 dict 字面量）
@@ -681,6 +745,9 @@ def exploration_signal(score_history, window, delta, accepted_rules,
                 % (st.get("delta_now"), delta))
     return {"active": active, "sigma": st, "unexplored": sorted(U),
             "draft": draft, "ready": ready,
+            # ★ 数据源可复核（否则看不出用真源还是近似）
+            "T_source": ("liquidity(式11 真源)" if liquidity
+                         else "近似(RULES component)"),
             "why_inactive": why_inactive}
 
 
