@@ -57,11 +57,27 @@ def test_missing_src_cannot_smuggle_through():
     assert r2["src_checked"] is False
 
 
-def test_empty_and_single():
-    """★ 空 / 单点 ⇒ 无法验证 ⇒ ok=False（不是放行）。"""
-    assert natural_rise([])["ok"] is False
-    assert natural_rise([0.5])["ok"] is False
-    assert "空序列" in " ".join(natural_rise([])["reasons"])
+def test_empty_and_single_are_precondition_not_fail():
+    """★★ R56 · 空/单点 = **前置不足**（`ok=None`, `precondition=False`）
+    —— 不是 fail：清历史后首轮只有 1 个分数, 拿「还没数据」当失败
+    是错的（同 σ_t 的「历史不足不判」）。
+    """
+    for v in (natural_rise([]), natural_rise([0.5])):
+        assert v["precondition"] is False, v
+        assert v["ok"] is None, "★ 前置不足时 ok 必须是 None(不是 False/True)"
+        assert v["risen"] == [] and v["n_rises"] == 0
+    assert "数据不足" in " ".join(natural_rise([0.5])["reasons"])
+
+
+def test_two_points_enough_to_judge():
+    """★ ≥2 个 ⇒ 前置满足 ⇒ 正常判（不许当数据不足）。"""
+    r = natural_rise([0.5, 0.6])
+    assert r.get("precondition") is not False
+    assert r["ok"] is True and r["n_rises"] == 1
+    # 恒定的两点 = 前置满足 + 判 fail（**两个不同语义**）
+    r2 = natural_rise([0.5, 0.5])
+    assert r2.get("precondition") is not False
+    assert r2["ok"] is False and any("恒定" in x for x in r2["reasons"])
 
 
 def test_declining_fails():

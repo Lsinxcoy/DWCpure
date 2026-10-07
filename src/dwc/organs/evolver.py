@@ -670,6 +670,54 @@ def noise_delta() -> float:
     }
 
 
+def has_drop(scores) -> dict:
+    """★★★★ R56 · 序列里**跌过吗**（单源 —— e2e 与 pytest 同一套）。
+
+    ★ 为什么单独立: R55 我挑明「σ 没见过跌 ⇒ 那个语义就是没验过」
+      ⇒ ⇒★ 「跌过」与「涨过」是**两个不同判据**（natural_rise 只管涨）
+      ⇒ 而我第一版把「跌过」内联在 e2e 里 ⇒ **pytest 验不到** ⇒ 破坏
+        ④⑤ 直接去掉断言**没红**（我验错了方向, 但根因是判据没单源）
+
+    返回: {ok, n_drops, first_drop, drops, precondition, reasons}
+      ★ 前置: ≥2 个分数（同 natural_rise）—— 不足 ⇒ precondition=False
+    """
+    scores = list(scores or [])
+    if len(scores) < 2:
+        return {"ok": None, "precondition": False, "n_drops": 0,
+                "drops": [], "reasons":
+                ["数据不足: 需 ≥2 个分数, 实得 %d 个" % len(scores)]}
+    drops = [k for k in range(1, len(scores)) if scores[k] < scores[k - 1]]
+    out = {"ok": bool(drops), "precondition": True, "n_drops": len(drops),
+           "drops": drops, "reasons": []}
+    if not out["ok"]:
+        out["reasons"].append(
+            "序列**从未跌过** ⇒ 「跌 = 停滞」的 σ 语义**没被验**"
+            "（分数只涨不跌 = 不是真演化）: %s"
+            % [round(x, 4) for x in scores[:8]])
+    else:
+        out["first_drop"] = (scores[drops[0] - 1], scores[drops[0]])
+    return out
+
+
+def has_rise(scores) -> dict:
+    """★ 序列里**涨过吗**（natural_rise 验「必须真涨且非构造」,
+    这个只验「有涨」—— 两条断言的**前置不同**）。
+
+    ★ R56: 我在 e2e 加「涨过」断言时与 natural_rise 混了 ——
+      natural_rise 是**有 src 的完整判据**, 这个是**纯涨跌计数**。
+    """
+    scores = list(scores or [])
+    if len(scores) < 2:
+        return {"ok": None, "precondition": False, "n_rises": 0,
+                "rises": [], "reasons":
+                ["数据不足: 需 ≥2 个分数, 实得 %d 个" % len(scores)]}
+    rises = [k for k in range(1, len(scores)) if scores[k] > scores[k - 1]]
+    reasons = [] if rises else [
+        "序列从未涨过（退化到不修了？）: %s" % [round(x, 4) for x in scores[:8]]]
+    return {"ok": bool(rises), "precondition": True, "n_rises": len(rises),
+            "rises": rises, "reasons": reasons}
+
+
 def natural_rise(scores, srcs=None) -> dict:
     """★★★★★ R55 · 验序列**自然涨过**（不是构造的）—— 判据单源。
 
@@ -688,14 +736,21 @@ def natural_rise(scores, srcs=None) -> dict:
     """
     reasons = []
     scores = list(scores or [])
-    if not scores:
-        return {"ok": False, "reasons": ["空序列 ⇒ 无法验证"],
+    # ★★★★ R56 · **数据不足 ≠ fail**（同 σ_t 的「历史不足不判」）
+    #   ⇒ 首轮只有 1 个分数 ⇒ 没法判「有没有涨」⇒ 那是**前置不满足**
+    #   ⇒⇒ ★ 若当 fail, 清历史后第一轮必红（= 拿「还没数据」当失败）
+    #   ⇒ 返回 `precondition=False` 让调用方**分开处理**（不许当 ok 用）
+    if len(scores) < 2:
+        return {"ok": None, "precondition": False,
+                "reasons": ["数据不足: 需 ≥2 个分数才有『涨』可判, 实得 %d 个"
+                            % len(scores)],
                 "risen": [], "n_rises": 0, "src_checked": bool(srcs)}
     risen = [k for k in range(1, len(scores) if not srcs else len(scores))
              if k < len(scores) and scores[k] > scores[k - 1]]
     if not risen:
         reasons.append("序列从未自然涨过: %s" % ["%.4f" % x for x in scores[:6]])
     if len(set(scores)) <= 1:
+        # ★ 单点已被上面的前置挡住 ⇒ 走到这里 = ≥2 个但全同 ⇒ **真恒定**
         reasons.append("分数恒定(%.4f) ⇒ 细粒度没在演化中用上" % scores[0])
     src_checked = bool(srcs)
     if srcs:

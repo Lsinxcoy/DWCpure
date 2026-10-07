@@ -305,8 +305,9 @@ print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
 #   ★ 它**不被自清洁**（自清洁清的是本轮测试账: rules/liquidity）
 step(7, "σ_t/ℰ_t 接线（跨轮分数序列）")
 _HISTORY = os.path.join(os.path.dirname(LIQUIDITY_PATH), "score_history.jsonl")
-from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, natural_rise,
-                                noise_delta, stall_signal)
+from dwc.organs.evolver import (NOISE_DELTA, exploration_signal, has_drop,
+                                has_rise, natural_rise, noise_delta,
+                                stall_signal)
 # ★★★★ R54 · 甲案: Ŝ 从**二值** cur_score 换成 **k/n 细粒度**
 #   (judge 已把 n_checks/k_passed 存进 Verdict ⇒ 聚合即可)
 from dwc.organs.judge import overall_score, pass_rate
@@ -358,12 +359,31 @@ _BUGGY = {
 }
 _FIX = {
     "code_fix_001": "def sum_first_n(n):\n    return sum(range(n + 1))",
-    "code_fix_002": "def average(xs):\n    return sum(xs) / len(xs)",
+    # ★★★ R56 · 我 R55 的 fix 漏了**空列表边界** ⇒ ZeroDivisionError
+    #   (checks: `average([])` 期望 0.0 · 而 buggy 恰好过了它)
+    "code_fix_002": "def average(xs):\n    return sum(xs) / len(xs) if xs else 0.0",
     "code_fix_003": "def factorial(n):\n    r = 1\n    for i in range(1, n + 1):\n        r *= i\n    return r",
     "code_fix_004": "def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a",
 }
 # ★ 本轮修好几个 = 轮次递增（第 1 轮修 1 个, 第 2 轮 2 个, … 上限 4）
-_n_fix = min(_prev_n + 1, len(_ALL))
+# ★★★★★ R56 · **让 task 可退化**（解饱和 + 让 σ 见过「跌」）
+#   ⚠ R55 实测: 4 全修完后分数**饱和 0.8889**（后 6 轮不涨）
+#     ⇒ 而 σ 的「跌 = 停滞」语义**从没被真用过**（序列只有涨和平）
+#   ⇒ ⇒★ 真演化里**也会回归**（新改动弄坏旧功能）⇒ 模拟退化是合理的
+#     · 做法: 全修完后振荡 4→3→4→3（**每轮真判**, 退化 = 该 task 用 buggy）
+#     · ⇒ 分数跌 ⇒ σ 见跌 ⇒ 「跌=停滞」在真实序列里被验
+#     · ★ src 标「退化对照」—— **不标**「构造对照」(那是上涨断言的禁词)
+#       且 `natural_rise` 只查**上涨**那次的 src ⇒ 退化不影响自然涨断言
+_n2 = _prev_n + 1
+if _n2 <= len(_ALL):
+    _n_fix = _n2                      # 上升期: 修 1,2,3,4
+else:
+    # ★ 到顶后振荡: 4 → 3 → 4 → 3 …（退化/修复交替）
+    _n_fix = len(_ALL) - ((_n2 - len(_ALL)) % 2 or 0)
+    if (_n2 - len(_ALL)) % 2 == 1:
+        _n_fix = len(_ALL) - 1        # 退化一个 (4 → 3)
+    else:
+        _n_fix = len(_ALL)            # 修回 (3 → 4)
 _vs4 = []
 for _i, _tid in enumerate(_ALL):
     _impl = _FIX[_tid] if _i < _n_fix else _BUGGY[_tid]
@@ -425,24 +445,63 @@ print("  → 跨轮序列已记: %d 轮（文件 %s）"
 # ★ 判据走**单源函数** natural_rise（与 pytest 同一套 —— 不手写第二遍）
 _nr = natural_rise([h["score"] for h in _hist],
                    [h["src"] for h in _hist])
-assert _nr["ok"], (
-    "★★★ 分数没自然涨过（构造不算）: %s" % " · ".join(_nr["reasons"]))
-# ★★★ R55 破坏⑤ 抓出来的**真缺口**: `natural_rise` 显式标了
-#   `src_checked`, 但我**没断言它** ⇒ 少传 src ⇒ ok 仍 True ⇒ 漏过
-#   ⇒⇒ ⇒★ 「函数标了不等于调用方查了」（同类: 加 A 漏 B）
-assert _nr["src_checked"], (
-    "★★ 没查 src ⇒ 那次上涨**是不是构造的**没验 = 假通过"
-    "（natural_rise 收到的 srcs 为空 ⇒ 退回只验涨跌）")
-print("  ✓ 分数自然涨过: %.4f → %.4f（上涨 %d 次 · src 已查=%s）"
-      % (_nr["first_rise"][0], _nr["first_rise"][1], _nr["n_rises"],
-         _nr["src_checked"]))
+# ★★★ R56 · **前置不足 ⇒ 不判**（清历史后首轮只有 1 个分数 ⇒
+#   没「涨」可判）—— 这不是放水, 是与 σ_t「历史不足不判」**同一模式**:
+#   硬要求② = 前置不满足时**不判 + 说清**, 而不是把「还没数据」当失败
+#   ⇒⇒ ★ 若当 fail, 清历史后第一轮必红（拿「还没数据」当失败是错的）
+if _nr.get("precondition") is False:
+    print("  · 分数自然涨: 不判（%s）" % _nr["reasons"][0][:70])
+else:
+    assert _nr["ok"], (
+        "★★★ 分数没自然涨过（构造不算）: %s" % " · ".join(_nr["reasons"]))
+    # ★★★ R55 破坏⑤ 抓出来的**真缺口**: `natural_rise` 显式标了
+    #   `src_checked`, 但我**没断言它** ⇒ 少传 src ⇒ ok 仍 True ⇒ 漏过
+    #   ⇒⇒ ⇒★ 「函数标了不等于调用方查了」（同类: 加 A 漏 B）
+    assert _nr["src_checked"], (
+        "★★ 没查 src ⇒ 那次上涨**是不是构造的**没验 = 假通过"
+        "（natural_rise 收到的 srcs 为空 ⇒ 退回只验涨跌）")
+    print("  ✓ 分数自然涨过: %.4f → %.4f（上涨 %d 次 · src 已查=%s）"
+          % (_nr["first_rise"][0], _nr["first_rise"][1], _nr["n_rises"],
+             _nr["src_checked"]))
+
+# ★★★★★ R56 · **序列必须跌过**（否则「跌 = 停滞」的 σ 语义没验）
+#   ⚠ R55 末我挑明: 「σ 没见过跌, 那个语义就是没验过」
+#   ⇒ 断言: ① 至少一次**下跌**（退化轮真的出现）② 至少一次涨
+#     ③ 跌那次的 src 不许是「构造对照」
+# ★ 判据走**单源** has_drop/has_rise（与 pytest 同一套）—— R56 我第一版
+#   内联在 e2e ⇒ pytest 验不到 ⇒ 破坏 ④⑤ 去掉断言**没红**（我验错方向,
+#   根因是判据没单源 = R39「一个判据不许散多处」的变体）
+_seq2 = [h["score"] for h in _hist]
+_hd = has_drop(_seq2)
+_hr = has_rise(_seq2)
+if len(_hist) >= 5 and _hd["precondition"]:
+    assert _hd["ok"], "★★★ %s" % " · ".join(_hd["reasons"])
+    assert _hr["ok"], "★ %s" % " · ".join(_hr["reasons"])
+    _src2 = [h["src"] for h in _hist]
+    assert "构造对照" not in _src2[_hd["drops"][-1]], \
+        "★ 跌那次是构造的(src=%s)" % _src2[_hd["drops"][-1]]
+    print("  ✓ 序列跌过: %.4f → %.4f（下跌 %d 次 · 涨 %d 次 ⇒ σ 见过两态）"
+          % (_hd["first_drop"][0], _hd["first_drop"][1], _hd["n_drops"],
+             _hr["n_rises"]))
+elif len(_hist) >= 5:
+    print("  · 跌过: 不判（%s）" % _hd["reasons"][0][:70])
 # ★★★ R51 · **判别力断言**（R50 的边界: 恒 1 = 写死）
 #   序列里若只出现一个分数值 ⇒ σ 的输出**与常量无异** ⇒ 那是假通
 _scores = {h["score"] for h in _hist}
-if len(_hist) >= 3:
-    assert len(_scores) >= 2, \
-        ("★★★ 序列只有 %s 一个值 ⇒ σ 恒定 ⇒ **判别力没展示**"
-         "（= 写死, R50 记的边界没解决）" % _scores)
+_seq = [h["score"] for h in _hist]
+# ★★★★ R56 · **前置修正**（R51 我写的 `len>=3` 不精确）:
+#   要 {0,1} 都出现至少要有一次**非上涨**(跌或平台) —— 全是涨的序列
+#   σ 只会是 0, 那是**还没验到跌**, 不是「断言失败」
+#   ⇒⇒ ★ 同 natural_rise/σ_t: 前置不足 ⇒ **不判 + 说清**
+#     (而「恒定」仍要判: 它算非涨(<=), 且是 R50 记的真问题)
+_has_nonrise = any(_seq[_k] <= _seq[_k - 1] for _k in range(1, len(_seq)))
+_flat = [round(x, 4) for x in _seq]
+if len(_hist) >= 3 and not _has_nonrise:
+    print("  · R51 判别力: 不判（序列全是上涨 %s ⇒ σ 只会 0, 未见跌/平台）" % _flat)
+if len(_hist) >= 3 and _has_nonrise:
+    assert len(_scores) >= 2, (
+        "★★★ 序列只有 %s 一个值 ⇒ σ 恒定 ⇒ **判别力没展示**"
+        "（= 写死, R50 记的边界没解决）" % _scores)
     # ★ 并且**真出现过** σ=0（涨）与 σ=1（停滞）两种输出
     _sigmas = set()
     for _k in range(2, len(_hist) + 1):
@@ -453,12 +512,12 @@ if len(_hist) >= 3:
     # ★★ R51 收紧: 我第一版写成
     #   `assert _sigmas >= {0,1} or len(_scores)>=2 and len(_hist)<4`
     #   ⇒ **靠放水分支过的**（`len(_hist)<4` 在轮 3 就为真）——
-    #     也就是那条断言**没验到它声称的东西**（G5「声称 vs 实测」同类）
+    #     那条断言**没验到它声称的东西**（G5「声称 vs 实测」同类）
     #   ⇒ ⇒★ 现在收紧: 必须真的 {0,1} 都出现过
-    assert _sigmas >= {0, 1}, \
-        ("★★★ 已判轮次里 σ 只出现 %s（序列=%s）⇒ **没同时出现 0 和 1**"
-         " ⇒ 判别力未验全 —— 恒 1 的信号与写死无异"
-         % (sorted(_sigmas), [h["score"] for h in _hist]))
+    assert _sigmas >= {0, 1}, (
+        "★★★ 已判轮次里 σ 只出现 %s（序列=%s）⇒ **没同时出现 0 和 1**"
+        " ⇒ 判别力未验全 —— 恒 1 的信号与写死无异"
+        % (sorted(_sigmas), _flat))
     print("  ✓ R51 判别力: 序列值=%s · σ 输出过={%s}"
           % (sorted(_scores), ", ".join(str(x) for x in sorted(_sigmas))))
 
