@@ -21,7 +21,8 @@ import pytest
 
 ROOT = r"E:/Divine Wisdom Core"
 sys.path.insert(0, os.path.join(ROOT, "src"))
-from dwc.organs.evolver import (K_META,   # noqa: E402
+from dwc.organs.evolver import (
+    K_META,   # noqa: E402
     COMPONENT_VOCAB, DIMENSIONS, PROPOSAL_STATES, STRUCTURAL,
     Evolver, EvolverError, Mutator, Proposal, ProposalGate,
 )
@@ -347,10 +348,23 @@ def test_mutator_rules_are_data():
     assert isinstance(m.RULES, dict)
     assert len(m.known_signatures()) == len(m.RULES)
     for k, v in m.RULES.items():
-        assert set(k.split(":")) == {"E_OFF_BY_ONE", "E_ZERO_DIV",
-                                     "E_NO_BASE", "sum_first_n",
-                                     "average", "factorial", "code_repair",
-                                     "E_NO_BASE"} or True
+        # ★★★ R52 · 旧断言**锁死了具体签名集合** ⇒ 种子一改就该红,
+        #   却被 `or True` 掩着（假绿）—— 实测差异:
+        #   旧期望 E_OFF_BY_ONE/code_repair/average… 而实际是
+        #     E_VALUE:wrong_magnitude:sum_first_n /
+        #     E_ZERO_DIV:wrong_magnitude:average /
+        #     E_NO_RESULT:abstained_or_missing:factorial
+        #   ⇒ ⇒★ **断言方向错了**: docstring 本意是「映射是**数据**」
+        #     （可门检/可审计）⇒ 该验**结构**, 不是锁可变的值
+        #     （锁值 ⇒ 种子一变就红 ⇒ 有人会去改断言迁就 → 再加 or True）
+        _parts = k.split(":")
+        assert len(_parts) == 3 and all(_parts), (
+            "★ key 必须是 `c:q:fn` 三段且每段非空, 实得 %r" % k)
+        assert set(Mutator.RULE_ENTRY_FIELDS) <= set(v), (
+            "★ value 必须含 Mutator.RULE_ENTRY_FIELDS 全部字段, 缺 %s"
+            % sorted(set(Mutator.RULE_ENTRY_FIELDS) - set(v)))
+        assert v["target_layer"] in ("assets", "architecture"), (
+            "★ target_layer 只两值, 实得 %r" % v["target_layer"])
         assert (v["component"] in COMPONENT_VOCAB
              or v["component"] in K_META)
         assert v["rationale"].strip()

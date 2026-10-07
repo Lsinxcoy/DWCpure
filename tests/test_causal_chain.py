@@ -395,7 +395,9 @@ def test_four_indexes_have_real_queries():
     # ix_rec_upstream → by_upstream
     assert st.by_upstream("T1")[0]["ref_id"] == "TR1"
     # ix_chain_closed → open_chains
-    assert st.open_chains() == [] or True     # 查询可执行（结果可空）
+    # ★ R52: 原写 `== [] or True` = **恒真**(断言无效)
+    #   本意是「查询可执行, 结果可空」⇒ 那就验**类型**(可空但必须是 list)
+    assert isinstance(st.open_chains(), list)   # 可空, 但必须是 list
     # ix_index_kind → by_kind
     assert st.by_kind("change")[0]["key"] == "change:C1"
     # ★ 交叉验证: 查询结果确实与索引列相关（不是全表扫也能得到同样结果）

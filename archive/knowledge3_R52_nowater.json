@@ -1,0 +1,66 @@
+{
+ "round": "R52 · 「禁放水」断言守卫（写出来**当场扫出 3 处假绿**）",
+ "date": "2026-10-06",
+ "为什么做": [
+  "我 R51 决策首位: 「给断言上『禁放水』守卫 —— 我写断言会顺手",
+  "留退路，这个得机器兜」",
+  "",
+  "★ R51 我自己写的放水分支靠**再读一遍**才发现（第 2 次同类）"
+ ],
+ "判据": [
+  "判据（**先声明口径** —— 只查高置信形态避免误报）:",
+  "  禁 `assert <test> or <water>`，其中 `<water>` 为:",
+  "    ① `True` / `1` —— **恒真**放水（最恶: 断言完全无效）",
+  "    ② `len(...) < N` —— 「数据还没长够就放宽」（R51 我的形态）",
+  "  ★ **不查**（声明边界）: `a in x or a in y`（多位置匹配, 合理）、",
+  "    `x==1 or x==2`（枚举）、`or` 在 if/while 里（只查 assert）",
+  "  ★ 误报代价: ①② 在合理代码里**几乎不出现**（要放水才写得出来）"
+ ],
+ "★★ 守卫当场抓到": [
+  "★★★★★ 守卫**写出来当场扫出 3 处现存放水**（`or True` 恒真断言）:",
+  "  · tests/test_causal_chain.py:398  `open_chains()==[] or True`",
+  "    本意「查询可执行(结果可空)」⇒ 改验**类型** `isinstance(..., list)`",
+  "  · tests/test_run_term.py:198  `c != 10 or True`",
+  "    本意「不以此定罪」⇒ 那**根本不该有 assert** ⇒ 删",
+  "    ⚠ 它是 for 循环唯一 body ⇒ 删了要补 `pass`（否则 Indentation）",
+  "  · tests/test_evolver.py:350  `set(k.split(':'))=={...} or True`",
+  "",
+  "★★★ 删放水后 **test_evolver 红了** ⇒ 那条断言**从来没真验过**:",
+  "  实测差异: 旧期望 E_OFF_BY_ONE/code_repair/average… 实际是",
+  "    `E_VALUE:wrong_magnitude:sum_first_n` /",
+  "    `E_ZERO_DIV:wrong_magnitude:average` /",
+  "    `E_NO_RESULT:abstained_or_missing:factorial`",
+  "  ⇒ ⇒★ **断言方向错了**: docstring 本意是「映射是**数据**」",
+  "    （可门检/可审计）⇒ 该验**结构**, 不是锁可变的值",
+  "    （锁值 ⇒ 种子一变就红 ⇒ 有人改断言迁就 → 再加 or True）",
+  "  ⇒ 改成验: ① key 是 `c:q:fn` 三段且非空 ② value 含",
+  "    `Mutator.RULE_ENTRY_FIELDS` 全部 8 字段 ③ target_layer 只两值",
+  "  ★ 另两处删了**没红**（本意确实是「不验」或「已满足」）"
+ ],
+ "破坏 + 三层": [
+  "破坏性 **6/6**:",
+  "  ① 塞 `or True` 到真文件 → 红 + 报「放水断言」",
+  "  ② 塞 `or len(_hist) < 4` → 红 + 报",
+  "  ③ 恒真检查去掉 → 红 ④ len<N 检查去掉 → 红",
+  "  ⑤ SyntaxError 静默(返 [] 不返 None) → 红",
+  "  ⑥ 判据变严(任意 or 都报) → **红在 `accepts_multi_location_or`**",
+  "     ⇒ 证明**误报面测试**也护住了（不只违规面）",
+  "",
+  "三层: pytest **524**（+6 守卫）· gate **8/8** · e2e rc=0",
+  "  （σ_t=1 判出 · ℰ_t 真源 · 两段消费命中 · 零残留）· key 零命中"
+ ],
+ "诚实边界": [
+  "★★ 守卫只查 `assert … or …` 的**两种**形态 ⇒ 我下次若换写法",
+  "  （如 `assert x if cond else True`、`except: pass` 包断言）仍会漏",
+  "★★ 「锁值 vs 验结构」是**我自己的判断** —— 我把 test_evolver 改成",
+  "  验结构（3 段/字段/两值），但**没跟用户确认**该断言的原意",
+  "  （docstring 说「数据」⇒ 我据此判断, 可能推翻）",
+  "★★ causal_chain 那处我改成 `isinstance(..., list)` —— 原意「可执行」",
+  "  与「返回 list」不完全等价（我选了**更可验**的那个）",
+  "★★ `RULE_ENTRY_FIELDS` 是**类属性**（L1150 缩进 4）我按模块级",
+  "import 了一次 ⇒ ImportError ⇒ 我没先核就写（先读再写违反）",
+  "★★ e2e 末次 LLM=candidates_rejected ⇒ LAND/RETIRE 段**没出现**",
+  "  （rc=0 = 如实报告, 不是失败）",
+  "★★★ 本轮全部结论未经第二人复核"
+ ]
+}

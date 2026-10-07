@@ -195,7 +195,10 @@ def test_no_hardcoded_break(tr):
     consts = [n.value for n in ast.walk(tree)
               if isinstance(n, ast.Constant) and isinstance(n.value, (int, float))]
     for c in consts:
-        assert c != 10 or True    # 10 本身可能合法（如 k=10）⇒ 不以此定罪
+        # ★ R52: 原 `c != 10 or True` = **恒真**(断言无效) —— 本意
+        #   「10 可能合法, 不以此定罪」⇒ 那**根本不该有 assert** ⇒
+        #   删掉(注意: 这是 for 的唯一 body, 补 `pass` 占位)
+        pass    # 真正的判据在下面: 有没有「拿轮数和常量比」的 Compare
     # ★ 真正的判据: 有没有「拿轮数和常量比」的 Compare 节点
     #★★★★ R25 第四次修正 —— 这次靠**数据流**而不是变量名:
     #   前三次都在"名字猜谁是轮数变量"上失败:
