@@ -1023,9 +1023,13 @@ def test_liquidity_wired_on_settle(tmp_path):
     # ⑤ 不传新参数（**旧调用点兼容**）⇒ 不炸 + 明确未记
     r5 = ap.window_settle("p5", 1, 0.4, 0.7, scorer_resolution=0.1)
     assert r5["settled"] is True and r5["liquidity"]["recorded"] is False
-    # ⑥ ΔC=None ⇒ **向上抛**（不许 0 充数）
-    import pytest as _pytest
-    with _pytest.raises(ValueError):
-        ap.window_settle("p6", 1, 0.4, 0.7, scorer_resolution=0.1,
-                         component="skill", hypothesis="h", diff="d",
-                         cost_delta=None, round_no=1)
+    # ⑥ ★ R45: ΔC=None ⇒ **收**（诚实未测, e2e 没有成本测量）
+    #   而 ΔS（gain）永远是算出来的真值 ⇒ 不会 None
+    r6 = ap.window_settle("p6", 1, 0.4, 0.7, scorer_resolution=0.1,
+                          component="skill", hypothesis="h", diff="d",
+                          cost_delta=None, round_no=3)
+    assert r6["liquidity"]["recorded"] is True
+    assert r6["liquidity"]["record"]["ΔC_i"] is None, \
+        "★ 未测成本 ⇒ 记 null（不是 0.0 —— 那是冒充实测）"
+    assert r6["liquidity"]["record"]["ΔS_i"] is not None, \
+        "★ ΔS 必须是真值（算出来的 gain）"

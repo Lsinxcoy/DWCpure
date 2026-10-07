@@ -340,13 +340,31 @@ def record_edit(liquidity: List[Dict[str, Any]], round_no: int, component: str,
             % (component, hypothesis))
     if not isinstance(is_winner, bool):
         raise ValueError("★ a_i ∈ {0,1}，实得 %r（不是 bool）" % (is_winner,))
-    if delta_s is None or delta_c is None:
+    # ★★★ R45 · 我 R42 把 ΔS 与 ΔC **一起**拒 None —— 那过严, 已拆开:
+    #   · ΔS（分数变化）: **能测必须测** ⇒ 拒 None
+    #       理由: g_t = max{ΔS} 用 max, 填 0 会让没测过的组件假装测过
+    #   · ΔC（成本变化, 式6 = 相对变化 `(Ĉ'−Ĉ)/Ĉ`）: e2e **没有成本测量**
+    #       （论文的 Ĉ 用 token, DWC 未记）⇒ None 是**诚实的"没测"**
+    #   ⇒⇒ ★ 关键区分（我 R42 混为一谈了）:
+    #       None = 没测（诚实, 记 null 留痕）
+    #       0.0  = 测了且恰好没变（**声称**）—— 若没测却填 0.0 = 充数
+    #   ⇒ ⇒★ 所以: ΔS 拒 None · ΔC **收 None**（记 null, 不许填 0.0 冒充）
+    #   ★ 而 DWC 现在**不消费 ΔC**（g_t 只用 ΔS; 式7 成本规则未实现）
+    #     ⇒ 缺 ΔC 暂无下游影响 —— 等式7 落地时 ΔC 已有值才可启用
+    if delta_s is None:
         raise ValueError(
-            "★ ΔS_i/ΔC_i 必须实测（不许 None/0 充数）—— "
+            "★ ΔS_i 必须实测（能测必须测）—— "
             "g_t = max{ΔS} 用 max，填 0 会让没测过的组件假装测过")
+    if delta_c is None and False:        # ← 占位: None 现在**收**（见上）
+        raise ValueError("★ ΔC 不许 None（旧规则, R45 已改）")
+    if delta_c is not None and not isinstance(delta_c, (int, float)):
+        raise ValueError(
+            "★ ΔC_i 只能是数值或 None（实测值/诚实未测），实得 %r" % (delta_c,))
     rec = {"t_i": int(round_no), "ℓ_i": str(component),
            "h_i": str(hypothesis), "d_i": str(diff),
-           "ΔS_i": float(delta_s), "ΔC_i": float(delta_c),
+           "ΔS_i": float(delta_s),
+           # ★ ΔC 可为 None（诚实未测, 记 null）—— R45
+           "ΔC_i": (None if delta_c is None else float(delta_c)),
            "a_i": 1 if is_winner else 0}
     liquidity.append(rec)
     if path:
@@ -565,7 +583,8 @@ def prune_blockers() -> List[str]:
 
 
 def prune_targets(accepted_rules, gains_by_component=None,
-                  enabled: bool = False) -> Dict[str, Any]:
+                  enabled: bool = False,
+                  liquidity=None) -> Dict[str, Any]:
     """★★★ ℬ_t = {ℓ ∈ 𝒯_t ∩ 𝒦_editable : g_t(ℓ) ≤ 0}（式14 + K5 交集）。
 
     ★ 三条硬要求（R40）:
@@ -586,7 +605,18 @@ def prune_targets(accepted_rules, gains_by_component=None,
         raise ValueError(
             "★ ℬ_t 需要**组件级** gains（不是整体 gain）；"
             "不许用默认 0 —— 那会让 ℬ_t = 全部 𝒯_t（灾难性剪枝）")
-    T = touched_components(accepted_rules)
+    # ★★★★★ R45 · **𝒯_t 优先用真 ℒ_t**（我 R44 接线了但这里没用 ⇒
+    #   e2e 实测 `pool=[]` 因为 `touched=∅` —— 字段不匹配:
+    #   ℒ_t 是 `ℓ_i`, 而 `touched_components(accepted_rules)` 取 `component`
+    #   ⇒⇒ ★ 也就是说: 消费方还在读**近似源**, 有真源却不用 = 假打通）
+    #   ⇒ ⇒★ 现在: 传了 liquidity ⇒ 用式11 的 𝒯_t = {ℓ_i}
+    #            没传 ⇒ 回落近似（RULES 的 component, docstring 已声明差异）
+    if liquidity:
+        T = touched_from_liquidity(liquidity)
+        _t_src = "liquidity(式11 真源)"
+    else:
+        T = touched_components(accepted_rules)
+        _t_src = "近似(RULES component)"
     # 交集（K5 关键）
     pool = T & editable_vocab()
     # ★★★★★ R41 **裁决 A**（用户拍板）: `g_t ≤ 0` → `g_t < 0`
@@ -604,6 +634,8 @@ def prune_targets(accepted_rules, gains_by_component=None,
         if float(gains_by_component.get(c, 0.0)) < 0.0)
     return {"enabled": True, "targets": targets, "blockers": [],
             "touched": sorted(T), "pool": sorted(pool),
+            # ★ 数据源可复核（否则"用了哪个 𝒯_t"看不出来 —— G7 纪律）
+            "T_source": _t_src,
             "gains": {c: gains_by_component.get(c) for c in sorted(pool)}}
 
 

@@ -183,10 +183,36 @@ print("  ★ current_score = %s（真来自 judge）" % cur_score)
 # ── 7 · 结算（base 真来自 step2，current 真来自 step6）─────
 step(7, "结算（两头都是真分数）")
 # ★ 端到端跑一次 ⇒ steps = 窗口 2（2 次执行 = 2 step）
+# ★★★★ R45 · **打通生产数据流** —— 传式10 的三标签 + 轮次
+#   (R44 接线了但 e2e 不传新参 ⇒ "明确未记" ⇒ 验了个空分支)
+#   ℓ=props[0].component · h=props[0].rationale · d=props[0].patch
+#   cost_delta=None ⇒ **诚实未测**（DWC 没记 token; 式6 的 Ĉ）
+#   ⇒ ⇒★ 这一步是 ℒ_t 从「通」到「**有数据流过**」的证据
 st = ap.window_settle("P_rule", steps=2, base_score=base_score,
                       current_score=cur_score,
                       scorer_resolution=1.0,   # ★ 二值判分 ⇒ 分辨率=1
-                      min_gain=0.0)
+                      min_gain=0.0,
+                      component=props[0].component,
+                      hypothesis=props[0].rationale,
+                      diff=props[0].patch,
+                      cost_delta=None,
+                      round_no=1)
+# ★★★ 断言: ℒ_t 真产生记录（不许又变成"明确未记"）
+_liq = st.get("liquidity") or {}
+assert _liq.get("recorded") is True, (
+    "★★★ 生产数据流没打通: liquidity.recorded=%s why=%s"
+    % (_liq.get("recorded"), _liq.get("why")))
+_rec = _liq["record"]
+assert _rec["ℓ_i"] == props[0].component, "★ ℓ 必须是提案自己的 component"
+assert _rec["t_i"] == 1 and _rec["a_i"] in (0, 1)
+assert _rec["ΔS_i"] is not None and _rec["ΔC_i"] is None, \
+    "★ ΔS 实测 · ΔC 诚实记 null"
+_rows = [json.loads(_l) for _l in open(LIQUIDITY_PATH, encoding="utf-8")
+         if _l.strip()] if os.path.exists(LIQUIDITY_PATH) else []
+assert len(_rows) >= 1, "★ ℒ_t 落盘至少 1 条"
+print("  ★★ ℒ_t 生产记录: ℓ=%s t=%s a_i=%s ΔS=%s ΔC=%s (共 %d 条)"
+      % (_rec["ℓ_i"], _rec["t_i"], _rec["a_i"],
+         round(_rec["ΔS_i"], 3), _rec["ΔC_i"], len(_rows)))
 print("  base=%.1f current=%.1f gain=%.1f" % (st.get("base_score", -1),
                                               st.get("current_score", -1),
                                               st.get("gain", -9)))
@@ -194,6 +220,34 @@ print("  verdict = %s" % st.get("verdict"))
 if st.get("verdict") == "revert":
     ap.rollback("P_rule", tgt)
     print("  → 已回滚，RULES 含该键 = %s" % (RULES_KEY in Mutator.RULES))
+
+# ── 7b · ★★★ R45 · 消费 ℒ_t（有数据 ⇒ 能算 g_t/𝒯_t/ℬ_t 才算打通）──
+step(7, "消费 ℒ_t: 算 g_t(式11) + 𝒯_t + 演示 ℬ_t")
+from dwc.organs.evolver import (gain as _g_t, liquidity_summary,
+                                prune_targets, touched_from_liquidity)
+_liq_now = [json.loads(_l) for _l in open(LIQUIDITY_PATH, encoding="utf-8")
+            if _l.strip()] if os.path.exists(LIQUIDITY_PATH) else []
+_s7 = liquidity_summary(_liq_now, now_round=1, window=10)
+print("  𝒯_t = %s （式11 第一式）" % _s7["T_t"])
+print("  g_t(ℓ) = %s （式11: max{ΔS}, 非 sum）" %
+      {k: (round(v, 3) if v != float("-inf") else "-inf")
+       for k, v in _s7["g_t"].items()})
+print("  winners = %s · admissible_but_lost = %s" %
+      (_s7["winners"], _s7["admissible_but_lost"]))
+# ★ 用**真记录**跑 ℬ_t（blockers=0 ⇒ 可开; 给真 gains）
+_gains = {k: v for k, v in _s7["g_t"].items() if v != float("-inf")}
+_pr = prune_targets(_liq_now, gains_by_component=_gains, enabled=True,
+                    liquidity=_liq_now)   # ★ R45: 用真 ℒ_t 算 𝒯_t
+print("  ★ ℬ_t(enabled, 真数据): enabled=%s T_source=%s pool=%s targets=%s"
+      % (_pr["enabled"], _pr.get("T_source"), _pr.get("pool"), _pr.get("targets")))
+assert _pr["enabled"] is True, "★ blockers 应为 0（R44 接线后）"
+assert _pr.get("T_source", "").startswith("liquidity"), \
+    "★★ 消费方必须用**真 ℒ_t**（近似 = 假打通）"
+assert _pr.get("pool") == ["control_flow"], \
+    "★ 𝒯_t 有 control_flow 且可编辑 ⇒ 应在剪枝池, 实得 %s" % _pr.get("pool")
+# ★ K5 交集自检: 不可编辑项**不在** pool（即便它被测过）
+assert "evaluator" not in (_pr.get("pool") or [])
+print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
 
 # ── 汇总 ──────────────────────────────────────────────────
 print("\n" + "=" * 60)

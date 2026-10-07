@@ -476,16 +476,29 @@ def test_liquidity_is_seven_tuple_with_three_labels():
 
 
 def test_liquidity_refuses_to_invent_measurements():
-    """★★★★ ΔS/ΔC 不许用 0/None 充数 —— 因为 g_t 用 max。
+    """★★★★ **ΔS 拒 None**（能测必须测）· **ΔC 收 None**（诚实未测）。
 
-    ★ 若允许 None→0 ⇒ 没测过的组件会被"记一笔 0" ⇒ max{0} > −∞
-      ⇒ 假装测过（污染 g_t 语义）
+    ★★ R45 我把两者**拆开**了 —— 原版一起拒是**过严**:
+      · ΔS: g_t = max{ΔS} 用 max ⇒ None 若被当 0 ⇒ 没测过的组件
+        "记一笔 0" ⇒ max{0} > −∞ ⇒ **假装测过**（污染 g_t）⇒ 必须拒
+      · ΔC: 式6 是相对成本变化, e2e **没有成本测量**（论文 Ĉ 用 token,
+        DWC 未记）⇒ None = **诚实的"没测"**
+      ⇒⇒ ★ 关键区分（R42 混为一谈）:
+          None = 没测（诚实, 记 null）
+          0.0  = 测了且恰好没变（**声称**）—— 没测却填 0.0 才是充数
     """
     liq = []
+    # ① ΔS=None ⇒ 拒（能测必须测）
     with pytest.raises(ValueError) as e:
         record_edit(liq, 1, "skill", "h", "d", None, 0.0, True)
-    assert "不许" in str(e.value)
-    # a_i 只能 0/1（bool）
+    assert "必须实测" in str(e.value)
+    # ② ΔC=None ⇒ **收**（诚实未测, 记 null）
+    r = record_edit(liq, 1, "skill", "h", "d", 0.3, None, True)
+    assert r["ΔC_i"] is None, "★ ΔC 未测 ⇒ 记 null（不是 0）"
+    # ③ ΔC=非数值 ⇒ 拒（只能数值或 None）
+    with pytest.raises(ValueError):
+        record_edit(liq, 1, "skill", "h", "d", 0.3, "abc", True)
+    # ④ a_i 只能 0/1（bool）
     with pytest.raises(ValueError):
         record_edit(liq, 1, "skill", "h", "d", 0.1, 0.0, "yes")
 
@@ -536,3 +549,40 @@ def test_liquidity_summary_reports_winners_and_lost():
         "★ 输分的候选要留痕（论文: 有用信息）"
     assert s["T_t"] == ["prompt", "skill"], "式11 第一式 𝒯_t"
     assert s["n_records"] == 2
+
+def test_prune_prefers_true_liquidity_over_approximation():
+    """★★★★★ R45 · 消费方必须用**真 ℒ_t**（近似 = 假打通）。
+
+    ★★ 事故链: R44 我接线了 ℒ_t, 但 `prune_targets` 仍读「近似
+      （RULES 的 `component`）」⇒ e2e 实测 `pool=[]`：
+      因为 ℒ_t 的字段是 `ℓ_i`, 而近似源取 `component` ⇒ `touched=∅`
+      ⇒⇒ ★ **有真源却不用 = 假打通** —— 这条测试锁住那个坑
+    """
+    import dwc.organs.evolver as ev
+    ev.prune_blockers = lambda: []        # 暂清, 只验 𝒯_t 来源
+    try:
+        # 真 ℒ_t（字段 ℓ_i）
+        liq = []
+        record_edit(liq, 1, "skill", "h", "d", -0.4, None, True)
+        # ① 传了 liquidity ⇒ 用式11 真源
+        r = ev.prune_targets(None, gains_by_component={"skill": -0.4},
+                             enabled=True, liquidity=liq)
+        assert r["T_source"].startswith("liquidity"), \
+            "★★ 必须用真 ℒ_t, 实得 %s" % r["T_source"]
+        assert r["touched"] == ["skill"], \
+            "★ 式11 𝒯_t = {ℓ_i}, 实得 %s" % r["touched"]
+        assert r["pool"] == ["skill"] and r["targets"] == ["skill"]
+        # ② 没传 ⇒ 回落近似（且**必须说清**用了哪个, 否则看不出来）
+        r2 = ev.prune_targets([{"component": "skill"}],
+                              gains_by_component={"skill": -0.4}, enabled=True)
+        assert "近似" in r2["T_source"], \
+            "★ 没传 liquidity ⇒ 要标注是近似（可复核, 不许含糊）"
+        # ③ ★ 关键差异: 近似源**认不出** ℒ_t 的字段
+        #   （component 字段不存在 ⇒ touched=∅ ⇒ pool 空）
+        r3 = ev.prune_targets([{"ℓ_i": "skill"}],
+                              gains_by_component={"skill": -0.4}, enabled=True)
+        assert r3["touched"] == [], \
+            "★ 字段不匹配时近似源会漏 —— 正是「假打通」的成因"
+        assert r3["pool"] == [], "（对照）所以必须用 liquidity 而非近似"
+    finally:
+        ev.prune_blockers = prune_blockers
