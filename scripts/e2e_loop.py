@@ -56,6 +56,20 @@ def step(n, title, **kw):
 
 
 # ── 1 · 带 bug 的实现 ──────────────────────────────────────
+# ★★★★ R47 · **真入口自清洁**（R44.1 我声称"入口+出口双保险" ——
+#   实测那个"入口"在 **step8 场景前**, 不是 step1 前 ⇒ 真正的入口**不存在**)
+#   ⇒ 后果: 上次中断的残留会让 7b 读到 **2 条**（本次只记 1 条）——
+#     我就是这么实测发现的（断言没打到指纹 ⇒ 残留骗过了它）
+#   ⇒ ⇒★ 现在补上: step1 之前清 ℒ_t（与出口/step8 前那份共三份）
+_LIQ = os.path.join(os.path.dirname(LIQUIDITY_PATH),
+                    os.path.basename(LIQUIDITY_PATH)) if False else LIQUIDITY_PATH
+if os.path.exists(_LIQ):
+    _n0 = sum(1 for _l in open(_LIQ, encoding="utf-8") if _l.strip())
+    os.remove(_LIQ)
+    print("  入口自清洁: 清掉 %d 条上次残留" % _n0)
+else:
+    print("  入口自清洁: 无残留（文件不存在）")
+
 step(1, "准备带 bug 的实现")
 BUGGY = "def sum_first_n(n):\n    return sum(range(n))"   # off-by-one
 print("  %r" % BUGGY)
@@ -221,8 +235,13 @@ if st.get("verdict") == "revert":
     ap.rollback("P_rule", tgt)
     print("  → 已回滚，RULES 含该键 = %s" % (RULES_KEY in Mutator.RULES))
 
-# ── 7b · ★★★ R45 · 消费 ℒ_t（有数据 ⇒ 能算 g_t/𝒯_t/ℬ_t 才算打通）──
-step(7, "消费 ℒ_t: 算 g_t(式11) + 𝒯_t + 演示 ℬ_t")
+
+# ── 7b · ★★★ R45 · 消费 ℒ_t（结算这半条 —— **step7 的账**）──
+#   ★★ R47 更正: 我第一版把这段**挪**到 8d 后了, 结果:
+#     step7 记的账**记了却从没被消费** ⇒ 我把「竞争半条链断」
+#     换成了「结算半条链断」—— 两个场景各自记账, **各有各的消费**
+#     ⇒ ⇒★ 正解是**两处都有**（不是挪, 是**加**）
+step(7, "消费 ℒ_t: 算 g_t(式11) + 𝒯_t + 演示 ℬ_t（结算这半条）")
 from dwc.organs.evolver import (gain as _g_t, liquidity_summary,
                                 prune_targets, touched_from_liquidity)
 _liq_now = [json.loads(_l) for _l in open(LIQUIDITY_PATH, encoding="utf-8")
@@ -243,8 +262,32 @@ print("  ★ ℬ_t(enabled, 真数据): enabled=%s T_source=%s pool=%s targets=%
 assert _pr["enabled"] is True, "★ blockers 应为 0（R44 接线后）"
 assert _pr.get("T_source", "").startswith("liquidity"), \
     "★★ 消费方必须用**真 ℒ_t**（近似 = 假打通）"
-assert _pr.get("pool") == ["control_flow"], \
-    "★ 𝒯_t 有 control_flow 且可编辑 ⇒ 应在剪枝池, 实得 %s" % _pr.get("pool")
+# ★★ R47 断言改造（原 `pool == ["control_flow"]` 挪后**必错**: 竞争记录
+#   也进了 𝒯_t ⇒ 变多项）⇒ 改成「**必须吃进**竞争那条」
+assert "control_flow" in _pr.get("pool"), \
+    "★ 𝒯_t 的 control_flow（结算来源）应在剪枝池, 实得 %s" % _pr.get("pool")
+# ★★★★ R47: 这段断言**该打到 step7 自己的账**（不是竞争那条 ——
+#   竞争的在 8d2 断）。R47 我第一版把 8d2 的断言原样复制进来 ⇒
+#   `COMPETE_L`/`_w` 那时**还没定义**（8d 没跑）⇒ 会 NameError 或假绿
+assert len(_liq_now) >= 1, \
+    "★★★ step7 结算记的账读不到（0 条）⇒ 消费段吃空"
+# ★★★ 打到 **step7 那条的指纹**（原断言只查 `ℓ_i=control_flow` ⇒
+#   **残留**也是 control_flow ⇒ 会骗过它 —— R47 我就是先被 2 条骗了）
+_rec7 = (st.get("liquidity") or {}).get("record") or {}
+assert _rec7, "★ step7 没产出 liquidity.record ⇒ 记账那步没走"
+_f7 = _rec7.get("d_i")
+_hit7 = [r for r in _liq_now if r.get("d_i") == _f7
+         and r.get("t_i") == _rec7.get("t_i")]
+assert _hit7, \
+    ("★★★ 落盘里没有 step7 那条（d_i 指纹没命中）⇒ **step7 的账没被消费**"
+     "· step7 d_i=%r · 落盘 d_i=%s"
+     % ((_f7 or "")[:30], [r.get("d_i", "")[:30] for r in _liq_now]))
+print("  ✓ 结算记录已被消费: 共 %d 条 · step7 d_i 指纹命中 %d 条"
+      " · 𝒯_t=%s" % (len(_liq_now), len(_hit7), _s7["T_t"]))
+assert len(_liq_now) == 1, \
+    ("★★ 文件里 %d 条（应 1 条）—— 有残留或多余记账"
+     "（入口自清洁该在 step1 前清干净）" % len(_liq_now))
+assert "control_flow" in _s7["T_t"], "★ ℒ_t 的 ℓ 应进 𝒯_t"
 # ★ K5 交集自检: 不可编辑项**不在** pool（即便它被测过）
 assert "evaluator" not in (_pr.get("pool") or [])
 print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
@@ -451,6 +494,71 @@ if _eval_rows:
     print("    ℒ_t 记账: %d 条（赢家 a_i=1 · 落选 a_i=0 · 未过门不记）"
           " %s" % (_n_liq,
                   "★ 没记上（文件不存在）" if _n_liq < 0 else "✓"))
+# ★★ R47 · 存下竞争记的 ℓ（供 8d2 消费段断言「真的被吃到了」）
+#   ★ 两步: 先用 Candidate.component（词表项, 会进 pool）
+#     空则退 rule（**会显式可见** —— 不在词表 ⇒ pool 不含它, 但 T_t 含）
+COMPETE_L = ""
+if _w["winner"] is not None:
+    COMPETE_L = _w["winner"].component or _w["winner"].rule
+print("    ★ 竞争 ℓ（comp/rule 退）= %r" % COMPETE_L)
+
+# ── 8d2 · ★★★ R47 · 消费 ℒ_t（R45 放在 step7 后 ⇒ **吃不到竞争记录**）──
+#   ★ 问题: 竞争段 8d 在它之后 ⇒ 竞争记的 ℒ_t **从没被 ℬ_t 吃过**
+#     （记了、也自清洁了, 但消费链在竞争这一半断着 = **半条链**）
+#   ⇒ ⇒★ R47: **挪到 8d 之后** ⇒ 一次吃全（结算 + 竞争两条来源）
+#   ★ 编号用 8d2（8e/8f/8g/8h 都已被占用 —— 8g 是固化, 别撞）
+step(8, "消费 ℒ_t: 算 g_t(式11) + 𝒯_t + 演示 ℬ_t（含竞争记录）")
+from dwc.organs.evolver import (gain as _g_t, liquidity_summary,
+                                prune_targets, touched_from_liquidity)
+_liq_now = [json.loads(_l) for _l in open(LIQUIDITY_PATH, encoding="utf-8")
+            if _l.strip()] if os.path.exists(LIQUIDITY_PATH) else []
+_s7 = liquidity_summary(_liq_now, now_round=1, window=10)
+print("  𝒯_t = %s （式11 第一式）" % _s7["T_t"])
+print("  g_t(ℓ) = %s （式11: max{ΔS}, 非 sum）" %
+      {k: (round(v, 3) if v != float("-inf") else "-inf")
+       for k, v in _s7["g_t"].items()})
+print("  winners = %s · admissible_but_lost = %s" %
+      (_s7["winners"], _s7["admissible_but_lost"]))
+# ★ 用**真记录**跑 ℬ_t（blockers=0 ⇒ 可开; 给真 gains）
+_gains = {k: v for k, v in _s7["g_t"].items() if v != float("-inf")}
+_pr = prune_targets(_liq_now, gains_by_component=_gains, enabled=True,
+                    liquidity=_liq_now)   # ★ R45: 用真 ℒ_t 算 𝒯_t
+print("  ★ ℬ_t(enabled, 真数据): enabled=%s T_source=%s pool=%s targets=%s"
+      % (_pr["enabled"], _pr.get("T_source"), _pr.get("pool"), _pr.get("targets")))
+assert _pr["enabled"] is True, "★ blockers 应为 0（R44 接线后）"
+assert _pr.get("T_source", "").startswith("liquidity"), \
+    "★★ 消费方必须用**真 ℒ_t**（近似 = 假打通）"
+# ★★ R47 断言改造（原 `pool == ["control_flow"]` 挪后**必错**: 竞争记录
+#   也进了 𝒯_t ⇒ 变多项）⇒ 改成「**必须吃进**竞争那条」
+assert "control_flow" in _pr.get("pool"), \
+    "★ 𝒯_t 的 control_flow（结算来源）应在剪枝池, 实得 %s" % _pr.get("pool")
+# ★★★★ R47 真证据 = **竞争那条的 diff 指纹**（前两版断言都是**弱的**:
+#   ① `COMPETE_L in T_t` —— 竞争与结算**同 component**(都 control_flow)
+#      ⇒ 𝒯_t 是集合只显示 1 个 ⇒ 分不出吃没吃到
+#   ② `len >= 2` —— **错**: step8 前有「前置自清洁」清掉 step7 那条
+#      ⇒ 挪后只该有竞争这 1 条（我按"两条都在"设的 ⇒ 假设错）
+#   ⇒ ⇒★ 打到唯一指纹: 记录的 `d_i` == 赢家的 patch（那条只可能是竞争记的）
+if COMPETE_L:
+    _lc = [r.get("ℓ_i") for r in _liq_now]
+    assert len(_liq_now) >= 1, \
+        "★★★ 消费段读到 0 条 ⇒ 竞争记的账**根本没落盘**"
+    _win_patch = _w["winner"].patch if _w["winner"] is not None else None
+    _hit = [r for r in _liq_now if r.get("d_i") == _win_patch]
+    assert _hit, \
+        ("★★★ 没有记录的 `d_i` 等于赢家 patch ⇒ **竞争那条没被消费**"
+         "（半条链仍在）· 落盘 d_i=%s"
+         % [r.get("d_i", "")[:26] for r in _liq_now])
+    print("  ✓ 竞争记录已被消费: 共 %d 条 · 竞争 d_i 命中 %d 条"
+          " · ℓ_i=%s · 𝒯_t=%s"
+          % (len(_liq_now), len(_hit), _lc, _s7["T_t"]))
+    assert COMPETE_L in _s7["T_t"], \
+        "★ 竞争 ℓ 应在 𝒯_t（即便同名也要在）, T_t=%s" % _s7["T_t"]
+else:
+    print("  ★ 8d 没记账（无赢家 ⇒ 本段只吃竞争前的账, 条数=%d）"
+          % len(_liq_now))
+# ★ K5 交集自检: 不可编辑项**不在** pool（即便它被测过）
+assert "evaluator" not in (_pr.get("pool") or [])
+print("  ✓ K5 交集: evaluator 不可编辑 ⇒ 不在剪枝池")
 
 # 8e · ★ 淘汰表生效（同轮再生成 ⇒ 已否决的不重出）
 print("\n  ── 淘汰表生效检查（G4）──")
