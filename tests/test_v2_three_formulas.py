@@ -31,8 +31,8 @@ from dwc.organs.evolver import (  # noqa: E402
     NOVELTY_ELIGIBLE, OBJECT_TO_COMPONENT, STRUCTURAL,
     LIQUIDITY_FIELDS, editable_vocab, exploration_signal, gain,
     k1_coverage, liquidity_summary, novelty_score, prune_blockers,
-    prune_targets, record_edit, select_winner, stall_signal,
-    touched_components,
+    liquidity_find, prune_targets, record_edit, select_winner,
+    stall_signal, touched_components,
     touched_from_liquidity, unexplored_components,
 )
 
@@ -642,3 +642,102 @@ def test_select_winner_tie_is_stable():
     r = select_winner([("A", 0.5, True), ("B", 0.5, True)])
     assert r["winner"] == "A"
     assert r["losers"][0][0] == "B"
+
+# ══════════════════════════════════════════════════════════
+# R49 · 消费验证可测化 —— 闭上 R47 ③ 那条「验不出」的断言
+# ══════════════════════════════════════════════════════════
+
+def test_fingerprint_beats_component_when_names_collide():
+    """★★★★★ 这条是 R47 连续两轮记着「验不出」的那条 —— 现在验了。
+
+    ★ 场景（R47 实测就长这样）: **竞争与结算同 component（都 control_flow）**
+      ⇒ 弱断言 `COMPETE_L in 𝒯_t` 与强断言 `d_i 指纹` **等价** ⇒ 验不出
+    ⇒ ⇒★ 现在构造**同名碰撞**: 竞争那条**没记上**（被清/失败），
+        但残留一条 ℓ 相同、d_i 不同的记录:
+        · 弱断言（查 ℓ_i）→ **过**（被残留骗 = 假绿）
+        · 强断言（查 d_i）→ **红**（真抓到"没被消费"）
+      ★ 那正是「为什么要用 d_i」的**直接证据**
+    """
+    collided = {"ℓ_i": "control_flow", "t_i": 1}
+    # ① 残留: 同 ℓ, 但 diff 不是竞争那条的
+    residual = [dict(collided, d_i="ORPHAN_DIFF",
+                     h_i="旧记录", ΔS_i=0.1, ΔC_i=None, a_i=1)]
+    compete_patch = "def stop_plus1(): ..."      # 赢家的真实 diff
+
+    # —— 弱断言（R47 ③ 第一版）: 只查 ℓ ——
+    weak_hit = liquidity_find(residual, **collided)   # ← collided 是字符串键 ★ 安全
+    # ⚠ 注意: `liquidity_find(residual, ℓ_i="control_flow")` 也命中
+    #   ⇒ 弱检查**看不出**竞争那条不在（它被残留顶替了）
+    assert weak_hit, "（构造前提）残留同名记录存在 ⇒ 弱检查必然命中"
+    # ★ 关键: 弱命中 ≠ 竞争那条被消费
+    assert all(r.get("d_i") != compete_patch for r in weak_hit), \
+        "（构造前提）残留里没有竞争那条的 diff"
+
+    # —— 强断言（R47 ③ 最终版）: 查 d_i ——
+    strong_hit = liquidity_find(residual, d_i=compete_patch)
+    assert strong_hit == [], \
+        ("★★★ 强断言必须抓到「竞争那条没被消费」, 却得到 %r"
+         % strong_hit)
+    # ⇒ 这就是两者在同名场景下的**分野**: 弱绿 · 强红
+    print_ok = (bool(weak_hit) and not strong_hit)
+    assert print_ok, "★ 弱绿·强红 才是这个场景的正确结果"
+
+
+def test_fingerprint_passes_when_record_was_written():
+    """★ 对照: 竞争那条**真记上** ⇒ 强断言过（不能总是红）。"""
+    written = [{"ℓ_i": "control_flow", "d_i": "WIN_DIFF", "t_i": 1},
+               {"ℓ_i": "control_flow", "d_i": "ORPHAN", "t_i": 99}]
+    assert liquidity_find(written, d_i="WIN_DIFF"), "★ 记上 ⇒ 该命中"
+    # ★★ **NFKC 陷阱**: ℑ_i= 作 kwarg 会被归一成 l_i ⇝ 记录键“ℓ_i”不归一
+    #   ⇝ 永远不匹配 ⇝ 守卫① 报字段名错（这就是①存在的理由）
+    assert len(liquidity_find(written, **{"ℓ_i": "control_flow"})) == 2, \
+        "★ 同名两条都该被 ℑ 查出来（这正是 ℑ **不够用**的原因）"
+
+
+def test_liquidity_find_rejects_empty_and_unknown_fields():
+    """★★ 两条硬要求（每条对应我犯过的坑）:
+      ① 无条件 ⇒ 报错（返回全部 = 没查 = 假绿）
+      ② 字段名错 ⇒ 报错（空结果是**假红** ⇒ 会让人去改**对的**断言）
+    """
+    recs = [{"d_i": "x", "t_i": 1}]
+    with pytest.raises(ValueError) as e:
+        liquidity_find(recs)
+    assert "无条件" in str(e.value), "★ 无条件必须报, 实得: %s" % e.value
+    # ★ 字段名打错（`d` 而不是 `d_i`）
+    with pytest.raises(ValueError) as e2:
+        liquidity_find(recs, d="x")
+    assert "没有" in str(e2.value) and "d_i" in str(e2.value), \
+        "★ 要指出打错了字段并给出已知字段, 实得: %s" % e2.value
+    # ③ 空列表: 没有记录可对照字段 ⇒ 允许返回空（不误报字段错）
+    assert liquidity_find([], d_i="x") == []
+
+
+def test_liquidity_find_matches_none_exactly():
+    """★ 期望值 None ⇒ 精确匹配（不降级成「存在即可」）。
+      ★ 我 R45 把 ΔC 设成可 None ⇒ 这里必须能按 None 查。
+    """
+    recs = [{"d_i": "a", "ΔC_i": None}, {"d_i": "b", "ΔC_i": 0.0}]
+    assert [r["d_i"] for r in liquidity_find(recs, ΔC_i=None)] == ["a"]
+    assert [r["d_i"] for r in liquidity_find(recs, ΔC_i=0.0)] == ["b"], \
+        "★ None 与 0.0 必须**分得开**（R45 的核心区分: 没测 vs 测了没变）"
+
+def test_liquidity_find_requires_all_criteria_not_any():
+    """★★★★ R49 补（破坏「匹配改 any」时我**没抓到** ⇒ 说明测试有缺口）:
+      我原来全是**单条件**断言 ⇒ `any` 与 `all` **等价** ⇒ 那个破坏看不见
+    ⇒ ⇒★ 这条专测多条件: 必须**全部满足**才命中（部分命中 = 误报）
+    """
+    recs = [{"d_i": "A", "t_i": 1, "ℓ_i": "skill"},
+            {"d_i": "B", "t_i": 2, "ℓ_i": "skill"},
+            {"d_i": "A", "t_i": 9, "ℓ_i": "skill"}]
+    # ★ 全满足: d_i=A **且** t_i=1 ⇒ 只有 1 条
+    hit = liquidity_find(recs, d_i="A", t_i=1)
+    assert len(hit) == 1 and hit[0]["t_i"] == 1, \
+        ("★ 多条件必须**全部满足**, 实得 %d 条 (改 any 会命中 2 条: "
+         "d_i=A 的首尾两条)" % len(hit))
+    # ★ 独立对照: 只查 d_i=A ⇒ 2 条（证明上面的 1 条**是**过滤出来的）
+    assert len(liquidity_find(recs, d_i="A")) == 2, "（对照）单条件应 2 条"
+    # ★ 三个条件, 只有 1 条全中
+    assert len(liquidity_find(recs, d_i="A", t_i=1, **{"ℓ_i": "skill"})) == 1
+    # ★ 无解组合 ⇒ 必须空（不许"命中一条就算"）
+    assert liquidity_find(recs, d_i="A", t_i=2) == [], \
+        "★ d_i=A 且 t_i=2 不存在 ⇒ 必须空"

@@ -501,6 +501,69 @@ def select_winner(evaluated) -> Dict[str, Any]:
             "margin_vs_losers": [(l[1], winner[1] - l[1]) for l in losers]}
 
 
+# ═══════════════════════════════════════════════════════════
+# ★★★★★ R49 · 消费验证的**可测实现**（R47 的断言原本只活在 e2e 里）
+#   ★ 问题: R47 我把「这条记录有没有被消费」写成 e2e 内联断言 ⇒
+#     ① 验它要跑整条 e2e（80s × 破坏次数）
+#     ② **R47 ③ 那条我连续两轮记着「验不出」**（竞争 ℓ 与结算 ℓ 同名
+#       ⇒ 弱断言 `COMPETE_L in T_t` 与强断言 `d_i 指纹` **等价**）
+#   ⇒ ⇒★ 现在抽成函数: 纯逻辑 ⇒ 可用 pytest 直接构造**同名碰撞**场景
+#
+# === 为什么 `ℓ_i` 弱、`d_i` 强（这次要验的核心）===
+#   · `ℓ_i` = **component 名** ⇒ 两个不同来源的记录可能**同名**
+#     （R47 实测: 竞争与结算**都是 control_flow**）
+#   · `d_i` = 那条记录的 **diff 原文** ⇒ 唯一指纹
+#   ⇒ 只按 ℓ_i 查 ⇒ **残留/别的来源的同名记录会冒充命中**（骗过断言）
+# ═══════════════════════════════════════════════════════════
+
+
+def liquidity_find(liq, **criteria) -> List[Dict[str, Any]]:
+    """按**字段精确匹配**查 ℒ_t 记录（消费验证用）。
+
+    ★ 参数: `criteria` = 字段名→期望值, 如 `d_i=..., t_i=1`
+    ★ 返回: **全部**命中记录（不只第一条 —— 否则"多命中"看不出来）
+    ★ 硬要求（每条都对应一个我犯过的坑）:
+      ① criteria 为空 ⇒ **报错**（返回全部 = 等于没查, 会假绿）
+      ② 字段名不存在 ⇒ **报错**（打错字段名静默返回空 ⇒ 假红,
+         而假红会让人去改**对的**断言 ⇒ 修错方向）
+      ③ 期望值为 None ⇒ 仍精确匹配（不降级成"存在即可"）
+
+    ★★★★ **别用 `ℓ_i=...` 作关键字实参**（R49 实测踩到, 守卫②抓的）:
+      PEP 3131: Python 3 的标识符按 **NFKC** 规范化
+      `ℓ`(U+2113 SCRIPT SMALL L) 的 NFKC = `l`(U+006C)
+      · `liquidity_find(recs, ℓ_i="x")` ⇒ kwarg 名被归一成 `l_i`
+      · 而记录里的**字符串键**是 `"ℓ_i"`（不归一化）
+      ⇒ 二者永不匹配 ⇒ **必报字段名错**
+      ⇒ 正确写法: `liquidity_find(recs, **{"\u2113_i": "x"})`（字符串形式）
+      ★ 而守卫②**没静默返回空**, 报了错 —— 否则假红会让人去改
+        **对的**断言（修错方向）。这正是②存在的理由。
+    """
+    if not criteria:
+        raise ValueError(
+            "★ liquidity_find 必须给至少一个条件 —— 无条件返回全部 = "
+            "没查（那会让『消费验证』假绿）")
+    if liq is None:
+        liq = []
+    # ② 先看有没有记录**带**这些字段（没有 ⇒ 字段名打错了）
+    all_fields = set()
+    for r in liq:
+        if isinstance(r, dict):
+            all_fields.update(r.keys())
+    unknown = [k for k in criteria if k not in all_fields]
+    if unknown and liq:
+        raise ValueError(
+            "★ ℒ_t 记录里**没有**字段 %s（已知字段: %s）—— "
+            "字段名打错了 ⇒ 空结果是假红, 会让人去改对的断言"
+            % (unknown, sorted(all_fields)))
+    out = []
+    for r in liq:
+        if not isinstance(r, dict):
+            continue
+        if all(r.get(k) == v for k, v in criteria.items()):
+            out.append(r)
+    return out
+
+
 def touched_components(accepted_rules) -> frozenset:
     """𝒯_t 的**近似** —— 已留下采纳记录的组件集合。
 

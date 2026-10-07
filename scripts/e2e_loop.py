@@ -276,8 +276,9 @@ assert len(_liq_now) >= 1, \
 _rec7 = (st.get("liquidity") or {}).get("record") or {}
 assert _rec7, "★ step7 没产出 liquidity.record ⇒ 记账那步没走"
 _f7 = _rec7.get("d_i")
-_hit7 = [r for r in _liq_now if r.get("d_i") == _f7
-         and r.get("t_i") == _rec7.get("t_i")]
+# ★ R49: 抽成可测函数（R47 这段只活在 e2e 里 ⇒ 验要跑整条 80s）
+from dwc.organs.evolver import liquidity_find as _lfind
+_hit7 = _lfind(_liq_now, d_i=_f7, t_i=_rec7.get("t_i"))
 assert _hit7, \
     ("★★★ 落盘里没有 step7 那条（d_i 指纹没命中）⇒ **step7 的账没被消费**"
      "· step7 d_i=%r · 落盘 d_i=%s"
@@ -543,7 +544,9 @@ if COMPETE_L:
     assert len(_liq_now) >= 1, \
         "★★★ 消费段读到 0 条 ⇒ 竞争记的账**根本没落盘**"
     _win_patch = _w["winner"].patch if _w["winner"] is not None else None
-    _hit = [r for r in _liq_now if r.get("d_i") == _win_patch]
+    # ★ R49: 同上（**字符串键** ℓ_i 不许用 kwarg —— NFKC 会归一成 l_i）
+    _hit = _lfind(_liq_now, d_i=_win_patch) if "_lfind" in dir() else [
+        r for r in _liq_now if r.get("d_i") == _win_patch]
     assert _hit, \
         ("★★★ 没有记录的 `d_i` 等于赢家 patch ⇒ **竞争那条没被消费**"
          "（半条链仍在）· 落盘 d_i=%s"
