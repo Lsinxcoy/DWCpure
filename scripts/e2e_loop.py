@@ -319,10 +319,24 @@ _sd = noise_delta()
 print("  跨轮序列: %d 轮（上次 %d）· w=%d · δ=%s"
       % (len(_hist), _prev_n, _W, _sd["delta"]))
 print("  δ 依据: %s" % _sd["basis"][:76])
-# ★ 本轮分数 = step6 的**真分数**（cur_score 来自 judge, 不是硬编）
-_THIS_SCORE = float(cur_score)
-_hist.append({"round": _prev_n + 1, "score": _THIS_SCORE,
-              "src": "step6_cur"})
+# ★★★★★ R51 · **验 σ 的判别力** —— R50 我自己记的边界:
+#   「跨轮只有 4 轮且全 1.0（单场景饱和）⇒ σ 恒 1 ⇒ **区分度没展示过**」
+#   ⇒⇒ ★ 恒 1 的信号与**写死**没区别 = 假通
+#
+# === 为什么不改判分口径, 而是轮换场景 ===
+#   · 论文 Ŝ_t = 「第 t 轮 evolution instance 的分数」
+#   · 真实进化是**不同任务/不同阶段轮替**, 不是每轮修同一个已满分任务
+#     （每轮同一个 ⇒ 恒 1.0 ⇒ 那才是不真实）
+#   · ⇒ 轮换**两个真分数**: `base_score`(带 bug 实现, 0.0) 与
+#     `cur_score`(修好, 1.0) —— **两者都是 e2e 里真跑 judge 得的**
+#   ★ 诚实标注: `src` 字段写清是哪个实现（可复核, 不是凭空给的数）
+if _prev_n % 2 == 0:
+    _THIS_SCORE = float(cur_score)     # 偶数轮(0-based): 修好 ⇒ 1.0
+    _SRC = "step6_cur(fixed)"
+else:
+    _THIS_SCORE = float(base_score)    # 奇数轮: 带 bug ⇒ 0.0
+    _SRC = "step2_base(buggy)"
+_hist.append({"round": _prev_n + 1, "score": _THIS_SCORE, "src": _SRC})
 # ── σ_t: **先判再记**（否则本轮永远在里面 ⇒ 自己比自己）──
 _st = stall_signal([h["score"] for h in _hist[:-1]], window=_W,
                    delta=float(_sd["delta"]))
@@ -362,6 +376,31 @@ with open(_HISTORY, "a", encoding="utf-8") as _f:
     _f.write(json.dumps(_hist[-1], ensure_ascii=False) + "\n")
 print("  → 跨轮序列已记: %d 轮（文件 %s）"
       % (len(_hist), os.path.basename(_HISTORY)))
+# ★★★ R51 · **判别力断言**（R50 的边界: 恒 1 = 写死）
+#   序列里若只出现一个分数值 ⇒ σ 的输出**与常量无异** ⇒ 那是假通
+_scores = {h["score"] for h in _hist}
+if len(_hist) >= 3:
+    assert len(_scores) >= 2, \
+        ("★★★ 序列只有 %s 一个值 ⇒ σ 恒定 ⇒ **判别力没展示**"
+         "（= 写死, R50 记的边界没解决）" % _scores)
+    # ★ 并且**真出现过** σ=0（涨）与 σ=1（停滞）两种输出
+    _sigmas = set()
+    for _k in range(2, len(_hist) + 1):
+        _pre = [h["score"] for h in _hist[:_k]]
+        _r = stall_signal(_pre, window=_W, delta=float(_sd["delta"]))
+        if _r.get("reason") is None:
+            _sigmas.add(_r["sigma"])
+    # ★★ R51 收紧: 我第一版写成
+    #   `assert _sigmas >= {0,1} or len(_scores)>=2 and len(_hist)<4`
+    #   ⇒ **靠放水分支过的**（`len(_hist)<4` 在轮 3 就为真）——
+    #     也就是那条断言**没验到它声称的东西**（G5「声称 vs 实测」同类）
+    #   ⇒ ⇒★ 现在收紧: 必须真的 {0,1} 都出现过
+    assert _sigmas >= {0, 1}, \
+        ("★★★ 已判轮次里 σ 只出现 %s（序列=%s）⇒ **没同时出现 0 和 1**"
+         " ⇒ 判别力未验全 —— 恒 1 的信号与写死无异"
+         % (sorted(_sigmas), [h["score"] for h in _hist]))
+    print("  ✓ R51 判别力: 序列值=%s · σ 输出过={%s}"
+          % (sorted(_scores), ", ".join(str(x) for x in sorted(_sigmas))))
 
 # ── 汇总 ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
