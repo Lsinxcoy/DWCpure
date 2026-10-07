@@ -281,7 +281,13 @@ def test_snapshot_is_json_ready():
     snap = reg.snapshot()
     assert len(snap) == 2
     for row in snap:
-        assert set(row) == {"mechanism", "reached", "depth", "not_called", "dead"}
+        # ★★★ R53 · 原 `set(row) == {…5 项…}` = **锁死数据形状**:
+        #   record 若加字段就红 ⇒ 下一步就是改断言迁就（R52 的病根）
+        #   ⇒ ⇒★ 改验 **⊇ 必需字段**（可扩展, 缺字段才红）
+        _need = {"mechanism", "reached", "depth", "not_called", "dead"}
+        assert _need <= set(row), (
+            "★ record 缺必需字段 %s, 实得 %s"
+            % (sorted(_need - set(row)), sorted(set(row))))
         assert isinstance(row["reached"], list)
     import json
     json.dumps(snap)          # 不得抛异常
