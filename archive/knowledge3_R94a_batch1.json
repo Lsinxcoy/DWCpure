@@ -1,0 +1,24 @@
+{
+ "round": "R94a · RSI 23 篇批量精读第一批（12 篇核心, 4 子代理并行）",
+ "date": "2026-10-09",
+ "验收": "12/12 落盘合格(17-27K/份) · 抽验 71.7 双侧命中 · 深度标注全在 · 全部'逐行'",
+ "★ 各篇 DWC 相关要点（报告内有代码级映射）": [
+  "EDIT: RSR 规则扰动评测协议可搬 judge(anchors 承载) · DecoEvo: 评估器通道开启须",
+  "  四件套(分数解耦+盲审计+Pareto验收+冻结集), 否则重演 SC-CoEvo 13/15 反向;",
+  "  多目标 Pareto 边=no_worse 升级点",
+  "Metis: 复发门+query-only 编码正对 DWC 病灶(98.8% access=0); invocation-vs-",
+  "  injection 两级复用判据",
+  "RQGM: selective erasure 的 dep(z) 依赖集→判据变更定向失效; judge 固定是判据层",
+  "  硬约束(2608.24876 𝒢_fixed)要共演化先改判据; 90% 补丁改共享面=单点变更归因代价",
+  "S3Gym: **judge 禁自评的实测证据**(自评 agreement 0.496≈抛硬币, ρ(A,g)=−0.010);",
+  "  DWC 缺'判得准⇒下轮更好'耦合度量",
+  "SEA-Eval: **T 序列(每已验证增益 token)最即插即用** — CostLedger 补 (round,task)",
+  "  维即得; '过保守 Ψ 压制真泛化'直击 ProposalGate 应加拒绝率统计",
+  "HealthBench: meta-evaluation 协议(macro-F1+随机基线+人类分位)正是 judge 缺的",
+  "Evo-memory: 表3 成功+失败记忆对照 → DWC 未做过此对照; 相关分析 Pearson r=0.717",
+  "Nemotron-4: 对照物 — Table6 逐步增量暴露终态看不见的回落(回归检查要抓的)",
+  "AutoKernel: move-on 四判据 vs stall_signal 同型缺预算维 · AIPC: repair_layer",
+  "  三行映射最该抄 · Trace2Skill: many-to-one 合并层(DWC 缺, 落点=dream specs 骨架)"
+ ],
+ "进度": "23 篇已完成 12 · 剩 11 篇第二批派发中"
+}
