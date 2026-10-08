@@ -1,0 +1,544 @@
+{
+ "round": "R82 trial",
+ "n_terms": 6,
+ "per_term": 3,
+ "noise_tasks": [
+  "code_fix_004"
+ ],
+ "records": [
+  {
+   "term": 0,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.3333333333333333,
+    "picked": "code_fix_001",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.5,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.5,
+     "π(w=0,r=1)": 0.5,
+     "π(w=0.5,r=1)": 0.5,
+     "π(w=1,r=0)": 0.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "term": 1,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.6666666666666666,
+    "picked": "code_fix_004",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 9,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.2528
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.75,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.75,
+     "π(w=0,r=1)": 0.75,
+     "π(w=0.5,r=1)": 0.75,
+     "π(w=1,r=0)": 0.25
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "term": 2,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.6666666666666666,
+    "picked": "reasoning_001",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 9,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6094
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8333333333333334,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.8333333333333334,
+     "π(w=0,r=1)": 0.8333333333333334,
+     "π(w=0.5,r=1)": 0.8333333333333334,
+     "π(w=1,r=0)": 0.3333333333333333
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "term": 3,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.6666666666666666,
+    "picked": "reasoning_001",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 9,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.4663
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.875,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.875,
+     "π(w=0,r=1)": 0.875,
+     "π(w=0.5,r=1)": 0.875,
+     "π(w=1,r=0)": 0.375
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "term": 4,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.6666666666666666,
+    "picked": "reasoning_001",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 9,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.674
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.9,
+     "π(w=0,r=1)": 0.9,
+     "π(w=0.5,r=1)": 0.9,
+     "π(w=1,r=0)": 0.4
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "term": 5,
+   "el_selected": {
+    "status": "stalled",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": 0.6666666666666666,
+    "picked": "reasoning_001",
+    "hint": "LATERAL"
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 9,
+   "pool_rate": 0.6666666666666666,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.5581
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9166666666666666,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 4,
+    "v_by": {
+     "π0": 0.9166666666666666,
+     "π(w=0,r=1)": 0.9166666666666666,
+     "π(w=0.5,r=1)": 0.9166666666666666,
+     "π(w=1,r=0)": 0.4166666666666667
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ],
+     [
+      "dev",
+      4,
+      4
+     ],
+     [
+      "t2",
+      4,
+      4
+     ]
+    ]
+   }
+  }
+ ]
+}

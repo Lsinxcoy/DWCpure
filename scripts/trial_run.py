@@ -87,6 +87,28 @@ def main() -> int:
         t for t in d.judge.anchors if not t.startswith("_")
         and d.judge.anchors[t].get("verifier_kind") == "behavior")
     d.executor = _mk_exec(d.judge.anchors)   # R84: 换线 executor
+    if _M1:
+        # ★ R89 · 多分支世界（M>1 差异化前提, R88 留档销账）:
+        #   R88 的 dev 单树 10 节点全部很快揭示 ⇒ 四变体 V 恒等;
+        #   这里**构造**多分支 t2（root→a/b/c; a 带成功 score、b 带失败 score、
+        #   c 未观测）—— **验证变体区分机制的形状, 非能力声明**（口径同 R82:
+        #   人造观测证明链路通, 不冒充真实任务成绩）。
+        #   R89 修正（首版恒等的根因, 实测抓到）: ①t2 节点名不命中 dmap
+        #   （δ 是 judge 任务域）⇒ π0 与 w=0 键全 0 同序 ②树小 K₂ 覆盖全揭示
+        #   ⇒ 揭示集与选择无关 ⇒ V 恒等。修法: **节点命名=judge task_id**
+        #   （dmap 命中, R77 node_id 同域设计的直接复用）+ K₂=4 截断
+        #   （揭示集因选择而异 ⇒ max_s 分化 ⇒ V 真分化）。
+        wm = d.world_model
+        wm.seed("t2", "r")
+        for br in ("code_fix_004", "code_fix_001", "code_fix_002"):
+            wm.expand("t2", "root", node_id=br, action="branch-" + br,
+                      provenance="observed")
+        wm.expand("t2", "code_fix_004", node_id="code_fix_006",
+                  action="deep-006", provenance="observed")
+        # score 按任务史: 001 成功(1.0), 002/004 失败(0.0); 006 未观测
+        wm.record_observation("t2", "code_fix_001", 1.0, True)
+        wm.record_observation("t2", "code_fix_004", 0.0, False)
+        wm.record_observation("t2", "code_fix_002", 0.0, False)
     print("behavior 任务 %d 条（reasoning kw 类跳过判分）, 注入噪声: %s"
           % (len(dev_ids), sorted(NOISE_TASKS)))
 
@@ -109,7 +131,7 @@ def main() -> int:
         from dwc.organs.replay import PolicySpec
         variants = [PolicySpec(w_delta=0.0), PolicySpec(w_delta=0.5),
                     PolicySpec(prefer_revealable=False)] if _M1 else None
-        dr = d.dream(k2_max=8, policy_variants=variants)
+        dr = d.dream(k2_max=4 if _M1 else 8, policy_variants=variants)
         # ⑤ 当前 δ 排序快照（top3 任务）
         dmap = d._task_deltas()
         top3 = sorted(dmap.items(), key=lambda kv: -kv[1])[:3]
