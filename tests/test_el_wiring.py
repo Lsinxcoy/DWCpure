@@ -273,3 +273,56 @@ def test_b_non_stalled_hint_is_none():
     el2 = rep2.next_task_source["el_selected"]
     assert el2["status"] == "next_environment"
     assert el2["direction_hint"] is None
+
+# ══════════════════════════════════════════════════════════
+# R84 · 执行→判分→回填 自动化（step 尾闭环）
+# ══════════════════════════════════════════════════════════
+
+def test_step_judges_when_executor_reports_observed():
+    """★★ executor 回执带 detail[observed]（judge 契约）+ dev 任务 ⇒
+    自动 evaluate 进 C3' + 树回填（judgement 字段非 None）。"""
+    from dwc.organs.actor import Receipt
+    good = {"sum_first_n": [[3, 6], [5, 15]]}            # 001 的正确观测
+    d = _dwc()
+    d.executor = lambda t: Receipt(ok=True, detail={"observed": good},
+                                   verified=True)
+    out = d.step({"task_id": "code_fix_001", "kind": "dev"})
+    j = out["judgement"]
+    assert j is not None and j["success"] is True
+    pts = d.judge.task_scores(split="dev")
+    assert [p.task_id for p in pts] == ["code_fix_001"]  # 进 C3'（δ 数据源）
+    node = d.world_model.trees["dev"].nodes["code_fix_001"]
+    assert node.score == 1.0                             # 树已回填
+
+
+def test_step_does_not_judge_without_observed():
+    """★ 显式契约: detail 无 observed ⇒ 不判不填（judgement=None, 不冒充）。"""
+    d = _dwc()                                            # executor=Receipt(detail={})
+    out = d.step({"task_id": "code_fix_001", "kind": "dev"})
+    assert out["judgement"] is None
+    assert d.judge.task_scores(split="dev") == []
+    assert d.world_model.trees["dev"].nodes["code_fix_001"].score is None
+
+
+def test_step_skips_judgement_for_non_dev_task():
+    """非 dev 任务（term 标签/私有）⇒ 无 golden 不判（诚实缺席）。"""
+    from dwc.organs.actor import Receipt
+    d = _dwc()
+    d.executor = lambda t: Receipt(ok=True, detail={"observed": {"a": 1}},
+                                   verified=True)
+    assert d.step({"task_id": "T0", "kind": "term"})["judgement"] is None
+
+
+def test_step_backfill_respects_w5_no_overwrite():
+    """★ W5: 已带真值的节点二次判分 — 判分照进 C3', 树观测不覆盖。"""
+    from dwc.organs.actor import Receipt
+    good = {"sum_first_n": [[3, 6], [5, 15]]}
+    d = _dwc()
+    d.executor = lambda t: Receipt(ok=True, detail={"observed": good},
+                                   verified=True)
+    d.step({"task_id": "code_fix_001", "kind": "dev"})    # 成功 → score=1.0
+    d.step({"task_id": "code_fix_001", "kind": "dev"})    # 再判（同观测）
+    pts = d.judge.task_scores(split="dev")
+    assert len(pts) == 2                                  # C3' 判分照记
+    assert d.world_model.trees["dev"].nodes["code_fix_001"].score == 1.0
+

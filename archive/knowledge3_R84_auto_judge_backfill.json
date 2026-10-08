@@ -1,0 +1,36 @@
+{
+ "round": "R84 · 执行→判分→回填自动化（step 尾闭环, trial 手动段清零）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 执行→回填自动化换线）",
+ "★ 链路核实（换线前）": [
+  "ACTOR_DESIGN §4.4 success 四级来源: judge_verdict 最强 > tool_receipt >",
+  "  self_report(只能记声称) > NOT_EVALUATED —— 自动判分=judge_verdict 落地",
+  "actor.act: tr.observed = dict(rc.detail)（L295）—— executor 回执即观测",
+  "★ 接点修正: run_term **不执行任务**(是记忆链编排) — 执行在 step() ⇒",
+  "  闭环落 step 尾而非 run_term"
+ ],
+ "★ 实现（core._judge_and_backfill + step 尾）": [
+  "显式契约: detail['observed']=judge 的 {fn:[[args,value]]} 形态才判(**不猜**",
+  "  detail 本身像不像) — 无 observed 的 executor 行为不变(750 既有测试零破)",
+  "条件: task∈dev anchors(有golden) + obs非空 ⇒ judge.evaluate 进 C3' + W5 守纪",
+  "  回填树; 条件不满足 ⇒ judgement=None(不冒充, NOT_EVALUATED 口径)",
+  "step 返回加 judgement 字段(Verdict dict 或 None)"
+ ],
+ "★ trial 换线（全自动链验证）": [
+  "executor 改 _mk_exec(带 observed detail) · 手动 evaluate/record 段删除",
+  "6 term 重跑: **全自动** — 002✓(literal_eval 在生产executor生效) · pool=0.83>",
+  "  τ0.75 ⇒ next_environment 推进(R82 的 0.67 卡住对照) · 004 δ 1.25→1.67 正常积累",
+  "  · assert j is not None 全过=契约生效"
+ ],
+ "验证": [
+  "pytest 754 passed(+4: 带observed判分/无observed不判/非dev跳过/W5不覆盖) rc=0 ·",
+  "  gate 8/8 · e2e rc=0(LLM 段 candidates_rejected=端点波动, 诚实记录)",
+  "破坏 2/2: ①拆显式observed契约⇒不冒充测试红 ②拆W5守纪⇒覆盖raise测试红 → 恢复绿"
+ ],
+ "诚实边界": [
+  "判分失败(G7)在 _judge_and_backfill 里 raise(判分是硬环节不静默) — 执行链遇坏",
+  "  观测会炸; 生产 executor 须产合法 observed",
+  "run_term 的 R25 score 自造观测路径保留(term 标签任务不判) — 两路径并存:",
+  "  step(真任务+显式观测=自动判) / run_term(记忆链编排)"
+ ]
+}

@@ -232,13 +232,50 @@ class DWC:
         trace = self.actor.act(task, executor=exe, decision=decision)
         chain_id = decision.pop("_chain_id")
         mem_id = self.ingest(trace, chain_id)
+        # ★★★ R84 · 执行→判分→回填 自动化（ACTOR_DESIGN §4.4 四级之首 judge_verdict）
+        #   条件: ① task 是 dev 任务（有 golden 才可判）② executor 回执带显式观测
+        #   （detail["observed"] = judge 的 {fn:[[args,value]]} 契约 — 显式不猜）
+        #   ⇒ evaluate 进 C3'（δ 数据源）+ 回填树观测（W5: 已带真值不覆盖）
+        #   ★ 条件不满足 ⇒ **不判不填**（无判据不冒充 — success_source=
+        #     NOT_EVALUATED 口径; detail 无 observed 的 executor 行为不变）
+        judgement = self._judge_and_backfill(task, trace)
         return {"decision": decision, "trace": trace, "memory_id": mem_id,
                 "chain_id": chain_id,
+                "judgement": judgement,
                 "action_dispatched": ("remember" if decision.get("action")
                                       == "remember" else
                                       "not_dispatched: %s 只记录不路由"
                                       "(见模块诚实边界)"
                                       % decision.get("action"))}
+
+    def _judge_and_backfill(self, task: Dict[str, Any],
+                            trace: Trace) -> Optional[Dict[str, Any]]:
+        """★ 判分+回填（R84）—— 返回 Verdict dict 或 None（未判, 不冒充）。
+
+        ★ W5 纪律: 树观测只填未带真值的节点（provenance 单向, 判分不可覆盖）。
+        ★ judge 不在 / store 不可用 ⇒ None（诚实缺席, 不炸执行链）。
+        """
+        if self.judge is None:
+            return None
+        tid = str(task.get("task_id") or "")
+        obs = (getattr(trace, "observed", None) or {}).get("observed")
+        if not tid or tid.startswith("_") or tid not in self.judge.anchors \
+                or not isinstance(obs, dict) or not obs:
+            return None                      # 无判据 ⇒ 不冒充
+        try:
+            v = self.judge.evaluate(tid, observed=obs)
+        except Exception:                    # G7: 不静默 — 判分失败不炸执行链
+            raise                             # 判分是硬环节, 出错必须大声（G7）
+        node = self.world_model.trees.get("dev", None)
+        if node is not None:
+            nd = node.nodes.get(tid)
+            if nd is not None and nd.score is None:
+                self.world_model.record_observation(
+                    "dev", tid, 1.0 if v.success else 0.0,
+                    bool(v.success) if v.success is not None else False)
+        return {"task_id": v.task_id, "success": v.success,
+                "reason": v.reason,
+                "failure_signature": getattr(v, "failure_signature", None)}
 
     def _task_deltas(self) -> Dict[str, float]:
         """★ 任务级 δ（批2-C, C1 落点）—— 缓存: 判分点数变才重算。"""

@@ -63,18 +63,26 @@ def _obs_for(anchors, tid: str) -> dict:
     return obs
 
 
-def _exec(task):
-    """step 链的执行器（Receipt 形态）—— 试运行里执行=空转, 判分在下方手动。"""
-    return Receipt(ok=True, detail={}, verified=True)
+def _mk_exec(anchors):
+    """★ R84 换线: executor 回执带 detail[observed]（judge 契约）——
+    step 尾自动 judge.evaluate + 树回填（不再是空 Receipt）。"""
+    def _exec(task):
+        tid = task.get("task_id", "")
+        obs = _obs_for(anchors, tid) if tid in anchors else None
+        return Receipt(ok=True,
+                       detail=({"observed": obs} if obs else {}),
+                       verified=True)
+    return _exec
 
 
 def main() -> int:
-    d = DWC(3, 50, executor=_exec)
+    d = DWC(3, 50, executor=None)
     # 隔离生产 store（试运行数据独立可归档）
     d.judge.store = TaskScoreStore(dw_version="trial-r82")
     dev_ids = sorted(
         t for t in d.judge.anchors if not t.startswith("_")
         and d.judge.anchors[t].get("verifier_kind") == "behavior")
+    d.executor = _mk_exec(d.judge.anchors)   # R84: 换线 executor
     print("behavior 任务 %d 条（reasoning kw 类跳过判分）, 注入噪声: %s"
           % (len(dev_ids), sorted(NOISE_TASKS)))
 
@@ -84,19 +92,15 @@ def main() -> int:
         rep = d.run_term("T%d" % term, n_steps=2)
         src = rep.next_task_source or {}
         el = src.get("el_selected")
-        # ② 手动判分 PER_TERM 个任务（轮询）—— C3' 积累（δ 数据源）
+        # ② 执行 PER_TERM 个任务（轮询）—— **R84 换线: step 尾自动判分+回填**
+        #   （C3' 积累 + 树观测全自动, 不再手动 evaluate/record_observation）
         judged = []
         for i in range(PER_TERM):
             tid = dev_ids[(term * PER_TERM + i) % len(dev_ids)]
-            v = d.judge.evaluate(tid, observed=_obs_for(d.judge.anchors, tid))
-            judged.append((tid, bool(v.success)))
-            # ③ 树观测回填（EL 速率口的数据源）
-            # ★ W5 纪律: 已带真值 score 的节点不覆盖（provenance 单向）——
-            #   首个判分定观测; 后续轮回判分照进 C3'（δ 积累）但树不重填
-            node = d.world_model.trees["dev"].nodes.get(tid)
-            if node is not None and node.score is None:
-                d.world_model.record_observation(
-                    "dev", tid, 1.0 if v.success else 0.0, bool(v.success))
+            out = d.step({"task_id": tid, "kind": "dev"})
+            j = out["judgement"]
+            assert j is not None, "★ R84 契约: 带 observed 应自动判分 (%s)" % tid
+            judged.append((tid, bool(j["success"])))
         # ④ Dreaming
         dr = d.dream(k2_max=8)
         # ⑤ 当前 δ 排序快照（top3 任务）
