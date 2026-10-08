@@ -5,28 +5,41 @@
 
 | 项 | 声称 | 实测 | 取数命令 |
 |---|---|---|---|
-| 立项 | 定位已定：独立 agent，记忆 + 自进化 | README.md 3,648 B | `wc -c README.md` |
+| 立项 | 定位已定：独立 agent，记忆 + 自进化 | README.md「当前状态」节（R58 刷新） | `wc -c README.md` |
 | 边界澄清 | DWC 不沿用母巢架构 | README/QUALITY_GATE/lessons 已标注定位 | `grep -rn 母巢 docs/ \| head` |
-| 论文研究 | RSI 全文深读 | **30 份报告落盘**（2026-10-04 实测） | `ls docs/papers/*.md \| wc -l` |
-| 数字核验 | 报告数字可溯源 | VERIFICATION.md 存在 | `ls docs/papers/VERIFICATION.md` |
-| 质量门 | 7 道门可执行 | **`gate.py` rc=0 · 7 门全绿**（2026-10-04 实跑） | `python scripts/gate.py` |
-| ★ 架构 | **架构设计已定稿**（§1–§11 + 七环节 + 19 族判据） | **ARCHITECTURE.md 161,952 B** | `wc -c ARCHITECTURE.md` |
+| 论文研究 | RSI 全文深读 | **30 份报告落盘** | `ls docs/papers/*.md \| wc -l` |
+| 数字核验 | 报告数字可溯源 | `docs/papers/VERIFICATION.md` 3.4K | `wc -c docs/papers/VERIFICATION.md` |
+| 质量门 | **8 道门（G1–G8）**可执行 | **`gate.py` rc=0 · 8 门全 PASS**（2026-10-08 实跑） | `python scripts/gate.py` |
+| ★ 架构 | **架构 v4 定稿**（器官式骨架 + 进化循环七环节 + 判据族） | **ARCHITECTURE.md 169,406 B** | `wc -c ARCHITECTURE.md` |
 | ★ 缺口销账 | **11 项已销账**（A1–A7 · §二①②③ · C3'） | `docs/GAP_AUDIT.md` 内 11 项全标 ✓ | `grep -c "【已做" docs/GAP_AUDIT.md` |
-| ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `ls -l docs/WORLD_TREE_CONVERGENCE.md` |
-| ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 落盘 | `ls docs/FULL_AUDIT*` |
-| ★ 测试 | **首份测试已固化**（12 项） | `tests/test_gate_n_a.py` · 变异验证 3/3 抓到破坏 | `python -m pytest tests/ -q` |
-| ★ 质量门 | **三态化**（pass / fail / **n_a 无可检对象**） | 空仓库下 5/7 道报 n_a，`rc=1` | `python scripts/gate.py` |
-| ★ config | **首批两份已落盘** | `config/iron_laws.yaml` + `config/capability_groups.yaml` | `ls -l config/` |
-| 承重代码 | — | **0 行**（刻意为空） | `find src -name '*.py' \| wc -l` |
-| 测试代码 | — | **0 行**（刻意为空） | `find tests -name '*.py' \| wc -l` |
+| ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `wc -c docs/WORLD_TREE_CONVERGENCE.md` |
+| ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 10.1K | `wc -c docs/FULL_AUDIT_2026-10-04.md` |
+| ★ 测试 | 首份 12 项（10-04）→ **现 560 项全过** | `560 passed in 14.5s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
+| ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
+| ★ config | 首批两份 → **现 6 项**（iron_laws/dials/difficulty/capability_groups/llm.json/anchors/） | `ls config/` 实列 6 项 | `ls config/` |
+| ★★★ 承重代码 | **18 个 .py / 8,428 行**（R18 建 git 起，从 0 写到 R58） | 8,428（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 测试代码 | **25 文件 / 513 函数 → pytest 收集 560 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
+| ★★★ 七器官 | **5/7**：memory·judge·actor·evolver·iron_laws ✓；**缺 iwm / world_model** | `organs/` 6 文件（applier/candidates = evolver ④ 落地的支撑体） | `ls src/dwc/organs/` |
+| ★★★ 七环节 | **5/7**：①②③④(evolver 内) + ⑦五元盘点(run_term) ✓；**缺⑤防漂移⑥探索** | run_term.py 实列 `环节⑦` 计数与盘点 | `grep -n '环节' src/dwc/harness/run_term.py` |
+| ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
+| ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
+| ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
+| ★★★ 轮次 | R1–R58 · 每轮一知识档 | **50 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 
 ## 阶段
 
-**架构设计已定稿；承重代码 0 行（刻意为空）。**
+**代码已进主干：进化内核（①诊断 ②对象 ③门 ④落地）闭环，判据 / 记忆 / 铁律 / 因果链 / 五元盘点建成。**
 
-★ 承重代码为空的依据：`ARCHITECTURE.md` 原则区「架构定稿前不写承重代码」。
+```text
+七器官 5/7 · 七环节 5/7 · 三入口 1/3（只 run_term，无 class DWC 主类）
+★ 当前形态 = 「被测的进化内核」，还不是「自主 agent」：
+  任务源写死在 e2e 测试床（4 task + buggy/fix），agent 不会自己找事做；
+  没有 iwm 独立验漂 ⇒ 补 world_model(⑥) + iwm(⑤) + 统一入口才算。
+★ 依据: 上表「七器官 / 七环节 / 端到端」三行（取数命令可复跑）。
+★ 旧依据（10-04）「架构定稿前不写承重代码」已完成使命 —— 代码自 R18 起进主干。
+```
 
 ---
 
@@ -42,7 +55,7 @@ docs/INDEX.md —— ★ 开工先看这个（26 份核心设计 + 6 个子目�
 ## ★ 续接点（跨会话必读）
 
 ```text
-docs/RESUME_2026-10-04_FINAL.md  ← 当前有效
+docs/RESUME_2026-10-04_FINAL.md  ← 设计侧有效；代码侧已被 R18–R58 超越, 以本表为准
 ★ RESUME_2026-10-04_EARLY / NIGHT 均已过期（早于本轮 11 项销账）
   ★★ 但 EARLY 里的 ARSI 硬缺陷审计（带行号）仍是有效证据, 别删
 ```
@@ -51,19 +64,22 @@ docs/RESUME_2026-10-04_FINAL.md  ← 当前有效
 
 ## 下一步
 
-1. ~~写 config/ 第一批~~ ✓ **已完成**（2026-10-04）:
-   · `config/iron_laws.yaml`（11 条 = G1–G10 + G11；含 D1/D2 两条加载纪律）
-   · `config/capability_groups.yaml`（三组 + Λ 计数口径 + 派生字段声明）
-   · 两者均已实测：G1–G6 与 I10–I12 全部通过
-2. **实现 `src/dwc/foundation/contracts.py`**（六条通用约定 + 负面测试基类）
-3. 实现 `check_fn` —— 按 `iron_laws.yaml` 里声明的 11 个函数名逐个写
-   ★ 判据 I8 要求每个 check_fn 的**调用点 > 0** ⇒ 写完须 grep 验证
-   ★ D2 纪律（anti_stall）要求 check_fn 不得是已知空转名
-4. 实现能力组加载器（重算派生字段 `lambda_floor_ratio = 1/median`）
-5. 每落一族，同步写它的**阳性测试**（喂违规输入断言 raise）
+1. ~~写 config/ 第一批~~ ✓ **已完成**（2026-10-04；现 config/ 共 6 项）
+2. **建 `world_model` 器官**（环节⑥ · §4.7 · §十要做①）
+   ★ 用户 2026-10-08 拍板「先刷文档，再建 world_model」
+   ★ 路线已收束: 路线① 信息增益 + 卡住检测（docs/WORLD_TREE_CONVERGENCE.md）
+   ★ 反面约束: 2608.24876 Table 4 —— 只预测成败价值为负；原则 9 必须门控决策
+3. **建 `iwm`**（环节⑤ 防漂移 · §4.5 —— 七环节凑 7/7）
+4. **class DWC 主类三入口**（ingest / step / run_term 收拢成 agent 形态）
+5. `foundation/contracts.py` **仍未建**（2026-10-08 核实: `ls src/dwc/foundation/contracts.py` → 不存在）
+   + `check_fn` 调用点 > 0 的 I8 核验 —— 老债保留，别当已完成
+6. 能力组加载器派生字段 `lambda_floor_ratio = 1/median`：文件已有（capability_groups.py 247 行）
+   但功能**未核** ⇒ 下次核
+7. 每落一族，同步写它的**阳性测试**（喂违规输入断言 raise）
 
-★ 不要先写 `world_model`：它的 `predict` 不许返回 `confidence`（判据 P4），
-  而这条现在只是设计推理，尚无代码可 grep 验证。
+★ 写 `world_model` 的硬约束（PROGRESS 老条目, 仍有效）:
+  `predict` **不许返回 `confidence`**（判据 P4）—— 守卫① 的 conf 已裁决:
+  用 judge 在 dev split 上**外测**的世界模型准确率，评估时冻结，不听自报。
 
 ---
 
@@ -90,9 +106,10 @@ docs/RESUME_2026-10-04_FINAL.md  ← 当前有效
   ② 落 §9 待定段的销账标记
   ③ 本表加一行 + 取数命令
 ⇒ ⇒ 缺任一条 ⇒ 视为未完成（★ 这正是本文件此前违反的规则）
-★ 本轮教训: 本文件曾落后实际进度 21 倍（架构 7,640 B vs 实际 161,952 B），
-  而它是全项目唯一强制"声称 vs 实测"的文档
-  ⇒ ⇒ 一个自己规定了取数命令的文档，自己的数字必须可复跑
+★ 本文件已两次落后实际:
+  第一次 落后 21 倍（架构 7,640 B vs 实际 161,952 B —— 10-04 抓到）
+  第二次 停在"代码 0 行"而实际已 8,428 行（R18–R58 期间没跟 —— 10-08 刷新）
+  ⇒ ⇒ 教训升级: **每次大轮次收官, 顺手重跑本表的取数命令列**
 ```
 
 ---
@@ -101,4 +118,4 @@ docs/RESUME_2026-10-04_FINAL.md  ← 当前有效
 > 不是设计依据。它们回答"论文能提供什么机制"，
 > 不回答"DWC 该采用哪个机制"。
 
-*本表最后实测：2026-10-04 · 上一版实测约在 2026-10-03（ARCHITECTURE 7,640 B 时）*
+*本表最后实测：**2026-10-08（R58 · 从 0 行到 8,428 行后的首次全表刷新）** · 上一版 2026-10-04*
