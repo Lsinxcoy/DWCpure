@@ -1,0 +1,25 @@
+{
+ "round": "R62 · class DWC 主类三入口收拢（ingest/step/run_term · §11.2 core.py 落点）",
+ "date": "2026-10-08",
+ "用户指令": "执行1（= class DWC 主类三入口）",
+ "落点": [
+  "src/dwc/core.py: DWC(depth_limit,max_nodes 必填无默认) 持七器官 + 三入口",
+  "  ingest(): 痕迹合格性两不变量(必须可评价/失败必须带 failure_signature) → memory.TRACE",
+  "  step(): 决策三层诚实降级(pre_enactment 显式缺席/LLM 可降级留痕/heuristic 兜底) → actor.act → ingest 闭环; task 缺省从世界树取(环节⑥)",
+  "  run_term(): 委托 TermRunner(六步不重写), 与入口共享同一 memory",
+  "  iron_laws = 配置面加载(id/severity 校验; check_fn 运行时执行仍在 gate/器官 —— I8 老债)",
+  "src/dwc/__init__.py: PEP 562 惰性导出 from dwc import DWC（防包初始化循环导入）"
+ ],
+ "验证": [
+  "pytest 630 passed(+18) rc=0 · gate 8/8 · e2e rc=0 三段绿 · 一次全绿",
+  "破坏 2/2: ①拆共享记忆→2 红 ②拆 ingest 失败定位→1 红 → 恢复绿"
+ ],
+ "里程碑": "七器官 7/7 · 七环节 7/7 · 三入口 3/3 —— 架构形态三线全齐",
+ "诚实边界": [
+  "★ 决策第一层 pre-enactment（ARSI Layer2 dynamics）无实现 ⇒ 层标 available=False 不冒充",
+  "★ 动作分发只通 remember; learn/dream/evolve 只记录不路由（not_dispatched 显式）",
+  "★ iron_laws 字段=配置面; 逐条 check_fn 调用点>0 的 I8 核验未销（PROGRESS 老债）",
+  "★ LLM 决策层只在 configured 时走, 测试用 FakeLLM 离线验, 未与真端点联测决策路径",
+  "★ 本轮结论未经第二人复核"
+ ]
+}

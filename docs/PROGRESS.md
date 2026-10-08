@@ -14,17 +14,18 @@
 | ★ 缺口销账 | **11 项已销账**（A1–A7 · §二①②③ · C3'） | `docs/GAP_AUDIT.md` 内 11 项全标 ✓ | `grep -c "【已做" docs/GAP_AUDIT.md` |
 | ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `wc -c docs/WORLD_TREE_CONVERGENCE.md` |
 | ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 10.1K | `wc -c docs/FULL_AUDIT_2026-10-04.md` |
-| ★ 测试 | 首份 12 项（10-04）→ **现 612 项全过** | `612 passed in 14.2s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
+| ★ 测试 | 首份 12 项（10-04）→ **现 630 项全过** | `630 passed in 14.9s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
 | ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
-| ★★★ 承重代码 | **21 个 .py / 9,449 行**（R18 建 git 起，从 0 写到 R61） | 9,449（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
-| ★★★ 测试代码 | **27 文件 / 565 函数 → pytest 收集 612 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
+| ★★★ 承重代码 | **22 个 .py / 9,715 行**（R18 建 git 起，从 0 写到 R62） | 9,715（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 测试代码 | **28 文件 / 583 函数 → pytest 收集 630 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
 | ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 8 文件（applier/candidates = evolver ④ 支撑体） | `ls src/dwc/organs/` |
-| ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\\|环节⑥' src/dwc/harness/run_term.py` |
+| ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\|环节⑥' src/dwc/harness/run_term.py` |
+| ★★★ 三入口 | **3/3 全齐**：ingest·step·run_term 收拢进 core.py 主类（R62） | `grep -c 'def ingest\|def step\|def run_term' src/dwc/core.py` = 3；共享记忆有测试 | `grep -n 'def ingest\|def step\|def run_term' src/dwc/core.py` |
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R61 · 每轮一知识档 | **53 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R62 · 每轮一知识档 | **54 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 
@@ -33,12 +34,13 @@
 **代码已进主干：进化内核（①诊断 ②对象 ③门 ④落地）闭环，判据 / 记忆 / 铁律 / 因果链 / 五元盘点建成。**
 
 ```text
-七器官 **7/7 全齐** · 七环节 **7/7 全齐** · 三入口 1/3（只 run_term，无 class DWC 主类）
-★ 当前形态 = 「全器官到齐的进化循环」: 任务源可自产（R60 世界树）+
-  漂移有独立观测方且被门控消费（R61 iwm → drift_degrade 任务）⇒ 七环节首尾相接。
-★ 仍欠: 统一入口（class DWC 三入口）+ 各子项（Z4/Z5 · δ_θ · ECE ·
-  Appendix D 概率回归 · coupling 三条件）—— **全齐 ≠ 全深**。
-★ 依据: 上表「七器官 / 七环节 / 端到端」三行（取数命令可复跑）。
+七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3** —— 架构形态三线全齐（R62 收拢）。
+★ 当前形态 = 「一个能被当 agent 使用的组装体」: `DWC(depth_limit, max_nodes)` 造出,
+  ingest/step/run_term 三入口可用, 器官共享同一份记忆（有测试锁）;
+  决策第一层（dynamics 预测）诚实缺席、动作分发只通 remember —— 见 core.py 诚实边界。
+★ 仍欠的深度（全齐 ≠ 全深）: Z4/Z5 · δ_θ · ECE · Appendix D 概率回归 ·
+  coupling · 动作分发全路由 · contracts.py 老债。
+★ 依据: 上表「七器官 / 七环节 / 三入口 / 端到端」四行（取数命令可复跑）。
 ★ 旧依据（10-04）「架构定稿前不写承重代码」已完成使命 —— 代码自 R18 起进主干。
 ```
 
@@ -78,7 +80,12 @@ docs/RESUME_2026-10-04_FINAL.md  ← 设计侧有效；代码侧已被 R18–R58
    · 顺带落地 foundation/state.py（STATE_SCHEMA 四层 frozen = I6 构造面）
    · ★ 仍未做（下轮候选）: ECE 惩罚（需 Advice 加自报置信字段）·
      Appendix D 概率回归 · coupling 三条件 · Δ_semantic 的嵌入源
-4. **class DWC 主类三入口**（ingest / step / run_term 收拢成 agent 形态）
+4. ~~class DWC 主类三入口~~ ✓ **R62 已完成**（2026-10-08）:
+   · core.py 主类（§11.2 落点）: 七器官组装 + ingest/step/run_term 三入口
+   · run_term 委托 TermRunner（六步不重写）; 入口与 runner **共享同一 memory**（破坏验证）
+   · step 三层决策诚实降级: pre_enactment 显式缺席 · LLM 层可降级留痕 · heuristic 兜底
+   · `from dwc import DWC` 惰性导出（PEP 562, 防循环导入）
+   · ★ 仍未做: 动作分发全路由（learn/dream/evolve 只记录）· 决策 dynamics 层
 5. `foundation/contracts.py` **仍未建**（2026-10-08 核实: `ls src/dwc/foundation/contracts.py` → 不存在）
    + `check_fn` 调用点 > 0 的 I8 核验 —— 老债保留，别当已完成
 6. 能力组加载器派生字段 `lambda_floor_ratio = 1/median`：文件已有（capability_groups.py 247 行）
