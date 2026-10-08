@@ -1106,6 +1106,13 @@ class Proposal:
     target_layer: str = ""
     is_structural: bool = False
     dimension: Optional[str] = None
+    #: ★ R78 批3-D（裁决②: 加）· 进化方向标注 —— 与 direction.EvolutionDirection
+    #:   三成员语义表对齐（FORWARD/LATERAL/REVERSE）; None=未标注（合法 ——
+    #:   多数提议不声明方向）。构造时经 ensure_direction 精确校验（非 None ⇒
+    #:   拒 None 变体/大小写/未知值）。
+    #:   ★ 诚实边界: **填值方（方向选择策略）无设计明文**（R73 裁定"无设计
+    #:   不发明选择器"）—— 本字段先就位形态+校验, 选择策略落地时消费。
+    direction: Optional[str] = None
 
     state: str = "draft"
     gate_verdict: Optional[Dict[str, Any]] = None
@@ -1145,6 +1152,10 @@ class Proposal:
             raise EvolverError(
                 "dimension=%r 不在 %r 内（2606.14249 九维）"
                 % (self.dimension, list(DIMENSIONS)))
+        #: R78 批3-D · direction 精确校验（None 合法; 非 None 走 ensure_direction）
+        if self.direction is not None:
+            from dwc.organs.direction import ensure_direction
+            self.direction = ensure_direction(self.direction)
         if not self.rationale.strip():
             raise EvolverError(
                 "★ rationale 必填 —— 不许『看着办』"

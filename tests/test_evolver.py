@@ -554,3 +554,23 @@ def test_constraint4_single_change_is_enforced():
         Proposal(proposal_id="e", target="", patch="x", **base)
     with pytest.raises(EvolverError):
         Proposal(proposal_id="f", target="foo", patch="   ", **base)
+
+
+
+# ══════════════════════════════════════════════════════════
+# R78 批3-D（裁决②: 加）· Proposal.direction 字段
+# ══════════════════════════════════════════════════════════
+
+def test_proposal_direction_field():
+    """★ None 合法（未标注不冒充）· 三成员经 ensure_direction · 未知值拒。"""
+    assert _p().direction is None                    # 默认未标注
+    from dwc.organs.direction import EvolutionDirection
+    for dname in (EvolutionDirection.FORWARD.value,
+                  EvolutionDirection.LATERAL.value,
+                  EvolutionDirection.REVERSE.value):
+        assert _p(direction=dname).direction == dname
+    with pytest.raises(Exception) as e:              # DirectionError
+        _p(direction="lateral")                      # 大小写/变体拒
+    assert "方向值" in str(e.value)
+    with pytest.raises(Exception):
+        _p(direction="sideways")                     # 未知值拒

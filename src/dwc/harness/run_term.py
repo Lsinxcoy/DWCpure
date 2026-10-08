@@ -716,6 +716,12 @@ class TermRunner:
                            "action": el_picked["action"]},
                 "why": "环节⑥·EL 采样（2609.04128 式2, L592 三段式①）"
                        " — 叠加标注, 原 tasks 未改",
+                # ★ R78 批3-E（裁决③: 只标注, 不进阶改行为）· stuck→方向提示:
+                #   stalled=当前环境卡住 ⇒ 提示 LATERAL(换路横向试) —— R73 的
+                #   实例化观察, **纯报告标注**（选择策略未落地, 不驱动任何行为;
+                #   非 stalled ⇒ None, 不冒充建议）
+                "direction_hint": ("LATERAL" if d is not None
+                                   and d.status == "stalled" else None),
             }
         return out
 

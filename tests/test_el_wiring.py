@@ -245,3 +245,31 @@ def test_b_delta_rank_sorts_wta():
     # δ 排序后 wta 首位 = 罕见失败任务 004; insufficient idx=1 ⇒ picked=首
     assert wta[0]["node"] == "code_fix_004", [t["node"] for t in wta[:3]]
     assert el["picked"]["node"] == "code_fix_004"
+
+
+def test_b_stalled_hint_lateral_without_behavior_change():
+    """★★ 批3-E（裁决③: 只标注）: stalled ⇒ direction_hint=LATERAL,
+    且**行为不变**（index 不动、picked 仍是首候选 —— 标注不驱动选择）。"""
+    tr = _tr(with_el=True)
+    tr.world_model.record_observation("main", "root", 0.0, False)  # 失败 ⇒ p̂=0 ≤ τ
+    rep = tr.run_term("t", n_steps=1)
+    el = rep.next_task_source["el_selected"]
+    assert el["status"] == "stalled"
+    assert el["direction_hint"] == "LATERAL"
+    assert el["index"] == 1                          # 行为不变（卡住不动）
+    assert el["picked"]["node"] ==         [t for t in rep.next_task_source["tasks"]
+         if t["kind"] == "world_tree_action"][0]["node"]
+
+
+def test_b_non_stalled_hint_is_none():
+    """非 stalled（insufficient/next_*）⇒ hint=None（不冒充建议）。"""
+    tr = _tr(with_el=True)
+    rep = tr.run_term("t", n_steps=1)                # 无观测 ⇒ insufficient
+    el = rep.next_task_source["el_selected"]
+    assert el["direction_hint"] is None
+    tr2 = _tr(with_el=True)
+    tr2.world_model.record_observation("main", "root", 1.0, True)
+    rep2 = tr2.run_term("t", n_steps=1)
+    el2 = rep2.next_task_source["el_selected"]
+    assert el2["status"] == "next_environment"
+    assert el2["direction_hint"] is None

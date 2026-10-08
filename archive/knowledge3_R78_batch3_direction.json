@@ -1,0 +1,28 @@
+{
+ "round": "R78 · 批3 提案剩余薄件清账（裁决② Proposal.direction + 裁决③ stuck 标注）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 批3, 裁决按推荐: ②加字段 ③只标注）",
+ "★ D（裁决②: 加）": [
+  "Proposal.direction: Optional[str]=None（与 dimension 同款形态, 默认未标注合法）",
+  "__post_init__ 校验: 非 None ⇒ ensure_direction 精确匹配(大小写变体/未知值拒)",
+  "★ 诚实边界注释明标: **填值方(方向选择策略)无设计明文**(R73 裁定不发明选择器) —",
+  "  字段先就位形态+校验, 选择策略落地时消费 —— **非死字段**(direction.py 语义表+",
+  "  ensure_direction 是已有消费端, 提案序列化时字段可直接落日志)"
+ ],
+ "★ E（裁决③: 只标注, 不进阶）": [
+  "el_selected 加 direction_hint: stalled(当前环境卡住) ⇒ 'LATERAL'(换路横向试) —",
+  "  **纯报告标注, 零行为驱动**(测试锁: stalled 时 index 不动、picked 仍首候选)",
+  "非 stalled(insufficient/next_*) ⇒ None 不冒充建议"
+ ],
+ "验证": [
+  "pytest 744 passed(+3: direction 字段 + stalled hint + 非 stalled None) rc=0 ·",
+  "  gate 8/8 · e2e rc=0(LLM passed)",
+  "破坏 2/2: ①拆 direction 校验 ⇒ 非法值放行测试红 ②hint 恒 None ⇒ stalled 测试红 → 恢复绿",
+  "写测试 2 红: D_FORWARD 不存在(实际 EvolutionDirection.FORWARD.value) ·",
+  "  断言子串 'direction' 应为 '方向值'(校验错误消息是中文) — 均为我的装配错"
+ ],
+ "提案清账状态": [
+  "批1(A+B) R76 ✓ · 批2(C1) R77+播种 ✓ · 批3(D+E) R78 ✓",
+  "剩: F replay Dreaming 循环=三处设计缺口 ⇒ 设计文档先行(提案原判, 未动)"
+ ]
+}
