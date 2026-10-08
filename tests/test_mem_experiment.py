@@ -401,3 +401,57 @@ def test_dataset_arg_validated():
     """阳性: 非法 dataset ⇒ 报错不静默。"""
     with pytest.raises(ValueError, match="dataset"):
         run_experiment(FakeLLM(), dataset="dev_test")
+
+
+# ══════════════════════════════════════════════════════════
+# R66 · 记忆增长 + 跨任务迁移（grown）
+# ══════════════════════════════════════════════════════════
+
+def _real_verdict_of_hard(tid):
+    """真 judge 跑 hard buggy 拿一个真实失败 verdict。"""
+    from dwc.organs.actor import Actor, execute_task
+    from dwc.experiments.mem_guidance_vs_replay import (
+        _HardSandbox, hard_fns, hard_judge, hard_sources)
+    j = hard_judge()
+    with _HardSandbox(hard_fns(j)):
+        obs = execute_task(Actor(), j, tid,
+                           implementation=hard_sources(j)[tid])["observation"]
+    return j.evaluate(tid, "dev", observed=obs)
+
+
+def test_grown_memory_written_from_real_verdict():
+    """★★ R66 写入侧: 记忆条目 = judge 真实判分产物（不是合成/占位）。"""
+    from dwc.experiments.mem_guidance_vs_replay import _memory_from_verdict
+    v = _real_verdict_of_hard("hard_005_clamp")
+    assert v.success is False
+    m = _memory_from_verdict("hard_005_clamp", v)
+    assert m["scene"] == "hard_005_clamp" and m["origin"] == "hard_005_clamp"
+    assert (m["c"], m["q"]) == ("E_VALUE", "wrong_magnitude")  # 真签名
+    # fix_hint 必须来自 diffs（fn/期望/实得）—— 真实可迁移的经验
+    assert "上次实测失败" in m["fix_hint"] and "期望" in m["fix_hint"]
+    assert "clamp" in m["fix_hint"]
+    assert "占位" not in m["fix_hint"]
+
+
+def test_grown_offline_full_flow_with_migration_reveal():
+    """★ grown 离线全流程: 写入 5 条真记忆 → 消费 4 题三臂 · 迁移揭示分档。
+
+    ★★ 迁移通道（事前结构事实）: dev001-003 与 hard_005 同签名,
+    dev004 与 hard_003 同签名 ⇒ replay 每题恰好揭示 **1 条**长出来的记忆。
+    """
+    res = run_experiment(FakeLLM(), repeat=1, rounds=2, dataset="grown")
+    assert res["dataset"] == "grown" and res["n_tasks"] == 4
+    # 写入前提: 无写入失败记录
+    assert not [r for r in res["records"]
+                if r.get("arm") == "w" and r.get("error")], \
+        [r for r in res["records"] if r.get("arm") == "w"]
+    assert res["seed_memory"].startswith("★ 5 条**真实增长**"), res["seed_memory"]
+    for arm in ARMS:
+        s = res["arms"][arm]
+        assert s["n_trials"] == 4 and s["n_trials_passed"] == 4, (arm, s)
+    # guidance 平铺全部长出来的; none 零; replay 按同族签名揭示 1 条
+    assert res["arms"]["guidance"]["memo_n_per_call"] == [5]
+    assert res["arms"]["none"]["memo_n_per_call"] == [0]
+    assert res["arms"]["replay"]["memo_n_per_call"] == [1], \
+        "★ 迁移揭示应每题 1 条（同签名族）, 实得 %s" % \
+        res["arms"]["replay"]["memo_n_per_call"]

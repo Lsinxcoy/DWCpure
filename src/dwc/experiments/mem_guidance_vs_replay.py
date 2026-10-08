@@ -144,6 +144,28 @@ MEMO_BUDGET = 40
 
 HARD_PATH = os.path.join(_ROOT, "config", "experiments", "hard_tasks.json")
 
+#: R66 grown · 消费阶段任务（**事前固定**: dev 与 hard 同签名族是基线实测的
+#:   客观事实 — clamp↔001-003 同为 E_VALUE/wrong_magnitude, median↔004 同为
+#:   E_OFF_BY_ONE/off_by_one_in_range ⇒ 迁移通道天然存在）
+GROWN_TASKS = ("code_fix_001", "code_fix_002",
+               "code_fix_003", "code_fix_004")
+
+
+def _memory_from_verdict(tid: str, v: Any) -> Dict[str, str]:
+    """★ 从**真实判分结果**写入一条记忆（R66 写入侧的最小诚实实现）。
+
+    fix_hint = 失败 diffs 的 fn/args/期望/实得 —— 全部来自 judge, 不编造。
+    """
+    sig = v.failure_signature or {}
+    diffs = getattr(v, "diffs", None) or []
+    fails = [d for d in diffs if not d.get("ok")]
+    parts = ["%s%s 期望%s 实得%s" % (d.get("fn"), d.get("args"),
+                                     d.get("expected"), d.get("actual"))
+             for d in fails[:2]]
+    hint = ("上次实测失败: " + "; ".join(parts)) if parts         else str(getattr(v, "reason", ""))[:120]
+    return {"scene": tid, "c": str(sig.get("c", "")),
+            "q": str(sig.get("q", "")), "fix_hint": hint, "origin": tid}
+
 #: ★ 真实误导性干扰（R65 替换占位文本）—— 措辞像专业经验, 但方向错误/无关:
 #:   这才是 guidance 平铺的真弹药（占位文本 LLM 直接无视, R64 教训）
 #:   (c,q) 由基线签名**事前避让**（见 _realistic_distractors 的 exclude 参数）
@@ -371,20 +393,26 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                    tasks: Optional[Dict[str, str]] = None,
                    qa: Optional[bool] = None,
                    dataset: str = "dev") -> Dict[str, Any]:
-    """R65 · 三臂对照。dataset="dev"（R64 行为）/ "hard"（R65 硬战场）。
+    """R66 · 三臂对照。dataset="dev"/"hard"/"grown"。
 
     ★ 两阶段: ①全基线拿臂中立签名（前提: 每条基线须 fail）→ ②建树 → ③臂循环。
-    ★ hard: judge=实验锚点 · 种子=36 条**真实误导**（签名事前避让 · 无命中 ——
-      新任务没有历史, 这就是 V1 的真实处境）· 白名单进程内具名扩并恢复。
+    ★ hard: judge=实验锚点 · 种子=36 条**真实误导**（签名事前避让 · 无命中）。
+    ★ grown: **记忆增长+跨任务迁移** —— 先写入（hard 5 题真实失败 ⇒ 记忆库,
+      fix_hint 全部来自 judge diffs, 不是合成）→ 再消费（dev 同签名族 4 题三臂）。
+      这才是 V1 的真正考验: 记忆**自己长出来之后**有没有被用。
     ★ 多轮: r≥2 带臂中立反馈; 任一轮 pass ⇒ 该 trial 早停。
     """
-    if dataset not in ("dev", "hard"):
+    if dataset not in ("dev", "hard", "grown"):
         raise ValueError("dataset=%r 非法" % dataset)
     if dataset == "hard":
         judge = hard_judge()
         behav = hard_sources(judge)
         include_qa = False
         ctx: Any = _HardSandbox(hard_fns(judge))
+    elif dataset == "grown":
+        behav = {t: BEHAVIOR_TASKS[t] for t in GROWN_TASKS}
+        include_qa = False
+        judge, ctx = Judge(), _NullCtx()
     else:
         behav = dict(tasks) if tasks is not None else dict(BEHAVIOR_TASKS)
         include_qa = (tasks is None) if qa is None else bool(qa)
@@ -400,6 +428,28 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
         specs += [(tid, "qa",
                    str(judge.anchors[tid].get("prompt", "")))
                   for tid in QA_TASKS]
+
+    # ── R66 grown · 写入阶段: hard 5 题真实失败 ⇒ 记忆库（判分产物, 非合成）──
+    grown_memory: List[Dict[str, str]] = []
+    if dataset == "grown":
+        hj = hard_judge()
+        with _HardSandbox(hard_fns(hj)):
+            for tid, buggy in hard_sources(hj).items():
+                obs = execute_task(Actor(), hj, tid,
+                                   implementation=buggy)["observation"]
+                v = hj.evaluate(tid, "dev", observed=obs)
+                if v.success is not False:
+                    records.append({"task": tid, "arm": "w", "rep": -1,
+                                    "round": 0,
+                                    "error": "写入前提失败: %s 基线没 fail "
+                                             "⇒ 不许进记忆库" % tid})
+                    continue
+                grown_memory.append(_memory_from_verdict(tid, v))
+        if len(grown_memory) != len(hard_sources(hj)):
+            records.append({"task": "_write", "arm": "w", "rep": -1, "round": 0,
+                            "error": "写入不全: %d/%d"
+                                     % (len(grown_memory),
+                                        len(hard_sources(hj)))})
 
     with ctx:
         # ── 阶段① 全基线（臂中立签名; hard 还要给干扰避让用）──
@@ -421,10 +471,12 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
             s = v_base.failure_signature or {}
             sig_map[tid] = (str(s.get("c", "")), str(s.get("q", "")))
 
-        # ── 阶段② 建树（hard: 真实误导, 避开签名; dev: R64 种子）──
+        # ── 阶段② 建树（hard: 真实误导; grown: **真实增长**的; dev: R64 种子）──
         if dataset == "hard":
             exclude = {v for v in sig_map.values() if v}
             seed = _realistic_distractors(exclude)
+        elif dataset == "grown":
+            seed = grown_memory       # ★ 消费的就是写入阶段长出来的
         else:
             seed = SEED_MEMORY
         tree = make_tree(seed)
@@ -518,10 +570,14 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
             "pass_rate": (len(passed) / len(trials)) if trials else None,
             "memo_n_per_call": sorted({r["memo_n"] for r in rows}),
         }
-    seed_desc = ("36 条真实误导（签名避让, 无命中）"
-                 if dataset == "hard"
-                 else "synthetic (40 条: 4 命中 + 36 干扰, "
-                      "c/q 值域对齐 judge.classify_c)")
+    if dataset == "hard":
+        seed_desc = "36 条真实误导（签名避让, 无命中）"
+    elif dataset == "grown":
+        seed_desc = ("★ %d 条**真实增长**（hard 5 题判分产物, 非合成）"
+                     % len(grown_memory))
+    else:
+        seed_desc = ("synthetic (40 条: 4 命中 + 36 干扰, "
+                     "c/q 值域对齐 judge.classify_c)")
     return {"arms": summary, "records": records, "dataset": dataset,
             "n_tasks": len(specs), "repeat": repeat, "rounds": rounds,
             "elapsed_s": round(time.time() - started, 1),
@@ -608,8 +664,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="每 trial 重复次数（R64 建议 1, 靠 rounds 拿样本）")
     ap.add_argument("--rounds", type=int, default=2,
                     help="多轮上限（臂中立反馈, pass 早停）")
-    ap.add_argument("--dataset", choices=("dev", "hard"), default="dev",
-                    help="任务集: dev=R64 行为 · hard=R65 硬战场(自建锚点+误导干扰)")
+    ap.add_argument("--dataset", choices=("dev", "hard", "grown"),
+                    default="dev",
+                    help="任务集: dev / hard(R65 硬战场) / "
+                         "grown(R66 记忆增长+跨任务迁移)")
     ap.add_argument("--out", default=os.path.join(
         _ROOT, "archive", "experiments", "mem_guidance_vs_replay.json"))
     args = ap.parse_args(argv)
