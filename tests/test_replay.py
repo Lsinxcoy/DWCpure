@@ -315,3 +315,82 @@ def test_snapshot_is_deep_independent():
     assert snap_t1, "★ 按树取快照 — [0]=dev 浅引用也过 (测试自弱教训)"
     tid, snap = snap_t1[0]
     assert set(snap.nodes) == snap_nodes and "late" not in snap.nodes
+
+# ══════════════════════════════════════════════════════════
+# R86 · M>1 策略修订（R85 稿批准实现）
+# ══════════════════════════════════════════════════════════
+
+def _mk_observed():
+    """★ 有观测树的 DWC（同 R80 dream 测试构造）—— M>1 测试共用。"""
+    d = _dwcd()
+    wm = d.world_model
+    wm.seed("t1", "r")
+    wm.expand("t1", "root", node_id="a", action="act-A",
+              provenance="observed")
+    wm.record_observation("t1", "a", 3.0, True)
+    return d
+
+def test_policy_spec_pid_and_defaults():
+    """★ PolicySpec: 默认=π0（current 键）; 非默认生成可审计 pid。"""
+    from dwc.organs.replay import PolicySpec
+    assert PolicySpec().pid == "π0"
+    assert PolicySpec(w_delta=1.0, prefer_revealable=True).pid == "π0"
+    assert PolicySpec(w_delta=0.0).pid == "π(w=0,r=1)"
+    assert PolicySpec(prefer_revealable=False).pid == "π(w=1,r=0)"
+
+
+def test_policy_spec_from_mapping_rejects_locked_keys():
+    """★★ 锁值键不进修订域（R85 稿② — 校准纪律硬边界）; 未知键也拒。"""
+    from dwc.organs.replay import PolicySpec, ReplayError
+    for bad in ({"tau": 0.5}, {"b": 12}, {"beta1": 1.0}, {"delta": 0.15}):
+        with pytest.raises(ReplayError, match="锁值"):
+            PolicySpec.from_mapping(bad)
+    with pytest.raises(ReplayError, match="未知键"):
+        PolicySpec.from_mapping({"nope": 1})
+    ok = PolicySpec.from_mapping({"w_delta": 0.5})
+    assert ok.w_delta == 0.5 and ok.prefer_revealable is True
+
+
+def test_policy_spec_validates_w_delta():
+    """w_delta 负数/非数值 ⇒ raise（构造校验）。"""
+    from dwc.organs.replay import PolicySpec, ReplayError
+    with pytest.raises(ReplayError):
+        PolicySpec(w_delta=-0.1)
+    with pytest.raises(ReplayError):
+        PolicySpec(w_delta="x")
+
+
+def test_dream_m1_unchanged_when_no_variants():
+    """★ M=1 向后兼容: 无变体 ⇒ v_by 只有 π0, policy_variants=1 个, why 标 M=1。"""
+    from dwc.organs.replay import DreamReport  # noqa: F401
+    d = _mk_observed()
+    rep = d.dream(k2_max=4)
+    assert list(rep.v_by_version) == ["π0"]
+    assert len(rep.policy_variants) == 1
+    assert rep.policy_variants[0].pid == "π0"
+    assert "M=1" in rep.why
+
+
+def test_dream_m_gt_1_evaluates_all_variants():
+    """★★ M>1: 每版本评估 → v_by 全表可审计 → m* ∈ 候选 → current 必含。"""
+    from dwc.organs.replay import PolicySpec
+    d = _mk_observed()
+    variants = [PolicySpec(w_delta=0.0), PolicySpec(prefer_revealable=False)]
+    rep = d.dream(k2_max=4, policy_variants=variants)
+    assert set(rep.v_by_version) == {"π0", "π(w=0,r=1)", "π(w=1,r=0)"}
+    assert rep.m_star in rep.v_by_version            # argmax ∈ 候选
+    assert len(rep.policy_variants) == 3             # π0 + 2 变体
+    assert "M=3" in rep.why and "锁值不进" in rep.why
+    # §2.7 单调性非平凡谓词: 胜者 ≥ π0
+    assert rep.monotone_no_worse is True
+    assert rep.v_star >= rep.v_by_version["π0"]
+
+
+def test_dream_dedupes_identical_variant():
+    """★ 与 π0 同参的变体去重（防双 π0 键自覆盖）。"""
+    from dwc.organs.replay import PolicySpec
+    d = _mk_observed()
+    rep = d.dream(k2_max=4, policy_variants=[PolicySpec()])   # 等参 π0
+    assert list(rep.v_by_version) == ["π0"]
+    assert len(rep.policy_variants) == 1
+

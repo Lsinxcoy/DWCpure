@@ -86,18 +86,18 @@ dwc/
 ```text
 定位    已定：独立 agent，记忆 + 自进化（丙方向为未来扩展）
 架构    已定 → ARCHITECTURE.md v4（器官式骨架 + 进化循环七环节）
-代码    29 个 .py / 12,023 行（七器官 + core.py 主类 + experiments 实验包 + trial）
-测试    35 文件 / 707 函数 → pytest 754 项全过（17.9s）
+代码    29 个 .py / 12,088 行（七器官 + core.py 主类 + experiments 实验包 + trial）
+测试    35 文件 / 713 函数 → pytest 760 项全过（18.2s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R85 · 80 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R86 · 81 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R85 · M>1 策略修订设计稿: 修订域=纯选择参数(锁值不进) + 网格枚举修订推荐 + dream M 循环骨架, docs/proposal_m1_policy_revision.html 待裁决）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R86 · M>1 实现: PolicySpec(锁值拒) + dream 版本循环(每版本每树单独评估) + v_by 全表 + current 必含非平凡 — R85 稿方式 A 落地, M=1 零破坏兼容）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 

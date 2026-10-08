@@ -41,7 +41,8 @@ from dwc.harness.run_term import TermRunner, TermReport
 from dwc.organs.actor import Actor, Receipt, Trace
 from dwc.organs.el_sched import ELScheduler
 from dwc.organs.evolver import Evolver
-from dwc.organs.replay import (DreamReport, ReplayError, ReplaySimulator,
+from dwc.organs.replay import (DreamReport, PolicySpec, ReplayError,
+                               ReplaySimulator,
                                no_worse_than_current, replay_score,
                                select_policy)
 from dwc.organs.iwm import IwmOrgan, Observations
@@ -383,8 +384,14 @@ class DWC:
     # ══════════════════════════════════════════════════════
     # R80 · Dreaming 循环（设计稿三裁决落地, §2.5–2.7 编排）
     # ══════════════════════════════════════════════════════
-    def dream(self, *, k2_max: int) -> DreamReport:
+    def dream(self, *, k2_max: int,
+              policy_variants: Optional[List[PolicySpec]] = None
+              ) -> DreamReport:
         """★ 离线 Dreaming（2609.14858 §2.5–2.7 编排, 零新机制）。
+
+        ★ M>1（R85 稿批准后实现）: policy_variants 传入 π^0 之外的变体参数集
+          ⇒ 每版本在每历史树单独评估完才下一版本（§2.5 逐字）; current=π0 必含
+          （单调性支点）; None ⇒ M=1 与旧行为完全一致（向后兼容零破坏）。
 
         三裁决（docs/proposal_replay_dreaming_design.html）:
         ① ℋ = run_term 尾快照序列（无快照 ⇒ 当前树现快照兜底）
@@ -407,55 +414,72 @@ class DWC:
         if not worlds:
             raise DwcError("dream: 无任何世界树可回放（先 seed_tasks）")
         dmap = self._task_deltas()
-        per: List[Tuple[str, float, int, int]] = []
-        for tid, T_i in worlds:
-            sim = ReplaySimulator(T_i)
-            observed = {T_i.root_id}          # §2.5: 起步 𝒯^{m,0} = {r}
-            k = 0
-            n_revealed = 0
-            while k < k2_max:
-                elig = sim.eligible(observed)
-                # ★ π^0 补丁（R81）: 只把「能揭新」的非根当候选（无未观测子的
-                #   叶子选了也是空转）; 没有可揭新的非根 ⇒ 选根开新分支
-                #   （§2.5「每个分支追多远、何时另开分支」的最小实现 ——
-                #   根语义读法乙后 root 才能真正开第二分支）
-                def _can_reveal(v):
-                    return any(c not in observed
-                               for c in T_i.nodes[v].children)
-                nonroot = sorted(v for v in elig if v != T_i.root_id
-                                 and _can_reveal(v))
-                if nonroot:
-                    pick = min(nonroot, key=lambda v: -dmap.get(v, 0.0))
-                    #   ↑ π^0 = δ 降序（与任务源采样同源）; 字典序 tie 可复现
-                else:
-                    # 可揭新的非根没有 ⇒ 根开新分支（根 children 全揭后
-                    # gained=∅ ⇒ 下方防空转 break）
-                    pick = T_i.root_id
-                new_obs = sim.step(observed, {pick})
-                gained = set(new_obs) - observed
-                if not gained:
-                    break                     # 无新揭示 ⇒ 继续无意义（防空转 K₂）
-                n_revealed += len(gained - {T_i.root_id})
-                observed = set(new_obs)
-                k += 1
-                if (observed | {T_i.root_id}) >= set(T_i.nodes):
-                    break                     # 终止③ 观测面=全树
-            max_s = max((T_i.nodes[v].score for v in observed
-                         if getattr(T_i.nodes[v], "score", None)
-                         is not None), default=0.0)
-            V = replay_score(max_score=max_s, n_revealed=n_revealed,
-                             n_rounds=k, beta1=b1, beta2=b2)
-            per.append((tid, V, k, n_revealed))
-        v_by = {"π0": sum(p[1] for p in per) / float(len(per))}
+        # ★ M>1 版本循环（R85 稿④ · R86 实现）: current=π0 必含（单调性支点）;
+        #   每版本在每历史树单独评估完才下一版本（§2.5 逐字）; None ⇒ M=1 等价
+        specs = [PolicySpec()] + [v for v in (policy_variants or [])
+                                   if v.pid != "π0"]
+        per_by: Dict[str, List[Tuple[str, float, int, int]]] = {}
+        for _spec in specs:
+            per: List[Tuple[str, float, int, int]] = []
+            for tid, T_i in worlds:
+                sim = ReplaySimulator(T_i)
+                observed = {T_i.root_id}          # §2.5: 起步 𝒯^{m,0} = {r}
+                k = 0
+                n_revealed = 0
+                while k < k2_max:
+                    elig = sim.eligible(observed)
+                    # ★ π^0 补丁（R81）: 只把「能揭新」的非根当候选（无未观测子的
+                    #   叶子选了也是空转）; 没有可揭新的非根 ⇒ 选根开新分支
+                    #   （§2.5「每个分支追多远、何时另开分支」的最小实现 ——
+                    #   根语义读法乙后 root 才能真正开第二分支）
+                    def _can_reveal(v):
+                        return any(c not in observed
+                                   for c in T_i.nodes[v].children)
+                    nonroot = sorted(
+                        v for v in elig if v != T_i.root_id
+                        and ((not _spec.prefer_revealable) or _can_reveal(v)))
+                    if nonroot:
+                        pick = min(nonroot, key=(
+                            lambda v: -_spec.w_delta * dmap.get(v, 0.0)))
+                        #   ↑ π^0 = w_delta·δ 降序（与任务源采样同源）; 字典序 tie
+                        #     可复现; w_delta=0 ⇒ 纯字典序（修订域参数, R85 稿②）
+                    else:
+                        # 可揭新的非根没有 ⇒ 根开新分支（根 children 全揭后
+                        # gained=∅ ⇒ 下方防空转 break）
+                        pick = T_i.root_id
+                    new_obs = sim.step(observed, {pick})
+                    gained = set(new_obs) - observed
+                    if not gained:
+                        break                     # 无新揭示 ⇒ 继续无意义（防空转 K₂）
+                    n_revealed += len(gained - {T_i.root_id})
+                    observed = set(new_obs)
+                    k += 1
+                    if (observed | {T_i.root_id}) >= set(T_i.nodes):
+                        break                     # 终止③ 观测面=全树
+                max_s = max((T_i.nodes[v].score for v in observed
+                             if getattr(T_i.nodes[v], "score", None)
+                             is not None), default=0.0)
+                V = replay_score(max_score=max_s, n_revealed=n_revealed,
+                                 n_rounds=k, beta1=b1, beta2=b2)
+                per.append((tid, V, k, n_revealed))
+            per_by[_spec.pid] = per
+        v_by = {pid: sum(p[1] for p in pl) / float(len(pl))
+                for pid, pl in per_by.items()}
         m_star, v_star = select_policy(v_by, current="π0")
         ok = no_worse_than_current(v_by, current="π0")
+        per = per_by[m_star]                # 报告 = 胜者版本的逐世界评估
         return DreamReport(
             n_worlds=len(per), v_by_version=v_by, m_star=m_star,
             v_star=v_star, betas=(b1, b2), per_world=per,
             monotone_no_worse=ok, k2_max=k2_max,
-            why="环节⑥ Dreaming（§2.5–2.7; M=1 评估当前策略 — 单调性平凡"
-                "成立显式记录, 非改进声明; β=%s/%s 为 config 初值非论文报值)"
-                % (b1, b2))
+            policy_variants=tuple(specs),
+            why="环节⑥ Dreaming（§2.5–2.7; M=%d%s; β=%s/%s 为 config 初值"
+                "非论文报值)" % (
+                    len(specs),
+                    " 评估当前策略 — 单调性平凡成立显式记录, 非改进声明"
+                    if len(specs) == 1 else " 修订域=纯选择参数(锁值不进), "
+                    "网格变体=搜索非反馈开发(R85 稿边界)",
+                    b1, b2))
 
     # ══════════════════════════════════════════════════════
     # δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）

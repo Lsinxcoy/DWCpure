@@ -1,0 +1,25 @@
+{
+ "round": "R86 · M>1 策略修订实现（R85 稿批准 — 方式 A 网格枚举）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 按稿实现 M>1 循环）",
+ "★ 实现（replay.py + core.py dream）": [
+  "PolicySpec(frozen): w_delta≥0 校验 · pid(π0=默认当前键, %g 格式)",
+  "  · from_mapping 锁值键拒(tau/b/beta*/delta/history_max/n_envs/seed) + 未知键拒",
+  "dream(k2_max, policy_variants=None): specs=[π0]+变体(同参去重); **每版本在每",
+  "  历史树单独评估完才下一版本**(§2.5 逐字, 行切片重组); v_by=全表; m*/no_worse",
+  "  复用; per_world=**胜者**版本; why 标 M=N + 稿边界(网格=搜索非反馈开发)",
+  "选择键参数化: -w_delta·dmap（w=0⇒纯字典序）· prefer_revealable 开关",
+  "DreamReport + policy_variants=() 默认(向后兼容)"
+ ],
+ "★ 过程 bug": [
+  "行切片重组的重缩进失效（8→切4→回加4=原样）⇒ worlds 循环留在 _spec 外 ⇒",
+  "  per_by 只存末 spec ⇒ v_by 一键 ⇒ select raise — **M>1 测试抓到**(L424-464 +4 修)",
+  "pid %g 格式（0.0→0）；test_replay 无 DWC 观测 helper ⇒ _mk_observed 补(同 R80 构造)"
+ ],
+ "验证": [
+  "pytest 760(+6: pid/锁值拒/w校验/M=1兼容/M>1全表/同参去重) rc=0 · gate 8/8 ·",
+  "  e2e rc=0(LLM no_candidates=端点波动诚实记录)",
+  "破坏 2/2: ①拆锁值拒⇒红 ②拆 current 必含⇒5 dream 测试红(支点全锁) → 恢复绿",
+  "M=1 向后兼容: 39 既有 replay/core 测试零改通过"
+ ]
+}

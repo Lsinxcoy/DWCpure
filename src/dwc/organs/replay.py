@@ -198,6 +198,46 @@ def no_worse_than_current(v_by_version: Dict[str, float], *, current: str
 # ══════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
+class PolicySpec:
+    """★ π^m 的可修订参数（R85 稿裁决②: 只动纯选择逻辑, 锁值不进修订域）。
+
+    w_delta: δ 排序权重（0=纯字典序, 1=现行 δ 降序）—— dream π^0 选择键
+    prefer_revealable: R81 过滤开关（False=不过滤, 可选已观测叶子）
+    ★ 锁值（τ/B/β/δ=0.15 等）**不在此域**: from_mapping 遇到即拒
+      （混动=违校准纪律且无法归因 — 约束 4 一处变更）。
+    """
+    w_delta: float = 1.0
+    prefer_revealable: bool = True
+
+    def __post_init__(self):
+        if isinstance(self.w_delta, bool) or not isinstance(self.w_delta, (int, float)):
+            raise ReplayError("w_delta 须为数值, 实得 %r" % (self.w_delta,))
+        if self.w_delta < 0:
+            raise ReplayError("w_delta 须 ≥0, 实得 %r" % (self.w_delta,))
+
+    @property
+    def pid(self) -> str:
+        # π0 = 现行默认（current 键 — select_policy/no_worse 依赖）
+        if self.w_delta == 1.0 and self.prefer_revealable:
+            return "π0"
+        return "π(w=%g,r=%s)" % (self.w_delta, int(self.prefer_revealable))
+
+    @classmethod
+    def from_mapping(cls, m: Dict[str, object]) -> "PolicySpec":
+        """★ 构造校验: 锁值键/未知键 raise（R85 稿② — 修订域硬边界）。"""
+        _LOCKED = {"tau", "b", "beta1", "beta2", "delta", "delta_theta",
+                   "history_max", "n_envs", "seed"}
+        bad = set(m) - {"w_delta", "prefer_revealable"}
+        locked = bad & _LOCKED
+        if locked:
+            raise ReplayError(
+                "PolicySpec: 锁值键不进修订域 %s（校准纪律）" % sorted(locked))
+        if bad:
+            raise ReplayError("PolicySpec: 未知键 %s" % sorted(bad))
+        return cls(**m)          # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
 class DreamReport:
     """★ dream() 的产物（叠加报告, 不驱动行为 —— M=1 时 m* 恒 π0, 见 why）。
 
@@ -213,6 +253,7 @@ class DreamReport:
     monotone_no_worse: bool
     k2_max: int
     why: str
+    policy_variants: Tuple[PolicySpec, ...] = ()   # R86: 参评参数集（M>1 可审计）
 
 
 # ══════════════════════════════════════════════════════════
