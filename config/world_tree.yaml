@@ -56,6 +56,8 @@ world_tree:
 
 # 诚实边界:
 #   ① n_stuck=3 无论文出处（我拍的）· 2404.14387 的"三轮"语境不同，未核
-#   ② Z4/Z5/Z6 的实现不在本文件 —— 它们由 organs/world_model 承担，
-#      而该目录尚不存在 ⇒ 本文件目前只是"声明"，不是"生效"
+#   ② Z4/Z5 的实现不在本文件 —— 由 organs/world_model 承担：
+#      ★ 2026-10-08（R60）更新: organs/world_model **已建**，Z6 已落地
+#        （record_round 读本文件的 n_stuck/on_stuck）；Z1–Z3 由 dial_config
+#        生效中 ⇒ 现在只剩 **Z4 候选持久化 / Z5 merge** 仍是「声明」
 #   ③ strategy 切到 gepa_pareto 的三个前置见上方注释，目前 ①②③ 都不满足

@@ -9,7 +9,8 @@
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
   ★ 编排层属于记忆底座（原则 3: 单一真值源 = 因果链）
-  ★ 它只**编排**，不做判分（judge 未实现）、不驱动世界模型
+  ★ 它只**编排**，不做判分（判分走注入的 judge）、不**隐式**驱动世界模型
+    —— 环节⑥ 任务源是**显式读取** world_model.legal_actions()，非事件订阅
   ★ 判据 S3/C2 依然成立: 本模块没有"隐式驱动"——
     term 的推进由显式的 step 循环驱动，不是事件订阅
 
@@ -47,6 +48,7 @@ from dwc.foundation.causal_chain import CausalChainStore
 from dwc.foundation import dial_config
 from dwc.organs.memory import MemoryKernel, MemoryKind
 from dwc.organs.judge import Judge
+from dwc.organs.world_model import WorldModel
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -225,7 +227,8 @@ class TermRunner:
                  store: Optional[CausalChainStore] = None,
                  memory: Optional[MemoryKernel] = None,
                  budget: float = 10.0,
-                 judge: Optional["Judge"] = None):
+                 judge: Optional["Judge"] = None,
+                 world_model: Optional[WorldModel] = None):
         self.store = store or CausalChainStore(db_path)
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
@@ -239,6 +242,9 @@ class TermRunner:
         #   ③ 终止条件③（保护组回归）可判
         # ★ 判分器**可选注入**: 没注入时三处仍显式标 None（不假装有）
         self.judge = judge
+        #: R60 · 环节⑥ 的任务源（可选注入，与 judge 同款纪律）——
+        #: 没注入 ⇒ _next_task_source 不含世界树任务（不假装有）
+        self.world_model = world_model
         #: 预算 B（终止条件②）—— ★ 显式参数，不藏在配置深处
         self.budget = budget
         #: ★ 单步花费（终止条件② 的判据要用"还够不够跑一步"，
@@ -608,6 +614,15 @@ class TermRunner:
             tasks.append({"kind": "fix_recall_coverage",
                           "metric": "used_ratio=%.2f" % held,
                           "why": "D7：召回覆盖不足一半，记忆无法证明被使用"})
+        # ── R60 · 环节⑥ 探索: 世界树的未揭示叶子 = 下一轮任务 ──
+        # ★ 显式读取（不是事件订阅 —— 与 S3/C2「无隐式驱动」一致）
+        if self.world_model is not None:
+            for act in self.world_model.legal_actions():
+                tasks.append({"kind": "world_tree_action",
+                              "tree": act["tree"], "node": act["node"],
+                              "action": act["action"],
+                              "why": "环节⑥：世界树未揭示叶子"
+                                     "（world_model.legal_actions）"})
         return {
             "chain_id": cid,
             "n_tasks": len(tasks),

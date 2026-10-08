@@ -1,0 +1,28 @@
+{
+ "round": "R60 · 第七器官 world_model 落地（一套树 W1-W6 + 收束信息增益 + 环节⑥接线 + Z6）",
+ "date": "2026-10-08",
+ "用户指令": "先把过期进度文档给刷新 然后建 world_model（R59 刷文档, R60 建器官）",
+ "落点": [
+  "src/dwc/organs/world_model.py（DWC-AUTO 定位, TRUTH_SOURCE 声明）: WorldNode(provenance必填无默认) + WorldTree(W1唯一树) + WorldModel(𝒲+收束+Z6)",
+  "W1 单树/W2 provenance/W3 judgeable 只出 observed/W4 收束只吃信息增益/W5 单向单次回填/W6 深度与池上限必填外部化 —— 全落测试",
+  "环节⑥: TermRunner 可选注入 world_model → _next_task_source 含 world_tree_action（显式读取非事件订阅, 与 S3/C2 一致; 不注入行为不变）",
+  "Z6 卡住检测读 config/world_tree.yaml(n_stuck/on_stuck); yaml 诚实边界② 已更新(目录已建, 只剩 Z4/Z5 是声明)",
+  "同步刷新 README/PROGRESS 受影响行（R59 教训: 收官必重跑取数列）"
+ ],
+ "设计裁决（我的实例化, 非论文逐字）": [
+  "信息增益 = 谱系路径布尔观测的二元熵(Laplace) —— 与 2609.04128 Δ_θ 轨迹和同形",
+  "legal_actions = 未揭示叶子(§4.7 原文) —— 与论文 A(T) 含 root 的差异已在 docstring 明写",
+  "max_nodes 硬上限+显式拒绝 = 剪枝策略未定前的最小防线(非剪枝方案)"
+ ],
+ "三层实测": [
+  "pytest 583 passed 14.6s rc=0（+23 新）· gate 8/8 rc=0 · e2e rc=0 三段绿",
+  "破坏 2/2 被抓: ①select 改按 score 排 → W4 测试红 ②observe 允许覆盖 → W5 红 → 恢复绿",
+  "修复实测坑: config_path=None 显式传入会顶掉 load_world_tree 默认路径 → TypeError 15 红"
+ ],
+ "诚实边界": [
+  "★ 未做: δ_θ 残差难度(路线丙) · 三方向枚举 · EL 完整调度器 · Z4 候选持久化 · Z5 merge",
+  "★ 谱系求和口径是实例化构造, 未与第二人复核",
+  "★ 任务源接线只到 run_term; e2e 测试床仍未走世界树(e2e 不经 run_term)",
+  "★ world_model 不做门控决策的全部(原则9 的门控点仍在攒) —— select 只是收束"
+ ]
+}
