@@ -1,0 +1,36 @@
+{
+ "round": "R61 · 第五器官 iwm 落地（环节⑤ 防漂移: GDI 四信号 + Q6 对照臂 + 门控消费）+ foundation/state.py",
+ "date": "2026-10-08",
+ "用户指令": "执行1（= 建 iwm, 七环节凑 7/7）",
+ "落点": [
+  "organs/iwm.py（DWC-AUTO + TRUTH_SOURCE）: IwmOrgan 四方法对齐 ORGAN_INTERFACES §六",
+  "  drift(): GDI 四信号(Eq.8-13 对 θ₀, App.A.2) + CAR(Eq.25) + 回归(judge) + grounded(dials)+ coupling 显式 not_computed",
+  "  self_trust(): Q6 对照臂(iwm/baseline) + min_samples 下限（ARSI 0.35/5）",
+  "  governor_advice(): Advice 四字段; 只读 State 公开四层(不变量机械测试)",
+  "  probe(): gdi_bounds/jsd_range/semantic_formula 三个 Level3 探针",
+  "config/drift.yaml + dial_config.load_drift（Σweights==1 等校验; 权重/tau 人工初值标 agent_choice）",
+  "foundation/state.py: STATE_SCHEMA 四层 frozen（I6 构造面）—— governor_advice 的 State 依赖补齐",
+  "run_term: 3.5 步环节⑤ + TermReport.drift + drift_degrade 消费点（原则 9, 与 over_tau 一致）"
+ ],
+ "设计裁决": [
+  "落点 organs/iwm.py 单文件（ORGAN_INTERFACES 写 organs/iwm/, EVOLUTION_CORE_V2 写 drift/ ——",
+  "  按既有器官单文件惯例取语义名 iwm; 两文档命名分歧记录在此）",
+  "drift(current) 带参 + 构造固化 θ₀（接口骨架 drift() 无参 vs run_term 注释 drift_check(baseline) 带参 ——",
+  "  取 App.A.2 论文语义: 基线构造时固化, 每次传 current）",
+  "缺席信号权重运行期归一（不是改配置权重, 不静默置 0）"
+ ],
+ "三层实测": [
+  "pytest 612 passed 14.2s rc=0（+29）· gate 8/8 · e2e rc=0 三段绿",
+  "破坏 2/2 被抓: ①GDI 缺席归一拆除→5 测红 ②Q6 样本下限拆除→5 测红 → 恢复绿",
+  "测试期望修正 2 处: Eq.10 ε 平滑使翻倍≈1 非==1; regression 须同任务集(判 not_comparable 是 judge 对的)"
+ ],
+ "里程碑": "七器官 7/7 · 七环节 7/7 全齐（三入口仍 1/3）",
+ "诚实边界": [
+  "★ Δ_semantic 无嵌入源 ⇒ 运行期缺席（函数+probe 已测, 缺的是数据源）",
+  "★ 权重/tau_gdi 人工初值（论文 Eq.14/15 是学出的, DWC 无标注预算）",
+  "★ ECE 惩罚未做（Advice 无自报置信字段）· Appendix D 概率回归未做 · coupling 未做",
+  "★ run_term 只有 structural 一路有效信号（语料/分数序列拿不到, absent 逐条可见）",
+  "★ governor_advice 的 run_term 运行期消费未接（rep.drift 已消费; advice 消费待 State 进 term 流程）",
+  "★ 本轮全部结论未经第二人复核"
+ ]
+}

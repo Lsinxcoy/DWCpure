@@ -1,0 +1,40 @@
+# DWC · 环节⑤ 防漂移的配置面（iwm.drift 的档位）
+# ★ 与 world_tree.yaml / dials.yaml 同款纪律: 关键档位必填、无默认、可审计。
+# 依据: docs/EVOLUTION_CORE_V2.md §7.1（GDI 四信号）+ ARCHITECTURE §4.5（iwm）
+#       + 2603.06333 Appendix B（Eq.8–13）/ D（回归风险）/ E（CAR）
+version: 1
+
+drift:
+  # ── GDI 四信号权重（Eq.12–13: Σw = 1, 各 w ∈ [0,1]）──
+  # ★★★ 来源诚实（不是论文数字）: 论文 Eq.14 的权重是**学出来的**
+  #   （54 条专家标注 drift 标签 + AUC 最大化）⇒ DWC **没有标注预算**
+  #   ⇒ 下面四个值是**人工初值**（agent_choice），不是 2603.06333 的校准值。
+  # ★ semantic 权重仍显式占位: 信号缺嵌入源时 drift() 会把它判为缺席
+  #   并把权重归一到其余三路（缺席必须显式, 不许静默改 0 —— G7 同族）。
+  weights:
+    semantic: 0.30        # Δ_semantic = (1−s_cos)/2   Eq.8
+    lexical: 0.25         # Δ_lexical = JSD(P₀‖P_t)    Eq.9
+    structural: 0.25      # Δ_structural = (1/K)Σmin(1,|s₀−s_t|/(s₀+ε)) Eq.10
+    distributional: 0.20  # Δ_distributional = 1-Wasserstein  Eq.11
+  # Σweights 必须 == 1（load_drift 校验, 漂了就报错）
+
+  # ── GDI 退化阈值 ──
+  # ★★ 来源诚实: 论文 τ_GDI 是按 F1 最优**学出的**（Eq.15）⇒ DWC 无人工标注
+  #   ⇒ 0.35 是人工初值（agent_choice）。GDI ≥ tau ⇒ governor 建议降级。
+  tau_gdi: 0.35           # ∈ (0, 1]
+
+  # ── CAR 决策下限（2603.06333 E.3: CAR 大→继续, 小或负→停）──
+  # ★ car_floor = 0.0 的语义: CAR < 0 = "drift without improvement" ⇒ 停。
+  #   （论文 E.3 的定性规则, 把它量化成显式下限; 0 不是拍的, 是规则的边界）
+  car_floor: 0.0
+
+  # ── self_trust（Q6 · ARSI iwm/calibrate.py 原值, §4.5 引文）──
+  degrade_below: 0.35     # trust < 0.35 ⇒ advice 被忽略, 降级 baseline
+  min_samples: 5          # iwm 臂样本不足 ⇒ trust 记 0（不假装可信）
+
+  # 诚实边界:
+  #   ① weights/tau 是 agent_choice 无论文出处（论文值需标注预算, DWC 没有）
+  #   ② ECE 过置信惩罚未实现 —— Advice 接口没有自报置信字段,
+  #      没有输入就没有校准（要做须先改 ORGAN_INTERFACES 的 Advice 定义）
+  #   ③ 回归风险只到「保护组回归二值」（judge.regression_check），
+  #      Appendix D 的「回到更早状态的概率上界」未实现

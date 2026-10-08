@@ -213,6 +213,62 @@ def load_dials(path: str = DIALS_PATH) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════
+# drift.yaml — 环节⑤ 防漂移的档位（iwm.drift 的配置面）
+# ══════════════════════════════════════════════════════════
+
+DRIFT_PATH = os.path.join(CFG, "drift.yaml")
+DRIFT_WEIGHT_KEYS = ("semantic", "lexical", "structural", "distributional")
+
+
+def load_drift(path: str = DRIFT_PATH) -> Dict[str, Any]:
+    """环节⑤ 的档位校验（GDI 权重 / tau / CAR 下限 / self_trust 下限）。
+
+    ★ 与 load_world_tree 同款纪律: 必填、无默认、可审计 ——
+      「没有校验器的 yaml 只是一段文本」。
+    ★ 权重和 Σ==1（Eq.13），缺席信号由 drift() 在运行期归一（不改本文件）。
+    """
+    o = _load(path)
+    d = _need(o, "drift", "drift.yaml")
+
+    # ── 四权重必填 + 数值 + Σ=1（Eq.12–13）──
+    w = _need(d, "weights", "drift.drift")
+    total = 0.0
+    for k in DRIFT_WEIGHT_KEYS:
+        if k not in w:
+            raise DialError("drift: weights.%s 未显式声明（四信号权重必填）" % k)
+        v = w[k]
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not (0.0 <= float(v) <= 1.0):
+            raise DialError("drift: weights.%s 必须 ∈ [0,1], 实为 %r" % (k, v))
+        total += float(v)
+    extra = set(w) - set(DRIFT_WEIGHT_KEYS)
+    if extra:
+        raise DialError("drift: weights 有未知键 %s（四信号之外的权重没有出处）"
+                        % sorted(extra))
+    if abs(total - 1.0) > 1e-9:
+        raise DialError("drift: Σweights = %.6f ≠ 1（Eq.13 硬约束）" % total)
+
+    # ── tau_gdi ∈ (0, 1] ──
+    tau = _need(d, "tau_gdi", "drift.drift")
+    if isinstance(tau, bool) or not isinstance(tau, (int, float)) or not (0.0 < float(tau) <= 1.0):
+        raise DialError("drift: tau_gdi 必须 ∈ (0,1], 实为 %r" % tau)
+
+    # ── car_floor 数值（E.3: 负 CAR = drift without improvement ⇒ 停）──
+    cf = _need(d, "car_floor", "drift.drift")
+    if isinstance(cf, bool) or not isinstance(cf, (int, float)):
+        raise DialError("drift: car_floor 必须是数值, 实为 %r" % cf)
+
+    # ── self_trust（ARSI calibrate: degrade_below / min_samples）──
+    db = _need(d, "degrade_below", "drift.drift")
+    if isinstance(db, bool) or not isinstance(db, (int, float)) or not (0.0 <= float(db) <= 1.0):
+        raise DialError("drift: degrade_below 必须 ∈ [0,1], 实为 %r" % db)
+    ms = _need(d, "min_samples", "drift.drift")
+    if isinstance(ms, bool) or not isinstance(ms, int) or ms < 1:
+        raise DialError("drift: min_samples 必须是 >=1 的整数, 实为 %r" % ms)
+
+    return o
+
+
+# ══════════════════════════════════════════════════════════
 # retention.yaml — 判据 D8（机制零引用即违规）
 # ══════════════════════════════════════════════════════════
 

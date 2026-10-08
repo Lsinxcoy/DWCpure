@@ -49,6 +49,7 @@ from dwc.foundation import dial_config
 from dwc.organs.memory import MemoryKernel, MemoryKind
 from dwc.organs.judge import Judge
 from dwc.organs.world_model import WorldModel
+from dwc.organs.iwm import IwmOrgan, Observations
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -192,6 +193,8 @@ class TermReport:
     stages: List[Dict[str, Any]] = field(default_factory=list)
     #: 下一轮任务源（★ 不是"结算报告"）
     next_task_source: Optional[Dict[str, Any]] = None
+    #: R61 · 环节⑤ 防漂移观测（iwm.drift 的输出; 未注入 iwm 时为 None）
+    drift: Optional[Dict[str, Any]] = None
     #: 六层活性快照（★ 第一次让六层有系统内真实数据）
     activity: List[Dict[str, Any]] = field(default_factory=list)
     #: term 为什么结束（四个终止条件之一 + 实测依据）
@@ -228,7 +231,8 @@ class TermRunner:
                  memory: Optional[MemoryKernel] = None,
                  budget: float = 10.0,
                  judge: Optional["Judge"] = None,
-                 world_model: Optional[WorldModel] = None):
+                 world_model: Optional[WorldModel] = None,
+                 iwm: Optional[IwmOrgan] = None):
         self.store = store or CausalChainStore(db_path)
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
@@ -245,6 +249,9 @@ class TermRunner:
         #: R60 · 环节⑥ 的任务源（可选注入，与 judge 同款纪律）——
         #: 没注入 ⇒ _next_task_source 不含世界树任务（不假装有）
         self.world_model = world_model
+        #: R61 · 环节⑤ 防漂移的观测方（可选注入）——
+        #: 没注入 ⇒ rep.drift=None 且任务源无 drift_degrade（不假装测过）
+        self.iwm = iwm
         #: 预算 B（终止条件②）—— ★ 显式参数，不藏在配置深处
         self.budget = budget
         #: ★ 单步花费（终止条件② 的判据要用"还够不够跑一步"，
@@ -380,6 +387,12 @@ class TermRunner:
                 "T3: before/after 之间 dw_version 被**外部**改动"
                 "（%s → %s）⇒ 本 term 报告无效"
                 % (rep.dw_version_before, rep.dw_version_after))
+
+        # ── 3.5 ★ 环节⑤ 防漂移（R61 · iwm 注入才执行, 输出必被消费）──
+        #   ★ 消费点: ① rep.drift 留痕 ② _next_task_source 的 drift_degrade
+        #     （原则 9: 输出必须被门控消费, 不许只做账本 —— 母巢 MWM 反例）
+        if self.iwm is not None:
+            rep.drift = self.iwm.drift(self._drift_current())
 
         # ── 4. 五元盘点 χ + 两条 dial 声明 ──
         dials = dial_config.load_dials()["dials"]
@@ -623,9 +636,45 @@ class TermRunner:
                               "action": act["action"],
                               "why": "环节⑥：世界树未揭示叶子"
                                      "（world_model.legal_actions）"})
+        # ── R61 · 环节⑤ 防漂移: drift 输出的门控消费（原则 9）──
+        #   ★ GDI 超阈 或 保护组回归 ⇒ 下一轮必须先处置漂移（不是记完就算）
+        if self.iwm is not None and rep.drift:
+            d = rep.drift
+            trig = []
+            if d.get("over_tau"):
+                trig.append("GDI=%.4f ≥ tau=%.2f" % (d["gdi"], d["tau_gdi"]))
+            if d.get("regression", {}).get("verdict") == "regression":
+                trig.append("保护组回归: "
+                            + str(d["regression"].get("why", ""))[:70])
+            if trig:
+                tasks.append({"kind": "drift_degrade",
+                              "gdi": d.get("gdi"),
+                              "why": "环节⑤：漂移超阈/回归 ⇒ " + "；".join(trig)})
         return {
             "chain_id": cid,
             "n_tasks": len(tasks),
             "tasks": tasks,
             "★": "这不是结算报告 —— 它是下一轮的输入（bz 缺口）",
         }
+
+    def _drift_current(self) -> Observations:
+        """环节⑤ 的当期观测 —— 只用**公开入口** memory.usage_stats()。
+
+        ★ 诚实: 词频语料/分数序列本 term 拿不到（memory 不暴露全量文本,
+          因果链分数序列未导出）⇒ 三路信号显式缺席, GDI 只由 structural
+          一路有效信号归一 —— 缺席在 rep.drift["absent"] 里逐条可见,
+          不是"测了没漂"。
+        """
+        stats = self.memory.usage_stats()
+        return Observations(
+            structural={
+                "total": float(stats.get("total", 0)),
+                "used": float(stats.get("used", 0)),
+                "effective": float(stats.get("effective", 0)),
+                "used_ratio": float(stats.get("used_ratio", 0.0)),
+                "effective_ratio": float(stats.get("effective_ratio", 0.0)),
+            },
+            lexical=None,
+            distributional=None,
+            semantic_embedding=None,
+        )

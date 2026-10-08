@@ -14,17 +14,17 @@
 | ★ 缺口销账 | **11 项已销账**（A1–A7 · §二①②③ · C3'） | `docs/GAP_AUDIT.md` 内 11 项全标 ✓ | `grep -c "【已做" docs/GAP_AUDIT.md` |
 | ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `wc -c docs/WORLD_TREE_CONVERGENCE.md` |
 | ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 10.1K | `wc -c docs/FULL_AUDIT_2026-10-04.md` |
-| ★ 测试 | 首份 12 项（10-04）→ **现 583 项全过** | `583 passed in 14.6s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
+| ★ 测试 | 首份 12 项（10-04）→ **现 612 项全过** | `612 passed in 14.2s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
-| ★ config | 首批两份 → **现 6 项**（iron_laws/dials/difficulty/capability_groups/llm.json/anchors/） | `ls config/` 实列 6 项 | `ls config/` |
-| ★★★ 承重代码 | **19 个 .py / 8,783 行**（R18 建 git 起，从 0 写到 R60） | 8,783（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
-| ★★★ 测试代码 | **26 文件 / 536 函数 → pytest 收集 583 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
-| ★★★ 七器官 | **6/7**：memory·judge·actor·evolver·world_model·iron_laws ✓；**缺 iwm** | `organs/` 7 文件（applier/candidates = evolver ④ 落地的支撑体） | `ls src/dwc/organs/` |
-| ★★★ 七环节 | **6/7**：①②③④(evolver) + ⑥探索(world_model, R60) + ⑦五元盘点 ✓；**缺⑤防漂移** | run_term.py 实列 `环节⑦`；world_model.legal_actions 已接 `_next_task_source` | `grep -n '环节' src/dwc/harness/run_term.py` |
+| ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
+| ★★★ 承重代码 | **21 个 .py / 9,449 行**（R18 建 git 起，从 0 写到 R61） | 9,449（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 测试代码 | **27 文件 / 565 函数 → pytest 收集 612 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
+| ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 8 文件（applier/candidates = evolver ④ 支撑体） | `ls src/dwc/organs/` |
+| ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\\|环节⑥' src/dwc/harness/run_term.py` |
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R60 · 每轮一知识档 | **52 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R61 · 每轮一知识档 | **53 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 
@@ -33,10 +33,11 @@
 **代码已进主干：进化内核（①诊断 ②对象 ③门 ④落地）闭环，判据 / 记忆 / 铁律 / 因果链 / 五元盘点建成。**
 
 ```text
-七器官 6/7 · 七环节 6/7 · 三入口 1/3（只 run_term，无 class DWC 主类）
-★ 当前形态 = 「被测的进化内核 + 自产任务源」，自主性补上一块：
-  R60 起任务源可由世界树未揭示叶子生成（不再只写死在 e2e 测试床）；
-  仍缺 iwm(⑤ 防漂移) 的独立验漂 + 统一入口 ⇒ 补齐才叫自主 agent。
+七器官 **7/7 全齐** · 七环节 **7/7 全齐** · 三入口 1/3（只 run_term，无 class DWC 主类）
+★ 当前形态 = 「全器官到齐的进化循环」: 任务源可自产（R60 世界树）+
+  漂移有独立观测方且被门控消费（R61 iwm → drift_degrade 任务）⇒ 七环节首尾相接。
+★ 仍欠: 统一入口（class DWC 三入口）+ 各子项（Z4/Z5 · δ_θ · ECE ·
+  Appendix D 概率回归 · coupling 三条件）—— **全齐 ≠ 全深**。
 ★ 依据: 上表「七器官 / 七环节 / 端到端」三行（取数命令可复跑）。
 ★ 旧依据（10-04）「架构定稿前不写承重代码」已完成使命 —— 代码自 R18 起进主干。
 ```
@@ -70,7 +71,13 @@ docs/RESUME_2026-10-04_FINAL.md  ← 设计侧有效；代码侧已被 R18–R58
    · Z6 卡住检测读 config/world_tree.yaml（Z1–Z3 由 dial 生效中）
    · ★ 仍未做（下轮候选）: δ_θ 残差难度（路线丙）· 三方向枚举 ·
      EL 完整调度器 · **Z4 候选持久化 / Z5 merge**（config 声明待落）
-3. **建 `iwm`**（环节⑤ 防漂移 · §4.5 —— 七环节凑 7/7）
+3. ~~建 `iwm`~~ ✓ **R61 已完成**（2026-10-08）:
+   · 四方法对齐 ORGAN_INTERFACES §六（drift/self_trust/governor_advice/probe）
+   · GDI 四信号（semantic 缺席显式+归一）· CAR · 回归（judge）· grounded（dials）
+   · 环节⑤ 已接 run_term 3.5 步, drift_degrade 消费点与 over_tau 一致（原则 9）
+   · 顺带落地 foundation/state.py（STATE_SCHEMA 四层 frozen = I6 构造面）
+   · ★ 仍未做（下轮候选）: ECE 惩罚（需 Advice 加自报置信字段）·
+     Appendix D 概率回归 · coupling 三条件 · Δ_semantic 的嵌入源
 4. **class DWC 主类三入口**（ingest / step / run_term 收拢成 agent 形态）
 5. `foundation/contracts.py` **仍未建**（2026-10-08 核实: `ls src/dwc/foundation/contracts.py` → 不存在）
    + `check_fn` 调用点 > 0 的 I8 核验 —— 老债保留，别当已完成
