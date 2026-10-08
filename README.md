@@ -90,14 +90,14 @@ dwc/
 测试    34 文件 / 680 函数 → pytest 727 项全过（17.1s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R74 · 66 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R75 · 67 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R74 · 回放仿真器落地: ⑥ search/ 四件全落 — A(𝒯)/step/V 公式/不回退保证按论文逐字）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R75 · ⑥ 消费接线提案: 六接点+W4 分析+分批, docs/proposal_consuming_organ6.html, 待裁决）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 
