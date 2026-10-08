@@ -29,6 +29,7 @@ CFG = os.path.join(ROOT, "config")
 
 WORLD_TREE_PATH = os.path.join(CFG, "world_tree.yaml")
 DIFFICULTY_PATH = os.path.join(CFG, "difficulty.yaml")
+REPLAY_PATH = os.path.join(CFG, "replay.yaml")
 DIALS_PATH = os.path.join(CFG, "dials.yaml")
 
 
@@ -177,6 +178,33 @@ def load_difficulty(path: str = DIFFICULTY_PATH) -> Dict[str, Any]:
             "启用路线甲时语义必须切到 world_knowledge，否则 X4 字段对不上" % sem)
 
     return d
+
+
+# ══════════════════════════════════════════════════════════
+# replay.yaml — Dreaming 循环参数（R80 · 设计稿三裁决③）
+# ══════════════════════════════════════════════════════════
+
+def load_replay(path: str = REPLAY_PATH) -> Dict[str, Any]:
+    """β₁/β₂ + ℋ 快照上限。
+
+    ★ β 必填（R74 的「必传无默认」纪律在配置层的对应）—— 文件缺 β =
+      DialError, 不许代码里编默认（论文未报值, NOISE_DELTA 的反面）。
+    ★ β ≥ 0 = 论文符号约束; history_max ≥ 1。
+    """
+    o = _load(path)
+    rep = _need(o, "replay", "replay.yaml")
+    b1 = _need(rep, "beta1", "replay.replay")
+    b2 = _need(rep, "beta2", "replay.replay")
+    for name, b in (("beta1", b1), ("beta2", b2)):
+        if not isinstance(b, (int, float)) or isinstance(b, bool) or b < 0:
+            raise DialError(
+                "R80: replay.%s 须为 ≥0 数值（论文符号约束 β≥0）, 实为 %r"
+                % (name, b))
+    hm = _need(rep, "history_max", "replay.replay")
+    if not isinstance(hm, int) or isinstance(hm, bool) or hm < 1:
+        raise DialError(
+            "R80: replay.history_max 须为 ≥1 整数, 实为 %r" % (hm,))
+    return {"beta1": float(b1), "beta2": float(b2), "history_max": hm}
 
 
 # ══════════════════════════════════════════════════════════

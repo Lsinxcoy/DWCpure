@@ -1,0 +1,8 @@
+# R80 · Dreaming 循环参数（docs/proposal_replay_dreaming_design.html 三裁决③）
+# ★ β₁/β₂: 论文 2609.14858 §2.6 未报告具体值（"fixed coefficients" + β≥0 符号约束）
+#   ⇒ 初始值 0 = β≥0 边界（纯 discovery quality 退化, **非论文报值**）;
+#     非零值须经校准协议（R63-R67 实验纪律）后才许写入。
+replay:
+  beta1: 0.0          # V = max s_v − β₁·N + β₂·(N/max{1,k}) 的执行成本罚项
+  beta2: 0.0          # 并行度奖项
+  history_max: 16     # ℋ 快照上限（超限丢最旧 — 内存环形）

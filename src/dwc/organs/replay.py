@@ -36,7 +36,8 @@
 from __future__ import annotations
 
 import math
-from typing import Dict, Iterable, Set, Tuple
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Set, Tuple
 
 
 class ReplayError(Exception):
@@ -183,6 +184,28 @@ def no_worse_than_current(v_by_version: Dict[str, float], *, current: str
     """★ 把 §2.7 的不等式写成可断言的谓词: V(m*) ≥ V(current)。"""
     _, best = select_policy(v_by_version, current=current)
     return best >= v_by_version[current]
+
+
+# ══════════════════════════════════════════════════════════
+# R80 · Dreaming 循环报告（设计稿 docs/proposal_replay_dreaming_design.html）
+# ══════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class DreamReport:
+    """★ dream() 的产物（叠加报告, 不驱动行为 —— M=1 时 m* 恒 π0, 见 why）。
+
+    ★ per_world: [(tree_id, V_i^m, k_i^*, N_i^m), ...] —— 每回放世界一行可审计。
+    ★ monotone_no_worse = §2.7 谓词结果（M=1 时平凡成立, 显式记录不冒充改进）。
+    """
+    n_worlds: int
+    v_by_version: Dict[str, float]     # {"π0": V^0}（M=1, 设计稿裁决②）
+    m_star: str                        # argmax 结果（M=1 ⇒ 恒 "π0"）
+    v_star: float
+    betas: Tuple[float, float]         # (β₁, β₂) 本次实际用值（config 读入）
+    per_world: List[Tuple[str, float, int, int]]
+    monotone_no_worse: bool
+    k2_max: int
+    why: str
 
 
 # ══════════════════════════════════════════════════════════

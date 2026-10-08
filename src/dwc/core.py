@@ -31,15 +31,19 @@ from __future__ import annotations
 import io
 import os
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from copy import deepcopy
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
 from dwc.foundation import dial_config
 from dwc.harness.run_term import TermRunner, TermReport
-from dwc.organs.actor import Actor, Trace
+from dwc.organs.actor import Actor, Receipt, Trace
 from dwc.organs.el_sched import ELScheduler
 from dwc.organs.evolver import Evolver
+from dwc.organs.replay import (DreamReport, ReplayError, ReplaySimulator,
+                               no_worse_than_current, replay_score,
+                               select_policy)
 from dwc.organs.iwm import IwmOrgan, Observations
 from dwc.organs.judge import Judge, SPLIT_DEV
 from dwc.organs.memory import MemoryKind, MemoryKernel
@@ -137,6 +141,10 @@ class DWC:
         #   任务源/EL/δ 排序全部空转。播种后 node_id=judge task_id 同域。
         self.world_model.seed_tasks(
             [t for t in self.judge.anchors if not t.startswith("_")])
+        #: R80 · ℋ Dreaming 历史快照（设计稿裁决①: 单树时点快照,
+        #: [(tree_id, deepcopy(WorldTree)), ...] — 每 run_term 尾追加,
+        #: 超 history_max 丢最旧（内存环形, 不落盘）
+        self._replay_history: List[Tuple[str, Any]] = []
         #: ── 组装件（执行环境 / LLM / term 编排）──
         self.executor = executor
         self.llm = llm
@@ -317,8 +325,93 @@ class DWC:
         ★ 不在本类重写 term: TermRunner 已实现 T1–T4 判据, 重写=第二套。
         ★ R71 核实: judge 的注入在 TermRunner **构造**处（L129 judge=self.judge）
           —— 不是本方法的参数（judge 是构造注入不是 run_term kwarg）。
+        ★ R80: term 尾**快照世界树进 ℋ**（Dreaming 设计稿裁决①）——
+          快照发生在报告返回前, 后续 term 的增长不污染历史回放面。
         """
-        return self.runner.run_term(task, n_steps=n_steps, **kwargs)
+        rep = self.runner.run_term(task, n_steps=n_steps, **kwargs)
+        self._snapshot_worlds()
+        return rep
+
+    def _snapshot_worlds(self) -> int:
+        """把当前各世界树 deepcopy 进 ℋ（超 history_max 丢最旧）。"""
+        from dwc.foundation.dial_config import load_replay
+        hmax = load_replay()["history_max"]
+        for tid, t in sorted(self.world_model.trees.items()):
+            self._replay_history.append((tid, deepcopy(t)))
+        over = len(self._replay_history) - hmax
+        if over > 0:
+            del self._replay_history[:over]
+        return len(self._replay_history)
+
+    # ══════════════════════════════════════════════════════
+    # R80 · Dreaming 循环（设计稿三裁决落地, §2.5–2.7 编排）
+    # ══════════════════════════════════════════════════════
+    def dream(self, *, k2_max: int) -> DreamReport:
+        """★ 离线 Dreaming（2609.14858 §2.5–2.7 编排, 零新机制）。
+
+        三裁决（docs/proposal_replay_dreaming_design.html）:
+        ① ℋ = run_term 尾快照序列（无快照 ⇒ 当前树现快照兜底）
+        ② M=1: π^0=当前策略（π^0 选择语义 = δ 降序取 eligible 最高 ——
+          与任务源采样同源 _task_deltas; 同 δ 字典序小者先, 可复现）;
+          单调性退化**平凡成立并显式记录**（不冒充改进 — M>1 留独立设计轮）
+        ③ β 从 config/replay.yaml 读（必填无默认, 初始 0=纯 quality 退化）
+
+        终止（§2.5 三条件, 全实现）: C=∅（无候选）· k≥K₂ · 观测面=全树。
+        ★ 快照/回放只读 —— dream 不写树、不产分数（W2: 分数只来自 judge 观测）。
+        """
+        if k2_max < 1:
+            raise DwcError("dream: k2_max 须 ≥1, 实为 %r" % (k2_max,))
+        from dwc.foundation.dial_config import load_replay
+        cfg = load_replay()
+        b1, b2 = cfg["beta1"], cfg["beta2"]
+        worlds = list(self._replay_history) or \
+            [(tid, deepcopy(t)) for tid, t in sorted(
+                self.world_model.trees.items())]
+        if not worlds:
+            raise DwcError("dream: 无任何世界树可回放（先 seed_tasks）")
+        dmap = self._task_deltas()
+        per: List[Tuple[str, float, int, int]] = []
+        for tid, T_i in worlds:
+            sim = ReplaySimulator(T_i)
+            observed = {T_i.root_id}          # §2.5: 起步 𝒯^{m,0} = {r}
+            k = 0
+            n_revealed = 0
+            while k < k2_max:
+                elig = sim.eligible(observed)
+                nonroot = sorted(v for v in elig if v != T_i.root_id)
+                if nonroot:
+                    pick = min(nonroot, key=lambda v: -dmap.get(v, 0.0))
+                    #   ↑ π^0 = δ 降序（与任务源采样同源）; 字典序 tie 可复现
+                else:
+                    # ★ 起步/兜底: eligible 只剩根 ⇒ 选根揭示其 children
+                    #   （§2.5「根返回最早已记录子」— 不选根则永不开始; 根
+                    #    children 全揭示后再选根 ⇒ gained=∅ ⇒ 下方防空转 break）
+                    pick = T_i.root_id
+                new_obs = sim.step(observed, {pick})
+                gained = set(new_obs) - observed
+                if not gained:
+                    break                     # 无新揭示 ⇒ 继续无意义（防空转 K₂）
+                n_revealed += len(gained - {T_i.root_id})
+                observed = set(new_obs)
+                k += 1
+                if (observed | {T_i.root_id}) >= set(T_i.nodes):
+                    break                     # 终止③ 观测面=全树
+            max_s = max((T_i.nodes[v].score for v in observed
+                         if getattr(T_i.nodes[v], "score", None)
+                         is not None), default=0.0)
+            V = replay_score(max_score=max_s, n_revealed=n_revealed,
+                             n_rounds=k, beta1=b1, beta2=b2)
+            per.append((tid, V, k, n_revealed))
+        v_by = {"π0": sum(p[1] for p in per) / float(len(per))}
+        m_star, v_star = select_policy(v_by, current="π0")
+        ok = no_worse_than_current(v_by, current="π0")
+        return DreamReport(
+            n_worlds=len(per), v_by_version=v_by, m_star=m_star,
+            v_star=v_star, betas=(b1, b2), per_world=per,
+            monotone_no_worse=ok, k2_max=k2_max,
+            why="环节⑥ Dreaming（§2.5–2.7; M=1 评估当前策略 — 单调性平凡"
+                "成立显式记录, 非改进声明; β=%s/%s 为 config 初值非论文报值)"
+                % (b1, b2))
 
     # ══════════════════════════════════════════════════════
     # δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）

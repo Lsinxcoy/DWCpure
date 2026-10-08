@@ -1,0 +1,36 @@
+{
+ "round": "R80 · Dreaming 循环骨架落地（R79 设计稿三裁决全实现）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 按设计稿实现 Dreaming 骨架一轮）",
+ "★ 三裁决实现": [
+  "① ℋ: DWC._replay_history=[(tree_id, deepcopy(WorldTree))] 每 run_term 尾快照",
+  "  (_snapshot_worlds, 超 history_max 丢最旧内存环形); 无快照 ⇒ 现树兜底",
+  "② M=1: dream(k2_max) — π^0=δ 降序(同 _task_deltas 源,字典序tie可复现);",
+  "  终止三条件全实现(C=∅/k≥K₂/观测面=全树)+防空转(gained=∅ break)",
+  "  单调性 no_worse 平凡成立显式记录(不冒充改进)",
+  "③ config/replay.yaml(β必填无默认,初始0=纯quality退化)+load_replay(β≥0/history_max≥1)",
+  "DreamReport(frozen): n_worlds/v_by/m_star/betas/per_world/monotone/k2_max/why"
+ ],
+ "★ 本轮发现": [
+  "**真 bug**: π^0 filter 掉 root 导致永不揭示 children(起步死锁) — 首轮测试 k=0 抓到",
+  "  ⇒ 修: eligible 只剩根时选根揭示 children(§2.5 根语义), 根children全揭后再选根",
+  "  ⇒ gained=∅ 防空转 break",
+  "**★ 根语义偏差候选(留裁决, 不动 R74 已锁)**: replay.step 根返回 kids[0] **不滤",
+  "  已观测** ⇒ 深度树第二分支(b)永不揭示; 论文 Child(v)=「未观测子集」读法下根应揭",
+  "  最早**未观测**子 ⇒ b 可揭 — 测试锁现实行为+注释记录偏差",
+  "测试自弱×2: 破坏②浅引用没抓到——测试取 _replay_history[0](=dev)而断言针对 t1;",
+  "  snap_nodes 也取 dev — 两处修正后破坏②才真红"
+ ],
+ "验证": [
+  "pytest 749 passed(+5: config/dream退化/K₂终止/兜底/deepcopy) rc=0 ·",
+  "  gate 8/8 · e2e rc=0(LLM passed)",
+  "破坏 2/2: ①β绕config(硬编码0.1假装校准)⇒betas断言红 ②浅引用⇒deepcopy独立性红 → 恢复绿",
+  "写测试 3 红: 断言赌世界序(sorted dev在前)/兜底数两树/k语义(叶无子空转即断)",
+  "  — 均按现实+意图修正(深度2树造真多轮)"
+ ],
+ "诚实边界": [
+  "M=1 单调性平凡成立(报告明写『非改进声明』) — M>1=策略可修订化, 独立设计轮",
+  "β=0 非论文报值(β≥0 边界) — 非零须校准协议后写入",
+  "dream 不写树不产分数(W2) · 快照纯内存(可选落盘未做)"
+ ]
+}

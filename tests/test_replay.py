@@ -201,3 +201,105 @@ def test_full_replay_walk_on_real_world_tree():
     assert sim.eligible(obs) == {"root", "a1"}
     # 终态: 对 a1 step 无新揭示（a1 无子）⇒ 回放可判停
     assert sim.step(obs, ["a1"]) == obs
+
+
+# ══════════════════════════════════════════════════════════
+# R80 · Dreaming 循环（DWC.dream 编排 + ℋ 快照 + config）
+# ══════════════════════════════════════════════════════════
+
+def _dwcd():
+    from dwc.core import DWC
+    from dwc.organs.actor import Receipt
+    from dwc.organs.judge import TaskScoreStore
+
+    def ex(task):
+        return Receipt(ok=True, detail={}, verified=True)
+    d = DWC(3, 50, executor=ex)
+    d.judge.store = TaskScoreStore(dw_version="test")   # 隔离生产
+    return d
+
+
+def test_load_replay_units():
+    """config 加载: 现文件 0/0 + history_max; β<0 与 history_max<1 拒。"""
+    import tempfile
+    from dwc.foundation import dial_config
+    cfg = dial_config.load_replay()
+    assert cfg["beta1"] >= 0 and cfg["beta2"] >= 0 and cfg["history_max"] >= 1
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                     encoding="utf-8") as f:
+        f.write("replay: {beta1: -1, beta2: 0, history_max: 4}\n")
+    with pytest.raises(dial_config.DialError):
+        dial_config.load_replay(f.name)
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
+                                     encoding="utf-8") as f2:
+        f2.write("replay: {beta1: 0, beta2: 0, history_max: 0}\n")
+    with pytest.raises(dial_config.DialError):
+        dial_config.load_replay(f2.name)
+
+
+def test_dream_beta0_degenerates_to_max_score():
+    """★★ 裁决③: β=0 ⇒ V = max s_v 退化（纯 discovery quality）—— 手工有分树。"""
+    d = _dwcd()
+    wm = d.world_model
+    wm.seed("t1", "r")
+    wm.expand("t1", "root", node_id="a", action="act-A",
+              provenance="observed")
+    wm.record_observation("t1", "a", 3.0, True)          # s_a = 3.0
+    rep = d.dream(k2_max=8)
+    assert rep.betas == (0.0, 0.0)
+    assert rep.m_star == "π0" and rep.monotone_no_worse
+    # β=0 ⇒ V = max(s of observed) = 3.0; a 被揭示 ⇒ N=1, k=1
+    by = {t: (V, k, n) for t, V, k, n in rep.per_world}
+    assert by["t1"] == (3.0, 1, 1)                        # 按 tid 索引, 不赌世界序
+    assert rep.v_by_version["π0"] > 0
+
+
+def test_dream_k2_cap_and_termination():
+    """K₂ 上限: 小 k2 ⇒ 轮数不超; 大 k2 ⇒ 全树揭示后自然停（观测面=全树）。"""
+    d = _dwcd()
+    wm = d.world_model
+    wm.seed("t1", "r")
+    # 深度 2: root→(a,b), a→a1 —— 叶无子(选它们空转即断) ⇒ 要多轮须有链
+    wm.expand("t1", "root", node_id="a", action="act-A", provenance="observed")
+    wm.expand("t1", "root", node_id="b", action="act-B", provenance="observed")
+    wm.expand("t1", "a", node_id="a1", action="act-A1", provenance="observed")
+    for nid in ("a", "b", "a1"):
+        wm.record_observation("t1", nid, 1.0, True)
+    # 轮1: 选根揭 **a（最早子, §2.5 根语义 — 只给 kids[0], 不滤已观测）**
+    # 轮2: 选 a 揭 a1 · 轮3: a1 无子 ⇒ gained=∅ break ⇒ k=2, N=2
+    # ★ b 永不揭 = R74 锁定的根语义（kids[0] 不滤已观测）所致 —— 论文 Child(v)
+    #   =「未观测子节点集」读法下 root 应揭最早**未观测**子 ⇒ b 可揭。
+    #   **偏差候选, 不动 R74 已锁语义**, 留裁决（本断言锁现实行为）
+    small = d.dream(k2_max=1)
+    ks = {t: (k, n) for t, V, k, n in small.per_world}
+    assert ks["t1"][0] == 1                               # k ≤ K₂ 截断生效
+    big = d.dream(k2_max=50)
+    kb = {t: (k, n) for t, V, k, n in big.per_world}
+    assert kb["t1"] == (2, 2)                             # 现实: 根只给最早, b 卡住
+
+
+def test_dream_without_snapshot_uses_current_tree():
+    """无 ℋ 快照 ⇒ 现树兜底（裁决①）; run_term 快照后用快照。"""
+    d = _dwcd()
+    d.world_model.seed("t1", "r")
+    assert d._replay_history == []
+    rep0 = d.dream(k2_max=4)
+    assert rep0.n_worlds == 2                             # dev(播种)+t1 两树兜底
+    d.run_term("t", n_steps=1)
+    assert len(d._replay_history) == 2                    # 每树一份快照
+    rep1 = d.dream(k2_max=4)
+    assert rep1.n_worlds == 2                             # 用快照
+
+
+def test_snapshot_is_deep_independent():
+    """★ 快照必须 deepcopy —— 后续 expand 不污染历史回放面。"""
+    d = _dwcd()
+    d.world_model.seed("t1", "r")
+    d._snapshot_worlds()
+    snap_nodes = set(d.world_model.trees["t1"].nodes)
+    d.world_model.expand("t1", "root", node_id="late", action="act-L",
+                         provenance="observed")
+    snap_t1 = [x for x in d._replay_history if x[0] == "t1"]
+    assert snap_t1, "★ 按树取快照 — [0]=dev 浅引用也过 (测试自弱教训)"
+    tid, snap = snap_t1[0]
+    assert set(snap.nodes) == snap_nodes and "late" not in snap.nodes
