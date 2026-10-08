@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC · Dreaming 循环设计稿（F · 提案批4）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--grn:#3fb950;--red:#f85149;--ylw:#d29922}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.75 "Segoe UI",system-ui,sans-serif;max-width:1080px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:26px;border-bottom:2px solid var(--acc);padding-bottom:10px}
+h2{font-size:19px;margin:34px 0 12px;color:var(--acc)}
+h3{font-size:16px;margin:18px 0 8px}
+.meta{color:var(--dim);font-size:13px;margin:8px 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:14px 0}
+.card.rec{border-left:4px solid var(--grn)}
+.card.risk{border-left:4px solid var(--ylw)}
+.card.gap{border-left:4px solid var(--red)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:12px;font:13px/1.6 Consolas,monospace;overflow-x:auto;margin:10px 0}
+code{font-family:Consolas,monospace;background:#1f242c;border-radius:3px;padding:1px 5px;font-size:13px}
+.q{color:var(--ylw)}
+.dim{color:var(--dim)}
+.ok{color:var(--grn)}
+.bad{color:var(--red)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:#1c2128}
+.toc a{color:var(--acc);text-decoration:none;margin-right:18px;font-size:14px}
+.toc a:hover{text-decoration:underline}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--dim);margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<h1>Dreaming 循环设计稿 <span class="tag">F · 提案批4 · 设计先行（不动码）</span></h1>
+<div class="meta">2026-10-08 · R79（待裁决） · 依据链：论文 2609.14858 §2.5–2.7 逐字（docs/papers/2609.14858.md L71–110）→ replay.py 现状（R74 落地）→ 承载方案。三处设计缺口（ℋ 载体 / M 版本产生 / β 来源）逐条给推荐裁决。<b>本稿不动码</b> —— 批4 的原判=硬接=发明循环，设计先补。</div>
+
+<div class="toc">
+<a href="#s0">① 论文语义（逐字）</a>
+<a href="#s1">② 缺口一：ℋ 载体</a>
+<a href="#s2">③ 缺口二：M 版本</a>
+<a href="#s3">④ 缺口三：β₁/β₂</a>
+<a href="#s4">⑤ 循环骨架</a>
+<a href="#s5">⑥ 实现范围与验证</a>
+</div>
+
+<h2 id="s0">① 论文语义（§2.5–2.7 逐字要点）</h2>
+<div class="card">
+<p>· 迭代 t 的离线阶段 <b>ℋ_t 固定不变</b>；构造评估 <b>M ≥ 1 个策略版本</b> π_t^0…π_t^{M−1}，起始 π_t^0 = π_t（当前策略）。<b>每个版本在每个历史树上单独评估完毕，才从反馈中开发下一个版本</b>。</p>
+<p>· <b>m = 策略版本</b>（不是"假想世界状态"——R75 提案时的措辞已修正）；i = replay world；k = 决策轮。</p>
+<p>· 𝒯_i 固定，只有<b>策略可观测部分</b> 𝒯_i^{m,k} ⊆ 𝒯_i 在变；转移=确定性返回已录 children，<b>绝不生成新候选</b>。</p>
+<p>· 式1：V = max s_v − β₁·N + β₂·(N/max{1,k})。<b>论文未报告 β₁/β₂ 具体值</b>（"fixed coefficients" + β≥0 符号约束）。</p>
+<p>· §2.7：<b>policy-development agent</b> 接收 π^m 的 replay 轨迹与分数+修订反馈，"identify successful decisions and recurring failures"，然后<b>修订可执行的策略代码</b>；下一轮 π_{t+1} = π^{m*}，m* ∈ argmax V^m。单调性保证=「固定历史上平均 replay 分不劣于当前」。</p>
+</div>
+
+<h2 id="s1">② 缺口一：ℋ 载体语义</h2>
+<div class="card gap"><b>缺口</b>：ℋ_t = ℋ_{t−1} ∪ {𝒯_t} —— 论文每轮一棵独立发现树。DWC 现状是<b>单棵 dev 树长跑</b>（R77 播种后 10 叶、term 间只增长不换树）⇒ "每轮一棵新树"与现状冲突；且 WorldTree 无快照机制。</div>
+<div class="card rec"><b>推荐裁决：单树时点快照</b>
+<pre>ℋ = [deepcopy(world_model) @ term_1, deepcopy @ term_2, ...]
+# 同一棵增长树在各时点的快照序列 ≈ 论文的"每轮独立树 + 历史累积"
+# —— 论文语义的忠实近似（各快照互不影响, 可并行回放）; 不发明"每 term 换新树"</pre>
+<p>落点：<code>DWC</code> 侧维护 <code>_replay_history: List[WorldModel]</code>（run_term 尾按需快照；深度与论文 𝒯_i 对齐=完整树）。<b>内存列表 + 可选落盘</b>（config/anchors/ 同族，gitignored）。</p></div>
+
+<h2 id="s3">③ 缺口二：M 版本产生</h2>
+<div class="card gap"><b>缺口</b>：论文的"开发下一版本"= <b>修订可执行的策略代码</b>（policy-development agent 产码）。DWC 的"策略"=采样逻辑硬编码（_el_pick 的 EL+δ 组合）<b>无策略代码可修</b>；发明"策略修订 agent"=违实现对齐设计（无设计明文）。</div>
+<div class="card rec"><b>推荐裁决：首版 M=1（论文明文合法）</b>
+<pre>M=1: 只评估 π^0 = 当前策略（在 replay 可观测面复用 δ 排序+EL 游标语义）
+单调性退化为 V(π^0) ≥ V(π^0)（平凡成立）—— 诚实标注, 不冒充改进
+M>1 留二期：等"策略可修订化"设计（候选：采样参数 dials 化 + evolver 提案修参数）
+  —— 那是独立设计轮, 不在本稿发明</pre>
+<p>价值：循环骨架（快照→回放→V 评估→argmax 选优→单调性核验）先跑通；<b>骨架不依赖修订机制</b>（论文框架的正确子集）。</p></div>
+
+<h2 id="s3b">④ 缺口三：β₁/β₂ 来源</h2>
+<div class="card gap"><b>缺口</b>：论文未报数值（R74 已锁 replay_score 必传无默认——NOISE_DELTA 纪律）。</div>
+<div class="card rec"><b>推荐裁决：配置驱动 + 校准协议，初始值 0</b>
+<pre># config/replay.yaml（新, difficulty.yaml 同族）
+replay: {beta1: 0.0, beta2: 0.0}   # β≥0 边界值; 退化 V = max s_v（纯 discovery quality）
+# 校准协议（占位, 复用 R63–R67 实验纪律）: β 网格 × 多轮 A/B, 预注册判据后才定非零值</pre>
+<p><b>0 不是发明的数</b>——是"无校准数据时的最保守选择"（β≥0 约束的下界, 意味着不加惩罚/奖励项）；非论文报值。</p></div>
+
+<h2 id="s4">⑤ 循环骨架（设计, 非实现）</h2>
+<div class="card">
+<pre>DWC.dream(*, k2_max: int) -> DreamReport          # 环节⑥ 的离线 Dreaming
+    ℋ = self._replay_history or [deepcopy(world_model)]    # 缺口一裁决
+    π_versions = ["π0"]                                  # 缺口二裁决: M=1
+    for m in π_versions:
+        for i, T_i in enumerate(ℋ):
+            sim = ReplaySimulator(T_i)                  # R74 已有
+            # rollout: k 轮, C⊂eligible, 策略 π^0=δ 排序+游标(复用采样语义)
+            #   终止: C=∅ / k≥K₂ / 观测面=全树(𝒯^{m,k}=𝒯_i)
+            #   每轮: 揭示 children → V_i^m = replay_score(max_s, N, k; β)  ← R74 已有
+    V^m = mean_i(V_i^m)
+    m* = select_policy(V^m, current="π0")             # R74 已有(含 current 必含)
+    assert no_worse_than_current(...)                  # R74 已有(单调性核验)
+    return DreamReport(trajectory, v_by_version, m*, β, snapshot_times, why)</pre>
+<p class="dim">R74 已备的积木：ReplaySimulator.eligible/validate_batch/step · replay_score(β 必传) · select_policy · no_worse_than_current。<b>缺的只有 rollout 驱动循环本体 + 快照积累 + DWC.dream 入口</b>（全部是已有件的编排, 无新机制发明）。</p></div>
+
+<h2 id="s5">⑥ 实现范围与验证（若批准本稿）</h2>
+<div class="card">
+<table>
+<tr><th>件</th><th>内容</th><th>验证</th></tr>
+<tr><td>① 快照</td><td>run_term 尾快照入 ℋ（按 term 序, 可配置上限）</td><td>快照数=term 数; 快照独立于后续增长</td></tr>
+<tr><td>② dream 骨架</td><td>DWC.dream 编排（M=1, rollout, K₂, β）</td><td>单元: 手工小树回放轨迹可复现; K₂ 上限; C=∅ 终止</td></tr>
+<tr><td>③ 报告</td><td>DreamReport 含 V/m*/单调性核验</td><td>no_worse 必过; β=0 时 V=max_s 退化断言</td></tr>
+<tr><td>破坏面</td><td>①β 默认值悄悄塞回 ②current 不入候选集</td><td>各自测试红</td></tr>
+</table>
+<p class="dim">边界照旧：e2e 不覆盖 dream 段（e2e 不构造 DWC——生产链证据=集成测试, 同批1/批2 口径）。</p>
+</div>
+
+<div class="card risk"><b>本稿性质</b>：设计先行（提案批4 原判），批准后实现一轮（含三层验证+知识档+提交）；<b>不批准则本稿留档</b>，三缺口按裁决另行处理。</div>
+
+</body>
+</html>

@@ -90,14 +90,14 @@ dwc/
 测试    35 文件 / 697 函数 → pytest 744 项全过（18.8s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R78 · 73 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R79 · 74 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R78 · 批3: 提案剩余两薄件清账 — Proposal.direction 字段+校验（裁决②）+ el_selected stuck→LATERAL 纯标注（裁决③不改行为））** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R79 · Dreaming 循环设计稿: F 三缺口逐条裁决 — ℋ=单树时点快照 / M=1（论文明文合法）/ β=配置驱动初始0 + 校准协议, docs/proposal_replay_dreaming_design.html 待批准）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 

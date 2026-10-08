@@ -1,0 +1,29 @@
+{
+ "round": "R79 · Dreaming 循环设计稿（提案批4-F: 三缺口设计先行, 不动码）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= F 的 Dreaming 循环设计文档）",
+ "★ 重要修正（相对 R75 提案措辞）": [
+  "M = **策略版本** π^m（论文 §2.5-2.7）—— R75 提案写的『想象节点/假想 M 版本』理解偏了",
+  "  论文: policy-development agent 修订**可执行策略代码**产下一版本",
+  "  ⇒ DWC 现状无策略代码可修 ⇒ 发明修订机制=违实现对齐 ⇒ M=1 起步(论文明文 M≥1)"
+ ],
+ "★ 三缺口裁决（推荐值, 待批准）": [
+  "ℋ 载体: **单树时点快照** ℋ=[deepcopy(world_model)@term_i] — 单树长跑 vs 论文每轮新树的",
+  "  实例化差异用快照序列近似(互不影响可并行); 不发明每 term 换树",
+  "M 版本: **M=1**(论文明文合法): π^0=当前策略复用 δ 排序+EL 游标于 replay 可观测面; 单调性",
+  "  退化平凡成立并诚实标注; M>1=独立设计轮(策略可修订化)不发明",
+  "β₁/β₂: 论文未报 ⇒ **config/replay.yaml 驱动, 初始 0**(β≥0 边界值=纯 discovery quality",
+  "  退化; 非发明数值)+校准协议(R63-R67 实验纪律占位)"
+ ],
+ "★ 骨架（纯编排无新机制）": [
+  "DWC.dream: 快照 ℋ → ReplaySimulator(R74) → rollout(K₂/C=∅/观测面=全树终止) →",
+  "  replay_score(β必传,R74) → select_policy(R74, current必含) → no_worse 核验 → DreamReport",
+  "实现范围: 快照积累+rollout 驱动+入口+报告 — 全是已有件编排"
+ ],
+ "稿内引用全部机器核实": [
+  "dev anchors=10 ✓ · replay 接口(ReplaySimulator/replay_score/select_policy/no_worse) ✓ ·",
+  "  论文 L71(ℋ增长)/L75(M版本) 逐字 ✓"
+ ],
+ "交付": "docs/proposal_replay_dreaming_design.html(8.8K, 深色+导航+卡片, 同 R75 形态)",
+ "提案清账状态": "批1 R76 ✓ 批2+播种 R77 ✓ 批3 R78 ✓ · **F 设计稿 R79 待批准**"
+}
