@@ -1,0 +1,34 @@
+{
+ "round": "R82 · 生产多轮试运行（四机制长程演化证据, 不动 src）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 生产多轮试运行）",
+ "★ 试运行设计": [
+  "scripts/trial_run.py: DWC 构造(播种) → 6 term × (run_term全链 + 手动 evaluate 3任务",
+  "  轮询 + 树观测回填[W5: 已带真值不覆盖] + dream) — 全生产链, 只有回填是手动",
+  "噪声注入: code_fix_004 每次错观测(δ 稀有度追踪靶); reasoning kw 类跳过判分",
+  "判分口径实测: judge 比对**数字** args/value(字符串args判✗) — coerce 数字/布尔/引号串"
+ ],
+ "★ 四机制演化轨迹（docs/trial_report_r82.json, 6 term）": [
+  "EL: T0 insufficient → T1-T5 stalled(pool=0.67≤τ=0.75 全程卡住 = **式2 正确响应**)",
+  "  gen=1/idx=1 不动 = stalled『状态完全不动』论文语义; 67%<75% 门槛效应可见",
+  "hint: T0=None → T1-T5=LATERAL(stalled 生产可见, 裁决③ E 活链)",
+  "picked 轨迹: 001(原序首,无判分) → 004(候选收缩+δ排序首位) → reasoning_001",
+  "  (code_fix 全观测后候选=kw类, 无判分δ=0 保底原序) — **三机制组合的正确执行**",
+  "δ: 004 无→1.25→1.61→1.67 振荡(隔term 判分序列交替) ✓; 002(自然失败)同升",
+  "dream V: 0→0.5→0.667→0.75→0.8→0.833 **单调升**(观测积累 max_s 传播); 快照数=term数"
+ ],
+ "★ 误诊澄清": [
+  "T1 picked=004 曾判疑似排序bug — 重现后确认正确: T0 回填后 001/002/003 已观测",
+  "  退出候选 ⇒ 候选全 δ=0 ⇒ 不排序保底原序首=004 ✓ (诊断脚本 wta序+dmap 证实)",
+  "  —— 试运行的候选收缩效应, 排序/保底/收缩三者组合语义全对"
+ ],
+ "教训": [
+  "observed 造法: golden 的 args/expected 是字符串, judge 比对数字 — coerce 三类",
+  "  (数字/布尔/引号串); kw 类 checks 无 fn 键要跳过",
+  "W5 语义在生产链真实拦截: 重复回填已观测节点 raise — trial 侧 score is None 才回填"
+ ],
+ "下一步候选": [
+  "① EL 阈值效应验证(降失败率使 pool>0.75 看 generation 推进) — 可快跑",
+  "② 执行→回填自动化(run_term 内 judge.evaluate 替 score, 进 C3' + 回填树) — 换线候选"
+ ]
+}
