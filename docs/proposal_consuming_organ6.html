@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWC ⑥ 探索组件 · 消费接线提案（R75）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--txt:#c9d1d9;--dim:#8b949e;
+--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--danger:#f85149;--code:#21262d;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65;padding-bottom:80px}
+header{padding:28px 5% 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131a24,var(--bg))}
+h1{font-size:1.5em;color:#e6edf3}h1 small{color:var(--dim);font-size:.6em;font-weight:400}
+.sub{color:var(--dim);margin-top:6px;font-size:.9em}
+nav{position:sticky;top:0;z-index:9;background:rgba(13,17,23,.95);border-bottom:1px solid var(--border);padding:10px 5%;display:flex;gap:16px;flex-wrap:wrap;font-size:.88em}
+nav a{color:var(--acc);text-decoration:none;border-bottom:1px dotted transparent}nav a:hover{border-bottom-color:var(--acc)}
+main{padding:22px 5%;max-width:1180px;margin:0 auto}
+h2{color:#e6edf3;font-size:1.15em;margin:34px 0 14px;padding-left:10px;border-left:4px solid var(--acc)}
+h3{color:#e6edf3;font-size:1em;margin:14px 0 8px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.tag{display:inline-block;padding:1px 9px;border-radius:20px;font-size:.74em;border:1px solid;margin-right:6px;vertical-align:2px}
+.t-ok{color:var(--ok);border-color:var(--ok)}.t-warn{color:var(--warn);border-color:var(--warn)}
+.t-danger{color:var(--danger);border-color:var(--danger)}.t-acc{color:var(--acc);border-color:var(--acc)}
+code,.mono{background:var(--code);padding:1px 6px;border-radius:5px;font-family:Consolas,monospace;font-size:.88em;color:#79c0ff}
+.k{color:var(--dim);font-size:.82em}
+table{width:100%;border-collapse:collapse;font-size:.9em;margin:10px 0}
+th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:var(--code);color:#e6edf3}
+.evid{background:var(--code);border-left:3px solid var(--ok);padding:8px 12px;border-radius:0 6px 6px 0;margin:8px 0;font-size:.87em;white-space:pre-wrap}
+.warnbox{border-left:3px solid var(--warn);background:rgba(210,153,34,.07);padding:10px 14px;border-radius:0 6px 6px 0;margin:10px 0;font-size:.9em}
+.dangerbox{border-left:3px solid var(--danger);background:rgba(248,81,73,.07);padding:10px 14px;border-radius:0 6px 6px 0;margin:10px 0;font-size:.9em}
+.okbox{border-left:3px solid var(--ok);background:rgba(63,185,80,.07);padding:10px 14px;border-radius:0 6px 6px 0;margin:10px 0;font-size:.9em}
+ul{padding-left:22px;margin:6px 0}li{margin:3px 0}
+.footer{color:var(--dim);font-size:.8em;text-align:center;margin-top:44px;border-top:1px solid var(--border);padding-top:14px}
+.pill{font-weight:700;color:#e6edf3}
+</style>
+</head>
+<body>
+<header>
+<h1>DWC ⑥ 探索组件 · 消费接线提案 <small>R75 · 2026-10-08</small></h1>
+<div class="sub">⑥ search/ 四件能力已全落（R69–R74，727 测试绿），但运行流消费方为 0 —— 本提案给出全部接点的事实、风险与分批建议，<b>裁决后才动码</b>。</div>
+</header>
+
+<nav>
+<a href="#sum">总表</a><a href="#now">现状</a><a href="#w4">W4 分析</a>
+<a href="#pts">接点卡片</a><a href="#batch">分批</a><a href="#vote">待裁决</a>
+</nav>
+
+<main>
+
+<h2 id="sum">① 一页总表（6 个接点 · 2 个设计已定 · 4 个待裁决）</h2>
+<table>
+<tr><th>接点</th><th>内容</th><th>设计依据</th><th>风险</th><th>结论</th></tr>
+<tr><td class="pill">A</td><td>core.step 缺省取任务 <code>acts[0]</code> → EL 采样</td><td>ARCHITECTURE L592 <b>三段式① 明文</b>: "legal_actions → 采样(EL 调度器) → 本轮任务"</td><td><span class="tag t-warn">中</span>缺省路径行为变</td><td><b>设计已定待实现</b>（非发明）</td></tr>
+<tr><td class="pill">B</td><td>run_term 下一轮任务源 → EL 采样标注（叠加式）</td><td>同 L592</td><td><span class="tag t-ok">低</span>原 tasks 列表保留, 只加采样顶字段</td><td><b>设计已定待实现</b>（叠加不替换）</td></tr>
+<tr><td class="pill">C</td><td>δ_θ 进任务源排序（任务级难度偏置）</td><td>只定约束"只可作排序偏置"（L1105）, <b>未定接哪里</b></td><td><span class="tag t-ok">低</span>不动 select 的话</td><td><b>裁决点①</b>（W4 关联）</td></tr>
+<tr><td class="pill">D</td><td>Proposal 加 direction 字段</td><td>方向是链头第一环（ALL_REPOS 结论2）, 但<b>谁带方向未裁决</b></td><td><span class="tag t-ok">低</span>可选字段</td><td><b>裁决点②</b></td></tr>
+<tr><td class="pill">E</td><td>stuck 策略 ↔ 方向对应（switch_strategy≈LATERAL）</td><td><b>无设计明文</b> — 是我的实例化观察</td><td><span class="tag t-warn">中</span>动 Z6 行为</td><td><b>裁决点③</b></td></tr>
+<tr><td class="pill">F</td><td>replay Dreaming 循环（ℋ 累积 + 策略版本产生）</td><td>§2.4/2.5 机制有, 但 ℋ 载体语义与 M 版本产生（LLM 循环）<b>无落地设计</b></td><td><span class="tag t-danger">高</span>跨器官循环</td><td>建议<b>设计文档先行</b>, 本轮不动</td></tr>
+</table>
+
+<h2 id="now">② 现状盘点（能力面 vs 消费面 · 全部实测）</h2>
+<div class="grid">
+<div class="card"><h3><span class="tag t-ok">能力在</span>四件全落</h3>
+<table>
+<tr><th>件</th><th>能力口</th><th>测试</th></tr>
+<tr><td>weakness δ_θ</td><td><code>DWC.difficulty()</code> 活链实测过（R72: e2e 真数据出排序）</td><td>R69+R72</td></tr>
+<tr><td>el_sched EL</td><td><code>record/decide</code> 式2 状态机</td><td>R70 11 项</td></tr>
+<tr><td>direction</td><td>枚举+语义+<code>ensure_direction</code></td><td>R73 7 项</td></tr>
+<tr><td>replay</td><td><code>eligible/step/replay_score/select_policy</code></td><td>R74 15 项</td></tr>
+</table></div>
+<div class="card"><h3><span class="tag t-danger">消费=0</span>运行流无人调用</h3>
+<div class="evid">grep 实测（src/ 全量）:
+· difficulty(   → 仅测试调用
+· ELScheduler(  → 仅测试构造
+· ensure_direction( → 仅测试
+· ReplaySimulator( → 仅测试
+· run_term 任务源 = world_tree_action **全列无采样**（L632-638）
+· core.step 缺省任务 = <b>acts[0] 固定第一个</b>（L195-200, 无 EL）</div>
+<div class="warnbox">这是继 R68/R69/R70/R73/R74 五轮反复标注的同一个边界 —— 五件"能力+测试、接线留"的总清算。</div></div>
+</div>
+
+<h2 id="w4">③ W4 专栏 —— δ_θ 到底违不违"收束只吃信息增益"（裁决点①的核心）</h2>
+<div class="card">
+<h3>W4 判据原文（WORLD_TREE.md L349-351）</h3>
+<div class="evid">W4 · 收束判据不来自世界模型自算
+   收束函数的输入不得含 dynamics 的 confidence
+   依据: ARSI compare_interventions 用 avg_conf 排序 (假置信度)</div>
+<h3>逐句对照 δ_θ</h3>
+<table>
+<tr><th>W4 字面</th><th>δ_θ 的实际</th><th>违吗</th></tr>
+<tr><td>输入不得含 dynamics 的 confidence</td><td>δ_θ 输入 = judge 判分史的<b>频率</b>（C3' task_scores + evidence, 系统外观测）</td><td><span class="tag t-ok">字面不违</span>它压根不是 dynamics confidence</td></tr>
+<tr><td>不来自世界模型<b>自算</b></td><td>δ_θ 由 weakness 器官算, 数据源 = judge（外部真值）, 非 world_model 内部状态</td><td><span class="tag t-ok">字面不违</span></td></tr>
+<tr><td colspan="3"><b>但是</b> —— world_model.select 的实现契约写的是"收束排序<b>只吃</b>布尔观测的信息增益, 不吃任何 confidence"（单键）。加第二键不动 W4 字面, 动的是 select 的已实现契约与它的测试锁。</td></tr>
+</table>
+<div class="dangerbox"><b>裁决点① 的三个选项（选一个）:</b><br>
+<b>C1（推荐）</b> · select 完全不动 — δ_θ 只用于<b>任务源排序</b>（接点 B 侧）, 收束仍单键信息增益 → 零判据风险<br>
+<b>C2</b> · select 加<b>可选</b>偏置参数（默认关=行为不变）, 开关进 config 并标注与 W4 的关系 → 能力进 select 但默认惰性<br>
+<b>C3</b> · select 内置 δ_θ 第二键 → 改 select 契约 + 更新其测试锁, 需要在提案外再确认</div>
+</div>
+
+<h2 id="pts">④ 接点卡片（每张 = 事实 / 接法 / 影响 / 依赖）</h2>
+
+<div class="card">
+<h3><span class="tag t-acc">A · 设计已定</span>core.step 缺省取任务 → EL 采样</h3>
+<table>
+<tr><th style="width:110px">现状事实</th><td><code>src/dwc/core.py L195-200</code>: <code>a = acts[0]</code> — 世界树候选<b>固定取第一个</b>（树序），无采样</td></tr>
+<tr><th>设计依据</th><td>ARCHITECTURE L592 三段式① <b>逐字</b>: "取任务 W.legal_actions() → <b>采样 (EL 调度器)</b> → 本轮任务" · "任务源 = 世界模型 (唯一, actor 不得自造任务)"</td></tr>
+<tr><th>接法</th><td>⑤ step 缺省路径: 候选列表交 <code>ELScheduler.decide()</code> 推进状态（停滞→同代→换代）, 用状态选候选而非 acts[0]；EL 实例挂 DWC（构造注入, 测试可换内存件）</td></tr>
+<tr><th>行为影响</th><td>step(task=None) 的选任务<b>会变</b>（不再恒第一个）；带显式 task 的调用（e2e 主路）<b>不变</b></td></tr>
+<tr><th>测试影响</th><td>test_core 若有"缺省取世界树任务"锁序测试需按新契约更新（属预期改约, 非迁就）；EL 状态进报告字段（可审计）</td></tr>
+<tr><th>依赖</th><td>无 — 零模型、布尔观测现成</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3><span class="tag t-acc">B · 设计已定</span>run_term 下一轮任务源 → EL 采样（叠加式）</h3>
+<table>
+<tr><th style="width:110px">现状事实</th><td><code>src/dwc/harness/run_term.py L632-638</code>: <code>world_tree_action</code> <b>全列</b>进 next_task_source.tasks（无排序无采样）</td></tr>
+<tr><th>设计依据</th><td>同 L592（三段式① 的 run_term 侧落点）</td></tr>
+<tr><th>接法</th><td><b>叠加不替换</b>: 原 tasks 列表原样保留, 顶部新增 <code>"el_selected": {...}</code> 字段（EL 状态机从候选采样的结果 + 状态读数）→ 旧消费者零破坏</td></tr>
+<tr><th>行为影响</th><td>next_task_source 多一个字段（report 形态加字段）；既有 kinds 测试不断</td></tr>
+<tr><th>测试影响</th><td>形态测试若断言"字段集恰好"会碰 — 按加字段更新；新增 EL 字段断言</td></tr>
+<tr><th>依赖</th><td>与 A 共用同一个 EL 实例（一个 agent 一份调度状态 — 两处消费同一台状态机, 各自一份会状态分裂, <b>必须同实例</b>）</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3><span class="tag t-warn">C · 裁决①</span>δ_θ 任务源偏置（任务级难度怎么算出来）</h3>
+<table>
+<tr><th style="width:110px">接法</th><td>任务级 δ = <b>该任务历史失败签名的组内稀有度</b>：task_id → C3' 分数点（judge.task_scores 已按 task_id 记）→ evidence 拉历史签名 (c,q) → DifficultyEstimator → 该任务取其历史签名的 max δ。<b>全在已落链上, 零新数据</b></td></tr>
+<tr><th>落点</th><td>run_term 任务源生成处: tasks 列表按 δ 降序排（罕见失败的任务优先探）——<b>不动 select</b>（= 裁决 C1 时的落点）</td></tr>
+<tr><th>边界</th><td>没评过的任务无历史签名 ⇒ δ=0 保守排尾（不装 NaN 进排序 — NaN 不可比, 明确降级为 0 + 记录 "no_history"）</td></tr>
+<tr><th>行为影响</th><td>任务源顺序变化（可能影响 e2e 的 next 断言 — 用排序不删条目, 集合不变）</td></tr>
+<tr><th>依赖</th><td>裁决①选 C1/C2 时可与 B 同轮；选 C3 时本接点照做、select 另议</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3><span class="tag t-warn">D · 裁决②</span>Proposal 加 direction 字段（可选, 默认 None）</h3>
+<table>
+<tr><th style="width:110px">现状事实</th><td><code>evolver.py L1091+</code> Proposal 字段: proposal_id / failure_signature / component / patch / 状态机 — <b>无方向位</b>（grep 实测 0 命中）</td></tr>
+<tr><th>设计依据</th><td>方向是链头第一环（ALL_REPOS 结论2 链）, 但<b>"提案该带方向"无设计明文</b> — 只有枚举与语义（R73 已落）</td></tr>
+<tr><th>接法</th><td>Proposal 加 <code>direction: Optional[str] = None</code> + 构造期 <code>ensure_direction</code> 校验（非 None 必须三选一）→ 字段在、消费方为 0, 供将来"方向选择"环节写入</td></tr>
+<tr><th>风险</th><td>低（可选字段不改行为）; 但<b>没有消费方 = 第六件"死字段"</b> — 值不值得占位由裁决定</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3><span class="tag t-warn">E · 裁决③</span>stuck 策略 ↔ 方向对应（switch_strategy ≈ LATERAL?）</h3>
+<table>
+<tr><th style="width:110px">现状事实</th><td><code>config/world_tree.yaml</code>: <code>stuck.on_stuck: switch_strategy</code>；Z6 卡住检测已落（R60）, 触发后换策略 — <b>语义与 LATERAL「换一个方向试」字面相近</b></td></tr>
+<tr><th>设计依据</th><td><b>无</b> — 对应关系是我在 R73 写进方向模块的<b>实例化观察（标注未接）</b>, 设计文档没有把 stuck 与方向关联</td></tr>
+<tr><th>接法</th><td>最小: stuck 触发的报告里加 <code>"direction": "LATERAL"</code> 标注（纯记录）；进阶: REVERSE「回退更简单」作为第二 stuck 动作（<b>动 Z6 行为 = 新设计</b>）</td></tr>
+<tr><th>风险</th><td>纯标注低; 进阶会改卡住处置行为 — <b>超出本提案, 不建议本轮</b></td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3><span class="tag t-danger">F · 建议设计先行</span>replay Dreaming 循环</h3>
+<table>
+<tr><th style="width:110px">机制差</th><td>评估侧 R74 已能跑（给一组 V 选 m*）; 缺的是<b>循环本身</b>: ℋ 历史树累积的载体语义（world_model.trees 是活树容器 — "每 term 一棵"的树从哪 seed？）+ 策略版本<b>产生侧</b>（policy-development 改策略代码 = LLM 循环, 无落地设计）+ β₁/β₂ 取值无出处</td></tr>
+<tr><th>为什么不动</th><td>三处都是<b>设计缺口不是实现缺口</b> — 硬接等于我发明 Dreaming 循环（违"实现对齐设计"）；正确顺序 = 先补一页 Dreaming 循环设计（ℋ 载体 / 版本产生 / β 来源）再实现</td></tr>
+<tr><th>顺带</th><td>论文自陈偏置（只能重排不能探索新分支）与单调性边界（固定历史, 非在线）已在 R74 锁进代码与测试, 设计时引用即可</td></tr>
+</table>
+</div>
+
+<h2 id="batch">⑤ 分批建议</h2>
+<div class="card">
+<table>
+<tr><th>批次</th><th>内容</th><th>前置</th><th>预估</th></tr>
+<tr><td class="pill">批 1（推荐下轮）</td><td><b>A + B</b> — EL 采样进两处任务选择（设计明文 L592, 非发明）; B 用叠加式零破坏</td><td>无</td><td>一轮（含报告字段+测试更新+破坏验证）</td></tr>
+<tr><td class="pill">批 2</td><td><b>C</b> — δ_θ 任务源偏置（任务级 δ 链全在已落件上）; 落点按裁决①</td><td>裁决①</td><td>一轮</td></tr>
+<tr><td class="pill">批 3</td><td><b>D（+E 纯标注）</b> — 方向字段占位 + stuck 报告标注</td><td>裁决②③</td><td>半轮（都很薄）</td></tr>
+<tr><td class="pill">批 4</td><td><b>F</b> — Dreaming 循环设计文档 → 实现</td><td>设计先行</td><td>设计一轮 + 实现 1-2 轮</td></tr>
+</table>
+<div class="okbox"><b>A 与 B 必须同轮同实例</b>（一个 agent 一份 EL 状态; 两处各持一台 = 状态分裂, 调度语义就废了）—— 这是批 1 内部的硬约束。</div>
+</div>
+
+<h2 id="vote">⑥ 待裁决（回编号即开工）</h2>
+<div class="grid">
+<div class="card"><h3>裁决点</h3>
+<table>
+<tr><th>①</th><td>δ_θ 与收束的关系: <b>C1 不动 select（推荐）</b> / C2 select 可选参数默认关 / C3 select 内置第二键</td></tr>
+<tr><th>②</th><td>Proposal 加 direction 字段? （占位无消费 vs 将来链头写入的锚点）</td></tr>
+<tr><th>③</th><td>stuck↔方向: 只做报告标注（低）/ 进阶改行为（不建议本轮）/ 不接</td></tr>
+</table></div>
+<div class="card"><h3>开工选项（直接回编号）</h3>
+<p><b>1 · 批 1（A+B EL 采样接线）</b> <span class="tag t-acc">推荐</span> 设计明文、一轮可控、五轮来第一件真正"活"起来的探索组件</p>
+<p><b>2 · 裁决①②③ 先答</b>（回"①C1 ②加 ③标注"式）→ 按裁决排批执行</p>
+<p><b>3 · 批 1+批 2 连做</b>（裁决①默认 C1 的前提下）→ EL+δ_θ 一起进任务源</p>
+<p><b>4 · 先补 F 的 Dreaming 循环设计文档</b>（换优先级）</p>
+</div></div>
+
+<div class="footer">DWC R75 接线提案 · 全部事实来自 R69–R74 代码与实测 grep（含文件:行）· 设计引文可复核 · 提案不动码，裁决后执行</div>
+</main>
+</body>
+</html>

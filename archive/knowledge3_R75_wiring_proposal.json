@@ -1,0 +1,39 @@
+{
+ "round": "R75 · ⑥ 探索组件消费接线提案（提案轮 — 文档, 不动码）",
+ "date": "2026-10-08",
+ "用户指令": "继续推进1（= 消费接线提案; ⑥ 四件能力齐但运行流消费方为 0）",
+ "交付物": "docs/proposal_consuming_organ6.html（单文件深色+导航+卡片, 17KB）",
+ "★ 提案事实全部机器核对（声称为实测）": [
+  "grep src: difficulty(/ELScheduler(/ensure_direction(/ReplaySimulator( **零消费调用** ✓",
+  "五处行号断言逐条 sed 核对: core.py acts[0]=L196 · run_term world_tree_action=L632-634 ·",
+  "  WORLD_TREE W4=L349-350 · evolver Proposal=L1091 · ARCHITECTURE 三段式①=**L592**"
+ ],
+ "★ 六接点结论": [
+  "A core.step 缺省 acts[0]→EL 采样 — **设计明文 L592**(『legal_actions→采样(EL)→本轮任务』)=",
+  "  设计已定待实现, 非发明 · 影响=step(task=None) 路径(e2e 主路显式 task 不变)",
+  "B run_term 任务源→EL 标注 — 同 L592 · **叠加式**(原 tasks 保留, 加 el_selected 顶字段)",
+  "  零破坏 · **A/B 必须同 EL 实例**(一个 agent 一份状态, 分裂=调度语义废) = 批1硬约束",
+  "C δ_θ 任务源偏置 — 任务级 δ=task→C3'分数点→历史签名→组内稀有度(全在已落链, 零新数据)",
+  "  无历史⇒δ=0 保守+记 no_history · 落点=任务源排序不动 select",
+  "D Proposal.direction 可选字段 — 无设计明文『提案带方向』=占位无消费(第六件死字段风险)",
+  "E stuck↔LATERAL 对应 — **无设计**, 是 R73 我的实例化观察; 只建议报告标注(低), 进阶改行为不做",
+  "F replay Dreaming 循环 — ℋ 载体语义/M版本产生/β来源 三处**设计缺口**非实现缺口 ⇒",
+  "  设计文档先行, 硬接=发明循环(违实现对齐设计)"
+ ],
+ "★ W4 专栏（裁决①核心分析）": [
+  "W4 字面=『收束输入不得含 dynamics confidence』『不来自世界模型自算』",
+  "δ_θ 输入=judge 判分史频率(系统外观测, weakness 算) ⇒ **字面两都不违**",
+  "但 world_model.select 实现契约=『**只吃**信息增益单键』⇒ 动它=改已实现契约+测试锁",
+  "三选项: **C1 推荐**(select 不动, δ 只在任务源排序) / C2 select 可选参数默认关 / C3 内置第二键"
+ ],
+ "分批": [
+  "批1(推荐下轮): A+B — 设计明文一轮可控, 五轮来第一件真正活起来的探索组件",
+  "批2: C(裁决①后) · 批3: D+E纯标注(裁决②③) · 批4: F 设计先行"
+ ],
+ "裁决点": [
+  "①δ_θ与收束(C1推荐/C2/C3) ②Proposal加direction? ③stuck标注/进阶/不接"
+ ],
+ "验证": [
+  "提案 HTML 落盘 · 全部行号/零消费声称机器核对通过 · 本轮不动码(纯提案)"
+ ]
+}
