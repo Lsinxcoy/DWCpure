@@ -378,14 +378,21 @@ class DWC:
             n_revealed = 0
             while k < k2_max:
                 elig = sim.eligible(observed)
-                nonroot = sorted(v for v in elig if v != T_i.root_id)
+                # ★ π^0 补丁（R81）: 只把「能揭新」的非根当候选（无未观测子的
+                #   叶子选了也是空转）; 没有可揭新的非根 ⇒ 选根开新分支
+                #   （§2.5「每个分支追多远、何时另开分支」的最小实现 ——
+                #   根语义读法乙后 root 才能真正开第二分支）
+                def _can_reveal(v):
+                    return any(c not in observed
+                               for c in T_i.nodes[v].children)
+                nonroot = sorted(v for v in elig if v != T_i.root_id
+                                 and _can_reveal(v))
                 if nonroot:
                     pick = min(nonroot, key=lambda v: -dmap.get(v, 0.0))
                     #   ↑ π^0 = δ 降序（与任务源采样同源）; 字典序 tie 可复现
                 else:
-                    # ★ 起步/兜底: eligible 只剩根 ⇒ 选根揭示其 children
-                    #   （§2.5「根返回最早已记录子」— 不选根则永不开始; 根
-                    #    children 全揭示后再选根 ⇒ gained=∅ ⇒ 下方防空转 break）
+                    # 可揭新的非根没有 ⇒ 根开新分支（根 children 全揭后
+                    # gained=∅ ⇒ 下方防空转 break）
                     pick = T_i.root_id
                 new_obs = sim.step(observed, {pick})
                 gained = set(new_obs) - observed

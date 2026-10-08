@@ -105,9 +105,16 @@ class ReplaySimulator:
 
         ★ Child(v) = v 在 𝒯 中**记录且未被观测**的子节点 —— 只揭示,
           **绝不生成**（replay 的根本性质; 违反 = 把 replay 变成 online）。
-        ★ 根特殊（§2.5 逐字）: 若 v 是根, 返回根的**最早**已记录子节点
-          （children 是创建插入序 ⇒ [0] 即最早）。
-        ★ observed 只增不减（揭示是单调的）。
+        ★ 根特殊（§2.5 逐字 + R81 裁决读法乙）: 若 v 是根, 返回根的
+          **最早未观测**已记录子（children 创建插入序里第一个未观测的）。
+          ★★ 裁决链（三层链纪律: 论文最高, 逐字裁）:
+            ① 转移方程 Child(v)=「v 在 𝒯 中**未观测**的子节点集」（定义级）
+            ② 「无记录后继时 = ∅」—— 返回已观测子 ≠ ∅ ≠ 新揭示 ⇒ 论文无此操作
+            ③ branch opening / 并行批次的实验语义要求能开多分支
+            ⇒ 例外句「最早已记录子」的功能是规定**顺序**（最早优先）,
+              不放宽「未观测」这个转移本质 —— 读法甲（含已观测 ⇒ 恒返
+              kids[0] 空转, 第二分支永卡）被否。
+          ★ 空树/全揭 ⇒ []（与「无记录后继时=∅」同口径）。
         """
         obs = set(observed)
         self._check_observed(obs)
@@ -116,7 +123,7 @@ class ReplaySimulator:
         for v in batch:
             if v == self.tree.root_id:
                 kids = self.tree.nodes[v].children
-                cand = [kids[0]] if kids else []      # 根 → 最早子
+                cand = [c for c in kids if c not in new][:1]  # 最早未观测
             else:
                 cand = [c for c in self.tree.nodes[v].children
                         if c not in new]              # 记录且未观测

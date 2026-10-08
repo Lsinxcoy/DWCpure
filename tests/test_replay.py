@@ -85,11 +85,26 @@ def test_validate_batch_subset_and_width():
 # ══════════════════════════════════════════════════════════
 
 def test_step_root_returns_earliest_recorded_child():
-    """★ §2.5 逐字: v 是根 ⇒ 返回根**最早**的已记录子节点（children 插入序）。"""
+    """★ §2.5: v 是根 ⇒ 返回根**最早**子（children 插入序; R81 裁决: 未观测者优先）。"""
     _, t = _seeded()
     sim = ReplaySimulator(t)
     out = sim.step({"root"}, ["root"])
     assert out == {"root", "a"}, out          # 最早 = a（先于 b 创建）
+
+
+def test_step_root_opens_next_branch_after_first_revealed():
+    """★★ R81 裁决读法乙: a 已观测后再 step 根 ⇒ 揭 b（第二分支可开）。
+
+    论文裁决链（replay.step docstring 逐条）: Child=未观测子集(定义级) +
+    无后继=∅ + branch opening 需多分支 ⇒ 例外句只定顺序不放宽未观测。
+    读法甲（恒返 kids[0]）⇒ 此处返回 {root,a} 无新 —— 该读法被本测试锁死否定。
+    """
+    _, t = _seeded()
+    sim = ReplaySimulator(t)
+    out = sim.step({"root", "a"}, ["root"])   # a 已观测, 根开下一未观测子
+    assert out == {"root", "a", "b"}, out
+    out3 = sim.step({"root", "a", "b"}, ["root"])   # 全揭 ⇒ 空（不虚构）
+    assert out3 == {"root", "a", "b"}, out3
 
 
 def test_step_reveals_recorded_children_only():
@@ -265,17 +280,14 @@ def test_dream_k2_cap_and_termination():
     wm.expand("t1", "a", node_id="a1", action="act-A1", provenance="observed")
     for nid in ("a", "b", "a1"):
         wm.record_observation("t1", nid, 1.0, True)
-    # 轮1: 选根揭 **a（最早子, §2.5 根语义 — 只给 kids[0], 不滤已观测）**
-    # 轮2: 选 a 揭 a1 · 轮3: a1 无子 ⇒ gained=∅ break ⇒ k=2, N=2
-    # ★ b 永不揭 = R74 锁定的根语义（kids[0] 不滤已观测）所致 —— 论文 Child(v)
-    #   =「未观测子节点集」读法下 root 应揭最早**未观测**子 ⇒ b 可揭。
-    #   **偏差候选, 不动 R74 已锁语义**, 留裁决（本断言锁现实行为）
+    # R81 裁决读法乙后: 轮1 根揭 a · 轮2 a 揭 a1 · 轮3 a1 无子可揭 ⇒
+    #   π^0 选根开第二分支揭 b · 轮4 无新 ⇒ break ⇒ k=3, N=3（全树揭示）
     small = d.dream(k2_max=1)
     ks = {t: (k, n) for t, V, k, n in small.per_world}
     assert ks["t1"][0] == 1                               # k ≤ K₂ 截断生效
     big = d.dream(k2_max=50)
     kb = {t: (k, n) for t, V, k, n in big.per_world}
-    assert kb["t1"] == (2, 2)                             # 现实: 根只给最早, b 卡住
+    assert kb["t1"] == (3, 3)                             # 读法乙: 全树揭示（b 可开）
 
 
 def test_dream_without_snapshot_uses_current_tree():
