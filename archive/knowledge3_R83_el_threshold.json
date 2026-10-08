@@ -1,0 +1,22 @@
+{
+ "round": "R83 · EL 阈值效应验证（pool>0.75 真推进 + 节律防空转）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= EL 阈值效应验证, 试运行补完）",
+ "★ 两处脚本改进": [
+  "coerce→ast.literal_eval 统一(数字/布尔/列表/字符串字面量) — R82 口径盲区: 002 的",
+  "  args='[1,2,3]' 列表+expected='2.0' 浮点; 修后 002 无噪声轮 ✓",
+  "报告名带 noise 标识(trial_report_r83_{clean|noise-*}) — R82 的 r82.json 曾被覆盖, git checkout 恢复"
+ ],
+ "★ 无噪声 6 term 轨迹(docs/trial_report_r83_clean.json)": [
+  "T0 insufficient idx=1 → T1 next_environment **idx 1→2** → T2 **idx 2→3**",
+  "  —— pool=1.00>τ0.75 ⇒ **EL 真推进**（R82 stalled 卡住的对照面闭环）",
+  "T3-T5 idx=3 不动 = **节律防空转**: W5 不重填 ⇒ Σn_obs 未变 ⇒ 不重判(沿用上次",
+  "  判定) — _el_token 机制生产可见; picked=003 重复=收缩后 acts[(idx-1)%len] 规则",
+  "候选收缩效应: 全 behavior 观测后候选=reasoning 类(n=4), idx3≤4 保持",
+  "δ: 无失败 ⇒ 全 0.0（dmap 空排序保底原序）✓ · dream V 0→0.833 单调升(同 R82)"
+ ],
+ "验证闭环": [
+  "R82(有噪声): stalled 全程+LATERAL+δ 振荡 · R83(无噪声): next_environment 推进+",
+  "  节律+收缩 —— **EL 两态(卡/推)的生产证据配对齐全**"
+ ]
+}

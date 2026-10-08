@@ -26,8 +26,12 @@ from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Receipt                        # noqa: E402
 from dwc.organs.judge import TaskScoreStore                 # noqa: E402
 
-#: 注入: 该任务每次判分都给错观测（δ 稀有度追踪的靶）
-NOISE_TASKS = {"code_fix_004"}
+#: 注入: 该任务每次判分都给错观测（δ 稀有度追踪的靶）; CLI 可覆盖:
+#:   python trial_run.py --noise code_fix_004   指定注入
+#:   python trial_run.py --noise none           无噪声（EL 阈值效应验证轮 R83）
+_NO = sys.argv[sys.argv.index("--noise") + 1] if "--noise" in sys.argv \
+    else "code_fix_004"
+NOISE_TASKS = set() if _NO == "none" else {x for x in _NO.split(",") if x}
 N_TERMS = 6
 PER_TERM = 3          # 每 term 判分任务数（轮询）—— δ 组内样本加速积累
 
@@ -45,14 +49,13 @@ def _obs_for(anchors, tid: str) -> dict:
         fn = c["fn"]
 
         def _coerce(x):
-            s = str(x)
-            if s.lstrip("-").isdigit():
-                return int(s)
-            if s in ("True", "False"):
-                return s == "True"
-            if len(s) >= 2 and s[0] == s[-1] == "'":
-                return s[1:-1]
-            return s
+            # R83: literal_eval 统一覆盖 数字/布尔/列表/字符串字面量
+            #   （002 的 args="[1,2,3]" 列表 + expected="2.0" 浮点是 R82 口径盲区）
+            import ast
+            try:
+                return ast.literal_eval(str(x))
+            except (ValueError, SyntaxError):
+                return x
         arg, val = _coerce(c["args"]), _coerce(c["expected"])
         if tid in NOISE_TASKS:
             val = val + 1000 if isinstance(val, int) else str(val) + "_wrong"
@@ -123,7 +126,8 @@ def main() -> int:
             " ".join("%s(%.2f)" % (t[-3:], x) for t, x in top3),
             rec["dream"]["V"]))
 
-    out = os.path.join(ROOT, "docs", "trial_report_r82.json")
+    tag = "clean" if not NOISE_TASKS else "noise-" +         "-".join(sorted(NOISE_TASKS))
+    out = os.path.join(ROOT, "docs", "trial_report_r83_%s.json" % tag)
     with open(out, "w", encoding="utf-8") as f:
         json.dump({
             "round": "R82 trial",

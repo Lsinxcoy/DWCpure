@@ -1,0 +1,401 @@
+{
+ "round": "R82 trial",
+ "n_terms": 6,
+ "per_term": 3,
+ "noise_tasks": [],
+ "records": [
+  {
+   "term": 0,
+   "el_selected": {
+    "status": "insufficient",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": null,
+    "picked": "code_fix_001",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 3,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.0,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 1,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 2,
+    "pass_rate": 1.0,
+    "picked": "code_fix_005",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     true
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.5,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 2,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 1.0,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.6666666666666666,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 3,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 1.0,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     true
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.75,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 4,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 1.0,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 5,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 1.0,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     true
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8333333333333334,
+    "m_star": "π0",
+    "k2_max": 8,
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  }
+ ]
+}

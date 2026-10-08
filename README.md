@@ -90,14 +90,14 @@ dwc/
 测试    35 文件 / 703 函数 → pytest 750 项全过（18.4s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R82 · 77 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R83 · 78 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R82 · 生产多轮试运行: 6 term 全链跑通 — EL stalled/LATERAL/δ 振荡/dream V 单调升 轨迹全出, scripts/trial_run.py + docs/trial_report_r82.json）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R83 · EL 阈值效应验证: 无噪声轮 idx 1→2→3 真推进 + 节律防空转 — 与 R82 stalled 卡住配对, EL 两态生产证据齐全; literal_eval 修 002 口径盲区）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 
