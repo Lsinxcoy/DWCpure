@@ -1,0 +1,211 @@
+{
+ "①匹配预算对照(L5有效)": {
+  "2607.26117": [
+   "matched budget"
+  ]
+ },
+ "②评估器冻结/独立锚": {
+  "2606.26294": [
+   "frozen evaluator",
+   "ground-truth anchor"
+  ]
+ },
+ "③依赖定向失效(RQGM同族)": {
+  "2606.24151": [
+   "invalidate"
+  ],
+  "2606.26294": [
+   "dependency set",
+   "selective erasure"
+  ]
+ },
+ "④pass^k/可靠性": {
+  "2406.12045": [
+   "pass^k",
+   "pass at k"
+  ]
+ },
+ "⑤安慰剂/等预算对照": {
+  "2607.26117": [
+   "placebo",
+   "blind resampling"
+  ]
+ },
+ "⑥负迁移/回退": {
+  "2310.02304": [
+   "degrad"
+  ],
+  "2408.08435": [
+   "catastrophic"
+  ],
+  "2410.10762": [
+   "regression"
+  ],
+  "2505.03335": [
+   "degrad",
+   "performance drop"
+  ],
+  "2508.04700": [
+   "degrad",
+   "performance drop"
+  ],
+  "2509.25140": [
+   "degrad"
+  ],
+  "2603.24647": [
+   "degrad"
+  ],
+  "2406.11704": [
+   "degrad",
+   "regression"
+  ],
+  "2406.12045": [
+   "degrad"
+  ],
+  "2504.16891": [
+   "degrad"
+  ],
+  "2504.21318": [
+   "degrad",
+   "regression"
+  ],
+  "2511.20857": [
+   "degrad"
+  ],
+  "2603.21331": [
+   "regression"
+  ],
+  "2603.25158": [
+   "degrad",
+   "regression"
+  ],
+  "2603.26499": [
+   "degrad",
+   "regression"
+  ],
+  "2604.08988": [
+   "degrad",
+   "catastrophic"
+  ],
+  "2604.14661": [
+   "degrad"
+  ],
+  "2605.27276": [
+   "regression",
+   "catastrophic"
+  ],
+  "2606.06350": [
+   "degrad"
+  ],
+  "2606.24151": [
+   "degrad"
+  ],
+  "2606.26294": [
+   "degrad",
+   "regression"
+  ],
+  "2607.07984": [
+   "degrad",
+   "regression"
+  ],
+  "2607.25675": [
+   "degrad",
+   "regression"
+  ],
+  "2607.26117": [
+   "degrad"
+  ],
+  "2608.30760": [
+   "regression"
+  ],
+  "2608.31100": [
+   "negative transfer",
+   "degrad"
+  ]
+ },
+ "⑦自评/自判可用性": {
+  "2509.25140": [
+   "self-evaluat",
+   "self-judg"
+  ],
+  "2602.13793": [
+   "agreement with"
+  ],
+  "2505.08775": [
+   "agreement with"
+  ],
+  "2606.26294": [
+   "agreement with"
+  ],
+  "2608.31100": [
+   "self-judg"
+  ]
+ },
+ "⑧世界模型同名物": {
+  "2508.04700": [
+   "world state"
+  ],
+  "2406.12045": [
+   "world model"
+  ],
+  "2606.24151": [
+   "world model"
+  ]
+ },
+ "⑨成功侧归纳/失败归纳": {
+  "2508.04700": [
+   "successes",
+   "successful trajectories"
+  ],
+  "2509.25140": [
+   "successes",
+   "successful trajectories"
+  ],
+  "2603.24647": [
+   "successes"
+  ],
+  "2504.16891": [
+   "successes"
+  ],
+  "2603.25158": [
+   "successes",
+   "successful trajectories"
+  ],
+  "2603.26499": [
+   "successes"
+  ],
+  "2604.08988": [
+   "successes"
+  ],
+  "2606.26294": [
+   "successes"
+  ],
+  "2607.26117": [
+   "successes"
+  ],
+  "2608.31100": [
+   "successful trajectories"
+  ]
+ },
+ "⑩停止准则/预算耗尽": {
+  "2310.02304": [
+   "early stop",
+   "stopping criterion"
+  ],
+  "2408.08435": [
+   "early stop"
+  ],
+  "2410.10762": [
+   "early stop"
+  ],
+  "2504.16891": [
+   "early stop"
+  ],
+  "2607.07984": [
+   "patience"
+  ],
+  "2607.26117": [
+   "budget exhaust"
+  ]
+ }
+}
