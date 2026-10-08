@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC · 里程碑 R86 — 形态总览与演进全景</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--grn:#3fb950;--red:#f85149;--ylw:#d29922}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.75 "Segoe UI",system-ui,sans-serif;max-width:1080px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:26px;border-bottom:2px solid var(--acc);padding-bottom:10px}
+h2{font-size:19px;margin:34px 0 12px;color:var(--acc)}
+.meta{color:var(--dim);font-size:13px;margin:8px 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:14px 0}
+.card.rec{border-left:4px solid var(--grn)}
+.card.risk{border-left:4px solid var(--ylw)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;text-align:center}
+.stat b{display:block;font-size:24px;color:var(--grn)}
+.stat span{font-size:12px;color:var(--dim)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:12px;font:13px/1.6 Consolas,monospace;overflow-x:auto;margin:10px 0}
+code{font-family:Consolas,monospace;background:#1f242c;border-radius:3px;padding:1px 5px;font-size:13px}
+.dim{color:var(--dim)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128}
+.toc a{color:var(--acc);text-decoration:none;margin-right:18px;font-size:14px}
+</style>
+</head>
+<body>
+
+<h1>DWC · 里程碑 R86 — 形态总览与演进全景</h1>
+<div class="meta">2026-10-08 · 本节每个数字都是机器核（取数命令见末尾，逐项可复跑）· 阶段划分来自 <code>git log --oneline --reverse</code>，无编造 · 81 commits · 87 份知识档</div>
+
+<div class="toc">
+<a href="#s1">① 形态总览</a>
+<a href="#s2">② 演进六阶段</a>
+<a href="#s3">③ 结构与能力</a>
+<a href="#s4">④ 四机制活链</a>
+<a href="#s5">⑤ 验证资产</a>
+<a href="#s6">⑥ 论文对齐</a>
+<a href="#s7">⑦ 诚实边界</a>
+<a href="#s8">⑧ 取数命令</a>
+</div>
+
+<h2 id="s1">① 形态总览</h2>
+<div class="grid">
+<div class="stat"><b>29</b><span>src .py</span></div>
+<div class="stat"><b>12,088</b><span>承重代码行</span></div>
+<div class="stat"><b>760</b><span>pytest 全过</span></div>
+<div class="stat"><b>81</b><span>commits</span></div>
+<div class="stat"><b>87</b><span>知识档</span></div>
+<div class="stat"><b>30</b><span>论文深读报告</span></div>
+<div class="stat"><b>11</b><span>缺口销账</span></div>
+<div class="stat"><b>8/8</b><span>质量门</span></div>
+</div>
+<div class="card">
+<pre>定位    独立 agent：记忆 + 自进化（丙方向为未来扩展）
+架构    ARCHITECTURE.md v4 —— 器官式骨架 + 进化循环七环节
+形态    七器官 7/7 · 七环节 7/7 · 三入口 3/3（DWC 主类收拢 R62）· 器官 13 文件
+证据    pytest 760 passed rc=0 · gate 8/8 · e2e rc=0（LLM 段随端点波动诚实记录）
+        破坏验证协议每轮 2/2（破坏→红→恢复→绿）· 同批自洽（git 数=README 数）</pre></div>
+
+<h2 id="s2">② 演进六阶段（git log 聚合）</h2>
+<table>
+<tr><th>阶段</th><th>轮次</th><th>主题（代表 commit 标题原文）</th></tr>
+<tr><td><b>设计与起步</b></td><td>R1–R17</td><td>设计文档 + 第一批实现（初始提交 <code>b68800e</code>）</td></tr>
+<tr><td><b>器官连环</b></td><td>R18–R36</td><td>建 git + memory 内核 → run_term 首入口（R23）→ judge/actor/evolver/applier/candidates 器官 2/7–6/7 → 端到端闭环（R30 实测 5 断点）→ LLM 候选固化 + 生灭闭环真端点验完（R36）</td></tr>
+<tr><td><b>V2 理论落地</b></td><td>R37–R57</td><td>𝒦_meta/𝒦_meta 门契约 → 判据单源审计 → V2 三式（ν/ℬ/ℰ）→ 归因式 10/11 → 消费链补全与「用了没引」守卫 → 禁放水断言（当场扫出 3 假绿）→ 锁值型断言 → δ 对照实验</td></tr>
+<tr><td><b>形态完备</b></td><td>R58–R62</td><td>δ=0.15 拍板 → 进度文档刷新 → world_model（第七器官）→ iwm（环节⑤）→ <b>class DWC 三入口收拢</b></td></tr>
+<tr><td><b>实验与⑥ 落地</b></td><td>R63–R78</td><td>三臂对照实验线（R63–R67 终局否定，诚实留档）→ Z4/Z5 → ⑥ search/ 四件（weakness/el_sched/task_scores/direction）+ C3' → 消费提案（R75）→ EL 接线（R76）/ δ 排序+播种（R77）/ direction+stalled（R78）</td></tr>
+<tr><td><b>Dreaming 与自动化</b></td><td>R79–R86</td><td>Dreaming 设计稿（R79）+ 骨架（R80）+ 根语义读法乙（R81）→ 生产试运行（R82）+ EL 阈值验证（R83）→ <b>执行→判分→回填自动化</b>（R84）→ M&gt;1 设计稿（R85）+ 实现（R86）</td></tr>
+</table>
+<p class="dim">共 67 个 R 号轮 + 14 个补录/初始 commit = 81；每轮一知识档 <code>archive/knowledge3_R*.json</code>（87 份含早期 R1–R17 档）。</p>
+
+<h2 id="s3">③ 结构与能力</h2>
+<div class="card">
+<table>
+<tr><th>轴</th><th>内容</th><th>机器核</th></tr>
+<tr><td><b>三入口</b></td><td><code>ingest</code>（trace 入记忆）· <code>step</code>（一拍决策+执行+<b>自动判分回填</b>）· <code>run_term</code>（记忆链编排+任务源+快照）</td><td><code>grep -c '    def ingest|step|run_term'</code> 各 1</td></tr>
+<tr><td><b>七器官</b></td><td>memory · judge · actor · evolver · world_model · iwm · iron_laws（+ weakness/el_sched/direction/replay = ⑥ search/ 四件；applier/candidates = evolver 支撑体）</td><td><code>organs/</code> 13 文件</td></tr>
+<tr><td><b>七环节</b></td><td>①记忆 ②判分 ③执行 ④进化（evolver）⑤防漂移（iwm）⑥探索（world_model）⑦盘点</td><td>PROGRESS 七环节行 + run_term 3.5 步</td></tr>
+<tr><td><b>M&gt;1</b></td><td>PolicySpec 修订域（锁值拒）+ dream 版本循环（每版本每树单独评估）+ current=π0 必含</td><td>R86 · 6 新测试 + 破坏 2/2</td></tr>
+</table></div>
+
+<h2 id="s4">④ 四机制活链（R76–R86 接成一条）</h2>
+<div class="card rec">
+<pre>执行（step）→ executor 回执 detail["observed"]（**显式契约**）→ judge.evaluate 进 C3'
+  → W5 守纪回填树观测（已带真值不覆盖）
+    ├─ EL 采样（el_sched）: 池速率 p̂ vs τ → insufficient/stalled/next_environment
+    │    + direction_hint（stalled⇒LATERAL, 纯报告）—— R82/R83 生产两态证据
+    ├─ δ 任务源排序（weakness.task_delta_map → _el_pick / run_term wta 重排）
+    ├─ 播种（core 构造 seed_tasks, node_id=judge task_id 同域）—— R77
+    └─ Dreaming（run_term 尾快照 ℋ → ReplaySimulator → V 公式 → select_policy
+         → no_worse → DreamReport; M&gt;1 网格变体全表）—— R80/R81/R86
+证据: trial 6 term 轨迹 ×2（噪声 stalled / 干净推进）docs/trial_report_r8*.json</pre></div>
+
+<h2 id="s5">⑤ 验证资产</h2>
+<div class="card">
+<pre>pytest       760 项全过（35 文件 / 713 函数）rc=0
+质量门       scripts/gate.py 8/8（G1 定位声明 · G2 真值源 · G7 无静默 except …）
+端到端       scripts/e2e_loop.py rc=0（LLM 段: passed/candidates_rejected/no_candidates
+             —— 随端点波动，每次实测诚实记录，不挑绿）
+破坏协议     每轮核心主张 2/2（破坏→靶测试红→恢复→绿）；历史累计 40+ 次
+自洽机制     文档 commit 数 = 进入的提交序号（提交时 assert）；key 残留每轮 grep HEAD
+知识档       87 份（每轮：声称/实测/教训/诚实边界）</pre></div>
+
+<h2 id="s6">⑥ 论文对齐（确知三例）</h2>
+<div class="card">
+<table>
+<tr><th>机制</th><th>论文/依据</th><th>落地</th></tr>
+<tr><td>Dreaming 循环 §2.5–2.7</td><td><code>docs/papers/2609.14858.md</code>（逐字引用, policy-development 4 处命中）</td><td>R79 设计稿三裁决 → R80 骨架 → R81 根语义读法乙 → R86 M&gt;1</td></tr>
+<tr><td>MergeAccepted 固化</td><td><code>2606.09498 line 23</code>（R32 commit 标题原文）</td><td>R32 固化+持久化</td></tr>
+<tr><td>候选生成/LLM 分工</td><td><code>2609.08183</code>（R34/R35 LLM 形态接入的依据）</td><td>need_llm 从「只报」到「能跑」+ 固化</td></tr>
+</table>
+<p class="dim">论文深读报告 30 份（<code>docs/papers/</code>）；三层链纪律：实现 → 设计文档 → 论文，冲突时论文最高权威。</p></div>
+
+<h2 id="s7">⑦ 诚实边界（引用时别放大）</h2>
+<div class="card risk">
+<pre>1. M&gt;1 网格变体 = **搜索**，不是论文「从反馈开发策略代码」—— LLM policy-development
+   留二期（R85 稿边界，报告 why 已标）
+2. β₁/β₂ = config 初值 0，非论文报值；校准协议占位（R79 裁决③）
+3. EL 试运行的 executor 观测由 trial 造（对值/错值可控）—— 证明链路通，非能力
+4. kw 类任务（reasoning_001…）跳过判分（无 fn 键 checks）—— behavior 6 任务可判
+5. LLM 端点波动（e2e 三态）已如实记录 5+ 次 —— 引用 e2e 结果须带当次段名
+6. run_term 的 R25 score 自造观测路径仍存（与 step 自动判分**两路径并存**，见 R84 档）</pre></div>
+
+<h2 id="s8">⑧ 取数命令（逐项可复跑）</h2>
+<div class="card">
+<pre>git rev-list --count HEAD                                              # 81
+find src -name '*.py' | wc -l && find src -name '*.py' -exec cat {} + | wc -l
+                                                                       # 29 · 12088
+ls tests/*.py | wc -l && grep -rho 'def test_' tests/ | wc -l          # 35 · 713
+python -m pytest tests/ -q                                             # 760 passed
+python scripts/gate.py && python scripts/e2e_loop.py                   # 8/8 · rc=0
+ls archive/knowledge3_R*.json | wc -l                                  # 87
+ls docs/papers/ | wc -l                                                # 30
+git log --oneline --reverse | head -70                                  # 阶段标题原文</pre></div>
+
+</body>
+</html>
