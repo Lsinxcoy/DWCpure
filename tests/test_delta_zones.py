@@ -1,4 +1,4 @@
-"""★★★★★ R57 · δ 的**对照实验**固化（三区行为可复跑）—— δ 定值待用户拍板。
+"""★★★★★ R57 · δ 的**对照实验**固化（三区行为可复跑）—— R58 用户拍板 δ=0.15（2026-10-08 选项②）已落地。
 
 === 为什么固化 ===
 R50 我实测二值下 δ 只剩 {0}（无调节空间）⇒ R54 甲案让分数变 k/n
@@ -81,14 +81,14 @@ def test_zone_boundary_uses_real_deltas():
     assert set(_sigmas(REAL, big + 0.01)) == {1}
 
 
-def test_current_delta_stays_zero_until_user_decides():
-    """★★ 本测试**锁 δ 当前值 = 0**（R50 实测唯一无争议值）——
-    直到用户拍板「多小进步算噪声」才改。
-    ★ 这不是「锁死 0 是对的」, 而是**锁「改 δ 要经过拍板」这个纪律**。
+def test_current_delta_matches_user_ruling():
+    """★★ 本测试**锁 δ 当前拍板值 = 0.15**（R58 · 2026-10-08 用户选项②）。
+    ★ 这不是「锁死 0.15 是对的」, 而是**锁「改 δ 要经过拍板」这个纪律** ——
+      下次改 δ 仍须: 拍板 → 改这里 → 更新 basis → 重跑三区。
     """
-    assert noise_delta()["delta"] == 0.0, \
+    assert noise_delta()["delta"] == 0.15, \
         "★ δ 变了 ⇒ 需要: ① 用户拍板 ② 更新 basis(区间的实测依据) " \
-        "③ 重跑本测试的三区行为"
+        "③ 重跑本测试的三区行为（当前拍板值 = 0.15）"
 
 
 def test_delta_zone_report_is_reproducible():

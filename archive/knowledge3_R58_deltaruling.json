@@ -1,0 +1,26 @@
+{
+ "round": "R58 · δ=0.15 拍板落地（三处锁值同步 + 纪律破坏验证 + e2e 实证）",
+ "date": "2026-10-08",
+ "用户指令": "那就执行你的推荐（= 选项① δ=0.15 落地；推荐② 即 δ=0.15 已在上轮确认）",
+ "改动": [
+  "evolver.py 5 处: L639 R50 结论标记作废(二值粒度) · L645 真问题段追加拍板链 · L657 NOISE_DELTA 0.0→0.15(按唯一文本+回读验打中定义行) · L664 docstring · L671 basis 更新为拍板链",
+  "test_delta_zones.py 2 处: 头 docstring 标 R58 已落地 · test_current_delta_stays_zero_until_user_decides → test_current_delta_matches_user_ruling 锁 0.15",
+  "test_v2_three_formulas.py 1 处: 依据链 4 步(R50确定性→R54粒度→R57三区→R58拍板) + 断言 0.15"
+ ],
+ "破坏验证": [
+  "按唯一文本定位定义行 L657(回读验打中=定义行, 非注释) → δ 改回 0",
+  "→ 2 条纪律测试红: test_current_delta_matches_user_ruling + test_noise_delta_is_measured_not_guessed",
+  "→ 恢复逐字节一致 → 45 passed ✓ (纪律活着: 改 δ 必经拍板)"
+ ],
+ "三层实测": [
+  "pytest 560 passed 14.45s rc=0 · gate 全部通过 rc=0",
+  "e2e rc=0 · σ_t=0(Δ=+0.222>δ=0.15 判涨) · 判别力 σ 输出过={0,1}(δ=0.15 未退化) · 自然涨 8 + 跌 6 · 三段 passed/landed/retired · anchors 零残留"
+ ],
+ "诚实边界": [
+  "★ 调节区间 (0.111,0.222] 依赖当前 Δ 档位(4 task k/n) —— task/check 数变则档位变, δ 需复核",
+  "★ δ=0.15 < 聚合步长 ≈0.167(e2e 6 check) 但接近 —— Σn 变大步长变小, 「单 check 可分辨」结论会漂",
+  "★ e2e 是单轮实证, 非多轮统计",
+  "★ README/PROGRESS.md 仍停在『代码 0 行』(过期, 未在本轮修, 属选项②/③)",
+  "★ 未经第二人复核"
+ ]
+}
