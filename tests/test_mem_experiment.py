@@ -18,8 +18,10 @@ ROOT = r"E:/Divine Wisdom Core"
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.experiments.mem_guidance_vs_replay import (  # noqa: E402
-    ARMS, MEMO_BUDGET, SEED_HIT, SEED_MEMORY, TASKS, TRUTH_SOURCE,
-    build_prompt, extract_code, make_tree, reveal_path, run_experiment,
+    ARMS, HARD_PATH, MEMO_BUDGET, SEED_HIT, SEED_MEMORY, TASKS, TRUTH_SOURCE,
+    _HardSandbox, _realistic_distractors, build_prompt, extract_code,
+    hard_fns, hard_judge, hard_sources, make_tree, reveal_path,
+    run_experiment,
 )
 from dwc.llm.client import LLMResult  # noqa: E402
 
@@ -34,6 +36,32 @@ FIX = {
                       "    return s.lower() == s[::-1].lower()"),
     "reverse_string": "def reverse_string(s):\n    return s[::-1]",
 }
+#: hard 任务的 golden 修复（离线 Fake 用; 真实验由真 LLM 产）
+FIX.update({
+    "is_leap": ("def is_leap(year):\n"
+                "    return year % 400 == 0 or (year % 4 == 0 and year % 100 != 0)"),
+    "caesar": ("def caesar(s, k):\n"
+               "    out = []\n"
+               "    for ch in s:\n"
+               "        if 'a' <= ch <= 'z':\n"
+               "            out.append(chr((ord(ch) - 97 + k) % 26 + 97))\n"
+               "        elif 'A' <= ch <= 'Z':\n"
+               "            out.append(chr((ord(ch) - 65 + k) % 26 + 65))\n"
+               "        else:\n"
+               "            out.append(ch)\n"
+               "    return ''.join(out)"),
+    "median": ("def median(xs):\n"
+               "    if not xs:\n        return 0.0\n"
+               "    s = sorted(xs)\n    n = len(s)\n"
+               "    m = n // 2\n"
+               "    return s[m] if n % 2 else (s[m - 1] + s[m]) / 2"),
+    "chunk": ("def chunk(s, n):\n"
+              "    if not s or n <= 0:\n        return []\n"
+              "    return [s[i:i + n] for i in range(0, len(s), n)]"),
+    "clamp": ("def clamp(v, lo, hi):\n"
+              "    if lo > hi:\n        lo, hi = hi, lo\n"
+              "    return min(max(v, lo), hi)"),
+})
 
 
 class FakeLLM:
@@ -296,3 +324,80 @@ def test_experiment_garbage_reply_counted_not_passed():
 def test_truth_source_declared():
     """G2: 实验模块声明真值源。"""
     assert "judge" in TRUTH_SOURCE["真值源位置"]
+
+
+# ══════════════════════════════════════════════════════════
+# R65 · 硬战场（hard dataset）
+# ══════════════════════════════════════════════════════════
+
+def test_hard_anchor_loads_and_premise():
+    """hard 锚点: judge 同一逻辑可加载 · 5 题 checks≥5 · 基线全 fail（前提）。"""
+    from dwc.organs.actor import Actor, execute_task
+    assert os.path.exists(HARD_PATH)
+    j = hard_judge()
+    srcs = hard_sources(j)
+    assert len(srcs) == 5, list(srcs)
+    assert sorted(hard_fns(j)) == ["caesar", "chunk", "clamp", "is_leap",
+                                   "median"], hard_fns(j)
+    with _HardSandbox(hard_fns(j)):
+        for tid, buggy in srcs.items():
+            rec = j.anchors[tid]
+            assert rec["verifier_kind"] == "behavior"
+            assert len(rec["checks"]) >= 5, (tid, len(rec["checks"]))
+            obs = execute_task(Actor(), j, tid, implementation=buggy)[
+                "observation"]
+            v = j.evaluate(tid, "dev", observed=obs)
+            assert v.success is False, "★ %s 基线过了 ⇒ 前提不成立" % tid
+
+
+def test_hard_sandbox_expands_then_restores():
+    """★ 白名单: 具名扩 → 跑 → 必须恢复（含异常路径）。"""
+    from dwc.organs.actor import PureFunctionExecutor as P
+    before = P.ALLOWED
+    with _HardSandbox(["is_leap"]):
+        assert "is_leap" in P.ALLOWED
+        assert set(before) <= set(P.ALLOWED)
+    assert P.ALLOWED == before, "★ 白名单没恢复"
+    try:
+        with _HardSandbox(["caesar"]):
+            raise RuntimeError("模拟中途异常")
+    except RuntimeError:
+        pass
+    assert P.ALLOWED == before, "★ 异常路径白名单没恢复"
+
+
+def test_realistic_distractors_are_misleading_not_placeholders():
+    """★ R65 核心: 干扰是**真实误导措辞**（不是占位）· 恒 36 条 · 避开 exclude。"""
+    exclude = {("E_VALUE", "wrong_magnitude"),
+               ("E_OFF_BY_ONE", "off_by_one_in_range")}
+    dis = _realistic_distractors(exclude)
+    assert len(dis) == 36
+    for d in dis:
+        assert (d["c"], d["q"]) not in exclude, "★ 没避开签名: %s" % d
+        assert "占位" not in d["fix_hint"] and "供稀释对照" not in d["fix_hint"], \
+            "★ 还是占位文本: %s" % d["fix_hint"]
+    hints = {d["fix_hint"] for d in dis}
+    assert "range 是右开区间, 千万别手贱 +1, 多算是初学者错误" in hints
+    assert len(hints) >= 12                     # 措辞不单一
+
+
+def test_hard_run_offline_fake_full_pass():
+    """hard 离线全流程: Fake 给 golden ⇒ 5 题三臂全过 · replay 恒零揭示（避让）。"""
+    res = run_experiment(FakeLLM(), repeat=1, rounds=2, dataset="hard")
+    assert res["dataset"] == "hard" and res["n_tasks"] == 5
+    # 无前提失败（buggy 全 fail 已验）
+    assert not [r for r in res["records"] if "前提失败" in r.get("error", "")]
+    for arm in ARMS:
+        s = res["arms"][arm]
+        assert s["n_trials"] == 5 and s["n_trials_passed"] == 5, (arm, s)
+        assert s["n_calls"] == 5, "全过早停 ⇒ 1 call/trial, %s" % arm
+    assert res["arms"]["guidance"]["memo_n_per_call"] == [36]
+    # ★ 避让设计: hard 签名不在树里 ⇒ replay 每次都零揭示
+    assert res["arms"]["replay"]["memo_n_per_call"] == [0], \
+        res["arms"]["replay"]["memo_n_per_call"]
+
+
+def test_dataset_arg_validated():
+    """阳性: 非法 dataset ⇒ 报错不静默。"""
+    with pytest.raises(ValueError, match="dataset"):
+        run_experiment(FakeLLM(), dataset="dev_test")

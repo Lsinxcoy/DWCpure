@@ -1,0 +1,87 @@
+{
+ "_provenance": {
+  "source": "实验自建 · R65 硬战场（区分度增强第三轮）",
+  "date": "2026-10-08",
+  "事前选题标准": "behavior 任务 · 每条 checks=5 · 多分支语义交织（dev 最多 4 checks)",
+  "诚实边界": [
+   "★ 选题**不看 LLM 表现** —— 入选只按结构标准; 若 LLM 仍全过, 如实报区分度不足",
+   "★ buggy 是实验构造的系统性缺陷（每题写完实测基线须 fail, 否则补 bug 到 fail 为止 — 这是前提修复不是结果挑）",
+   "★ 与 dev/anchors 不相交（任务 id 前缀 hard_）, 不动 dev 真值源"
+  ]
+ },
+ "hard_001_leap": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 is_leap: 判断闰年（4年闰、百年不闰、400年闰）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "is_leap(2000) is True and is_leap(1900) is False and is_leap(2024) is True and is_leap(2023) is False and is_leap(2100) is False",
+  "buggy": "def is_leap(year):\n    return year % 4 == 0",
+  "checks": [
+   {"fn": "is_leap", "args": "2000", "expected": "True"},
+   {"fn": "is_leap", "args": "1900", "expected": "False"},
+   {"fn": "is_leap", "args": "2024", "expected": "True"},
+   {"fn": "is_leap", "args": "2023", "expected": "False"},
+   {"fn": "is_leap", "args": "2100", "expected": "False"}
+  ]
+ },
+ "hard_002_caesar": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 caesar: 凯撒移位, 保大小写、非字母不动、支持负数与环绕",
+  "verifier_kind": "behavior",
+  "expected_behavior": "caesar('abc',1)=='bcd' and caesar('XYZ',1)=='YZA' and caesar('Abc!',1)=='Bcd!' and caesar('abc',0)=='abc' and caesar('abc',-1)=='zab'",
+  "buggy": "def caesar(s, k):\n    return ''.join(chr(ord(c) + 1) for c in s)",
+  "checks": [
+   {"fn": "caesar", "args": "'abc', 1", "expected": "'bcd'"},
+   {"fn": "caesar", "args": "'XYZ', 1", "expected": "'YZA'"},
+   {"fn": "caesar", "args": "'Abc!', 1", "expected": "'Bcd!'"},
+   {"fn": "caesar", "args": "'abc', 0", "expected": "'abc'"},
+   {"fn": "caesar", "args": "'abc', -1", "expected": "'zab'"}
+  ]
+ },
+ "hard_003_median": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 median: 中位数（偶数取均值、空序列返回 0.0、保 float 语义）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "median([3,1,2])==2 and median([4,1,3,2])==2.5 and median([7])==7 and median([])==0.0 and median([-1,-3,-2])==-2",
+  "buggy": "def median(xs):\n    return xs[0]",
+  "checks": [
+   {"fn": "median", "args": "[3, 1, 2]", "expected": "2"},
+   {"fn": "median", "args": "[4, 1, 3, 2]", "expected": "2.5"},
+   {"fn": "median", "args": "[7]", "expected": "7"},
+   {"fn": "median", "args": "[]", "expected": "0.0"},
+   {"fn": "median", "args": "[-1, -3, -2]", "expected": "-2"}
+  ]
+ },
+ "hard_004_chunk": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 chunk: 按步长切串（余块保留、空串给 []、步长大于长度整块）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "chunk('abcdef',2)==['ab','cd','ef'] and chunk('abcde',2)==['ab','cd','e'] and chunk('',2)==[] and chunk('abc',1)==['a','b','c'] and chunk('abc',10)==['abc']",
+  "buggy": "def chunk(s, n):\n    return [s[i:i + n] for i in range(0, len(s), n)] if n and len(s) % n == 0 else []",
+  "checks": [
+   {"fn": "chunk", "args": "'abcdef', 2", "expected": "['ab', 'cd', 'ef']"},
+   {"fn": "chunk", "args": "'abcde', 2", "expected": "['ab', 'cd', 'e']"},
+   {"fn": "chunk", "args": "'', 2", "expected": "[]"},
+   {"fn": "chunk", "args": "'abc', 1", "expected": "['a', 'b', 'c']"},
+   {"fn": "chunk", "args": "'abc', 10", "expected": "['abc']"}
+  ]
+ },
+ "hard_005_clamp": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 clamp: 把 v 夹到 [lo, hi]（边界含端点、lo>hi 时先交换）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "clamp(5,0,10)==5 and clamp(-1,0,10)==0 and clamp(11,0,10)==10 and clamp(5,10,0)==5 and clamp(10,0,10)==10",
+  "buggy": "def clamp(v, lo, hi):\n    return v if lo < v < hi else lo",
+  "checks": [
+   {"fn": "clamp", "args": "5, 0, 10", "expected": "5"},
+   {"fn": "clamp", "args": "-1, 0, 10", "expected": "0"},
+   {"fn": "clamp", "args": "11, 0, 10", "expected": "10"},
+   {"fn": "clamp", "args": "5, 10, 0", "expected": "5"},
+   {"fn": "clamp", "args": "10, 0, 10", "expected": "10"}
+  ]
+ }
+}

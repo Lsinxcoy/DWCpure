@@ -1,0 +1,39 @@
+{
+ "round": "R65 · 硬战场（自建难题 + 真实误导干扰 + 签名避让）· 三轮实验累计判读",
+ "date": "2026-10-08",
+ "用户指令": "执行1（= 换更硬的战场）",
+ "设计（事前定）": [
+  "自建 5 题锚点 config/experiments/hard_tasks.json（选题标准=checks≥5+多分支语义, **不看 LLM**）",
+  "judge(anchors_path=) 走同一判分逻辑; _provenance 记诚实边界",
+  "36 条**真实误导**干扰替换占位文本（R64 教训: 占位 LLM 直接无视）; (c,q) 按基线签名事前避让",
+  "hard 模式无历史命中（新任务=V1 真实处境: 树里只有别的东西）; 白名单进程内具名扩+恢复"
+ ],
+ "★ 实测（37 调用, archive/experiments/mem_guidance_vs_replay_hard.json）": [
+  "arm       calls llm_ok parsed pass(trial) pass_rate memo_n",
+  "none        7     5      5       3/5     0.600    [0]",
+  "guidance    7     7      7       3/5     0.600    [36]",
+  "replay      7     6      6       3/5     0.600    [0]",
+  "逐任务: leap/caesar/chunk 三臂首轮全过; **median/clamp 三臂首轮全 fail（区分度首次出现!）**",
+  "但 R2 也没救回: guidance 两题二轮仍败 · none/replay 的 R2 LLM 挂",
+  "⇒ V1 记忆增益三轮一致为零 · 误导/稀释假说连续两轮不成立 · 三臂同分"
+ ],
+ "★ 本轮逮住的生产 bug（硬任务的价值）": [
+  "actor.PureFunctionExecutor.__call__: self.fn(args) 多参 tuple 未解包 ⇒ TypeError",
+  "  ⇒ actual=None 判 fail; dev 6 任务**全单参**从未暴露 — 硬任务当场逮住",
+  "  修: call_args=args if tuple else (args,); fn(*call_args) — 单参路径逐字节不变",
+  "  锁: test_executor_multiargs_unpacks_tuple + single_arg_unchanged（破坏回退即红 ✓）"
+ ],
+ "验证": [
+  "pytest 654 passed(+7) rc=0 · gate 8/8 · e2e rc=0",
+  "破坏 2/2: ①解包回退→2 红 ②避让失效→1 红（首测**不红**⇒根因=干扰池不含 hard 签名组=避让形同虚设,",
+  "  扩池把签名组置首后被抓 — 破坏验证逼出设计缺陷的活例）",
+  "坑: R64 收官 PROGRESS 批量替换断言失败整文件未写盘 ⇒ L17 测试行漏改(644) — 本轮发现并补正"
+ ],
+ "诚实边界": [
+  "★ LLM 层 3/7 次调用挂（1 Timeout+2 空返回）— 端点质量本轮退化, none/replay 受损更重, n=3/臂可解释性弱",
+  "★ 三轮实验累计判读: 单步修复任务上记忆消费方式差异**三轮同分** — 边际信息已很低",
+  "★ 有效因素仍是臂中立多轮反馈（R64 4/5 救回）; e2e LLM 段连续 3 轮 candidates_rejected 同源退化",
+  "★ 下一步建议交用户: 多轮记忆增长/跨任务迁移场景（记忆的写入侧）或回落 DWC 主线",
+  "★ 未经第二人复核"
+ ]
+}

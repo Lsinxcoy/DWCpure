@@ -487,9 +487,16 @@ class PureFunctionExecutor:
     def __call__(self, task: Dict[str, Any]) -> Receipt:
         """★ 执行并**读回校验**（Verified Coupling）。"""
         args = self._parse_args(task.get("args", ""))
-        first = self.fn(args)
+        # ★ R65 实测: 多参字面量（"5, 0, 10"）被 literal_eval 解析成 **tuple**,
+        #   必须解包传入 —— 此前 `self.fn(args)` 把整个 tuple 当**一个参数**
+        #   ⇒ TypeError: missing 1 required positional argument
+        #   ⇒ ⇒ dev 6 任务全是单标量/单列表 ⇒ 从未暴露; hard 3 题（多参）逮住
+        #   单标量/单列表: 包成 (args,) ⇒ 与旧行为逐字节一致（零回归）
+        #   （tuple 恒为多参语义 — literal_eval 对 "a, 1" 才产出 tuple）
+        call_args = args if isinstance(args, tuple) else (args,)
+        first = self.fn(*call_args)
         # ★★ 读回: 再取一次，值一致才 verified
-        second = self.fn(args)
+        second = self.fn(*call_args)
         verified = (first == second)
         self.calls.append((str(args), first))
         return Receipt(

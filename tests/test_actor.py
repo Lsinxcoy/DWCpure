@@ -395,3 +395,40 @@ def test_success_sources_restricted():
     with pytest.raises(ActorError):
         Trace(action="x", decision={"source": "h"},
               success_source="self_reported")
+
+
+def _bare_executor(fn):
+    """绕开 __init__（白名单）造一个只测 __call__ 解包逻辑的 executor。"""
+    ex = PureFunctionExecutor.__new__(PureFunctionExecutor)
+    ex.fn = fn
+    ex.calls = []
+    ex.source_from = "test"
+    return ex
+
+
+def test_executor_multiargs_unpacks_tuple():
+    """★ R65 修复锁（hard 任务逮住的承重件 bug）:
+    多参字面量 "2, 3" → literal_eval 得 tuple ⇒ 必须**解包**传入。
+
+    此前 `self.fn(args)` 把整个 tuple 当一个参数 ⇒ TypeError:
+    missing 1 required positional argument —— dev 6 任务全是单参
+    ⇒ 从未暴露; 这条测试是 RED 锁（破坏: 去掉 * 即红）。
+    """
+    ex = _bare_executor(lambda a, b: a + b)
+    rc = ex({"args": "2, 3"})
+    assert rc.ok and rc.detail["value"] == 5
+    assert rc.verified
+    ex2 = _bare_executor(lambda s, k: s * k)
+    rc2 = ex2({"args": "'ab', 3"})
+    assert rc2.detail["value"] == "ababab"
+
+
+def test_executor_single_arg_unchanged():
+    """★★ 零回归锁: 单标量 / 单列表 / 解析失败(None) 与旧行为一致。"""
+    ex = _bare_executor(lambda n: n * 2)
+    assert ex({"args": "4"}).detail["value"] == 8
+    ex2 = _bare_executor(lambda xs: list(xs))
+    assert ex2({"args": "[1, 2]"}).detail["value"] == [1, 2]
+    ex3 = _bare_executor(lambda v: v)
+    # literal_eval 失败 ⇒ None（旧行为: fn(None) 不崩）
+    assert ex3({"args": "not a literal"}).detail["value"] is None

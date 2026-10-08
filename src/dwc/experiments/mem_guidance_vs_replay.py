@@ -138,6 +138,118 @@ SEED_MEMORY: List[Dict[str, str]] = SEED_HIT + _distractors()
 #: guidance 平铺 40 vs replay 按路径 1–3, 这个差**就是**被测对象）
 MEMO_BUDGET = 40
 
+# ══════════════════════════════════════════════════════════
+# R65 · 硬战场: 自建难题锚点 + 真实误导干扰（纯稀释实验）
+# ══════════════════════════════════════════════════════════
+
+HARD_PATH = os.path.join(_ROOT, "config", "experiments", "hard_tasks.json")
+
+#: ★ 真实误导性干扰（R65 替换占位文本）—— 措辞像专业经验, 但方向错误/无关:
+#:   这才是 guidance 平铺的真弹药（占位文本 LLM 直接无视, R64 教训）
+#:   (c,q) 由基线签名**事前避让**（见 _realistic_distractors 的 exclude 参数）
+_MISLEAD_HINTS = [
+    "range 是右开区间, 千万别手贱 +1, 多算是初学者错误",
+    "空序列应抛 ValueError 而不是返回哨兵值, 静默兜底掩盖 bug",
+    "把每个分支都改成显式 raise, 宁可崩溃也别给错误结果",
+    "先写类型注解再实现, 能规避九成边界问题",
+    "比较浮点数直接 == 就行, 加 epsilon 是过度工程",
+    "函数越短越好, 早退反模式让调用方难以推理",
+    "所有边界条件合并到一个三元表达式里最清晰",
+    "先查标准库再动手, 自己写循环通常不如内置函数",
+    "递归比循环可读性高, 优先递归翻译数学定义",
+    "把魔法数字抽成常量是第一优先级, 逻辑可以后补",
+    "字符串处理直接拼接最直观, join 是过早优化",
+    "try/except 兜底越宽越好, 保证主流程不中断",
+]
+_MISLEAD_SCENE = ["通用手法", "边界哲学", "风格准则"]   # 3 × 12 = 36
+
+
+def _realistic_distractors(exclude: set) -> List[Dict[str, str]]:
+    """★ 36 条**真实误导**干扰: (c,q) 避开 exclude（hard 任务真实签名）。
+
+    exclude 为空（如 dev 旧路径）时退化为与 R64 相同的干扰 (c,q) 池。
+    固定顺序 ⇒ 可复现。
+    """
+    # ★ R65 实测: hard 任务的真实签名组必须**在池内**（历史经验的签名分布
+    #   本该覆盖它们）—— 否则"避让"无对象 = 形同虚设（破坏②实测不红的根因）
+    #   置于池首: 排除后列表左移, pairs 恰好用剩余 12 组
+    base_cq = [
+        ("E_VALUE", "wrong_magnitude"),
+        ("E_OFF_BY_ONE", "off_by_one_in_range"),
+        ("E_MISMATCH", "wrong_content"),
+        ("E_MISMATCH", "value_mismatch"),
+        ("E_FALSE_POSITIVE", "wrong_polarity"),
+        ("E_TYPE", "type_mismatch"), ("E_TYPE", "wrong_polarity"),
+        ("E_TYPE", "abstained_or_missing"),
+        ("E_NO_RESULT", "type_mismatch"), ("E_NO_RESULT", "wrong_polarity"),
+        ("E_NO_RESULT", "abstained_or_missing"),
+        ("E_NONE", "type_mismatch"), ("E_NONE", "wrong_polarity"),
+        ("E_NONE", "abstained_or_missing"),
+        ("E_VALUE", "guard_missing"),
+        ("E_OFF_BY_ONE", "guard_missing"),
+        ("E_OFF_BY_ONE", "type_mismatch"),
+    ]
+    cq = [(c, q) for (c, q) in base_cq if (c, q) not in exclude] or base_cq
+    # ★ 恒 12 对/场景 ⇒ 36 条（exclude 后 (c,q) 循环补位, 条数不缩水 ——
+    #   条数是预算对等的前提, 不许因避让而变）
+    pairs = [(cq[i % len(cq)], _MISLEAD_HINTS[i % len(_MISLEAD_HINTS)])
+             for i in range(12)]
+    out: List[Dict[str, str]] = []
+    for sc in _MISLEAD_SCENE:
+        for (c, q), hint in pairs:
+            out.append({"scene": "%s·%s" % (sc, c),
+                        "c": c, "q": q,
+                        "fix_hint": hint})
+    return out
+
+
+def hard_judge() -> Any:
+    """实验自带锚点的 judge（同一判分逻辑, 真值源=锚点文件）。"""
+    from dwc.organs.judge import Judge as _Judge
+    return _Judge(anchors_path=HARD_PATH)
+
+
+def hard_fns(judge: Any) -> List[str]:
+    """hard 任务的**函数名**集合（沙箱白名单的键是 fn 不是 task id）。"""
+    fns = set()
+    for tid, rec in judge.anchors.items():
+        if tid.startswith("_") or not isinstance(rec, dict):
+            continue
+        for c in rec.get("checks") or []:
+            if c.get("fn"):
+                fns.add(str(c["fn"]))
+    return sorted(fns)
+
+
+def hard_sources(judge: Any) -> Dict[str, str]:
+    """hard 任务的 buggy 实现（锚点 rec 自带字段, judge 校验只认 kind/checks）。"""
+    return {tid: rec["buggy"] for tid, rec in judge.anchors.items()
+            if not tid.startswith("_") and isinstance(rec, dict)}
+
+
+class _HardSandbox:
+    """★ 进程内具名扩沙箱白名单（跑完恢复 —— 不改承重件, 影响面=本进程）。
+
+    白名单是防任意执行的边界: 只加实验锚点里的**具名**函数, 不放开通配。
+    """
+
+    def __init__(self, fns):
+        from dwc.organs.actor import PureFunctionExecutor as _P
+        self._cls = _P
+        self._fns = tuple(fns)
+
+    def __enter__(self):
+        old = self._cls.ALLOWED
+        self._old = old
+        merged = tuple(dict.fromkeys(list(old) + list(self._fns)))
+        # ★ 具名白名单, 无通配; 扩的每个名字来自实验锚点
+        self._cls.ALLOWED = merged
+        return self
+
+    def __exit__(self, *exc):
+        self._cls.ALLOWED = self._old   # 恢复原状（异常路径也恢复）
+        return False
+
 ARMS = ("none", "guidance", "replay")
 
 
@@ -257,18 +369,28 @@ def extract_code(text: str) -> Optional[str]:
 
 def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                    tasks: Optional[Dict[str, str]] = None,
-                   qa: Optional[bool] = None) -> Dict[str, Any]:
-    """R64 · 三臂对照（dev 全集 + 多轮早停）。llm 只要 .complete（可注入假的）。
+                   qa: Optional[bool] = None,
+                   dataset: str = "dev") -> Dict[str, Any]:
+    """R65 · 三臂对照。dataset="dev"（R64 行为）/ "hard"（R65 硬战场）。
 
-    ★ 多轮语义: 第 r≥2 轮的 prompt 带**臂中立**反馈（上轮产出 + judge 失败
-      原因, 三臂同文）; 任一轮 pass ⇒ 该 trial 早停（修好了不再修）。
-    ★ tasks 显式传 ⇒ 只跑 behavior 子集（测试用）; qa=None ⇒ 全集时含
-      reasoning, 子集时不含（qa=True 可单独跑推理通道）。
+    ★ 两阶段: ①全基线拿臂中立签名（前提: 每条基线须 fail）→ ②建树 → ③臂循环。
+    ★ hard: judge=实验锚点 · 种子=36 条**真实误导**（签名事前避让 · 无命中 ——
+      新任务没有历史, 这就是 V1 的真实处境）· 白名单进程内具名扩并恢复。
+    ★ 多轮: r≥2 带臂中立反馈; 任一轮 pass ⇒ 该 trial 早停。
     """
-    behav = dict(tasks) if tasks is not None else dict(BEHAVIOR_TASKS)
-    include_qa = (tasks is None) if qa is None else bool(qa)
-    judge, actor = Judge(), Actor()
-    tree = make_tree(SEED_MEMORY)
+    if dataset not in ("dev", "hard"):
+        raise ValueError("dataset=%r 非法" % dataset)
+    if dataset == "hard":
+        judge = hard_judge()
+        behav = hard_sources(judge)
+        include_qa = False
+        ctx: Any = _HardSandbox(hard_fns(judge))
+    else:
+        behav = dict(tasks) if tasks is not None else dict(BEHAVIOR_TASKS)
+        include_qa = (tasks is None) if qa is None else bool(qa)
+        judge, actor = Judge(), Actor()
+        ctx = _NullCtx()
+    actor = Actor()
     records: List[Dict[str, Any]] = []
     started = time.time()
 
@@ -279,86 +401,106 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                    str(judge.anchors[tid].get("prompt", "")))
                   for tid in QA_TASKS]
 
-    for tid, kind, material in specs:
-        # ① 基线拿**真实**失败签名（臂中立 —— replay 路径的依据）
-        if kind == "code":
-            base_obs = execute_task(
-                actor, judge, tid, implementation=material)["observation"]
+    with ctx:
+        # ── 阶段① 全基线（臂中立签名; hard 还要给干扰避让用）──
+        sig_map: Dict[str, Optional[Tuple[str, str]]] = {}
+        for tid, kind, material in specs:
+            if kind == "code":
+                base_obs = execute_task(
+                    actor, judge, tid, implementation=material)["observation"]
+            else:
+                base_obs = {"answer": ""}      # 推理类基线 = 空答案
+            v_base = judge.evaluate(tid, "dev", observed=base_obs)
+            if v_base.success is not False:
+                records.append({"task": tid, "arm": "-", "rep": -1, "round": 0,
+                                "error": "前提失败: 基线没被判 fail "
+                                         "(success=%s) ⇒ 实验不成立"
+                                         % v_base.success})
+                sig_map[tid] = None
+                continue
+            s = v_base.failure_signature or {}
+            sig_map[tid] = (str(s.get("c", "")), str(s.get("q", "")))
+
+        # ── 阶段② 建树（hard: 真实误导, 避开签名; dev: R64 种子）──
+        if dataset == "hard":
+            exclude = {v for v in sig_map.values() if v}
+            seed = _realistic_distractors(exclude)
         else:
-            base_obs = {"answer": ""}      # 推理类基线 = 空答案
-        v_base = judge.evaluate(tid, "dev", observed=base_obs)
-        sig = v_base.failure_signature or {}
-        c, q = sig.get("c", ""), sig.get("q", "")
-        if v_base.success is not False:
-            records.append({"task": tid, "arm": "-", "rep": -1, "round": 0,
-                            "error": "前提失败: 基线没被判 fail "
-                                     "(success=%s) ⇒ 实验不成立" % v_base.success})
-            continue
-        for arm in ARMS:
-            for rep in range(repeat):
-                if arm == "guidance":
-                    memo_items: List[Dict[str, str]] = SEED_MEMORY[:MEMO_BUDGET]
-                    summary = ""
-                elif arm == "replay":
-                    memo_items, summary = reveal_path(tree, c, q)
-                else:
-                    memo_items, summary = [], ""
-                feedback: Optional[str] = None
-                for rnd in range(1, rounds + 1):
-                    rec = {"task": tid, "arm": arm, "rep": rep, "round": rnd,
-                           "kind": kind, "sig_c": c, "sig_q": q,
-                           "memo_n": len(memo_items), "llm_ok": False,
-                           "parsed": False, "pass_": None, "error": ""}
-                    prompt = build_prompt(arm, tid, material,
-                                          memo_items=memo_items,
-                                          replay_summary=summary,
-                                          material_kind=kind,
-                                          feedback=feedback)
-                    res = llm.complete(
-                        prompt, system="只输出可运行的修复代码或直接答案。")
-                    if not res.ok:
-                        rec["error"] = "llm: %s" % (res.error or res.source)
-                        records.append(rec)
-                        break
-                    rec["llm_ok"] = True
-                    if kind == "code":
-                        output = extract_code(res.text)
-                        if output is None:
-                            rec["error"] = "回复不可解析为代码"
+            seed = SEED_MEMORY
+        tree = make_tree(seed)
+
+        # ── 阶段③ 臂循环 ──
+        for tid, kind, material in specs:
+            if sig_map.get(tid) is None:
+                continue                       # 前提失败的任务不进臂
+            c, q = sig_map[tid]  # type: ignore[misc]
+            for arm in ARMS:
+                for rep in range(repeat):
+                    if arm == "guidance":
+                        memo_items: List[Dict[str, str]] = seed[:MEMO_BUDGET]
+                        summary = ""
+                    elif arm == "replay":
+                        memo_items, summary = reveal_path(tree, c, q)
+                    else:
+                        memo_items, summary = [], ""
+                    feedback: Optional[str] = None
+                    for rnd in range(1, rounds + 1):
+                        rec = {"task": tid, "arm": arm, "rep": rep,
+                               "round": rnd, "kind": kind,
+                               "sig_c": c, "sig_q": q,
+                               "memo_n": len(memo_items), "llm_ok": False,
+                               "parsed": False, "pass_": None, "error": ""}
+                        prompt = build_prompt(arm, tid, material,
+                                              memo_items=memo_items,
+                                              replay_summary=summary,
+                                              material_kind=kind,
+                                              feedback=feedback)
+                        res = llm.complete(
+                            prompt,
+                            system="只输出可运行的修复代码或直接答案。")
+                        if not res.ok:
+                            rec["error"] = "llm: %s" % (res.error or res.source)
                             records.append(rec)
                             break
-                        rec["parsed"] = True
-                    else:
-                        output = res.text
-                        rec["parsed"] = True
-                    try:
+                        rec["llm_ok"] = True
                         if kind == "code":
-                            obs = execute_task(
-                                actor, judge, tid,
-                                implementation=output)["observation"]
+                            output = extract_code(res.text)
+                            if output is None:
+                                rec["error"] = "回复不可解析为代码"
+                                records.append(rec)
+                                break
+                            rec["parsed"] = True
                         else:
-                            obs = {"answer": str(output)}
-                        v = judge.evaluate(tid, "dev", observed=obs)
-                        rec["pass_"] = bool(v.success)
-                    except Exception as exc:   # noqa: BLE001 —— 如实记录
-                        rec["error"] = "执行/判分异常 %s: %s" % (
-                            type(exc).__name__, str(exc)[:100])
+                            output = res.text
+                            rec["parsed"] = True
+                        try:
+                            if kind == "code":
+                                obs = execute_task(
+                                    actor, judge, tid,
+                                    implementation=output)["observation"]
+                            else:
+                                obs = {"answer": str(output)}
+                            v = judge.evaluate(tid, "dev", observed=obs)
+                            rec["pass_"] = bool(v.success)
+                        except Exception as exc:   # noqa: BLE001 —— 如实记录
+                            rec["error"] = "执行/判分异常 %s: %s" % (
+                                type(exc).__name__, str(exc)[:100])
+                            records.append(rec)
+                            break
                         records.append(rec)
-                        break
-                    records.append(rec)
-                    if rec["pass_"]:
-                        break                  # ★ 早停
-                    # ★ 臂中立反馈（三臂同文 —— 只含上轮产出与 judge 原因）
-                    if kind == "code":
-                        feedback = ("你上轮的代码:\n```python\n%s\n```\n"
-                                    "判分失败原因: %s"
-                                    % (output, str(v.reason)[:300]))
-                    else:
-                        diffs = getattr(v, "diffs", None) or []
-                        miss = [str(d.get("kw")) for d in diffs
-                                if not d.get("ok") and d.get("kw")]
-                        feedback = ("你上轮的答案: %s\n缺失关键词: %s"
-                                    % (str(output)[:300], ", ".join(miss)))
+                        if rec["pass_"]:
+                            break                  # ★ 早停
+                        # ★ 臂中立反馈（三臂同文 —— 只含上轮产出与 judge 原因）
+                        if kind == "code":
+                            feedback = ("你上轮的代码:\n```python\n%s\n```\n"
+                                        "判分失败原因: %s"
+                                        % (output, str(v.reason)[:300]))
+                        else:
+                            diffs = getattr(v, "diffs", None) or []
+                            miss = [str(d.get("kw")) for d in diffs
+                                    if not d.get("ok") and d.get("kw")]
+                            feedback = ("你上轮的答案: %s\n缺失关键词: %s"
+                                        % (str(output)[:300], ", ".join(miss)))
 
     # ── 汇总（trial = (task, rep); pass_rate = 曾 pass 的 trial 占比）──
     summary: Dict[str, Any] = {}
@@ -376,12 +518,26 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
             "pass_rate": (len(passed) / len(trials)) if trials else None,
             "memo_n_per_call": sorted({r["memo_n"] for r in rows}),
         }
-    return {"arms": summary, "records": records,
+    seed_desc = ("36 条真实误导（签名避让, 无命中）"
+                 if dataset == "hard"
+                 else "synthetic (40 条: 4 命中 + 36 干扰, "
+                      "c/q 值域对齐 judge.classify_c)")
+    return {"arms": summary, "records": records, "dataset": dataset,
             "n_tasks": len(specs), "repeat": repeat, "rounds": rounds,
             "elapsed_s": round(time.time() - started, 1),
-            "seed_memory": "synthetic (40 条: 4 命中 + 36 干扰, "
-                           "c/q 值域对齐 judge.classify_c)",
+            "seed_memory": seed_desc,
             "verdict": _verdict(summary)}
+
+
+class _NullCtx:
+    """dev 模式不做沙箱操作的空上下文（统一 with 结构）。"""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
 
 
 def _verdict(summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -417,7 +573,8 @@ def _verdict(summary: Dict[str, Any]) -> Dict[str, Any]:
 def _print_report(result: Dict[str, Any]) -> None:
     print("\n" + "=" * 64)
     print("★ 记忆注入 vs 记忆回放（guidance vs replay）· 三臂对照"
-          " · R64(全集+%d轮早停)" % result.get("rounds", 1))
+          " · dataset=%s · %d轮早停"
+          % (result.get("dataset", "dev"), result.get("rounds", 1)))
     print("=" * 64)
     hdr = "%-10s %6s %8s %8s %11s %10s  %s"
     print(hdr % ("arm", "calls", "llm_ok", "parsed", "pass(trial)",
@@ -451,6 +608,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="每 trial 重复次数（R64 建议 1, 靠 rounds 拿样本）")
     ap.add_argument("--rounds", type=int, default=2,
                     help="多轮上限（臂中立反馈, pass 早停）")
+    ap.add_argument("--dataset", choices=("dev", "hard"), default="dev",
+                    help="任务集: dev=R64 行为 · hard=R65 硬战场(自建锚点+误导干扰)")
     ap.add_argument("--out", default=os.path.join(
         _ROOT, "archive", "experiments", "mem_guidance_vs_replay.json"))
     args = ap.parse_args(argv)
@@ -461,7 +620,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("★ LLM 未配置 ⇒ 实验未跑（不是通过）。配置: config/llm.json "
               "或 DWC_LLM_* 三件套")
         return 2
-    result = run_experiment(llm, repeat=args.repeat, rounds=args.rounds)
+    result = run_experiment(llm, repeat=args.repeat, rounds=args.rounds,
+                           dataset=args.dataset)
     _print_report(result)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     result["at"] = time.strftime("%Y-%m-%d %H:%M:%S")
