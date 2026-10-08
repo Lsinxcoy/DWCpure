@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC · H-JEPA 三大借鉴方案固化（A 验证 / B 段式回放 / C 分层任务树）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--grn:#3fb950;--red:#f85149;--ylw:#d29922}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.75 "Segoe UI",system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:26px;border-bottom:2px solid var(--acc);padding-bottom:10px}
+h2{font-size:21px;margin:38px 0 12px;color:var(--acc);border-left:4px solid var(--acc);padding-left:10px}
+h3{font-size:17px;margin:22px 0 8px;color:var(--grn)}
+.meta{color:var(--dim);font-size:13px;margin:8px 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:14px 0}
+.card.rec{border-left:4px solid var(--grn)}
+.card.risk{border-left:4px solid var(--ylw)}
+.card.gap{border-left:4px solid var(--red)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:12px;font:12.5px/1.6 Consolas,monospace;overflow-x:auto;margin:10px 0}
+code{font-family:Consolas,monospace;background:#1f242c;border-radius:3px;padding:1px 5px;font-size:13px}
+.dim{color:var(--dim)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#1c2128}
+.toc a{color:var(--acc);text-decoration:none;margin-right:16px;font-size:14px}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--dim);margin-left:6px;vertical-align:middle}
+.del{color:var(--red)}
+.add{color:var(--grn)}
+</style>
+</head>
+<body>
+
+<h1>H-JEPA 三大借鉴方案固化 <span class="tag">R92–R94 批次 · 设计先行 · 依据 arXiv:2610.06805</span></h1>
+<div class="meta">2026-10-08 · 每节=改动总览 + 完整前后代码 + 边界降级 + 测试探针 + 诚实标注 · 三方案共享的总纪律：<b>全部落在 C1 裁决域（任务源/replay 侧）与分析层，不动 select/judge 判据；W1–W6 逐条守约</b>。批准节 → 执行对应轮；可只批其中一节。</div>
+
+<div class="toc">
+<a href="#a">A · progress 单调性验证（R92, 分析轮）</a>
+<a href="#b">B · 段式回放设计稿（R93, 设计+实现轮）</a>
+<a href="#c">C · 分层任务树设计稿（R94, 设计+实现轮）</a>
+</div>
+
+<!-- ══════════════════════════ A ══════════════════════════ -->
+<h2 id="a">A · progress 单调性验证 <span class="tag">§4.2 Fig8 方法论借鉴 · 一轮 · 不动 src</span></h2>
+
+<div class="card rec"><b>固化什么</b>：论文判据 <code>Spearman(cost, time)</code> 沿专家轨迹 —— 好 cost 单调 0.89–1.00，坏 cost 0.48–0.75（subgoal tracking vs flat 全程 cost 的对照）。DWC 的三个进度指标（<b>pool_rate / dream V / δ_max</b>）<b>从未做过单调性验证</b> —— 现在把「哪些是好进展度量」变成可复跑的实测结论，给 B/C 的 cost 设计提供取舍依据。</div>
+
+<h3>改动总览</h3>
+<table>
+<tr><th>件</th><th>内容</th><th>触碰</th></tr>
+<tr><td>新脚本 <code>scripts/progress_monotonicity.py</code></td><td>读 R88 20-term 报告 → 4 指标 × Spearman ρ + 判读表 + JSON 落盘</td><td>仅 scripts/（src 零触）</td></tr>
+<tr><td>产出</td><td><code>docs/progress_monotonicity_r92.json</code> + 控制台判读表</td><td>—</td></tr>
+</table>
+
+<h3>指标口径（正负号必须先声明 — 否则 ρ 符号是含糊的）</h3>
+<table>
+<tr><th>指标</th><th>数据源（R88 报告字段）</th><th>语义</th><th>期望 ρ(·, step)</th></tr>
+<tr><td><code>pool_rate</code></td><td>records[i].pool_rate（20 点）</td><td>池通过率=进展</td><td><b>+（应升）</b></td></tr>
+<tr><td><code>cum_pass</code></td><td>records[*].judged 展平的 60 点累计通过率</td><td>执行轨迹进展</td><td><b>+</b></td></tr>
+<tr><td><code>dream_V</code></td><td>records[i].dream.V（20 点）</td><td>回放评估进展</td><td><b>+</b></td></tr>
+<tr><td><code>cost_δmax</code></td><td>−max(delta_top3)（cost 口径取负）</td><td>最强弱点的稀有度 cost</td><td><b>−（cost 应降）</b></td></tr>
+</table>
+
+<h3>核心实现（完整脚本骨架 — 手写 Spearman 零依赖）</h3>
+<pre>def _rank(xs):                                    <span class="dim"># 平均秩（并列取均值）</span>
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    r = [0.0] * len(xs); i = 0
+    while i &lt; len(order):
+        j = i
+        while j + 1 &lt; len(order) and xs[order[j+1]] == xs[order[i]]: j += 1
+        avg = (i + j) / 2.0 + 1.0
+        for k in range(i, j + 1): r[order[k]] = avg
+        i = j + 1
+    return r
+
+def spearman(xs, ys):                             <span class="dim"># ρ = Pearson(rank, rank)</span>
+    rx, ry = _rank(xs), _rank(ys)
+    n = len(xs)
+    mx, my = sum(rx)/n, sum(ry)/n
+    cov = sum((a-mx)*(b-my) for a, b in zip(rx, ry))
+    vx  = sum((a-mx)**2 for a in rx) ** .5
+    vy  = sum((b-my)**2 for b in ry) ** .5
+    return 0.0 if vx*vy == 0 else cov / (vx * vy)
+
+<span class="dim"># 判读（参照论文区间, 不发明新阈值 — DWC 指标≠latent cost, 报 ρ+对照不贴标签过强）:</span>
+<span class="dim">#   |ρ| ≥ 0.89  「单调良好」参照论文 subgoal tracking 档</span>
+<span class="dim">#   0.48 ≤ |ρ| &lt; 0.89 「弱/存疑」参照论文 flat 全程 cost 档</span>
+<span class="dim">#   |ρ| &lt; 0.48  「无进展信号」</span>
+
+<span class="dim"># 自检探针（脚本 --selftest, 破坏协议前置）:</span>
+<span class="dim">#   ① 单调升序列 → ρ ≈ +1.0   ② 纯随机(固定 seed) → |ρ| &lt; 0.5</span>
+<span class="dim">#   ③ 反转序列 → ρ ≈ −1.0 — 三条不过脚本 rc=1 不出报告</span></pre>
+
+<h3>边界与降级</h3>
+<div class="card risk">
+<pre>· 数据只有 20 term 点（pool/V）与 60 判分点（cum_pass）— 小样本, 报 ρ 与 n 不报显著性（不装）
+· 论文的 cost 是沿**专家轨迹**的连续时间；DWC 是沿 **trial 执行步**的离散序列 ——
+  同型不同物, 判读栏全部写「参照论文」而非「论文证明」
+· 单次 trial（噪声注入固定）⇒ 结论=该轨迹上的实测, 不外推; 若要强结论 → 换 noise
+  重跑两组对照（脚本参数支持）</pre></div>
+
+<h3>测试探针</h3>
+<div class="card"><pre>--selftest 三探针（单调/随机/反转）· 报告 JSON 字段断言（每指标必有 ρ 与 n）·
+rc≠0 时不得产出报告（防半截数据）</pre></div>
+
+<!-- ══════════════════════════ B ══════════════════════════ -->
+<h2 id="b">B · 段式回放设计稿 <span class="tag">§2.2 Eq4–6 + Fig8 借鉴 · 消化 R90 留位 · 设计先行</span></h2>
+
+<div class="card gap"><b>要解决的实证问题（R90 三迭代）</b>：dream 揭示语义（非根深挖优先 + 空转 break + root 兜底）⇒ <code>nonroot≥2</code> 不可达 ⇒ <b>选择窗口死锁</b>，w_delta 排序在 replay 域永不触发；区分度只剩 r 开关。R90 结论:「要 w 进 dream 需改揭示语义 = 设计变更留位」。</div>
+
+<div class="card rec"><b>论文给的先例</b>：Eq6 的 subgoal 段语义 —— 下层只跟上层轨迹的前 K 个（closed-loop K=1），<b>段内 re-anchor</b>（Fig8: 段起点重锚后段内 cost 单调 0.89–1.00）。映射到 replay：<b>段 = 分支揭示单元，段间重置 elig</b>，把 R90 被 interleave 打断的「同层多观测叶」窗口变成段内常态。</div>
+
+<h3>裁决点（三案 → 推荐甲）</h3>
+<table>
+<tr><th>裁决</th><th>甲（<b>推荐</b>）</th><th>乙</th><th>丙</th></tr>
+<tr><td>段定义</td><td><b>段 = root 的一个 child 分支单元</b>（与读法乙「root 开分支」同构 — 段边界=既有语义的显式化, 零发明）</td><td>每 K_hard 步硬切</td><td>组层轨迹（依赖方案 C ⇒ 耦合, 后置到 C 落地后）</td></tr>
+<tr><td>段间顺序</td><td>root children 序 × δ 排序（段间选择用 dmap — 与任务源同源）</td><td>固定字典序</td><td>—</td></tr>
+<tr><td>段内预算</td><td>K_s = 段内最大揭示步（新参数, 默认 4）; 全局 K₂ 不变（段预算 ⊆ K₂）</td><td>无段预算（挖完为止）</td><td>—</td></tr>
+<tr><td>re-anchor 语义</td><td>段开始时 <code>observed = {root} ∪ 已完成段的完成集</code> — <b>elig 按段重算</b>（其他分支的叶不进本段候选）</td><td>observed 全程累积（=现状, 死锁不解）</td><td>—</td></tr>
+</table>
+
+<h3>死锁破解机制（为什么段式甲能让 w_delta 复活 — 基于 R90 实证的推演）</h3>
+<pre>现状（R90 实证）: root 连揭两子被段间 interleave 打断 — 001 深挖插入,
+  「同层双观测叶」态永不出现 ⇒ nonroot 恒 0/1 元素
+段式甲: 段内只挖本段分支 — child1 的 a、b 同层双叶态成为段内常态:
+  段内 step 序列 → root 揭 child1 → child1 揭 a → (a 完) → root 揭 b
+  → 此刻 leaves={a, b} 同轮在场
+  · r=0 家族: nonroot=[a, b] 两元素 → <b>w_delta·dmap 排序真实生效</b>
+    （R90 v3 反序对构造失败的原因正是段间 interleave, 段式直接移除）
+  · r=1 家族: 仍需 a/b 都能揭（有未观测子）才入候选 — 边界如实标注
+⇒ w_delta 的 dream 主场回归路径 = 段式甲 + r=0 变体（B 轮的验证靶）</pre>
+
+<h3>改动总览 + 核心前后代码（core.dream 内层循环）</h3>
+<table>
+<tr><th>件</th><th>改动</th><th>触碰</th></tr>
+<tr><td><code>dream</code> rollout 循环</td><td>单循环 → 段循环（外层段序 × 内层段预算 K_s）</td><td>core.py（dream 内层, ~20 行）</td></tr>
+<tr><td>参数</td><td><code>PolicySpec</code> 加 <code>seg_order: str ∈ {"children","delta"}</code>（修订域）; <code>dream(K₂, *, seg_budget=4)</code></td><td>replay.py + core.py 签名</td></tr>
+<tr><td>报告</td><td>DreamReport 加 <code>segments: Tuple[str, ...]</code>（本轮回放的段序, 可审计）</td><td>replay.py</td></tr>
+</table>
+
+<pre><span class="dim"># ── 现状（单循环, R90 死锁所在）────────────────────────────</span>
+while k &lt; k2_max:
+    elig = sim.eligible(observed)
+    nonroot = sorted(v for v in elig if v != root and _can_reveal(v))
+    pick = min(nonroot, key=…) if nonroot else root   <span class="del"># interleave 无段边界</span>
+    …
+
+<span class="del"># ── 改后（段循环, 论文 Eq6 段语义）────────────────────────</span>
+segments = _order_segments(T_i, dmap, _spec.seg_order)   <span class="add"># root children × δ/字典序</span>
+seg_done: List[str] = []
+for seg_root in segments:                                <span class="add"># 段边界</span>
+    observed = {T_i.root_id} | _seg_revealed(T_i, seg_done)   <span class="add"># ★ re-anchor</span>
+    k_seg = 0
+    while k_seg &lt; seg_budget and k &lt; k2_max:
+        elig = sim.eligible(observed)                    <span class="add"># 段内 elig（重算）</span>
+        nonroot = sorted(v for v in elig if v != T_i.root_id
+                         and ((not _spec.prefer_revealable) or _can_reveal(v)))
+        <span class="dim"># 段内: 同层双观测叶态可达 ⇒ ≥2 元素时 w 排序生效（R90 靶）</span>
+        pick = min(nonroot, key=lambda v: -_spec.w_delta * dmap.get(v, 0.0)) \
+               if nonroot else T_i.root_id
+        …  <span class="dim"># gained/n_revealed/k 累计语义不变（跨段累计）</span>
+    seg_done.append(seg_root)
+<span class="dim"># V/replay_score/select_policy/no_worse 全部不动（跨段累计后同一公式）</span></pre>
+
+<h3>边界与降级</h3>
+<div class="card risk">
+<pre>· re-anchor = **elig 语义变更**（设计变更非参数修订）— 论文 Eq6/Fig8 为先例,
+  本稿即变更的显式裁决; M=1/β/单调性三裁决（R79）不触碰
+· seg_budget 缺省 4 = 与 t2 实验树形匹配的初值, 标注**待校准**（β 同款纪律: 初值非终值）
+· 丙案（组层段）依赖方案 C — 本稿不做, 避免耦合
+· 降级: seg 循环异常时回退现路径（同一函数内 try 不引入 — 按 G7 直接 raise 不静默）</pre></div>
+
+<h3>测试探针</h3>
+<div class="card"><pre>① M=1 语义回归: 段式启用后 π0 的 V 与现路径同树同 K₂ 的差异**记录但不断言相等**
+   （语义变更的预期差异, 显式落报告 — 防假绿）
+② 死锁破解锁: t2 反序对树（R90 v3 构造）下 w=0 vs w=1 的 picks 轨迹**必须不同**
+   （B 轮核心主张, 破坏=段边界删除 ⇒ 红）
+③ 段预算: K_s=1 时每段最多 1 揭（records 断言）
+④ re-anchor 单测: 段2 起点 observed 不含段1 的叶（elig 独立性）
+⑤ 破坏: ①拆段边界（单循环）⇒ ②红 ②拆 re-anchor（observed 全程累积）⇒ ②红</pre></div>
+
+<!-- ══════════════════════════ C ══════════════════════════ -->
+<h2 id="c">C · 分层任务树设计稿 <span class="tag">§4.2 Table1 cost 几何借鉴 · W1–W6 逐条守约 · 设计先行</span></h2>
+
+<div class="card rec"><b>论文依据</b>：Table 1 —— <b>只换 cost 空间</b>（L1 动态与 planner 全固定）成功率 23.3→39.3；Fig 7 —— L1 距离在远处恒定无信号，高层 cost 沿走廊平滑分级。映射：DWC 的任务源排序 cost = 单标量 δ（硬序、无分级）→ <b>组→任务两级 cost</b>（组层用池聚合 = 平滑分级的类比物）。</div>
+
+<div class="card rec"><b>数据前提（已机核）</b>：<code>config/capability_groups.yaml</code> 三组显式列举覆盖 dev 全部任务（code_fix_001-006→code_repair · reasoning_001-006→knowledge_reasoning · paper_reproduction），<b>G1 判据（每任务恰一组）已是约束</b>；G5 要求 ≥2 消费点 — 本方案的组层 cost 即第 3 消费点。</div>
+
+<h3>裁决点</h3>
+<table>
+<tr><th>裁决</th><th>推荐</th><th>备选</th></tr>
+<tr><td>层级表达</td><td><b>同一棵树加 <code>group_id</code> 字段 + 中间组节点</b>（root→group→task 三深度）— W1 天然守（不建第二棵树）</td><td>纯字段不建组节点（组无实体, cost 仍可算 — 更小改动但失去 B 的组段选项）</td></tr>
+<tr><td>组节点 provenance</td><td><code>observed</code>（播种即在场）; <b>score 恒 None</b>（W5 天然: observe 不带组节点）⇒ W3 judgeable 天然过滤</td><td>—</td></tr>
+<tr><td>组层 cost 口径</td><td><b>组通过率 = Σn_pass/Σn_obs</b>（observed_rate 同款公式复用）; 无观测 ⇒ <code>[]</code> 不排序（X2 同族: 没数据≠零难度）</td><td>组 δ 聚合（weakness 现有 z 聚合）— 二期</td></tr>
+<tr><td>两级任务源</td><td>run_term wta: <b>先按组 cost 升序排组（弱组优先）→ 组内按 δ 降序</b>（现有 C1 机制原样复用）— 纯任务源域, C1 不动</td><td>组序与 δ 加权混合 — 不推荐（不可归因, 违约束 4）</td></tr>
+</table>
+
+<h3>改动总览 + 核心前后代码</h3>
+<table>
+<tr><th>件</th><th>改动</th><th>触碰</th></tr>
+<tr><td><code>WorldNode</code></td><td>加 <code>group_id: str</code>（<b>必填无默认</b> — W2 同款纪律; 组节点 <code>group_id == id</code>）</td><td>world_model.py 1 字段</td></tr>
+<tr><td><code>seed_tasks</code></td><td>可选 <code>groups: Optional[Dict[str, List[str]]]</code> — 传入 ⇒ 建组中间节点（不传 = 现行为完全不变）</td><td>world_model.py（~15 行）</td></tr>
+<tr><td>DWC 构造播种</td><td>读 capability_groups.yaml 传 groups</td><td>core.py（~6 行）</td></tr>
+<tr><td>任务源两级</td><td>run_term wta 排序前加组序（有组节点才启用）</td><td>run_term.py（~8 行）</td></tr>
+<tr><td>组 cost 函数</td><td><code>WorldModel.group_rates()</code> → {group_id: pass_rate}（无观测组不在返回内）</td><td>world_model.py（~10 行）</td></tr>
+</table>
+
+<pre><span class="del"># ── 现状: root + 每任务一叶（二维）──────────────────────────</span>
+seed_tasks([t1..t10]) → root → {t1, t2, …, t10}
+
+<span class="add"># ── 改后: 三深度（groups 传入时）──────────────────────────</span>
+groups = {"code_repair": [code_fix_001..006],
+          "knowledge_reasoning": [reasoning_001..006], …}
+seed_tasks(ids, groups=groups)
+→ root → {g_code_repair → {001..006}, g_knowledge_reasoning → {…}, …}
+<span class="dim"># node_id=judge task_id 同域不变（叶层）; 组节点 id = "g_" + group_id（显式前缀, 不与任务撞域）</span>
+
+<span class="dim"># ── 任务源两级（run_term wta 段, 现状行内改造）─────────────</span>
+<span class="del">wta = [{"node": …} …]   # 现: 全体叶子平铺 + δ 降序</span>
+<span class="add">if tree_has_groups:      # 组层 cost 分级（Table 1 借鉴 — 平滑分级替代硬序）</span>
+<span class="add">    rates = wm.group_rates()               <span class="dim"># 弱组优先（升序）</span></span>
+<span class="add">    wta.sort(key=lambda i: (rates.get(i["group_id"], 1.0),</span>
+<span class="add">                            -dmap.get(i["node"], 0.0)))   <span class="dim"># 组内 δ 降序</span></span>
+<span class="dim"># 无组/无观测 ⇒ 分支不进, 行为 = 现状（降级路径）</span></pre>
+
+<h3>W1–W6 逐条守约评估</h3>
+<table>
+<tr><th>判据</th><th>评估</th><th>判定</th></tr>
+<tr><td>W1 一套树结构</td><td>组是同一 WorldTree 的中间节点, 不建第二树类</td><td>✅ 守</td></tr>
+<tr><td>W2 节点带 provenance</td><td>组节点播种即 observed, 字段照带（无默认不变）</td><td>✅ 守</td></tr>
+<tr><td>W3 judge 不判想象节点</td><td>组节点 score 恒 None 且 <code>judgeable()</code> 已按叶过滤（组非任务域, evaluate 天然拒绝）</td><td>✅ 守（加探针确认）</td></tr>
+<tr><td>W4 收束判据外部</td><td>组层 rate 只吃 n_obs/n_pass 聚合（与 observed_rate 同公式）— 不引入新判据源</td><td>✅ 守</td></tr>
+<tr><td>W5 单向真值</td><td>observe 拒绝非叶/带真值 — 组节点永不带 score</td><td>✅ 守（加探针）</td></tr>
+<tr><td>W6 深度外部化</td><td>三深度 2 &lt; depth_limit（现值需核, 不足则 config 调 — 外部化本来就是为这种扩展）</td><td>⚠️ 探针核 depth_limit</td></tr>
+</table>
+
+<h3>边界与降级</h3>
+<div class="card risk">
+<pre>· 组层 cost 只影响**任务源排序**（C1: δ 不动 select 的同族纪律延伸 — 组序也不动
+  select/judge/fitness）; el_selected/dream 消费点零变化
+· groups 不传 ⇒ 行为与现 760 测试逐字节一致（向后兼容零破坏 — 降级路径=现路径）
+· 组通过率是**分级信号非阈值**（ARCHITECTURE L1105「只可作排序偏置」同款约束）
+· ARSI 15 条 sealed 未引入 — 组节点只播现有 dev 任务（与 seed_tasks 诚实标注同源）
+· 与 B 的耦合: 组层段（B 丙案）在 C 落地后二期 — 本稿不含</pre></div>
+
+<h3>测试探针</h3>
+<div class="card"><pre>① groups 不传 ⇒ 与现树逐字段相等（零破坏锁, 破坏=分支强制建组 ⇒ 红）
+② 组节点: provenance=observed、score is None、judgeable() 不含、observe 拒绝（W3/W5 探针）
+③ group_rates: 有观测组返回、无观测组缺席（X2 不装数）
+④ 两级 wta: 弱组在前 + 组内 δ 降序（dmap 注入可判）
+⑤ depth_limit 探针（W6）
+⑥ 破坏: 组序写成"强组优先"（升序反转）⇒ ④ 红</pre></div>
+
+<!-- ══════════════════════════ 批次收口 ══════════════════════════ -->
+<h2>批次收口与执行序</h2>
+<div class="card rec">
+<pre>推荐序: <b>A（R92, 一轮即闭环 — 先拿到"现有 cost 好坏"的实测）</b> → 据 A 结果定 B/C 优先级
+  · A 若显示 pool_rate/δ 已强单调 ⇒ B/C 的 cost 改造优先级降, 先做 B（死锁是硬伤）
+  · A 若显示指标弱/振荡 ⇒ C 的分级 cost 升优先
+每轮独立: 设计/方案已固化本稿 ⇒ 执行轮只做 实现→三层验证→知识档→提交（同批自洽前瞻法）
+诚实总边界: 三条借鉴都是**结构原理+度量方法**的迁移, 不是 latent/JEPA 结论照搬
+  （DWC 无梯度层 — 论文的 SIGReg/端到端训练部分明确不适用, 不在方案内）</pre></div>
+
+</body>
+</html>
