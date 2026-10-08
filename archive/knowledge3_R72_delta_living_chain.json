@@ -1,0 +1,44 @@
+{
+ "round": "R72 · δ_θ 活链打通（z 操作化裁决 + to_dict 存量洞修复 + 生产喂入口实测）",
+ "date": "2026-10-08",
+ "用户指令": "继续推进1（= z 操作化 + δ_θ 生产喂入; R69+R71 两轮成果接活链）",
+ "★★ z 操作化裁决（销 R69 边界）": [
+  "**z = 失败签名族 (c, q)** — 二维对齐论文 scenario-skill（c≈scenario「什么失败」,",
+  "  q≈skill「什么行为模式」; 2609.06396 分工 c/q 归规则）",
+  "候选否决: z=task_id（遍历均频 ⇒ δ 恒等退化）· z=category（组内唯一 ⇒ r=1 ⇒ δ 恒0）——",
+  "  两个都无区分度（写进投影 docstring 留据）",
+  "分母口径 = 组内判分总数（成功以 __pass__ 占位, 贴论文「全部轨迹」）;",
+  "  组内排序与分母无关（常数）, 绝对值本就不许跨组比（L1105 排序偏置约束）",
+  "三类显式: __pass__ / c:…|q:… / __unsigned_fail__（不静默丢 — 丢一类=分母分子不匹配）"
+ ],
+ "★★★ 存量洞修复（R72 抓的真缺陷）": [
+  "Verdict.to_dict() 原只序列化 6 字段 ⇒ failure_signature/n_checks/k_passed/diffs 全丢",
+  "  ⇒ evidence.jsonl 里 R71 活证据 6 条 false **签名全 null 实锤** ⇒ 约定④「查时才取」",
+  "  取回的是残缺证据 ⇒ z 投影会全退化到 __unsigned_fail__",
+  "修法: 补齐 Verdict 已有 4 字段（不发明新字段）; 消费面已核(judge 外无读 verdict dict)",
+  "修复后 e2e 实测: false 7 条 **带签名 7/7** · 全部含 k/n 字段"
+ ],
+ "★ 生产喂入口 core.DWC.difficulty(group_id, split=dev)": [
+  "活链: judge.task_scores(C3' 分数点) → z_history_from_scores(投影, evidence 拉回)",
+  "  → DifficultyEstimator.weak_ranking(路线丙) — R69 算法 × R71 数据 × R72 投影三轮接通",
+  "返回=有序表(只给顺序不给阈值) · 无观测 ⇒ [] 不装数 · split 默认 dev 不跨真值源",
+  "★ 实测输出(e2e 生产数据, 零测试注入): 14 点/code_repair 组,",
+  "  δ=2.0149 E_FALSE_NEGATIVE|wrong_polarity → 2.0149 E_VALUE|wrong_magnitude →",
+  "  0.9163 E_OFF_BY_ONE → 0.6286 __pass__（罕见失败排前, 通过垫底 = 语义正确）"
+ ],
+ "验证": [
+  "pytest 705 passed(+5) rc=0 · gate 8/8 · e2e rc=0",
+  "破坏 2/2: ①to_dict 再砍签名 ⇒ 2 测红 ②投影拆成功分支 ⇒ 3 测红 → 恢复绿",
+  "写测试 1 红: 活链排序断言写死脆弱序(2失败同签名 vs 2成功 ⇒ n_z 同 ⇒ δ 同 ⇒ 字典序) —",
+  "  改意图化断言(set 相等 + n_obs 口径), 不锁同分序"
+ ],
+ "诚实边界": [
+  "★ difficulty 的消费方仍无（返回值暂无运行流读取 — 收束接线需 W4 裁决, EL 接线单独一轮）",
+  "★ 投影 z 编码是实例化（设计只写「稳定 id」）— 调用方可自定义 z_id 编码函数",
+  "★ e2e 本轮 LLM_SEGMENT=candidates_rejected（端点波动, 如实记）",
+  "★ 幸存者视角: 活链实测数据只有 code_repair 一组（dev 10 条全该组）— 多组区分待 dev 拓展"
+ ],
+ "坑": [
+  "同分排序(−δ, z_id) 会按字典序破 — 测试别锁绝对序, 锁集合+口径"
+ ]
+}

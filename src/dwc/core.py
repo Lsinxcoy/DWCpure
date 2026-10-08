@@ -40,7 +40,7 @@ from dwc.harness.run_term import TermRunner, TermReport
 from dwc.organs.actor import Actor, Trace
 from dwc.organs.evolver import Evolver
 from dwc.organs.iwm import IwmOrgan, Observations
-from dwc.organs.judge import Judge
+from dwc.organs.judge import Judge, SPLIT_DEV
 from dwc.organs.memory import MemoryKind, MemoryKernel
 from dwc.organs.world_model import WorldModel
 
@@ -259,3 +259,27 @@ class DWC:
           —— 不是本方法的参数（judge 是构造注入不是 run_term kwarg）。
         """
         return self.runner.run_term(task, n_steps=n_steps, **kwargs)
+
+    # ══════════════════════════════════════════════════════
+    # δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）
+    # ══════════════════════════════════════════════════════
+    def difficulty(self, group_id: str, *, split: str = SPLIT_DEV
+                   ) -> List[Dict[str, Any]]:
+        """★ 从**本 agent 的判分史**算组内残差难度排序（弱→强, 排序偏置）。
+
+        ★ 活链（R69 算法 × R71 数据 × R72 投影, 三轮接成一条）:
+          judge.task_scores（C3' 分数点）→ z_history_from_scores
+          （z=失败签名族 (c,q), 经 store.evidence 拉回）→ DifficultyEstimator
+          .weak_ranking（路线丙 [−log r]₊）
+        ★ 返回 = weak_ranking 的有序表（[{"z_id","delta","n_obs"}]）——
+          只给**顺序**不给阈值（ARCHITECTURE L1105「只可作排序偏置」）。
+        ★ 无观测 ⇒ `[]`（不装数 —— X2 同族: 没数据 ≠ 零难度）。
+        ★ split 默认 dev: 分难度史不跨 split 混算真值源（judge split 纪律）。
+        """
+        from dwc.organs.weakness import (
+            DifficultyEstimator, z_history_from_scores)
+        pts = self.judge.task_scores(split=split)
+        if not pts:
+            return []
+        hist = z_history_from_scores(pts, self.judge.store.evidence)
+        return DifficultyEstimator(hist).weak_ranking(group_id)

@@ -82,6 +82,51 @@ class Difficulty:
                 % (self.n_obs,))
 
 
+#: z 三类显式编码（★ 不静默丢: 三类都能在 history 里 grep 到）
+Z_PASS = "__pass__"              # 成功判分 —— 占分母（贴论文「全部轨迹」）
+Z_UNSIGNED = "__unsigned_fail__"  # 失败但无签名 —— 显式暴露, 不悄悄丢弃
+
+
+def z_id_from_signature(sig: Optional[Mapping[str, str]]) -> str:
+    """失败签名 (c,q) → z_id（★ z 的操作化 —— R72 裁决, 见模块头）。"""
+    return "c:%s|q:%s" % (sig.get("c") or "", sig.get("q") or "")
+
+
+def z_history_from_scores(points, evidence_lookup
+                          ) -> Dict[str, List[str]]:
+    """C3' 分数点序列 → DifficultyEstimator 的 history（★ 生产喂入链）。
+
+    ★★★ z 操作化的裁决（R72 —— 销 R69「z 无统一操作化」边界）:
+      **z = 失败签名族 (c, q)**
+        · 对齐论文 scenario-skill 的**二维**结构: c≈「什么失败」(scenario),
+          q≈「什么行为模式」(skill) —— 由 judge 的**规则**分配（2609.06396
+          分工: c/q 归规则, m 才归模型）
+        · 数据在链上: C3' evidence.jsonl → Verdict.failure_signature
+        · 候选里被否的两个: z=task_id（遍历近似均频 ⇒ δ 恒等退化）、
+          z=category（组内唯一 ⇒ r=1 ⇒ δ 恒 0）—— 两个都无区分度
+      ★ 分母口径: **组内判分总数**（成功以 __pass__ 占位, 贴论文
+        「r 在全部轨迹里」）—— 组内排序与该口径无关（分母是组内常数）,
+        只影响 δ 绝对值, 而绝对值本来就不许跨组比（排序偏置约束）
+      ★ 成功 ⇒ __pass__ · 失败有签名 ⇒ c:…|q:… · 失败无签名 ⇒
+        __unsigned_fail__（三类显式, 丢一类就是分母分子不匹配）
+
+    参数:
+      points: 有 group_id / evidence_ref 属性的分数点（judge.task_scores）
+      evidence_lookup: callable(ref) → evidence dict（judge.store.evidence）
+        ⇒ 用 callable 注入而非 import judge（器官间只经接口, 判据 P1）
+    """
+    hist: Dict[str, List[str]] = {}
+    for p in points:
+        ev = evidence_lookup(p.evidence_ref)
+        if ev.get("success") is True:
+            z = Z_PASS
+        else:
+            sig = ev.get("failure_signature")
+            z = z_id_from_signature(sig) if sig else Z_UNSIGNED
+        hist.setdefault(p.group_id, []).append(z)
+    return hist
+
+
 class DifficultyEstimator:
     """路线丙估计器: 组内基线稀有度（替代 p_𝒯）。
 
@@ -158,14 +203,16 @@ class DifficultyEstimator:
 # ══════════════════════════════════════════════════════════
 # ★ 已做: 路线丙 δ_θ^group + Δ_θ 轨迹和 + 排序偏置口 · X1 双保险 · X2 NaN
 #         · X3 路线甲 raise · config 读取（load_difficulty 的 X1/X2/X3 已在）
-# ★ 未做（下轮/依赖裁决）:
-#   · **生产数据链**: TaskScorePoint 落盘（TASK_SCORE_TRACKING TS3 查询口）
-#     未做 ⇒ 当前 history 只能由调用方手工注入（唯一调用方=测试）
-#   · **z 的统一操作化**: z_id 语义由调用方定（候选: 失败签名族 (c,q) /
-#     category）—— 本模块不锁, 因为设计文档没锁（RESIDUAL 也只写"稳定 id"）
+# ★ R72 已销（原「未做」前两条）:
+#   · **生产数据链**: C3' TS3 已落（R71）⇒ task_scores + evidence 两口喂入,
+#     投影函数 z_history_from_scores 就位 — history 不再只有测试注入
+#   · **z 的统一操作化**: R72 裁决 **z = 失败签名族 (c,q)**（二维对齐论文
+#     scenario-skill; 候选 task_id/category 均因无区分度被否 — 见投影
+#     函数 docstring）—— 投影默认用它, 调用方可自定义 z_id 编码
+# ★ 仍未做（依赖裁决）:
 #   · **接进收束**: select 加 δ_θ 偏置会动 W4（"收束只吃信息增益"已定判据）
 #     ⇒ 需设计裁决, 不顺手改
-#   · EL 调度器（B=8 τ=6/8）与三方向枚举 —— 器官⑥的其余两件
+#   · 三方向枚举 FORWARD/LATERAL/REVERSE —— 器官⑥ 第三件（EL 已于 R70 落）
 # ★ 路线丙的语义是"罕见于本组"而非"罕见于世界"（RESIDUAL §2.1 路线丙代价）
 #   —— 语义变窄是裁决的一部分, 不是实现走样。
 # ★ Laplace k=1 的 (n_z+1)/(n+1) 与 ARCHITECTURE 实测例 −log(12/55) 同构

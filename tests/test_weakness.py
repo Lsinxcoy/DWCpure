@@ -162,3 +162,121 @@ def test_report_field_exposed_for_x4():
     est = DifficultyEstimator(_hist())
     assert est.report_field == "delta_semantics"
     assert est.semantics == "group_baseline"
+
+
+# ══════════════════════════════════════════════════════════
+# R72 · z 操作化投影（C3' 分数点 → δ_θ history）
+# ══════════════════════════════════════════════════════════
+
+class _Pt:
+    """轻量分数点桩（只用投影要的两个属性 —— 不耦合 judge）。"""
+
+    def __init__(self, group, ref):
+        self.group_id = group
+        self.evidence_ref = ref
+
+
+def test_z_history_three_classes_explicit():
+    """★★ 投影三类显式: __pass__ / c|q / __unsigned_fail__（不静默丢）。"""
+    from dwc.organs.weakness import (
+        Z_PASS, Z_UNSIGNED, z_history_from_scores)
+    evis = {
+        "r1": {"success": True, "failure_signature": None},
+        "r2": {"success": False,
+               "failure_signature": {"c": "wrong_magnitude",
+                                     "q": "off_by_one_in_range"}},
+        "r3": {"success": False, "failure_signature": None},
+        "r4": {"success": False, "failure_signature": {"c": "E_VALUE",
+                                                       "q": ""}},
+    }
+    pts = [_Pt("gA", "r1"), _Pt("gA", "r2"), _Pt("gA", "r3"),
+           _Pt("gB", "r4")]
+    hist = z_history_from_scores(pts, evis.__getitem__)
+    assert hist["gA"] == [Z_PASS,
+                          "c:wrong_magnitude|q:off_by_one_in_range",
+                          Z_UNSIGNED], hist["gA"]
+    assert hist["gB"] == ["c:E_VALUE|q:"]
+    # ★ 分母含成功（贴论文「全部轨迹」）: gA 的 n=3
+    est = DifficultyEstimator(hist)
+    assert est.delta_group(Z_PASS, "gA").n_obs == 3
+
+
+def test_z_history_delta_ranks_rare_failure_first():
+    """活链数值: 罕见失败签名 δ 大 ⇒ 排序偏置它优先（组内口径）。"""
+    from dwc.organs.weakness import (
+        Z_PASS, DifficultyEstimator, z_history_from_scores)
+    evis = {}
+    pts = []
+    for i in range(6):                       # 6 次成功
+        evis["p%d" % i] = {"success": True}
+        pts.append(_Pt("g", "p%d" % i))
+    for i in range(3):                       # 3 次常见失败 A
+        evis["a%d" % i] = {"success": False,
+                           "failure_signature": {"c": "common", "q": "x"}}
+        pts.append(_Pt("g", "a%d" % i))
+    evis["rare"] = {"success": False,
+                    "failure_signature": {"c": "rare", "q": "y"}}
+    pts.append(_Pt("g", "rare"))             # 1 次罕见失败 B
+    hist = z_history_from_scores(pts, evis.__getitem__)
+    rank = DifficultyEstimator(hist).weak_ranking("g")
+    # 罕见 B（n_z=1）在常见 A（n_z=3）前; __pass__（n_z=6）垫底
+    zs = [r["z_id"] for r in rank]
+    assert zs == ["c:rare|q:y", "c:common|q:x", Z_PASS], zs
+    assert rank[0]["delta"] > rank[1]["delta"] > rank[2]["delta"]
+
+
+def test_core_difficulty_living_chain(tmp_path):
+    """★★★ 活链集成: DWC 主类判分 → difficulty 出真排序（零测试注入）。
+
+    ★ 装配方式: 替换 d.judge.store 为内存 store（公开属性）——
+      判分自动 record 进内存 store, **零生产文件污染**。
+    """
+    from dwc.core import DWC
+    from dwc.organs.judge import TaskScoreStore
+    d = DWC(3, 50)
+    d.judge.store = TaskScoreStore(dw_version="test-v")  # 内存隔离
+    tid = [k for k in d.judge.anchors if not k.startswith("_")][0]
+    # 失败判分 ×2（错观测 ⇒ 规则产签名）+ 成功判分 ×2
+    bad = {"sum_first_n": [[3, 99], [5, 15]]}
+    good = {"sum_first_n": [[3, 6], [5, 15]]}
+    d.judge.evaluate(tid, observed=bad)
+    d.judge.evaluate(tid, observed=bad)
+    d.judge.evaluate(tid, observed=good)
+    d.judge.evaluate(tid, observed=good)
+    assert len(d.judge.task_scores()) == 4
+    rank = d.difficulty("code_repair")
+    assert rank, "活链应有输出"
+    zs = [r["z_id"] for r in rank]
+    # 失败签名族与 __pass__ 都在; 不锁绝对序 —— n_z 都=2 ⇒ δ 相同 ⇒
+    # 同分按 z_id 字典序破（'_' < 'c' ⇒ __pass__ 在前）—— 这是口径事实不是错序
+    assert set(zs) == {"__pass__", "c:E_VALUE|q:wrong_magnitude"}, zs
+    assert "c:%s|q:%s" % ("", "") not in zs          # 不许空签名混入
+    # n_obs = 组内判分总数（分母口径 = 4 次判分）
+    assert all(r["n_obs"] == 4 for r in rank), rank
+
+
+def test_core_difficulty_empty_history_returns_empty():
+    """无观测 ⇒ []（不装数 —— X2 同族: 没数据 ≠ 零难度）。"""
+    from dwc.core import DWC
+    d = DWC(3, 50)
+    d.judge.store = __import__(
+        "dwc.organs.judge", fromlist=["TaskScoreStore"]).TaskScoreStore(
+        dw_version="test-v")
+    assert d.difficulty("code_repair") == []
+
+
+def test_evidence_to_dict_is_complete():
+    """★★ R72 修的存量洞: evidence 必须带签名 + k/n（evidence 落盘后可查）。"""
+    from dwc.organs.judge import Judge
+    j = Judge()
+    tid = [k for k in j.anchors if not k.startswith("_")][0]
+    bad = {"sum_first_n": [[3, 99], [5, 15]]}
+    v = j.evaluate(tid, observed=bad)
+    assert v.success is False and v.failure_signature, "规则该产签名"
+    ref = j.store.task_scores(split="dev")[0].evidence_ref
+    ev = j.store.evidence(ref)
+    # ★ 原来 to_dict 漏的 4 个字段必须都在（漏 ⇒ z 投影全退化）
+    assert ev["failure_signature"] == v.failure_signature
+    assert ev["n_checks"] == v.n_checks
+    assert ev["k_passed"] == v.k_passed
+    assert isinstance(ev["diffs"], list)

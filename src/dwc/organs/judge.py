@@ -135,10 +135,25 @@ class Verdict:
         return self.success is True
 
     def to_dict(self) -> Dict[str, Any]:
+        """★ Verdict 的**完整**序列化（R72 修正）。
+
+        ★★★ 缺陷史（R72 抓的存量洞）:
+          原来只序列化 6 字段 ⇒ failure_signature / n_checks / k_passed /
+          diffs 全丢 ⇒ evidence.jsonl 里失败签名落成 null（R71 活证据 6 条
+          false 全 null 实锤）⇒ 约定④「查时才取」取回的是**残缺证据**。
+        ⇒ 修法 = 把 Verdict **已有**字段全部序列化（不发明新字段）。
+        ⇒ 消费面已核: judge 外无读 verdict dict 字段的代码; score() 的
+          details 与 unevaluated() 是唯二外部出口。
+        """
         return {"task_id": self.task_id, "split": self.split,
                 "success": self.success, "reason": self.reason,
                 "truth_category": self.truth_category,
-                "missing": self.missing}
+                "missing": self.missing,
+                # ★ R72 补齐 —— 否则 z 投影 / k-n 审计在 evidence 侧全断
+                "failure_signature": self.failure_signature,
+                "n_checks": self.n_checks,
+                "k_passed": self.k_passed,
+                "diffs": self.diffs}
 
 
 # ══════════════════════════════════════════════════════════
