@@ -105,3 +105,7 @@ config/anchors/liquidity.jsonl
 # ★ R50 · **跨轮**分数序列（σ_t 的输入; 本轮 e2e 只有 1 轮
 #   ⇒ 不跨轮累积就永远『数据不足不判』⇒ 它不该进 git
 config/anchors/score_history.jsonl
+# ★ R68 · Z4/Z5 运行期状态（候选 tracked 清单 + merge check log
+#   —— 同 R50 score_history 惯例: 跨轮持久状态, 不进 git）
+config/anchors/world_candidates.json
+config/anchors/merge_log.jsonl

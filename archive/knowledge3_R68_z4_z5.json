@@ -1,0 +1,36 @@
+{
+ "round": "R68 · Z4/Z5 落地（世界树判据 Z1–Z6 全部生效, 配置面无「声明」残留）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 回落 DWC 深化子项; 三项现状核实后按范围可控+结构收敛定 Z4/Z5 主攻）",
+ "为什么是 Z4/Z5": [
+  "三项现状: Z4/Z5=config 就位+诚实边界正好标着+收口地明确; δ_θ=新器官(weakness.py)大工程;",
+  "  动作分发=learn/dream/evolve 需前置参数(语料/签名管道)依赖多",
+  "Z4/Z5 一轮可完成且销掉 world_tree.yaml/ world_model 两处「仍是声明」标注"
+ ],
+ "★ 实现（WORLD_TREE_CONVERGENCE §四 原文）": [
+  "Z4 候选 tracked+lineage: WorldModel.expand() 展开即进清单+落盘",
+  "  (config/anchors/world_candidates.json, R50 score_history 惯例+gitignore),",
+  "  构造载回(重启不丢), 文件损坏 WorldModelError 不静默",
+  "Z5 merge 三条件门: ①同一直接 parent ②action 互异 ③三方已 observe 且都优于祖先",
+  "  · 实例化判据标注进 docstring(论文只给语义:「同一祖先」取同 parent,「互补」取 action 互异)",
+  "  · reject=业务结果(返回 failed 码)但**每次都进 merge_events+log**(发生率被检查的证据)",
+  "  · merge_rate(): 无尝试返回 None 不装 0 · log=merge_log.jsonl(append-only)",
+  "「检查不可关」双层: load_world_tree DialError(persist/require_all 恒 true)+运行时断言",
+  "补漏: 校验器原缺 log_rate 键(_need) — 与「全字段必填无默认」纪律不符, R68 补上"
+ ],
+ "接线诚实边界": [
+  "expand/merge 是器官能力; 进 run_term 环节⑥运行流的接线待世界树展开流落地",
+  "  (与 R60 范围纪律一致 —— 不假装接了; world_tree.yaml ② 已同步标注)"
+ ],
+ "验证": [
+  "pytest 666 passed(+10: Z4×3/Z5×7) rc=0 · gate 8/8 · e2e rc=0",
+  "★ e2e LLM 段连续 5 轮 rejected 后**本轮恢复 passed**",
+  "破坏 2/2: ①拆 expand 落盘→落盘测试红 ②删 merge 条件③检查→score 负面测试红 → 恢复绿",
+  "坑(第三次): PROGRESS 批量 patch 断言失败整文件未写盘 — 改**逐对独立 patch**后全落"
+ ],
+ "诚实边界": [
+  "★ Z1–Z6 全生效, 但「生效」=能力+配置+测试, 运行流接线仍列待办(expand/merge)",
+  "★ Z5 的两处判据是实例化(论文只给语义) — 未与第二人复核",
+  "★ tracked/merge_log 为运行期数据, 已 gitignore; 测试全部注入 tmp 路径防污染生产台账"
+ ]
+}

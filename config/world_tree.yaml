@@ -60,4 +60,9 @@ world_tree:
 #      ★ 2026-10-08（R60）更新: organs/world_model **已建**，Z6 已落地
 #        （record_round 读本文件的 n_stuck/on_stuck）；Z1–Z3 由 dial_config
 #        生效中 ⇒ 现在只剩 **Z4 候选持久化 / Z5 merge** 仍是「声明」
+#      ★ 2026-10-08（R68）更新: **Z4/Z5 已落地** —— expand 即 tracked 落盘
+#        （config/anchors/world_candidates.json, 重启载回）+ merge 三条件门
+#        与 check log/merge_rate（config/anchors/merge_log.jsonl）；
+#        剩余「声明」: 本文件 Z1–Z6 全部生效, 唯一待办是 expand/merge 接进
+#        run_term 环节⑥运行流（器官能力在, 接线未做 — 见 world_model 边界）
 #   ③ strategy 切到 gepa_pareto 的三个前置见上方注释，目前 ①②③ 都不满足

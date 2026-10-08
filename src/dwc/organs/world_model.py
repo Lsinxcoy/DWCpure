@@ -13,11 +13,24 @@
 """
 from __future__ import annotations
 
+import io
+import json
 import math
+import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, NamedTuple, Optional
 
 from dwc.foundation.dial_config import load_world_tree
+
+#: Z4 候选 tracked 清单 / Z5 merge check log 的默认落盘位置
+#: （R50 score_history 同款惯例: 运行期状态放 config/anchors/ + .gitignore 排除）
+_DEFAULT_TRACKED = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))),
+    "config", "anchors", "world_candidates.json")
+_DEFAULT_MERGE_LOG = os.path.join(
+    os.path.dirname(_DEFAULT_TRACKED), "merge_log.jsonl")
 
 #: 系统外真值源（G2）—— score/成功永远来自 judge，不来自本模块
 TRUTH_SOURCE = {
@@ -212,7 +225,9 @@ class WorldModel:
     """
 
     def __init__(self, depth_limit: int, max_nodes: int,
-                 config_path: Optional[str] = None):
+                 config_path: Optional[str] = None,
+                 tracked_path: Optional[str] = None,
+                 merge_log_path: Optional[str] = None):
         # ★ W6: 深度外部化 —— 构造必填，无默认
         for name, v in (("depth_limit", depth_limit), ("max_nodes", max_nodes)):
             if isinstance(v, bool) or not isinstance(v, int) or v < 1:
@@ -228,10 +243,133 @@ class WorldModel:
         wt = self.config["world_tree"]
         self.strategy = wt["strategy"]
         self.stuck_cfg = wt["stuck"]
+        #: Z4/Z5 配置面（load_world_tree 已 DialError 锁死: persist/require_all
+        #:   恒 true —— 「检查不可关」在校验器层，这里只读不改）
+        self.cand_cfg = wt["candidates"]
+        self.merge_cfg = wt["merge"]
         self.trees: Dict[str, WorldTree] = {}
         #: Z6: 卡住事件留痕（触发过什么处置，可观测）
         self.stuck_events: List[Dict[str, Any]] = []
         self._stuck_streak = 0
+        # ── Z4: 候选 tracked 清单（persist=true ⇒ 构造时载回 —— 重启不丢）──
+        self.tracked_path = tracked_path or _DEFAULT_TRACKED
+        self.tracked: List[Dict[str, Any]] = []
+        if os.path.exists(self.tracked_path):
+            try:
+                with io.open(self.tracked_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.tracked = list(data.get("tracked", []))
+            except (ValueError, OSError) as exc:
+                raise WorldModelError(
+                    "Z4: tracked 清单读不回来（%s: %s）—— persist 文件坏了"
+                    "就大声报错，不许悄悄空表开跑"
+                    % (type(exc).__name__, exc))
+        # ── Z5: merge check log（append-only, 每次尝试都记）──
+        self.merge_log_path = merge_log_path or _DEFAULT_MERGE_LOG
+        self.merge_events: List[Dict[str, Any]] = []
+
+    # ── Z4: 候选必须持久化 + 记 lineage（WORLD_TREE_CONVERGENCE §四）──
+    def expand(self, tree_id: str, parent_id: str, *, node_id: str,
+               action: str, provenance: str,
+               confidence_source: str = "none") -> WorldNode:
+        """★ Z4 落点: 产生候选 = 进 tracked 清单（记 parent_id）+ 落盘。
+
+        Z4 原文: "adding it to the list of candidates tracked and marking
+        the new system's parent" —— 展开即追踪，不是可选后补。
+        ★ persist=false 不是本层分支: load_world_tree 已 DialError 挡死，
+          这里再断言一次（双保险 —— 「检查不可关」两层守）。
+        """
+        if not self.cand_cfg["persist"]:
+            raise WorldModelError(
+                "Z4: candidates.persist=false 不允许（原文 tracked —— "
+                "候选必须追踪）")
+        t = self.tree(tree_id)
+        node = t.add_child(parent_id, node_id=node_id, action=action,
+                           provenance=provenance,
+                           confidence_source=confidence_source)
+        self.tracked.append({
+            "tree": tree_id, "node": node.id, "parent_id": node.parent_id,
+            "action": node.action, "provenance": node.provenance,
+            "at": time.time(),
+        })
+        self._flush_tracked()
+        return node
+
+    def _flush_tracked(self) -> None:
+        d = os.path.dirname(self.tracked_path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with io.open(self.tracked_path, "w", encoding="utf-8") as f:
+            json.dump({"tracked": self.tracked}, f, ensure_ascii=False,
+                      indent=1)
+
+    # ── Z5: merge 三条件 + 发生率（Appendix D.1 逐字）─────────────
+    def merge(self, tree_id: str, a_id: str, b_id: str) -> Dict[str, Any]:
+        """★ Z5: 三条件**同时**满足才 merge；每次尝试都记 check log。
+
+        ① 同一祖先  ② 互补集合  ③ 都优于祖先（config merge.require_all=true，
+        校验器 DialError 挡死 false ⇒ 三条件不可关）。
+        ★ ★ 实例化标注（论文只给语义不给判据，两处是我的判据）:
+          「同一祖先」取**同一直接 parent**（最紧可验证解释）;
+          「互补集合」取 **action 互异**（DWC 无基因/构件表示）;
+          「都优于祖先」要求三方都已 observe 打分 —— 没分数不算优于。
+        ★ reject 是业务结果不是异常: 返回 {"merged": False, "failed": [...]}
+          而不是 raise —— 但**每次都进 merge_events + log**（"若发生率异常
+          高说明三条件没被真正检查" ⇒ 拒绝记录正是被检查的证据）。
+        """
+        if not self.merge_cfg["require_all"]:
+            raise WorldModelError(
+                "Z5: merge.require_all=false 不允许 —— 三条件检查不可关")
+        if a_id == b_id:
+            raise WorldModelError("Z5: merge 不许自反（%r 与自己不互补）" % a_id)
+        t = self.tree(tree_id)
+        a, b = t.nodes.get(a_id), t.nodes.get(b_id)
+        if a is None or b is None:
+            raise WorldModelError("merge 引用了不存在的节点: %r / %r"
+                                  "（已有: %s）" % (a_id, b_id, sorted(t.nodes)))
+        failed: List[str] = []
+        # ① 同一祖先
+        if not (a.parent_id is not None and a.parent_id == b.parent_id):
+            failed.append("not_same_ancestor")
+        # ② 互补集合（action 互异 —— 实例化判据）
+        if a.action == b.action:
+            failed.append("not_complementary")
+        # ③ 都优于祖先（三方都要有观测分）
+        parent = t.nodes.get(a.parent_id) if a.parent_id else None
+        if (parent is None or parent.score is None
+                or a.score is None or b.score is None
+                or not (a.score > parent.score and b.score > parent.score)):
+            failed.append("not_both_better_than_ancestor")
+        entry: Dict[str, Any] = {"tree": tree_id, "a": a_id, "b": b_id,
+                                 "passed": not failed, "failed": failed,
+                                 "at": time.time()}
+        self.merge_events.append(entry)
+        self._flush_merge_log(entry)
+        if failed:
+            return {"merged": False, "failed": failed}
+        node_id = "merge-%d-%s+%s" % (len(self.merge_events), a_id, b_id)
+        merged = t.add_child(
+            a.parent_id, node_id=node_id,
+            action="merge(%s|%s)" % (a.action, b.action),
+            provenance="simulated")
+        entry["result_node"] = merged.id
+        return {"merged": True, "node": merged.id}
+
+    def _flush_merge_log(self, entry: Dict[str, Any]) -> None:
+        if not self.merge_cfg.get("log_rate"):
+            return                        # 配置面关日志（当前 config 恒 true）
+        d = os.path.dirname(self.merge_log_path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with io.open(self.merge_log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    def merge_rate(self) -> Optional[float]:
+        """★ Z5 log_rate 的读出: 成功/尝试 —— 无尝试返回 **None**（不装 0.0）。"""
+        if not self.merge_events:
+            return None
+        ok = sum(1 for e in self.merge_events if e["passed"])
+        return ok / len(self.merge_events)
 
     # ── 播种（§4.7: 初始播种 sealed 任务）──────────────────
     def seed(self, tree_id: str, root_action: str) -> WorldTree:
@@ -328,6 +466,14 @@ class WorldModel:
 # ══════════════════════════════════════════════════════════
 # ★★ 已做: 一套树(W1) + provenance 双节点(W2/W3/W5) + 收束三段的信息增益版
 #         + 深度/池上限外部化(W6) + Z6 卡住检测 + 环节⑥任务源接口
+# ★★ R68 已做（在上面「已做」基础上追加）:
+#         + Z4 候选持久化（expand 即 tracked: 落盘 config/anchors/world_candidates.json
+#           + parent_id lineage + 重启载回 —— 文件损坏 WorldModelError 不静默）
+#         + Z5 merge 三条件门（同 parent / action 互异 / 三方已打分且都优于祖先）
+#           + 每次尝试记 check log + merge_rate（无尝试=None 不装 0）
+#           ★ 两处实例化判据已标进 merge docstring（论文只给语义）
+#         + 接线诚实边界: expand/merge 是器官能力, 进 run_term 环节⑥的
+#           运行流接线待世界树展开流落地（与 R60 的范围纪律一致 —— 不假装接了）
 # ★ 未做（下轮, 依赖 TaskScorePoint 历史或另需裁决）:
 #   · 残差难度 δ_θ（裁决的路线丙 组内基线, ARCHITECTURE §4.7 ②）
 #   · 三方向枚举 FORWARD / LATERAL / REVERSE（§4.7 ③）

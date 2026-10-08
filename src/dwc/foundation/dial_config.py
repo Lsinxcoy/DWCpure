@@ -108,10 +108,13 @@ def load_world_tree(path: str = WORLD_TREE_PATH) -> Dict[str, Any]:
     if lineage != "parent_id":
         raise DialError("Z4: candidates.lineage 必须是 parent_id，实为 %r" % lineage)
 
-    # ── Z5 · merge 三条件 ──
+    # ── Z5 · merge 三条件 + 发生率日志 ──
     merge = _need(tree, "merge", "world_tree.world_tree")
     if not _need(merge, "require_all", "world_tree.world_tree.merge"):
         raise DialError("Z5: merge.require_all 必须为 true（三条件同时满足）")
+    # ★ R68 补: log_rate 是 Z5 后半句（"merge occurs sparsely" ⇒ 必须记
+    #   发生率）—— 原校验器漏了这个键, 与「全字段必填无默认」纪律不符
+    _need(merge, "log_rate", "world_tree.world_tree.merge")
 
     return wt
 

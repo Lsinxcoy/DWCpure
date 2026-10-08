@@ -320,3 +320,157 @@ def test_run_term_without_world_model_keeps_old_behavior():
     kinds = [x["kind"] for x in rep.next_task_source["tasks"]]
     assert "world_tree_action" not in kinds
     assert isinstance(kinds, list)
+
+
+# ══════════════════════════════════════════════════════════
+# Z4 · 候选持久化 + lineage（R68 落地 —— 只许 tmp 路径, 防污染生产台账）
+# ══════════════════════════════════════════════════════════
+
+def _wm_z4(tmp_path, tag="t"):
+    return WorldModel(depth_limit=3, max_nodes=50,
+                      tracked_path=str(tmp_path / ("%s_tracked.json" % tag)),
+                      merge_log_path=str(tmp_path / ("%s_merge.jsonl" % tag)))
+
+
+def test_z4_expand_tracks_to_disk_with_lineage(tmp_path):
+    """★ Z4 主路径: expand 即进 tracked 清单（parent_id）+ 落盘 + 重启载回。"""
+    import json
+    wm = _wm_z4(tmp_path)
+    wm.seed("t1", "root-action")
+    n = wm.expand("t1", "root", node_id="c1", action="explore-x",
+                  provenance="simulated")
+    assert n.parent_id == "root"
+    # 落盘
+    with open(wm.tracked_path, encoding="utf-8") as f:
+        data = json.load(f)
+    assert len(data["tracked"]) == 1
+    rec = data["tracked"][0]
+    assert rec["node"] == "c1" and rec["parent_id"] == "root"
+    assert rec["tree"] == "t1" and "at" in rec
+    # 重启载回（persist 的意义 —— 不是只在内存里活着）
+    wm2 = _wm_z4(tmp_path)
+    assert len(wm2.tracked) == 1 and wm2.tracked[0]["node"] == "c1"
+
+
+def test_z4_tracked_file_corrupt_raises_loudly(tmp_path):
+    """★ Z4: persist 文件损坏 ⇒ WorldModelError（不许悄悄空表开跑）。"""
+    wm = _wm_z4(tmp_path)
+    with open(wm.tracked_path, "w", encoding="utf-8") as f:
+        f.write("{broken json")
+    with pytest.raises(WorldModelError, match="tracked 清单"):
+        _wm_z4(tmp_path)
+
+
+def test_z4_persist_false_rejected_by_config(tmp_path):
+    """★ Z4「检查不可关」: persist=false 的 config 在校验器就 DialError。"""
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        "version: 1\n"
+        "world_tree:\n"
+        "  strategy: ig_tree\n  pareto_dim: task\n  n_pareto_min: 50\n"
+        "  stuck:\n    n_stuck: 3\n    on_stuck: switch_strategy\n"
+        "  candidates:\n    persist: false\n    lineage: parent_id\n"
+        "  merge:\n    require_all: true\n    log_rate: true\n",
+        encoding="utf-8")
+    with pytest.raises(DialError, match="Z4"):
+        WorldModel(depth_limit=3, max_nodes=50, config_path=str(bad))
+
+
+# ══════════════════════════════════════════════════════════
+# Z5 · merge 三条件 + 发生率（R68 落地）
+# ══════════════════════════════════════════════════════════
+
+def _mergeable(tmp_path, *, score_b=True, score_root=True,
+               action_b="act-B", b_parent="root"):
+    """一棵可 merge 的树: root(0.5) ← a(0.9)/b(0.8), 三方都 observed。"""
+    wm = _wm_z4(tmp_path, tag="z5")
+    t = wm.seed("t1", "root-action")
+    if score_root:
+        t.observe("root", 0.5, True)
+    t.add_child("root", node_id="a", action="act-A", provenance="observed")
+    t.add_child(b_parent, node_id="b", action=action_b,
+                provenance="observed")
+    t.observe("a", 0.9, True)
+    if score_b:
+        t.observe("b", 0.8, True)
+    return wm, t
+
+
+def test_z5_merge_passes_all_three_conditions(tmp_path):
+    """★ 三条件全真 ⇒ merge 成功 + 产物 parent=共同祖先 + log 记录。"""
+    wm, _ = _mergeable(tmp_path)
+    r = wm.merge("t1", "a", "b")
+    assert r["merged"] is True
+    node = wm.tree("t1").nodes[r["node"]]
+    assert node.parent_id == "root" and node.provenance == "simulated"
+    assert wm.merge_events[0]["passed"] is True
+    assert wm.merge_rate() == 1.0
+
+
+def test_z5_reject_not_same_ancestor(tmp_path):
+    """负面: 祖先不同 ⇒ reject 且记 failed 码。"""
+    wm, _ = _mergeable(tmp_path, b_parent="a")   # b 的 parent=a ≠ root
+    r = wm.merge("t1", "a", "b")
+    assert r["merged"] is False
+    assert "not_same_ancestor" in r["failed"]
+    assert wm.merge_events[0]["passed"] is False
+    assert wm.merge_rate() == 0.0                # 1 次尝试 0 成功
+
+
+def test_z5_reject_not_complementary(tmp_path):
+    """负面: action 相同 ⇒ 不互补。"""
+    wm, _ = _mergeable(tmp_path, action_b="act-A")
+    r = wm.merge("t1", "a", "b")
+    assert r["merged"] is False and "not_complementary" in r["failed"]
+
+
+def test_z5_reject_not_better_than_ancestor(tmp_path):
+    """负面: 祖先或一方没分数 ⇒ 不算「优于」（没观测不许默认通过）。"""
+    wm, _ = _mergeable(tmp_path, score_b=False)
+    r = wm.merge("t1", "a", "b")
+    assert r["merged"] is False
+    assert "not_both_better_than_ancestor" in r["failed"]
+    # 祖先无分的分支: 另组一颗（root 不打分）
+    wm3 = _wm_z4(tmp_path, tag="z5b")
+    t = wm3.seed("t1", "root-action")
+    t.add_child("root", node_id="a", action="act-A", provenance="observed")
+    t.add_child("root", node_id="b", action="act-B", provenance="observed")
+    t.observe("a", 0.9, True)
+    t.observe("b", 0.8, True)
+    r3 = wm3.merge("t1", "a", "b")
+    assert r3["merged"] is False
+    assert "not_both_better_than_ancestor" in r3["failed"]
+
+
+def test_z5_log_every_attempt_and_rate_none(tmp_path):
+    """★ Z5 log_rate: 每次尝试（含 reject）都进 log; 无尝试 rate=None 不装 0。"""
+    wm, _ = _mergeable(tmp_path)
+    assert wm.merge_rate() is None              # 没尝试 ≠ 0.0
+    wm.merge("t1", "a", "b")                    # pass
+    wm.merge("t1", "b", "a")                    # 也 pass（对称）
+    with open(wm.merge_log_path, encoding="utf-8") as f:
+        lines = [l for l in f.read().splitlines() if l.strip()]
+    assert len(lines) == len(wm.merge_events) == 2
+    assert wm.merge_rate() == 1.0
+
+
+def test_z5_self_merge_raises(tmp_path):
+    """阳性: 自反 merge 直接报错（a 与自己谈不上互补）。"""
+    wm, _ = _mergeable(tmp_path)
+    with pytest.raises(WorldModelError, match="自反"):
+        wm.merge("t1", "a", "a")
+
+
+def test_z5_require_all_not_closable(tmp_path):
+    """★ Z5「检查不可关」: require_all=false 的 config 在校验器就 DialError。"""
+    bad = tmp_path / "bad5.yaml"
+    bad.write_text(
+        "version: 1\n"
+        "world_tree:\n"
+        "  strategy: ig_tree\n  pareto_dim: task\n  n_pareto_min: 50\n"
+        "  stuck:\n    n_stuck: 3\n    on_stuck: switch_strategy\n"
+        "  candidates:\n    persist: true\n    lineage: parent_id\n"
+        "  merge:\n    require_all: false\n    log_rate: true\n",
+        encoding="utf-8")
+    with pytest.raises(DialError, match="Z5"):
+        WorldModel(depth_limit=3, max_nodes=50, config_path=str(bad))
