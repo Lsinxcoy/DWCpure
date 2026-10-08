@@ -1,0 +1,37 @@
+{
+ "round": "R73 · 三方向枚举落地（direction.py · 器官⑥ search/ 第三件）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 三方向枚举; 设计来源齐, 范围可控）",
+ "★ 出处核清": [
+  "EVOLUTION_CORE_V2 §8.3 + 组件树 L656-660: ⑥ search/ = **四件**",
+  "  (weakness R69✓ / el_sched R70✓ / **replay 未做** / direction 本轮)",
+  "  ★ 此前两轮口头说「器官⑥ 只剩一件」是**数错** — replay.py(回放仿真器, 2609.14858)还在,",
+  "    已写进 direction 诚实边界+测试锁(test_direction_is_dual_use_in_evolver_boundary)",
+  "ALL_REPOS §六/结论2: 三语义逐字 + 39 仓只有 Y/Omega 有方向 + 链位:",
+  "  方向选择(Y)→门(ARSI)→验证(MSTAR)→落地(MSTAR)→固化(Z) — 方向是第一环(门之前)",
+  "DEDUP L254: **3 种是校正后口径**(旧报告 4 种是错的) ⇒ N_DIRECTIONS=3 锁死",
+  "实测旁证: 本机 Prometheus-Omega 源码 grep 无 EvolutionDirection 残留 ⇒",
+  "  以 ALL_REPOS 39 仓分析记录为权威实测(已在模块头标注)",
+  "辨析(设计原文): 三方向 ≠ 2609.04128 length/scenario/skill(难度方向的分解);",
+  "  ≠ 世界树收束(WORLD_TREE 系对方向零提及已 grep 核实, W4 只吃信息增益)"
+ ],
+ "★ 实现 organs/direction.py": [
+  "EvolutionDirection(str, Enum) 三成员(值=名, str 混合可 json 直等)",
+  "SEMANTICS 语义表与枚举**同处存放**(名字与实现对齐, 防两处漂移)",
+  "ensure_direction: 精确值枚举校验 — 拒 None(『无方向』不是第四方向)/",
+  "  大小写变体/未知值/非字符串, 全部 DirectionError 大声报错",
+  "semantics_of 查表(语义唯一真源)"
+ ],
+ "诚实边界": [
+  "★ **选择策略设计未给 ⇒ 不发明**(EVOLUTION §8.3/ALL_REPOS §六 全文核, 零策略描述);",
+  "  有据的只有链位(方向选择在门之前)",
+  "★ 消费接线待设计裁决(谁带 direction 字段: evolver 提案/探索展开 — 加字段=行为面变更)",
+  "★ 候选接线观察(我的实例化, 未接未复核): world_tree stuck.on_stuck: switch_strategy",
+  "  ≈ LATERAL、『回退更简单』≈ REVERSE — 若将来裁决联动这是第一落点",
+  "★ ⑥ search/ 还剩 replay.py(第四件)未做"
+ ],
+ "验证": [
+  "pytest 712 passed(+7) rc=0 · gate 8/8 · e2e rc=0(LLM 段 rejected 波动, 如实)",
+  "破坏 2/2: ①ensure 兼容大小写(casefold)⇒ 拒错测试红 ②语义表删 LATERAL ⇒ 2 测红 → 恢复绿"
+ ]
+}

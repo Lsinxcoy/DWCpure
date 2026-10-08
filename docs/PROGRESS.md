@@ -14,11 +14,11 @@
 | ★ 缺口销账 | **11 项已销账**（A1–A7 · §二①②③ · C3'） | `docs/GAP_AUDIT.md` 内 11 项全标 ✓ | `grep -c "【已做" docs/GAP_AUDIT.md` |
 | ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `wc -c docs/WORLD_TREE_CONVERGENCE.md` |
 | ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 10.1K | `wc -c docs/FULL_AUDIT_2026-10-04.md` |
-| ★ 测试 | 首份 12 项（10-04）→ **现 705 项全过** | `705 passed in 18.7s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
+| ★ 测试 | 首份 12 项（10-04）→ **现 712 项全过** | `712 passed in 18.1s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
 | ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
-| ★★★ 承重代码 | **27 个 .py / 11,260 行**（R18 建 git 起，从 0 写到 R72） | 11260（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
-| ★★★ 测试代码 | **32 文件 / 658 函数 → pytest 收集 705 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
+| ★★★ 承重代码 | **28 个 .py / 11,371 行**（R18 建 git 起，从 0 写到 R73） | 11371（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 测试代码 | **33 文件 / 665 函数 → pytest 收集 712 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
 | ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 11 文件（含 __init__；applier/candidates = evolver ④ 支撑体；weakness/el_sched = ⑥ 组件 R69/R70） | `ls src/dwc/organs/` |
 | ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\|环节⑥' src/dwc/harness/run_term.py` |
 | ★★★ 三入口 | **3/3 全齐**：ingest·step·run_term 收拢进 core.py 主类（R62） | `grep -c 'def ingest\|def step\|def run_term' src/dwc/core.py` = 3；共享记忆有测试 | `grep -n 'def ingest\|def step\|def run_term' src/dwc/core.py` |
@@ -26,7 +26,7 @@
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R72 · 每轮一知识档 | **64 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R73 · 每轮一知识档 | **65 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 
