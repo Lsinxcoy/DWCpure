@@ -1,0 +1,45 @@
+{
+ "round": "R74 · 回放仿真器落地（replay.py · ⑥ search/ 第四件 —— **组件树四件全落**）",
+ "date": "2026-10-08",
+ "用户指令": "继续推进1（= replay.py 回放仿真器; 补齐后 ⑥ search/ 4/4 收官）",
+ "★ 论文机制逐条（docs/papers/2609.14858.md 深读报告）": [
+  "§2.2 Discovery Tree: 根=初始工作区, 每非根恰一 primary parent, 节点存 score s_v",
+  "  ⇒ 承载裁决: WorldTree 天然同构(root_id/nodes/parent_id/children R60 已在,",
+  "    其 docstring 早就预留了与 14858 的差异标注)",
+  "§2.3 A(𝒯)={r}∪{观测树叶子} · A(𝒯;W)={C⊆A:|C|≤W} · 叶子按**当前观测**判定",
+  "§2.5 Dreaming: 确定性返回记录子节点**绝不生成** · 根→最早已记录子 · observed 单调",
+  "  ★ 论文自陈根本偏置: 只能重排不能探索新分支(已写进模块头)",
+  "§2.6 V=max s_v−β₁·N+β₂·(N/max{1,k}) · ★★β₁/β₂ 论文**未报告值** ⇒ 必传无默认",
+  "§2.7 argmax + 候选必含 current ⇒ V(m*)≥V(current) · 单调性边界=「固定历史平均",
+  "  replay 分不劣」**不是**在线性能(逐字标注, 引用别放大)"
+ ],
+ "★ 实现 organs/replay.py": [
+  "ReplaySimulator(tree): eligible(观测树叶+A恒含root) + validate_batch(C⊆A,|C|≤W,",
+  "  空批次合法=终止条件, **只校验不枚举**组合族防爆炸) + step(根→最早子/记录且未观测",
+  "  才揭示/绝不生成/只增不减) + 树外 observed 大声报错",
+  "replay_score: β 必传(无出处不给默认) · β<0 拒(论文符号约束) · max{1,k} 防除零",
+  "select_policy: argmax · **current 缺失 raise**(不许缺着候选装保证) · 平手键字典序",
+  "  确定性 · no_worse_than_current 谓词可断言",
+  "落点差异明写: §5 深读建议落 memory/replay_sim.py(记忆节点加字段) — **不采纳**:",
+  "  DWC 记忆不是树, 世界树已是真树 ⇒ 组件树 organs/replay.py 为准",
+  "与 evolver.accept 分工: accept=采纳门(2606.09498 两组 split, 已落) vs 本模块=策略选择",
+  "  (14858 §2.7) — 两套判据不互替(边界明写防混)"
+ ],
+ "诚实边界": [
+  "★ Online rollout 执行器(策略冻结产新树)未接 — 在线侧=世界树 expand/observe 已有但",
+  "  「策略代码执行循环」不在本轮",
+  "★ M≥1 策略版本的**产生侧**(policy-development agent 改策略码)=LLM 循环未接 —",
+  "  本轮只落**评估侧**(给一组 V 能选)",
+  "★ ℋ 历史树累积(ℋ_t=ℋ_{t−1}∪{𝒯_t})运行时未接(world_model.trees 是容器但每轮 append",
+  "  的时机未绑)",
+  "★ β₁/β₂ 落地取值必须显式给(config/裁决), 不许代码编默认",
+  "★ organs/__init__ 清单更新四件全落 · PROGRESS 器官行修正",
+  "★ **本轮自检教训**: 器官文件数我心算 14, 断言实测 13 ⇒ 先修文档再提交",
+  "  (声称=实测的断言在提交流程里第一次真拦住错误 — 保留该模式)"
+ ],
+ "验证": [
+  "pytest 727 passed(+15) rc=0 · gate 8/8 · e2e rc=0(LLM 段 rejected 波动, 如实)",
+  "破坏 2/2: ①删 step 根特殊规则 ⇒ 2 测红 ②删 current 必含校验 ⇒ 1 测红 → 恢复绿",
+  "真树集成测试: root→a→a1 的 Dreaming 最小闭环(初始/开根/开a/终态判停)"
+ ]
+}

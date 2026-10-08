@@ -6,5 +6,7 @@
 
 ★ 本包现有: memory · judge · actor · evolver · applier · candidates ·
   world_model（R60 第七器官, 承载环节⑥）· iwm（R61 防漂移）·
-  weakness（R69 残差难度 δ_θ, 器官⑥ 第一件）。
+  weakness（R69 残差难度 δ_θ）· el_sched（R70 EL 调度器）·
+  direction（R73 三方向）· replay（R74 回放仿真器）——
+  后四件 = ⑥ search/ 组件树四件**全落**（EVOLUTION L656-660）。
 """
