@@ -90,14 +90,14 @@ dwc/
 测试    35 文件 / 713 函数 → pytest 760 项全过（18.2s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R89 · 84 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R90 · 85 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R89 · 多分支世界扩树: M>1 区分度 6/6 — t2 节点=task_id 命中 dmap + K₂=4 截断 ⇒ π(w=1,r=0) 显著更低(no-reveal 过滤价值实证); w 权重此构造仍平(边界留档); 首版恒等两层根因入档）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R90 · w_delta 分化三迭代 → 架构边界实证: dream 揭示语义(非根深挖+空转break+root兜底)下 nonroot≥2 不可达 ⇒ w 无多选窗口; 真主场=任务源采样(R77); M>1 区分维度=r 开关; trial 恢复 R89 6/6 版）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 
