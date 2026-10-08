@@ -22,11 +22,11 @@
 | ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 8 文件（applier/candidates = evolver ④ 支撑体） | `ls src/dwc/organs/` |
 | ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\|环节⑥' src/dwc/harness/run_term.py` |
 | ★★★ 三入口 | **3/3 全齐**：ingest·step·run_term 收拢进 core.py 主类（R62） | `grep -c 'def ingest\|def step\|def run_term' src/dwc/core.py` = 3；共享记忆有测试 | `grep -n 'def ingest\|def step\|def run_term' src/dwc/core.py` |
-| ★★★ 记忆对照实验 | **R66 记忆增长+跨任务迁移（四轮首次方向翻转）**: none 0.500 / guidance 0.750 / **replay 1.000** — V1/方向双双 True; 干净读数=002 二轮 replay 救回·guidance 没救回(n=1); ★ none 的 2 次 LLM 超时全砸自己臂, 其低分一半是端点故障 — 打折后仍是首现预期方向 | `python src/dwc/experiments/mem_guidance_vs_replay.py` |
+| ★★★ 记忆对照实验 | **R67 终局判读（事前规则, repeat=4, 64 trial）**: none 0.688 / guidance 0.812 / replay 0.750 — **两检验对两口径全部 |Δ|≤2 = 噪声**; R66 的 n=1 翻转未复现（002 上 replay 0P4H, 其口径B 1.000 是幸存者偏差）; 易题三臂恒全过零区分度+端点 8 次挂 ⇒ **实验线终局: V1 与论文方向在单步修复任务族未获支持** | `python src/dwc/experiments/mem_guidance_vs_replay.py` |
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R66 · 每轮一知识档 | **58 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R67 · 每轮一知识档 | **59 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 
