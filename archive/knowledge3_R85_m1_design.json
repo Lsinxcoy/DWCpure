@@ -1,0 +1,16 @@
+{
+ "round": "R85 · M>1 策略修订设计稿（R79 稿裁决②标注的独立设计轮, 不动码）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= M>1 策略修订设计轮）",
+ "★ 设计要点": [
+  "修订范围: 只动纯选择逻辑参数(w_delta/prefer_revealable) — 锁值(τ/B/β/δ0.15)",
+  "  不进修订域(构造校验拒) — 混动=违校准纪律+无法归因(约束4一处变更)",
+  "修订方式推荐 A: 网格枚举变体(确定性可复现, 候选集自动含 π^0 ⇒ 单调性支点满足",
+  "  ; 论文未限定产生方式) + LLM policy-development 留二期",
+  "循环: dream 加 policy_variants; 每版本每树单独评估(§2.5 逐字); select_policy/",
+  "  no_worse 复用; **M=1 默认完全兼容零破坏**",
+  "DreamReport 加 policy_variants + v_by_version 全表"
+ ],
+ "交付": "docs/proposal_m1_policy_revision.html（深色+导航+卡片, 同 R79 形态）",
+ "裁决点": "修订方式 A(网格, 推荐) / B(LLM 修订) · 参数范围确认"
+}

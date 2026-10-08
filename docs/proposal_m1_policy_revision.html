@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC · M>1 策略修订设计稿（R79 稿标注的独立设计轮）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--tx:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--grn:#3fb950;--red:#f85149;--ylw:#d29922}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.75 "Segoe UI",system-ui,sans-serif;max-width:1080px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:26px;border-bottom:2px solid var(--acc);padding-bottom:10px}
+h2{font-size:19px;margin:34px 0 12px;color:var(--acc)}
+.meta{color:var(--dim);font-size:13px;margin:8px 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:14px 0}
+.card.rec{border-left:4px solid var(--grn)}
+.card.risk{border-left:4px solid var(--ylw)}
+.card.gap{border-left:4px solid var(--red)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:12px;font:13px/1.6 Consolas,monospace;overflow-x:auto;margin:10px 0}
+code{font-family:Consolas,monospace;background:#1f242c;border-radius:3px;padding:1px 5px;font-size:13px}
+.dim{color:var(--dim)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:#1c2128}
+.toc a{color:var(--acc);text-decoration:none;margin-right:18px;font-size:14px}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 8px;color:var(--dim);margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<h1>M&gt;1 策略修订设计稿 <span class="tag">R79 稿裁决②标注的独立设计轮 · 设计先行</span></h1>
+<div class="meta">2026-10-08 · R85（待裁决） · 依据：论文 §2.7 逐字（policy-development agent 修订<b>可执行策略代码</b>）→ DWC 策略参数现状盘点（R81/R84 后）→ 修订机制设计。<b>本稿不动码</b>。</div>
+
+<div class="toc">
+<a href="#s1">① 论文语义与 DWC 现状</a>
+<a href="#s2">② 修订范围（纪律边界）</a>
+<a href="#s3">③ 修订方式（裁决点）</a>
+<a href="#s4">④ 循环骨架</a>
+<a href="#s5">⑤ 实现范围与验证</a>
+</div>
+
+<h2 id="s1">① 论文语义与 DWC 现状</h2>
+<div class="card">
+<p><b>论文 §2.7 逐字</b>：policy-development agent 接收 π_t^m 的 <b>replay 轨迹与分数</b> + 前几次修订的反馈，"identify successful decisions and recurring failures"，然后<b>修订可执行的策略代码</b>，在同一组 replay worlds 上评估；π_{t+1} = π^{m*}（argmax V^m，含 current）。</p>
+<p class="dim">DWC 现状（R81 后 π^0 的可参数化点）：① δ 排序权重（<code>-dmap.get(node,0)</code> 硬编码 1.0）② 候选过滤（_can_reveal）③ root 兜底；EL 的 B/τ 与 β/δ=0.15 均为<b>生产锁值</b>（校准纪律）。</p></div>
+
+<h2 id="s2">② 修订范围（纪律边界）</h2>
+<div class="card rec"><b>推荐：只动纯选择逻辑参数，锁值不进修订域</b>
+<pre>可修订域 π^m = { w_delta: float,          # δ 排序权重（0=纯字典序, 1=现行）
+                  prefer_revealable: bool }  # 是否只选能揭新的（R81 补丁开关）
+不动域（生产锁值）= { τ, B, β₁/β₂, δ=0.15, ... }   # 修订撞锁值 = 违校准纪律, 构造校验拒
+</pre>
+<p>理由：锁值各有校准协议（R58/R63-R67/R79 稿裁决③）；策略修订是<b>探索行为的调度</b>，不是判据/阈值的再校准——两者混动 = 无法归因（约束 4：一处变更）。</p></div>
+
+<h2 id="s3">③ 修订方式（裁决点）</h2>
+<div class="card gap"><b>缺口</b>：论文的产生侧=LLM agent 修订策略代码；DWC 的策略是参数逻辑而非可改代码，且 LLM 修订引入非确定性（测试/复现成本）。</div>
+<div class="card rec"><b>推荐裁决 A：网格枚举变体（起步）+ LLM 修订（二期）</b>
+<pre>M-1 个变体从**预定义网格**确定性生成（w_delta ∈ {0, 0.5, 1.0} × prefer_revealable ∈ {T,F} 截取）
+  + π^0（现行参数）⇒ 候选集必含 current（§2.7 单调性支点自动满足）
+★ 确定性: 无 LLM 依赖, replay 评估可复现（测试锁）; 论文未限定产生方式
+  （框架只要求"评估 M 个版本选优"）—— 网格是合法子集
+二期 B: LLM policy-development（贴论文"从反馈开发"语义）— 等 A 框架验证后接
+  （candidates.py 候选生成同族先例已有）</pre></div>
+
+<h2 id="s4">④ 循环骨架（设计）</h2>
+<div class="card">
+<pre>dream(k2_max, *, policy_variants=None) -> DreamReport   # M&gt;1 扩展
+    ℋ = 快照序列（R80 机制不变）
+    πs = [π^0(现行)] + 网格变体（或 policy_variants 显式传）
+    for m in πs:                                 # 每版本每树单独评估完才下一版本（§2.5）
+        for (tid, T_i) in ℋ: 按 π^m 的 w_delta/_can_reveal 跑 rollout → V_i^m
+        V^m = mean_i(V_i^m)
+    m* = select_policy(V^m, current="π0")        # R74 既有（current 必含）
+    assert no_worse_than_current(...)            # §2.7 单调性 — M&gt;1 时**非平凡**
+    DreamReport 加: policy_variants（参数集）, v_by_version 全表
+★ M=1 行为完全不变（默认 policy_variants=None ⇒ π^0 单版本）—— 零破坏向后兼容</pre></div>
+
+<h2 id="s5">⑤ 实现范围与验证（若批准）</h2>
+<div class="card">
+<table>
+<tr><th>件</th><th>内容</th><th>验证</th></tr>
+<tr><td>① PolicySpec</td><td>参数 dataclass + 构造校验（锁值键拒入）</td><td>非法键 raise；w_delta=0 退化字典序</td></tr>
+<tr><td>② dream M 循环</td><td>版本循环 + 按参数跑 rollout（M=1 兼容）</td><td>M=1 与现行逐字节同分；M&gt;1 v_by 全表可审计</td></tr>
+<tr><td>③ 单调性</td><td>M&gt;1 时 no_worse 非平凡成立</td><td>破坏：current 不入候选 ⇒ raise</td></tr>
+<tr><td>破坏面</td><td>①锁值键混入修订域 ②网格不含 π^0</td><td>各自测试红</td></tr>
+</table>
+<p class="dim">边界：网格变体的"修订"是<b>搜索</b>不是"反馈开发"——报告 why 明标；LLM 修订留二期（设计另行）。</p></div>
+
+<div class="card risk"><b>本稿性质</b>：设计先行，批准后实现一轮（三层验证+知识档+提交）；不批准则留档。</div>
+
+</body>
+</html>
