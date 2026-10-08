@@ -1,0 +1,32 @@
+{
+ "round": "R64 · 记忆对照实验·区分度增强重跑（三招全上: 全集+稀释+多轮）",
+ "date": "2026-10-08",
+ "用户指令": "执行1（= 区分度增强重跑）",
+ "三招（全部事前定, 不看结果挑）": [
+  "① 任务 = dev 全集 10 条（6 behavior + 4 keyword_match 推理, 基线签名事前实测全 fail）",
+  "② 干扰 40 条(4 命中+36 程序生成干扰, 避开命中路径) — guidance 平铺全库=稀释注射器",
+  "③ 多轮 rounds=2: 第2轮臂中立反馈(上轮产出+judge失败原因, 三臂同文) + pass 早停"
+ ],
+ "★ 实测（36 调用零错误, archive/experiments/mem_guidance_vs_replay.json）": [
+  "arm       calls llm_ok parsed pass(trial) pass_rate  memo_n",
+  "none        12     12     12     10/10     1.000     [0]",
+  "guidance    12     12     12     10/10     1.000     [40]",
+  "replay      12     12     12      9/10     0.900     [0,1,3]",
+  "逐任务: 8/10 首轮即过; 002 三臂 R2 救回 2 个 replay 仍败; reasoning_004 三臂 R1败→R2过",
+  "⇒ V1 记忆增益仍未观测(guidance==none) · replay 差距=002 单轮(n=1, 噪声/效应不可分)",
+  "⇒ ★ 多轮反馈救回 4/5 失败 trial = 本轮唯一有效因素(臂中立, 三臂共享)"
+ ],
+ "验证": [
+  "pytest 647 passed(+3) rc=0 · gate 8/8 · e2e rc=0",
+  "破坏 2/2: ①拆早停→2 红 ②feedback 单臂加料→qa 反馈同文测试红 → 恢复绿",
+  "首跑坑如实记: execute_code 300s 硬顶杀实验 → 改后台 terminal 跑完(12.6 分钟)"
+ ],
+ "诚实边界": [
+  "★ 区分度仍不足: 8/10 首轮即过 — LLM 对 dev 任务族裸能力覆盖, 三臂差异空间被压",
+  "★ replay 0.90 vs guidance 1.00 只差 002 一个 trial — n=1 不能下方向结论",
+  "★ 稀释假设未成立: 40 条平铺未拖累 guidance(与 none 完全同分) — 干扰可能太弱",
+  "   (干扰 fix_hint 是占位文本, 非真实误导性经验 — 下轮若测稀释需真实干扰)",
+  "★ e2e 连续两轮 LLM 段 candidates_rejected(生成质量波动, 与实验无关)",
+  "★ 未经第二人复核"
+ ]
+}

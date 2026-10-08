@@ -17,16 +17,16 @@
 | ★ 测试 | 首份 12 项（10-04）→ **现 644 项全过** | `644 passed in 15.1s` rc=0（2026-10-08） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
 | ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
-| ★★★ 承重代码 | **24 个 .py / 10096 行**（R18 建 git 起，从 0 写到 R63） | 10096（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
-| ★★★ 测试代码 | **29 文件 / 597 函数 → pytest 收集 644 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
+| ★★★ 承重代码 | **24 个 .py / 10,196 行**（R18 建 git 起，从 0 写到 R64） | 10196（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 测试代码 | **29 文件 / 600 函数 → pytest 收集 647 项** | 同「测试」行实测 | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
 | ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 8 文件（applier/candidates = evolver ④ 支撑体） | `ls src/dwc/organs/` |
 | ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\|环节⑥' src/dwc/harness/run_term.py` |
 | ★★★ 三入口 | **3/3 全齐**：ingest·step·run_term 收拢进 core.py 主类（R62） | `grep -c 'def ingest\|def step\|def run_term' src/dwc/core.py` = 3；共享记忆有测试 | `grep -n 'def ingest\|def step\|def run_term' src/dwc/core.py` |
-| ★★★ 记忆对照实验 | guidance vs replay 三臂 **持平 0.75/0.75/0.75**（R63 真端点 24 调用）— V1 增益未观测、论文方向未复现（诚实负结果, 详见 archive/experiments/） | `python src/dwc/experiments/mem_guidance_vs_replay.py` |
+| ★★★ 记忆对照实验 | R64 区分度增强（全集 10 任务+40 条稀释+2 轮臂中立反馈, 36 调用零错误）: none **1.000** / guidance **1.000** / replay **0.900**（replay 差距=002 单轮, n=1 不可判噪声或效应） — V1 增益仍未观测; **多轮反馈救回 4/5 失败 trial = 本轮唯一有效因素** | `python src/dwc/experiments/mem_guidance_vs_replay.py` |
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R63 · 每轮一知识档 | **55 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R64 · 每轮一知识档 | **56 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 

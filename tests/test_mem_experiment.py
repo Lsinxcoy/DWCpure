@@ -18,8 +18,8 @@ ROOT = r"E:/Divine Wisdom Core"
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.experiments.mem_guidance_vs_replay import (  # noqa: E402
-    ARMS, MEMO_BUDGET, SEED_MEMORY, TASKS, TRUTH_SOURCE, build_prompt,
-    extract_code, make_tree, reveal_path, run_experiment,
+    ARMS, MEMO_BUDGET, SEED_HIT, SEED_MEMORY, TASKS, TRUTH_SOURCE,
+    build_prompt, extract_code, make_tree, reveal_path, run_experiment,
 )
 from dwc.llm.client import LLMResult  # noqa: E402
 
@@ -30,6 +30,9 @@ FIX = {
                   "    for i in range(1, n + 1):\n        r *= i\n    return r"),
     "fibonacci": ("def fibonacci(n):\n    a, b = 0, 1\n"
                   "    for _ in range(n):\n        a, b = b, a + b\n    return a"),
+    "is_palindrome": ("def is_palindrome(s):\n"
+                      "    return s.lower() == s[::-1].lower()"),
+    "reverse_string": "def reverse_string(s):\n    return s[::-1]",
 }
 
 
@@ -104,9 +107,9 @@ def test_replay_block_never_leaks_side_branches():
     block = build_prompt("replay", "t", "def f(): pass",
                          memo_items=items, replay_summary=s)
     assert "斐波那契少迭代一轮" in block          # 路径内容在
-    assert "字符串当数字比" not in block            # 旁支(异 c)不泄
-    assert "空序列没护栏" not in block              # 旁支(同 c 异 q)不泄
-    assert "累加和少算一项" not in block            # 同 c 另一 q 的叶也不泄
+    assert "干扰经验" not in block                # 36 条程序干扰一条不泄
+    assert "参数没归一" not in block              # 异 c 干扰场景不泄
+    assert "累加和少算一项" not in block          # 同 c 另一 q 的叶也不泄
 
 
 # ══════════════════════════════════════════════════════════
@@ -120,23 +123,28 @@ def test_none_arm_has_no_memory():
 
 
 def test_guidance_arm_has_all_memory_flat():
-    """A 臂: 全部记忆平铺（≤ 预算上限）。"""
+    """A 臂: 全部记忆平铺（= 全库 40 条, 稀释效应的注射器）。"""
+    assert len(SEED_MEMORY) == 40 and len(SEED_HIT) == 4
     p = build_prompt("guidance", "t", "def f(): pass",
                      memo_items=SEED_MEMORY[:MEMO_BUDGET])
-    assert "累加和少算一项" in p and "布尔极性反了" in p
+    assert "累加和少算一项" in p                    # 命中项在
+    assert "干扰经验" in p                          # 干扰也全平铺进来
     assert len(SEED_MEMORY) == MEMO_BUDGET
 
 
 def test_same_skeleton_across_arms():
-    """★ 对照干净性: 三臂的任务骨干部逐字相同（只有记忆块不同）。"""
-    kw = dict(task_id="t", buggy="def f():\n    return 1")
-    bodies = []
-    for arm in ARMS:
-        p = build_prompt(arm, **kw)
-        i = p.find("修复下面")
-        assert i >= 0, arm
-        bodies.append(p[i:])
-    assert bodies[0] == bodies[1] == bodies[2]
+    """★ 对照干净性: 三臂的任务骨干部逐字相同（code 与 qa 两种骨架都测）。"""
+    for kwargs in (dict(material="def f():\n    return 1"),
+                   dict(material="排序的最坏情况", material_kind="qa")):
+        bodies = []
+        for arm in ARMS:
+            p = build_prompt(arm, "t", **kwargs)
+            anchor = ("修复下面" if kwargs.get("material_kind") != "qa"
+                      else "直接回答下面问题")
+            i = p.find(anchor)
+            assert i >= 0, arm
+            bodies.append(p[i:])
+        assert bodies[0] == bodies[1] == bodies[2], kwargs
 
 
 def test_memory_block_contains_only_memory_lines():
@@ -198,23 +206,80 @@ def test_experiment_premise_buggy_must_fail():
 
 
 def test_experiment_full_loop_counts_and_verdict():
-    """FakeLLM 给 golden 修复 ⇒ 三臂全 pass, 汇总/verdict 字段齐（4 任务×2）。"""
-    res = run_experiment(FakeLLM(), repeat=2, tasks=TASKS)
+    """FakeLLM 给 golden 修复 ⇒ 六任务三臂全 pass（早停 1 轮）· 汇总字段齐。"""
+    res = run_experiment(FakeLLM(), repeat=2, tasks=TASKS, rounds=2)
     for arm in ARMS:
         s = res["arms"][arm]
-        assert s["n_calls"] == 4 * 2, (arm, s)      # 4 任务 × 2 重复
-        assert s["n_llm_ok"] == s["n_calls"]
-        assert s["n_pass"] == s["n_calls"], (arm, s)  # golden 修复全过 judge
+        assert s["n_trials"] == 6 * 2, (arm, s)      # 6 behavior × 2 重复
+        assert s["n_trials_passed"] == s["n_trials"], (arm, s)
         assert s["pass_rate"] == 1.0
+        assert s["n_calls"] == 6 * 2, \
+            "Fake 全过 ⇒ 每 trial 早停 1 轮, calls 应= trials, 实得 %s" % s["n_calls"]
     v = res["verdict"]
     assert v["v1_memory_useful"] is False           # none 也是 1.0 ⇒ 记忆无增益
     assert v["paper_direction_replay_gt_guidance"] is False
-    # 预算对等审计: guidance 恒 8 条, replay 按真实路径命中(1 或 3 条)
+    # 预算审计: guidance=全库 40; replay 按真实签名分档 {0,1,3}
+    #   （001–003=3 · 004=1 · 005/006 签名在树外=0 —— 事前实测值）
     assert res["arms"]["guidance"]["memo_n_per_call"] == [MEMO_BUDGET]
     assert res["arms"]["none"]["memo_n_per_call"] == [0]
-    rp = res["arms"]["replay"]["memo_n_per_call"]
-    assert all(0 <= n <= MEMO_BUDGET for n in rp)
-    assert 1 in rp and 3 in rp, "路径命中应分档: 004=1 条, 001–003=3 条, 实得 %s" % rp
+    assert res["arms"]["replay"]["memo_n_per_call"] == [0, 1, 3], \
+        res["arms"]["replay"]["memo_n_per_call"]
+
+
+def test_seed_structure_hit_and_distractors():
+    """★ 种子结构: 40 = 4 命中 + 36 干扰; 干扰 (c,q) 不落进命中路径。"""
+    from dwc.experiments.mem_guidance_vs_replay import _distractors
+    dis = _distractors()
+    assert len(dis) == 36
+    hit_paths = {("E_VALUE", "wrong_magnitude"),
+                 ("E_OFF_BY_ONE", "off_by_one_in_range")}
+    for d in dis:
+        assert (d["c"], d["q"]) not in hit_paths, \
+            "★ 干扰泄进命中路径: %s" % d
+    assert len(SEED_MEMORY) == 40
+
+
+def test_qa_channel_keyword_match_with_round2_feedback():
+    """★ qa 通道: keyword_match 判分 + 第 2 轮**臂中立**反馈补关键词。"""
+    class QAFake:
+        configured = True
+
+        def __init__(self):
+            self.n = 0
+
+        def complete(self, prompt, *, system=None, **kw):
+            self.n += 1
+            if "上一轮" in prompt:                  # 反馈到了才补关键词
+                return LLMResult(ok=True, source="llm",
+                                 text="快速排序最坏情况由 pivot 选择失衡造成，"
+                                      "递归深度退化为 n，整体为最坏 O(n²)。")
+            return LLMResult(ok=True, source="llm",
+                             text="快排平均很快。")   # 缺全部关键词
+
+    res = run_experiment(QAFake(), repeat=1, rounds=2,
+                         tasks={}, qa=True)
+    rows = [r for r in res["records"] if r["task"] == "reasoning_001"
+            and r["arm"] == "none"]
+    assert len(rows) == 2, rows                     # R1 fail → R2 pass
+    assert rows[0]["pass_"] is False and rows[1]["pass_"] is True
+    assert res["arms"]["none"]["n_trials"] == 4      # 4 条 reasoning 全跑
+    # 臂中立反馈: build_prompt 注入的 feedback 三臂同文
+    fb = "同一段反馈文本"
+    bodies = [build_prompt(a, "t", "问题", material_kind="qa", feedback=fb)
+              for a in ARMS]
+    assert all(fb in b for b in bodies)
+    tail = [b[b.find("上一轮尝试与判分反馈"):] for b in bodies]
+    assert tail[0] == tail[1] == tail[2]
+
+
+def test_early_stop_after_first_pass():
+    """★ 早停: 第 1 轮就 pass ⇒ 该 trial 不再跑第 2 轮。"""
+    res = run_experiment(FakeLLM(), repeat=1, rounds=3, tasks=TASKS)
+    assert all(r["n_calls"] == 6 * 1 for r in
+               (res["arms"][a] for a in ARMS)), \
+        {a: res["arms"][a]["n_calls"] for a in ARMS}
+    assert all(len({r["round"] for r in res["records"]
+                    if r["arm"] == a}) == 1 for a in ARMS)
 
 
 def test_experiment_garbage_reply_counted_not_passed():
@@ -222,7 +287,8 @@ def test_experiment_garbage_reply_counted_not_passed():
     res = run_experiment(FakeLLM(garbage=True), repeat=1, tasks={
         "code_fix_001": TASKS["code_fix_001"]})
     s = res["arms"]["guidance"]
-    assert s["n_llm_ok"] == 1 and s["n_parsed"] == 0 and s["n_pass"] == 0
+    assert s["n_llm_ok"] == 1 and s["n_parsed"] == 0 \
+        and s["n_trials_passed"] == 0
     errs = [r for r in res["records"] if "不可解析" in r.get("error", "")]
     assert errs
 
