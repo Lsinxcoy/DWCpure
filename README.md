@@ -90,7 +90,7 @@ dwc/
 测试    34 文件 / 680 函数 → pytest 727 项全过（17.1s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R75 · 69 commits（每轮一知识档 archive/knowledge3_R*.json；R75 含进度补刷）
+轮次    R1–R75 · 70 commits（每轮一知识档 archive/knowledge3_R*.json；R75 含进度补刷）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
