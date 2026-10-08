@@ -1,0 +1,21 @@
+{
+ "round": "R93b · 综述 §4/§5+附录子代理交付验收（落盘核+数字抽验）",
+ "date": "2026-10-09",
+ "验收": [
+  "NOTE_sec4_5.md 45,368B ✓(209 处源偏移) · NOTE_appendix.md 64,624B ✓",
+  "抽验 3 数字回原文: 21.7(Theseus)/491(Fig16)/9.0(Humanlaya) 全命中",
+  "**附录 agent 纠我预设错误**: 附录 A/B 在 References 之后(@290508/@297447)非之前 —",
+  "  附录 A=Fig16(491 篇三层 sunburst: L1 43.8%/L2 31.6%/L3 13.0%/L4 5.7%/L5 5.9%,",
+  "  从 SVG data-text 提取非估算)+Table11(44 行目标分类, 44/44 核过)"
+ ],
+ "★ 要点": [
+  "§4 四域: B0 普遍/L2 最强确立/L3 少量/L4 仅具身仿真/L5 至多有界 — **完整改进器",
+  "  演化四域均未实现**; Table9 Theseus 环境噪声 21.7-51.6pp; Humanlaya 双环实测",
+  "  (缺陷 9.0%→3.7%, 改的是质检器决策规则); Hyra(评估机制本身可修订堵 reward-hacking)",
+  "附录B Table12: 149 行逐格, 72 公司, 级别 L1 47/L2 72/L3 7/L4 3/L5 5/B0 5;",
+  "  L5 标签 8 行(1 target+4 cand.+3 vision); 44/44+149/149 全格回查匹配",
+  "DWC 相关 10 席: DGM/AIDE2/HyperAgents/Anthropic L5/Hermes/Theseus Argus/EverOS/",
+  "  LangSmith/Patronus/MirrOS — 每条带理由与偏移"
+ ],
+ "R94 进行中": "23 篇批量精读第一批 4 子代理×3 篇已派发(deleg_8e3e4e4d)"
+}

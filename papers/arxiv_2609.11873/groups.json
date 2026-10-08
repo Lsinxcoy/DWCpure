@@ -1,0 +1,133 @@
+[
+ [
+  [
+   "2606.06350",
+   15,
+   "Z. Wu, L. Zhang, T. Wang, R. Zhao, P. Andrews, C. Aloisi, and Y. He EDIT: evidence-diagnosed intervention training for rule-faithf"
+  ],
+  [
+   "2607.25675",
+   12,
+   "J. Chen, Z. Song, J. Liu, S. Zhou, H. Wu, H. Shi, C. Zhou, H. Li, X. Yang, D. Zhu, et al. Decoevo: score-decoupled co-evolution of"
+  ],
+  [
+   "2606.24151",
+   10,
+   "Z. Dai, S. He, H. Li, Q. Zhou, J. Li, M. Song, G. Long, H. Si, X. Yao, L. Zhang, et al. Metis: bridging text and code memory for s"
+  ]
+ ],
+ [
+  [
+   "2606.26294",
+   10,
+   "A. Iacob, A. Jovanović, W. F. Shen, D. Burkhardt, M. Kurmanji, N. Tastan, L. Sani, N. A. E. Venanzi, A. Odonnat, Z. Cao, B. Marino"
+  ],
+  [
+   "2608.31100",
+   10,
+   "J. Shi, S. Tao, Y. Wu, Z. Wang, J. Zhang, J. Liu, X. Lei, X. Zhang, S. Fang, Z. Tan, et al. S3Gym: can llms turn self-testing and "
+  ],
+  [
+   "2406.11704",
+   6,
+   "NVIDIA Nemotron-4 340b technical report . arXiv preprint arXiv:2406.11704 . External Links: 2406.11704 , Link Cited by: §3.2.1 , T"
+  ]
+ ],
+ [
+  [
+   "2603.21331",
+   5,
+   "J. Jaber and O. Jaber AutoKernel: autonomous gpu kernel optimization via iterative agent-driven search . arXiv preprint arXiv:2603"
+  ],
+  [
+   "2603.25158",
+   5,
+   "J. Ni, Y. Liu, X. Liu, Y. Sun, M. Zhou, P. Cheng, D. Wang, E. Zhao, X. Jiang, and G. Jiang Trace2skill: distill trajectory-local l"
+  ],
+  [
+   "2604.08988",
+   4,
+   "S. Jiang, L. Ma, Z. Hong, K. Wang, Z. Lu, T. Wang, S. Chen, J. Zhang, T. Pan, W. Li, et al. SEA-eval: a benchmark for evaluating s"
+  ]
+ ],
+ [
+  [
+   "2604.14661",
+   4,
+   "J. Su, Z. Wu, S. Huang, and W. Feng AIPC: agent-based automation for ai model deployment with qualcomm ai runtime . arXiv preprint"
+  ],
+  [
+   "2505.08775",
+   3,
+   "R. K. Arora, J. Wei, R. Soskin Hicks, P. Bowman, J. Quiñonero-Candela, F. Tsimpourlas, M. Sharman, M. Shah, A. Vallone, A. Beutel,"
+  ],
+  [
+   "2511.20857",
+   3,
+   "T. Wei, N. Sachdeva, B. Coleman, Z. He, Y. Bei, X. Ning, M. Ai, Y. Li, J. He, E. H. Chi, et al. Evo-memory: benchmarking llm agent"
+  ]
+ ],
+ [
+  [
+   "2607.07984",
+   3,
+   "S. Jeong, M. Kim, and T. Kim Agentic neural architecture search . arXiv preprint arXiv:2607.07984 . External Links: 2607.07984 , L"
+  ],
+  [
+   "2501.14249",
+   2,
+   "L. Phan, A. Gatti, Z. Han, N. Li, J. Hu, H. Zhang, C. B. C. Zhang, M. Shaaban, J. Ling, S. Shi, et al. Humanity’s last exam . arXi"
+  ],
+  [
+   "2504.16891",
+   2,
+   "I. Moshkov, D. Hanley, I. Sorokin, S. Toshniwal, C. Henkel, B. Schifferer, W. Du, and I. Gitman Aimo-2 winning solution: building "
+  ]
+ ],
+ [
+  [
+   "2504.21318",
+   2,
+   "M. Abdin, S. Agarwal, A. Awadallah, V. Balachandran, H. Behl, L. Chen, G. de Rosa, S. Gunasekar, M. Javaheripi, N. Joshi, P. Kauff"
+  ],
+  [
+   "2602.16173",
+   2,
+   "K. Liang, J. Kruk, S. Qian, X. Yang, S. Bi, Y. Yao, S. Nie, M. Zhang, L. Liu, J. F. Fisac, et al. Learning personalized agents fro"
+  ],
+  [
+   "2603.26499",
+   2,
+   "K. Hambardzumyan, N. Baldwin, E. Toledo, R. Hazra, M. Kuchnik, B. A. Omari, T. S. Foster, A. Protopopov, J. Gagnon-Audet, I. Medir"
+  ]
+ ],
+ [
+  [
+   "2605.27276",
+   2,
+   "P. Hebbar, Y. Manawat, S. Verboomen, A. Ivanova, S. Palanimalai, K. Bhatia, and V. Baskaran SIA: self improving ai with harness an"
+  ],
+  [
+   "2606.07909",
+   2,
+   "S. A. Er, D. Ribeiro, Y. Virkar, S. Lakew, A. Kalyanpur, J. Gung, T. Delteil, and A. Gupta MemToolAgent: leveraging memory for too"
+  ],
+  [
+   "2608.30760",
+   2,
+   "Z. Bai, S. Li, T. Huang, and B. F. Karlsson PRACTICE: from experience to expertise in self-evolving embodied agents . arXiv prepri"
+  ]
+ ],
+ [
+  [
+   "2406.12045",
+   1,
+   "S. Yao, N. Shinn, P. Razavi, and K. Narasimhan τ \\tau -bench: a benchmark for tool-agent-user interaction in real-world domains . "
+  ],
+  [
+   "2607.26117",
+   1,
+   "Y. Verma Try again, don’t look back: blind resampling outperforms self-repair in small code models . arXiv preprint arXiv:2607.261"
+  ]
+ ]
+]
