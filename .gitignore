@@ -109,3 +109,7 @@ config/anchors/score_history.jsonl
 #   —— 同 R50 score_history 惯例: 跨轮持久状态, 不进 git）
 config/anchors/world_candidates.json
 config/anchors/merge_log.jsonl
+# ★ R71 · C3' 逐任务分数序列 + evidence 明细（judge 内部存储;
+#   同 R50/R68 惯例: 运行期持久状态, 不进 git —— 查询口负责读回）
+config/anchors/task_scores.jsonl
+config/anchors/evidence.jsonl

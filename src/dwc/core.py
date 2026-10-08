@@ -106,7 +106,14 @@ class DWC:
                                % (name, v))
         #: ── §2.1 七器官（平级持有, 组装不实现）──
         self.memory = MemoryKernel(db_path)
-        self.judge = Judge()
+        # ★★★ C3' · TS3 生产接线: 判分点 → 逐任务分数序列落盘
+        #   （★ 测试/旁路构造的 Judge() 不传路径 = 内存模式零污染;
+        #     只有 DWC 主类走生产链时才落 config/anchors/ 两文件）
+        _anch = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))), "config", "anchors")
+        self.judge = Judge(
+            store_path=os.path.join(_anch, "task_scores.jsonl"),
+            evidence_path=os.path.join(_anch, "evidence.jsonl"))
         self.actor = Actor()
         self.world_model = WorldModel(depth_limit=depth_limit,
                                       max_nodes=max_nodes)
@@ -248,5 +255,7 @@ class DWC:
         """★ 进化的计量单位 —— 委托 TermRunner（六步/前测后测/盘点在那）。
 
         ★ 不在本类重写 term: TermRunner 已实现 T1–T4 判据, 重写=第二套。
+        ★ R71 核实: judge 的注入在 TermRunner **构造**处（L129 judge=self.judge）
+          —— 不是本方法的参数（judge 是构造注入不是 run_term kwarg）。
         """
         return self.runner.run_term(task, n_steps=n_steps, **kwargs)

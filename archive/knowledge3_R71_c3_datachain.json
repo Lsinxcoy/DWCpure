@@ -1,0 +1,45 @@
+{
+ "round": "R71 · C3' 数据链落地（TaskScorePoint 存储 + TS3 双查询口 + 权威链活落盘）",
+ "date": "2026-10-08",
+ "用户指令": "继续推动1（= TaskScorePoint 数据链; 声称一次销两笔: δ_θ 生产源 + C3' 老账）",
+ "★ 实现（TASK_SCORE_TRACKING.md 设计定稿逐字段落地）": [
+  "TaskScorePoint 11 字段 frozen 全必填无默认（TS1: n_assertions 无默认; TS2: dw_version 必落）",
+  "TaskScoreStore 双模式: 内存(缺省, 测试零污染) / 落盘(构造载回+判分即append 两文件)",
+  "成对存储强校验: path/evidence_path 同给或同不给（单边 ⇒ 悬空 ref/孤儿证据 ⇒ 构造 raise）",
+  "判分点即记录点: judge.evaluate 尾部单点 record（score()/外部调用全覆盖）",
+  "  未评价(success=None)/零分母 ⇒ 不记（score 是 float, None 不许冒充）",
+  "TS3 双口: judge.task_scores(split,wm_version) + judge.group_scores(split,round_index)",
+  "  group_scores 组均值; 无条目组不出现（不装 0 — X2 同族）; 空 round 过滤同理",
+  "evidence: Verdict.to_dict 落 evidence.jsonl, 点里只存 ref（约定④ 只传 ID）, ref 可拉回全文",
+  "★ foundation/version.py: dw_version()=git HEAD 真源（纯文件读, loose/packed-refs/detached 全处理）",
+  "  顺带发现: run_term T3 锁的 dw_version 两头都无赋值源=锁空串假锁 — 版本真源因此而建"
+ ],
+ "★ 接线（含两处修正）": [
+  "core.DWC.judge = 生产路径两文件（旁路 Judge() 默认内存隔离 — 测试零污染）",
+  "e2e j = Judge(store_path=…) 原为内存模式 ⇒ e2e 全部判分点被丢弃=数据链绕开权威链 → 已改",
+  "★ 修正①: 曾以为 core.run_term 没注入 judge（grep head -8 截断漏看 L129）——",
+  "  实为 TermRunner 构造处已 judge=self.judge — 错改 setdefault 已撤回（run_term 不收该 kwarg）",
+  "  教训再犯: 抽样 grep 差点把'已接'判成'没接' — 全量读 grep 输出"
+ ],
+ "验证": [
+  "pytest 700 passed(+13) rc=0 · gate 8/8 · e2e rc=0",
+  "★★ C3' 活证据: e2e 预清后跑 → task_scores.jsonl 14 条 · 11 字段 · split=dev ·",
+  "  group=code_repair · dw_version=5390169caa…(R70 真 sha) · n_assertions∈[2,3](=配置 checks)",
+  "  · evidence.jsonl 14 条成对 · ref=evidence.jsonl#1",
+  "破坏 2/2: ①拆 evaluate 尾部 record ⇒ 2 测红 ②round_index 恒1 ⇒ 1 测红 → 恢复绿",
+  "写测试 2 红: observed 不是 golden 本身(执行结果结构) · DWC() 必填 depth_limit/max_nodes"
+ ],
+ "诚实边界": [
+  "★ δ_θ 注入: 数据到位但 **z 操作化仍未敲定**(R69 既有) ⇒ DifficultyEstimator 仍无生产喂入 —",
+  "  本轮销的是『数据半边』, z 投影函数待 z 语义裁决(候选: 失败签名族 (c,q))",
+  "★ TS4(任务配置声明 n_assertions): dev.json 的 checks 就是配置声明(测试锁了 n=checks),",
+  "  但未给 sealed 任务加显式 n_assertions 字段 — 配置面按能力组配置已够 group 聚合",
+  "★ TS5(第⑦步 Λ 配置) = regression guard 范畴, 未做",
+  "★ 存储容量未估算(TASK_SCORE 边界⑦⑧仍开放)",
+  "★ core.run_term 的 judge 注入本轮核实为『本来已接』— 无需改动(错改已撤回)"
+ ],
+ "坑": [
+  "★ grep | head -8 截断导致误判 core 没注入 judge — 抽样读数第3次吃瘪, 已全量重读",
+  "runner fake/真实签名要核: judge 是 TermRunner 构造参数不是 run_term kwarg"
+ ]
+}

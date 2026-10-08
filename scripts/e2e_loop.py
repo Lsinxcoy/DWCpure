@@ -40,7 +40,13 @@ from dwc.organs.applier import Applier, Target, ApplierError
 from dwc.organs.candidates import CandidateGenerator
 
 # ★══★★★ 必须用 subprocess 跑，否则 kernel 里的旧模块读不到改动（本轮已踩）
-j = Judge()
+# ★ R71 · C3': e2e 是端到端权威链 ⇒ judge 必须走**生产落盘路径**
+#   （原 j = Judge() 内存模式 ⇒ e2e 的全部判分点被丢弃 = 数据链绕开权威链;
+#     落盘文件已 gitignore, e2e 前预清 —— 收官断言用它当活证据）
+_e2e_anch = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "config", "anchors")
+j = Judge(store_path=os.path.join(_e2e_anch, "task_scores.jsonl"),
+          evidence_path=os.path.join(_e2e_anch, "evidence.jsonl"))
 ev = Evolver()
 ap = Applier(window=2)
 TASK = "code_fix_001"

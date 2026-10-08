@@ -37,8 +37,11 @@ import ast
 import io
 import json
 import os
-from dataclasses import dataclass, field
+import time
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+from dwc.foundation.version import dw_version as _git_version
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -386,11 +389,176 @@ def _eq(a: Any, b: Any) -> bool:
     return a == b
 
 
+# ══════════════════════════════════════════════════════════
+# C3' · 逐任务分数序列（docs/TASK_SCORE_TRACKING.md §三 设计定稿 · R71 落地）
+#   落点 = judge 的**内部存储**（设计 §3.1: 高基数时序不进 State ——
+#   约定④ 只传 ID + P2 State 是快照不是流水）
+# ══════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class TaskScorePoint:
+    """单任务单轮的评测点。★ 一个任务一轮一条, 不覆盖（设计 §三 11 字段）。
+
+    ★ 三个关键字段的理由（TS1/TS2 依据, 逐字来设计文档）:
+      n_assertions —— 没有它, "0.67 跌到 0.33" 无法区分掉几个断言
+        ⇒ 分辨率不可审计
+      dw_version —— 换版本即换坐标系（TS2）; 版本源 = git 真实状态
+        （foundation/version.py —— run_term T3 原锁的是两个空串=假锁）
+      split —— 守卫①与回归约束读的都是 split 内的分数, 不能混
+    ★ 全部 11 字段**必填无默认**（G11 同款: 缺字段事后不可解释）。
+    """
+
+    task_id: str
+    group_id: str
+    round_index: int
+    split: str
+    wm_version: str
+    dw_version: str
+    score: float                # ★ 连续分 [0,1] = k_passed / n_checks
+    n_assertions: int           # ★★ 分辨率审计字段（TS1）
+    rung: int
+    evidence_ref: str           # 指向 evidence, 不内嵌（约定④: 只传 ID）
+    recorded_at: str
+
+
+class TaskScoreStore:
+    """TS3 存储（judge 内部 · 设计 §3.1）。
+
+    ★ 双模式:
+      path=None ⇒ **内存模式**（缺省 —— 测试零污染, 重启丢）
+      path=…   ⇒ 落盘模式: 构造载回 + 判分即 append（重启不丢）
+    ★ 落盘模式要求 score 与 evidence **成对**（path/evidence_path 同给或同
+      不给）—— 单边落盘会产生悬空 ref 或孤儿证据, 构造时直接 raise。
+    ★ 聚合口径: group_scores 无条目的组**不出现**（不装 0 —— X2 同族）。
+    """
+
+    def __init__(self, path: Optional[str] = None,
+                 evidence_path: Optional[str] = None, *,
+                 dw_version: Optional[str] = None,
+                 wm_version: str = ""):
+        if (path is None) != (evidence_path is None):
+            raise JudgeError(
+                "path/evidence_path 必须同给或同不给（单边落盘 ⇒ 悬空 "
+                "evidence_ref 或孤儿证据）, 实得 %r/%r"
+                % (path, evidence_path))
+        self.path = path
+        self.evidence_path = evidence_path
+        #: TS2 版本坐标系: 注入优先, 缺省取 git 真源（foundation/version）
+        self.dw_version = (dw_version if dw_version is not None
+                           else _git_version())
+        #: world_model 当前**无版本机制** —— 占位字段如实空串（诚实边界）
+        self.wm_version = wm_version
+        self._points: List[TaskScorePoint] = []
+        self._evidence: Dict[str, Dict[str, Any]] = {}
+        self._n_mem_evi = 0
+        if path and os.path.exists(path):
+            for line in io.open(path, encoding="utf-8").read().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                self._points.append(TaskScorePoint(**json.loads(line)))
+        if evidence_path and os.path.exists(evidence_path):
+            for line in io.open(evidence_path,
+                                encoding="utf-8").read().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                d = json.loads(line)
+                ref = d.pop("_ref")
+                self._evidence[ref] = d
+
+    # ── 写入（判分点 → 分数点）────────────────────────────
+    def record(self, verdict: "Verdict", *, group_id: str,
+               rung: int) -> Optional[TaskScorePoint]:
+        """★ 判分点即记录点。
+
+        ★ 未评价（success=None）或零分母（n_checks=0）⇒ **不记** ——
+          score 是 float, None 不许冒充 0/1（Verdict §4.5 同族纪律）。
+        """
+        n = verdict.n_checks
+        k = verdict.k_passed
+        if verdict.success is None or not n:
+            return None
+        ri = sum(1 for p in self._points
+                 if p.task_id == verdict.task_id
+                 and p.split == verdict.split) + 1
+        pt = TaskScorePoint(
+            task_id=verdict.task_id,
+            group_id=group_id,
+            round_index=ri,
+            split=verdict.split,
+            wm_version=self.wm_version,
+            dw_version=self.dw_version,
+            score=k / float(n),
+            n_assertions=n,
+            rung=rung,
+            evidence_ref=self._store_evidence(verdict),
+            recorded_at=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        self._points.append(pt)
+        if self.path:
+            with io.open(self.path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(asdict(pt), ensure_ascii=False) + "\n")
+        return pt
+
+    def _store_evidence(self, verdict: "Verdict") -> str:
+        d = verdict.to_dict()
+        if self.evidence_path:
+            n = 0
+            if os.path.exists(self.evidence_path):
+                n = sum(1 for line in io.open(self.evidence_path,
+                                              encoding="utf-8")
+                        if line.strip())
+            ref = "%s#%d" % (os.path.basename(self.evidence_path), n + 1)
+            with io.open(self.evidence_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(dict(d, _ref=ref),
+                                   ensure_ascii=False) + "\n")
+        else:
+            self._n_mem_evi += 1
+            ref = "mem#%d" % self._n_mem_evi
+        self._evidence[ref] = d
+        return ref
+
+    def evidence(self, ref: str) -> Dict[str, Any]:
+        """按 ref 拉回 evidence 全文（约定④: 点里只有 ID, 查时才取）。"""
+        if ref not in self._evidence:
+            raise JudgeError(
+                "evidence_ref=%r 不可解析 —— 点与证据必须成对存储" % (ref,))
+        return self._evidence[ref]
+
+    # ── TS3 双查询口 ─────────────────────────────────────
+    def task_scores(self, split: Optional[str] = None,
+                    wm_version: Optional[str] = None
+                    ) -> List[TaskScorePoint]:
+        """TS3 口①: 逐任务分数序列（第⑦步 / δ_θ 的数据源）。"""
+        return [p for p in self._points
+                if (split is None or p.split == split)
+                and (wm_version is None or p.wm_version == wm_version)]
+
+    def group_scores(self, split: str,
+                     round_index: Optional[int] = None
+                     ) -> Dict[str, float]:
+        """TS3 口②: 按能力组聚合（均值）。
+
+        ★ 无条目的组**不出现** —— 不装 0（"没观测过"≠"组 0 分"）。
+        """
+        buckets: Dict[str, List[float]] = {}
+        for p in self._points:
+            if p.split != split:
+                continue
+            if round_index is not None and p.round_index != round_index:
+                continue
+            buckets.setdefault(p.group_id, []).append(p.score)
+        return {g: sum(v) / len(v) for g, v in buckets.items()}
+
+
 class Judge:
     """DWC 判分器。★ 只读 agent 可见面，不进递归。"""
 
     def __init__(self, anchors_path: Optional[str] = None,
-                 sealed_path: Optional[str] = None):
+                 sealed_path: Optional[str] = None,
+                 store_path: Optional[str] = None,
+                 evidence_path: Optional[str] = None,
+                 dw_version: Optional[str] = None):
         self.anchors = self._load(anchors_path
                                   or TRUTH_SOURCE[0][1], SPLIT_DEV)
         # ★★ test split 未落地 ⇒ 显式标记为 None，不假装有
@@ -408,6 +576,11 @@ class Judge:
         self._fallbacks: Dict[str, Callable] = {}
         # ★★ 记住每一次判定，用于"未评价不许悄悄变 True"的审计
         self._log: List[Verdict] = []
+        # ★★★ C3' · TS3: 逐任务分数序列存储（judge 内部存储 — 设计 §3.1）
+        #   ⇒ path 缺省 None = **内存模式**（测试零污染; 生产由 core 注入路径）
+        self.store = TaskScoreStore(path=store_path,
+                                    evidence_path=evidence_path,
+                                    dw_version=dw_version)
 
     # ── 真值源加载与自检 ──
     @staticmethod
@@ -588,6 +761,11 @@ class Judge:
                     n_checks=len(diffs),
                     k_passed=sum(1 for d in diffs if d.get("ok")))
         self._log.append(v)
+        # ★★★★ C3' · 判分点即记录点（TS3 —— score()/外部调用都经这里,
+        #   单点全覆盖; 未评价/零分母由 record 内部拒, None 不许冒充 0/1）
+        self.store.record(v,
+                          group_id=src[task_id].get("category") or "unknown",
+                          rung=int(src[task_id].get("verifier_rung") or 0))
         return v
 
     @staticmethod
@@ -746,6 +924,16 @@ class Judge:
     # ══════════════════════════════════════════════
     # 批量与统计（★ 供 run_term 的终止条件③ 用）
     # ══════════════════════════════════════════════
+    # ── ★ C3' · TS3 双查询口（判据原文: 只有聚合没有逐条 = 等于没做）──
+    def task_scores(self, split: Optional[str] = None,
+                    wm_version: Optional[str] = None):
+        """TS3 口①: 逐任务分数序列（第⑦步 / δ_θ 的数据源）。"""
+        return self.store.task_scores(split=split, wm_version=wm_version)
+
+    def group_scores(self, split: str, round_index: Optional[int] = None):
+        """TS3 口②: 按能力组聚合（均值; 无条目组不出现 — 不装 0）。"""
+        return self.store.group_scores(split=split, round_index=round_index)
+
     def score(self, split: str = SPLIT_DEV,
               observations: Optional[Dict[str, Dict]] = None
               ) -> Dict[str, Any]:
