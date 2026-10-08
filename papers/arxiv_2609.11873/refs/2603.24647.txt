@@ -1,0 +1,682 @@
+Can LLMs Beat Classical Hyperparameter
+Optimization Algorithms? A Study onautoresearch
+Fabio Ferreira1,2,∗, Lucca Wobbe 3, Arjun Krishnakumar 2,
+Frank Hutter1,2,4,∗,& Arber Zela 1,∗
+1ELLIS Institute Tübingen 2University of Freiburg
+3Karlsruhe Institute of Technology 4Prior Labs
+Abstract
+Theautoresearchrepository enables an LLM agent to optimize hyperparameters
+by editing training code directly. We use it as a testbed to compare classical
+HPO algorithms against LLM-based methods on tuning the hyperparameters of
+a small language model under a fixed compute budget. When defining a fixed
+search space over autoresearch, classical methods such as CMA-ES and TPE
+consistently outperform LLM-based agents, where avoiding out-of-memory failures
+matters more than search diversity. Allowing the LLM to directly edit source
+code narrows the gap to the classical methods but does not close it, even with
+frontier models available at the time of writing such as Claude Opus 4.6 and
+Gemini 3.1 Pro Preview. We observe that LLMs struggle to track optimization
+state across trials. In contrast, classical methods lack the domain knowledge of
+LLMs. To combine the strengths of both, we introduce Centaur, a hybrid that
+shares CMA-ES’s interpretable internal state, including mean vector, step-size,
+and covariance matrix, with an LLM 2. Centaur achieves the best result in our
+experiments, and a 0.8B LLM already suffices to outperform all classical and pure
+LLM methods. Unconstrained code editing requires larger models to be competitive
+with classical methods. We further analyze search diversity, model scaling from
+0.8B to frontier models, and ablate the fraction of LLM-proposed trials in Centaur.
+All in all, our results suggest that LLMs are most effective as a complement
+to classical optimizers, not as a replacement. Code is available at https://
+github.com/ferreirafabio/autoresearch-automl & interactive demo at
+https://ferreirafabio.github.io/autoresearch-automl.
+1 Introduction
+autoresearch[Karpathy, 2025a] demonstrated that an LLM agent can iteratively edit training code
+to improve a small language model (∼50M parameters), reaching a val_bpb of∼0.978 in less than
+100 trials on a single H100. HPO is a central component of AutoML [Feurer and Hutter, 2019,
+Bischl et al., 2023] that can encompass various hyperparameters of a learning pipeline, from model
+architecture and optimizer settings to data augmentation strategies [Arango et al., 2024, Wagner et al.,
+2022]. This raises two questions:(i) how do other classical HPO methods perform on this task?and
+(ii) can LLM-based HPO methods outperform classical ones?
+To answer these questions, we benchmark 9 HPO methods, spanning 4 classical, 4 LLM-based, and 1
+hybrid, on Karpathy’s autoresearch task. All methods operate under the same 24-hour GPU training
+budget with 3 seeds. To reduce human priors, we automatically extract 14 hyperparameters from the
+∗Equal supervision. Correspondence tofabioferreira <at> mailbox <dot> org
+2Named after the mythological half-human, half-horse hybrid: our method merges LLM reasoning with
+classical optimization.
+arXiv:2603.24647v5  [cs.LG]  17 Apr 2026
+
+training script; while the ranges require some domain knowledge, the HP selection itself is automated,
+removing manual search space curation. Figure 1 compares all 9 methods using 27B LLM variants
+against cumulative training wall-time, showing that classical methods find better configurations
+than LLM-based agents within the fixed search space. The exception is Karpathy Agent (Code),
+which directly edits training source code and is competitive with classical methods, even though the
+latter find a similar performing hyperparameter configuration∼4× faster. All LLM methods use a
+self-hosted open-weight model (Qwen3.5-27B); experiments with frontier models Gemini 3.1 Pro
+Preview [Google DeepMind, 2026] and Claude Opus 4.6 [Anthropic, 2026] show that pure LLM
+agents do not outperform classical methods even with frontier models, though scaling benefits hybrid
+methods more than pure LLM agents (Figure 2).
+Beyond this comparison, we propose Centaur, a hybrid method that combines CMA-ES with an LLM
+by sharing the optimizer’s full internal state, including the mean vectorµ, step-sizeσ, and covariance
+matrix C. The hypothesis is that CMA-ES and LLMs have complementary strengths: CMA-ES
+learns the optimization landscape but lacks domain knowledge, while the LLM brings transformer
+training intuitions but, at the small and mid-sized scales we test (0.8B and 27B), struggles to track
+optimization state across trials reliably, e.g., LLM methods show OOM rates comparable to random
+search despite observing full trial history. This motivates pairing the LLM with a classical optimizer
+whose state can be shared explicitly. We chose CMA-ES because its internal state is particularly
+interpretable for LLM communication (see Section 4).
+In summary, we make the following contributions:
+• Webenchmark 9 HPO methodson autoresearch [Karpathy, 2025a], supporting both fixed-HP
+and agentic code-editing optimization, under identical 24-hour budgets with 3 seeds.
+• We show thatclassical HPO outperforms LLM agentswithin a fixed search space. An LLM
+agent that directly edits code ismore competitivebut still falls short of the best classical methods.
+• We introduceCentaur, a hybrid that shares CMA-ES’s full internal state with the LLM and
+achieves the best resultin our experiments, where a 0.8B LLM already suffices to outperform all
+classical and pure LLM methods.
+• We analyze search diversity, OOM rates, and model scaling across all methods. Experiments with
+frontier models confirm thatsimply scaling the LLM does not outperformclassical methods,
+though Centaur with Opus 4.6 extends its lead further.
+2 Related Work
+Classical HPO spans a wide range of approaches [Bischl et al., 2023, Feurer and Hutter, 2019],
+from random search [Bergstra and Bengio, 2012] and Bayesian optimization with Gaussian process
+surrogates [Snoek et al., 2012] to sequential model-based approaches with random forests such as
+SMAC [Hutter et al., 2011], tree-structured Parzen estimators such as TPE [Bergstra et al., 2011],
+and evolution strategies such as CMA-ES [Hansen, 2016]. We focus on single-task HPO methods
+without multi-fidelity or transfer to isolate each optimizer’s ability to learn the landscape from scratch.
+Methods such as Hyperband [Li et al., 2017], BOHB [Falkner et al., 2018], transfer HPO [Wistuba
+and Grabocka, 2021, Arango et al., 2024], zero-shot approaches [Öztürk et al., 2022], multi-task
+transfer [Strangmann et al., 2024], and hyperparameter-robust training [Ferreira et al., 2022] could in
+principle be applied to this benchmark but are not in the scope of this study.
+In line with the increasing interest in open-ended agentic discovery [Zhang et al., 2026, Novikov
+et al., 2025, Lange et al., 2026, Liu et al., 2024a, Wang et al., 2026], recent work explores LLMs as
+components in HPO pipelines. While in principle, methods such as AlphaEvolve [Novikov et al.,
+2025] or ShinkaEvolve [Lange et al., 2026] can be tasked to optimize the objective in autoresearch,
+we focus only on methods tailored specifically for HPO. LLAMBO [Liu et al., 2024b] uses an LLM as
+a surrogate model inside Bayesian optimization, replacing the Gaussian process with LLM-based per-
+formance predictions. SLLMBO [Mahammadli and Ertekin, 2024] integrates an LLM with TPE into
+a joint sampler. Zhang et al. [2023] prompt LLMs directly for HP suggestions. LLaMA-ES [Kramer,
+2024] uses LLMs to tune CMA-ES’s own hyperparameters. Schwanke et al. [2026a] partition the
+search space into subregions via a bandit mechanism and use an LLM to propose candidates within
+each region. The authors further extend that to multi-objective optimization [Schwanke et al., 2026b].
+However, none of these methods share the classical optimizer’s full internal state with the LLM,
+which is the key idea behind Centaur.
+2
+
+Figure 1: Best val_bpb (mean± std, 3 seeds) against cumulative training time. All methods receive
+the same 24-hour GPU budget; LLM inference overhead is excluded. All LLM-based methods use
+Qwen3.5-27B. Linestyle and markers encode method category:dashed with circles= classical,solid
+with stars= pure LLM,dash-dot with diamonds= hybrid (Centaur). Marker positions are offset
+per line for visual clarity. Bands shown for top 5 methods (see Figure 14 for all).
+Our work differs from prior work in four ways. First, we use autoresearch [Karpathy, 2025a] as a
+real-world benchmark that naturally accommodates both classical HPO within a fixed search space
+and agentic LLM optimization through direct code editing, enabling a head-to-head comparison under
+identical conditions. Second, we benchmark classical and LLM methods on this task following best
+practices for algorithm configuration [Eggensperger et al., 2019]. Third, we automatically extract
+HPs from the training script via Abstract Syntax Tree (AST) parsing to control for human priors in
+the search space. Fourth, we introduce Centaur, a hybrid that explicitly passes CMA-ES’s mean,σ,
+and C to the LLM, enabling optimizer-informed suggestions rather than history-only LLM reasoning.
+In contrast, LLAMBO uses the LLM as a surrogate where the acquisition function decides, SLLMBO
+combines LLM and TPE proposals without exposing optimizer internals, and HOLLM [Schwanke
+et al., 2026a] uses spatial partitioning to constrain the LLM rather than inform it with optimizer state.
+3 Experimental Setup
+We describe the benchmark task and hardware, then the evaluation protocol and failure handling,
+followed by the LLM infrastructure, and finally the automated search space extraction.
+We evaluate all methods on nanochat [Karpathy, 2025b], a small decoder-only transformer [Radford
+et al., 2019] trained on FineWeb [Penedo et al., 2024], optimizing validation bits-per-byte (val_bpb).
+Each trial ran for five minutes on a single NVIDIA H200 GPU (141 GB HBM3e).
+We ran each method for 24 hours with three seeds and report results against cumulative training
+wall-time. Methods with high OOM rates accumulated more trials due to fast failures ( <30s per
+OOM); trial-number plots in the appendix are capped at 300 trials as no meaningful improvement
+occurs beyond that point. We report failed trials (OOM) as val_bpb = 100.0, a finite penalty orders
+of magnitude worse than any valid result while remaining compatible with all surrogate models, so
+that optimizers learn to avoid infeasible regions.
+Our main experiments use Qwen3.5 [Team, 2026] (0.8B and 27B) as theLLM optimizer, self-hosted
+via vLLM [Kwon et al., 2023] on the same GPU that trains theoptimizee(the ∼50M-parameter
+3
+
+Table 1: Search space: 14 HPs auto-extracted via AST parsing. Ranges are set manually. Defaults
+are Karpathy’s starting config. WINDOW_PATTERN controls the per-layer attention window: S = short
+(local) attention, L = long (full) attention.
+HP Type Range Log Default
+DEPTHint 4–24 8
+ASPECT_RATIOint 32–128 64
+HEAD_DIMint 64–256✓128
+DEVICE_BATCH_SIZEint 32–256✓128
+TOTAL_BATCH_SIZEint 65 536–2 097 152✓524 288
+EMBEDDING_LRfloat 0.01–2.0✓0.6
+UNEMBEDDING_LRfloat 0.0005–0.05✓0.004
+MATRIX_LRfloat 0.005–0.2✓0.04
+SCALAR_LRfloat 0.05–2.0✓0.5
+WEIGHT_DECAYfloat 0.0–0.5 0.2
+WARMUP_RATIOfloat 0.0–0.3 0.0
+WARMDOWN_RATIOfloat 0.1–0.8 0.5
+FINAL_LR_FRACfloat 0.0–0.2 0.0
+WINDOW_PATTERNcat. {SSSL, SSLL, SLSL, LLLL, SSSS, LSSL} SSSL
+language model). We additionally run frontier model experiments with Gemini 2.5 Flash [Comanici
+et al., 2025], 3.1 Flash-Lite, and 3.1 Pro Preview [Google DeepMind, 2026] via the Gemini API. To
+ensure equal resource allocation, we capped training VRAM to 80 GB for all methods, comparable to
+the H100 used by Karpathy [Karpathy, 2025a], and reserved the remaining memory for the vLLM
+server when using self-hosted models. We disabled Qwen3.5’s thinking mode and sampled with
+temperature 0.7, limiting outputs to 2048 tokens for fixed-HP methods and 16384 tokens for code
+editing. Each LLM-based method receives a prompt containing the optimization goal (minimize
+val_bpb), the model class (GPT-2 scale transformer with Muon+AdamW optimizer), the dataset
+(FineWeb), the hardware (H200 GPU with VRAM budget and OOM warning), the search space
+with bounds, and the trial history including both successful and failed configurations. Full prompt
+templates for all five LLM-based methods are reproduced verbatim in Section A.11.
+To extract hyperparameters from train.py, we used Abstract Syntax Tree (AST) parsing: we
+walk through parse tree and collect all top-level assignments whose variable name is in ALL_CAPS
+format and have a right-hand as a literal value (integer, float, or string). This yielded 14 HPs (13
+continuous/integer and one categorical), listed in Table 1 with their types, ranges, and defaults
+from Karpathy’s starting configuration. While the ranges require some domain knowledge, the
+hyperparameter selection itself is fully automated in this way, removing manual search space curation.
+Table 2 summarizes the nine methods we evaluated across four classical, four LLM-based, and one
+hybrid approach.
+4 Centaur: CMA-ES Guided LLM Optimization
+Algorithm 1:Centaur
+Input: Search spaceS, budgetT , LLM ratior=0.3
+Initialize CMA-ES, historyH←∅
+fort= 1,...,Tdo
+ifLLM turn (with probabilityr)then
+Extractµ,σ,Cfrom CMA-ES
+x←LLM(µ,σ,C,H,S)
+else
+x←CMA-ES.Propose()
+y←Evaluate(x)
+CMA-ES.Update(x,y)
+H←H∪{(x,y)}
+Centaur shares CMA-ES’s full internal state
+with the LLM on a fraction of trials. On every
+trial, CMA-ES proposes a candidate configu-
+ration from its multivariate Gaussian, parame-
+terized by mean vector µ, step-sizeσ, and co-
+variance matrix C. On 30% of trials, the LLM
+receives CMA-ES’s proposal along with µ,σ,
+C, the top-5 configurations, and the last 20 tri-
+als. The LLM may override the proposal, and
+in practice does so in nearly all cases: 100%
+of the time with the 27B model and 95% with
+the 0.8B model. Crucially, CMA-ES updates
+its internal state from all trial results, including
+those where the LLM overrode its proposal, so the optimizer continuously learns from the full
+trajectory.
+4
+
+We chose CMA-ES because its internal state is particularly interpretable for LLM communication:
+the mean is a concrete configuration, σ is a single scalar, and C is a labeled matrix. In contrast,
+TPE maintains density estimators that are difficult to summarize in natural language, and GP-BO
+maintains a high-dimensional posterior.
+5 Results
+We compare classical and LLM-based HPO methods across three axes: fixed search space perfor-
+mance, unconstrained code editing, and hybrid optimization. All methods started from the same
+baseline configuration (Karpathy’s default, val_bpb≈0.991). We exclude LLM inference overhead
+from wall-time to isolate optimization quality from inference cost.
+5.1 Classical methods outperform LLMs in fixed search spaces
+Figure 1 shows convergence against cumulative training wall-time for all 27B methods. Within the
+fixed search space, classical HPO methods consistently outperformed pure LLM-based approaches.
+The top methods by mean best val_bpb are Centaur (0.9763), TPE (0.9768), SMAC (0.9778), CMA-
+ES (0.9785), and Karpathy Agent (Code) (0.9814). The gap to the best fixed-space LLM method
+(LLAMBO (Paper)) is significant, and several pure LLM methods performed worse than random
+search, indicating that restricting LLMs to a fixed HP search space does not leverage their strengths.
+Moreover, OOM avoidance matters more than search diversity: Table 3 shows that the top methods
+all have OOM rates at or below 16%, while the bottom four exceed 36%. Karpathy Agent (14 HPs)
+has the lowest diversity by all metrics, converging to a narrow region early. LLAMBO (Paper) is one
+of the most diverse methods yet underperforms classical methods due to its 48% OOM rate. These
+OOM rates also illustrate the state-tracking limitation of small and mid-sized LLMs: LLAMBO
+(Paper) and LLAMBO (Optuna) observe full trial history yet produce OOM rates (48% and 61%)
+comparable to random search (56%), suggesting they fail to learn which regions of the search space
+cause memory failures. In contrast, CMA-ES and TPE maintain explicit optimization state and keep
+OOM rates at 16% and 11%, showing that covariance adaptation and density estimation learn which
+regions are safe. However, CMA-ES also has the highest variance among top methods (std 0.0036 vs
+0.0019 for TPE), with its best seed achieving the single best result in the benchmark (0.9741) while
+its worst seed is mediocre (0.9829).
+We report both LLAMBO variants because the OptunaHub implementation differs from the original
+paper in how it handles surrogate labels, categorical HPs, and failed trials, which substantially affects
+OOM rates and performance (see Section A.9 for details).
+Table 2: Methods evaluated. “Fixed” indicates the shared 14-HP search space; “Unconstrained”
+indicates direct source code editing.
+Method Search Space Description
+TPE Fixed Tree-structured Parzen Estimator via Op-
+tuna [Bergstra et al., 2011, Akiba et al., 2019]
+CMA-ES Fixed Covariance Matrix Adaptation via Optuna’s CMA
+sampler [Hansen, 2016]
+SMAC Fixed Random forest surrogate [Hutter et al., 2011]
+Random Fixed Uniform random sampling
+LLAMBO (Optuna) Fixed OptunaHub [Ozaki et al., 2025] port: binary surro-
+gate labels, random categorical sampling
+LLAMBO (Paper) Fixed Reimplementation faithful to Liu et al. [2024b]: con-
+tinuous labels, all HPs visible
+Karpathy Agent (14 HPs) Fixed LLM sees trial history, suggests configs within fixed
+space
+Karpathy Agent (Code) Unconstrained LLM directly edits train.py source code [Karpa-
+thy, 2025a]
+Centaur Fixed CMA-ES shares internal state with LLM (Section 4)
+5
+
+Table 3: Search diversity analysis (3 seeds, alphabetical). “KA” abbreviates “Karpathy Agent”;
+LLM-based methods are labeled with their LLM optimizer in brackets as in Figures 1 and 2. Best
+within each category is bold and colored:hybrid,classical,pure LLM.Trials: mean ±std total per
+seed.Best: mean±std best val_bpb.Spread: mean per-HP std.Step: mean L2 between consecutive
+trials. Pairwise distance and unique-cell coverage metrics are defined in Section A.7 and reported for
+0.8B variants in Table 5.
+Method Trials Best val_bpb OOM% Spread Step
+Centaur [Qwen 0.8B] 333±4 0.9766±0.0008 13% 0.131 0.368
+Centaur [Qwen 27B] 334±5 0.9763±0.0005 15% 0.115 0.341
+Centaur [Gemini 3.1 Pro] 344±10 0.9767±0.0013 20% 0.135 0.496
+Centaur [Opus 4.6] 340±13 0.9739±0.0012 17% 0.138 0.499
+CMA-ES 336±13 0.9785±0.0036 16% 0.158 0.580
+KA (14 HPs) [Qwen 27B] 289±2 0.9904±0.0002 1% 0.035 0.057
+KA (Code) [Qwen 0.8B] 369±34 0.9910±0.0001 19% – –
+KA (Code) [Qwen 27B] 324±7 0.9814±0.0046 12% – –
+KA (Code) [Gemini 3.1 Pro] 308±11 0.9826±0.0004 3% – –
+KA (Code) [Opus 4.6] 302±9 0.9770±0.0027 5% – –
+LLAMBO (Optuna) [Qwen 27B] 629±64 0.9882±0.0012 61% 0.251 1.130
+LLAMBO (Paper) [Qwen 27B] 496±6 0.9862±0.0041 48% 0.252 1.218
+Random 568±21 0.9873±0.0021 56% 0.273 1.382
+SMAC 431±2 0.9778±0.0020 36% 0.238 0.369
+TPE 317±12 0.9768±0.0019 11% 0.196 0.413
+Figure 2: Scaling the LLM optimizer: frontier models vs Qwen3.5-27B for Karpathy Agent (Code)
+and Centaur (mean± std across 3 seeds). Linestyle encodes method category as in Figure 1. Centaur
+[Opus 4.6] achieves the best result (0.9739), extending the hybrid method’s lead.
+5.2 Unconstrained code editing is viable but requires model scale
+Karpathy Agent (Code), which directly edits training source code rather than operating in the fixed
+search space, is the only pure LLM method competitive with classical approaches. Given the
+simplicity of the setup and the use of a self-hosted open-weight model (Qwen3.5-27B), the gap to
+classical methods is smaller than one might expect.
+Scaling the LLM does not consistently close the gap. Comparisons with Gemini 2.5 Flash [Comanici
+et al., 2025] and Gemini 3.1 Flash-Lite [Google DeepMind, 2026] as the LLM optimizer (Section A.3)
+6
+
+Figure 3: 0.8B vs 27B LLM optimizer comparison (wall-time). Solid: 27B, dashed: 0.8B. TPE and
+Random shown as classical references. The 0.8B model appears insufficient for unconstrained code
+editing but sufficient for hybrid optimization.
+show no improvement over Qwen3.5-27B. Gemini 3.1 Flash-Lite fails to generate valid code in
+87–94% of trials for unconstrained editing, but performs comparably to Qwen3.5-0.8B in the fixed
+search space, confirming that code editing is where model capability matters most. Gemini 3.1 Pro
+Preview (Figure 2) is competitive with Qwen3.5-27B for both unconstrained code editing (0.9826 vs
+0.9814) and Centaur (0.9767 vs 0.9763), with lower OOM rates for code editing (3% vs 12%), but
+does not close the gap to the best classical methods. Claude Opus 4.6 [Anthropic, 2026] narrows
+the gap for code editing to 0.9770±0.0027 (vs 0.9814 with Qwen3.5-27B), making it competitive
+with CMA-ES (0.9785), but still falls short of TPE (0.9768±0.0019). Frontier model capability also
+shows up in the OOM rate (Table 3): Karpathy Agent (Code)’s failure rate drops sharply with LLM
+capability (19% for 0.8B, 12% for 27B, 3% for Gemini 3.1 Pro, 5% for Opus 4.6), whereas Centaur’s
+stays in a narrow range (13%–20%) across model choices. This indicates that for pure code editing,
+LLM capability directly controls memory-awareness of generated code, while for the hybrid Centaur
+the CMA-ES side dominates OOM behavior. For pure LLM code editing, scaling the model helps
+but does not surpass the best classical methods.
+Scaling the LLM from 0.8B to 27B is essential for unconstrained code editing but provides no
+advantage for fixed-HP optimization, as can be seen in Figure 3: 0.8B is insufficient for unconstrained
+code editing (Karpathy Agent Code: 0.9910 vs 0.9814 with 27B), while fixed-HP methods saw no
+benefit from scaling (Karpathy Agent 14 HPs: 0.9904 vs 0.9908). All LLM methods in Figures 1
+and 3 used open-weight Qwen3.5.
+5.3 Hybrid optimization: best of both worlds
+Centaur outperformed all methods including CMA-ES alone by using the LLM on only 30% of
+trials. As described in Section 4, the LLM receives CMA-ES’s full internal state ( µ, σ, C), the
+top-5 configurations, and the last 20 trials, and almost always overrides CMA-ES’s proposal (100%
+for 27B, 95% for 0.8B). Despite constituting only 30% of trials, LLM trials contributed 25% of
+incumbent improvements (Section A.6), confirming that the LLM provides complementary value
+beyond what CMA-ES finds alone. Beyond improving the mean, Centaur substantially reduces
+CMA-ES’s cross-seed variance: std drops from 0.0036 for CMA-ES alone to 0.0005 for Centaur,
+suggesting that the LLM stabilizes the optimizer by injecting domain knowledge that prevents
+unfavorable seeds from drifting. Within the open-weight models tested, Centaur [0.8B] outperformed
+7
+
+Centaur [27B], and Gemini 3.1 Pro Preview performed on par with both (0.9766, 0.9763, 0.9767),
+suggesting a capability plateau where a cheap LLM suffices when paired with a strong classical
+optimizer. However, Claude Opus 4.6 [Anthropic, 2026] breaks through this plateau: Centaur [Opus
+4.6] achieves 0.9739±0.0012, improving over the open-weight variants by 0.0024 and establishing
+a new benchmark leader (Figure 2). This improvement is not explained by better OOM avoidance
+(17% vs 15% for Qwen 27B) or more trials, but by higher-quality suggestions during the LLM’s 30%
+of turns. This indicates that the plateau is not fundamental: a sufficiently capable frontier model
+provides additional gains even in the hybrid setting, though the practical benefit of open-weight
+models remains that they achieve competitive performance at a fraction of the inference cost. We
+ablate the LLM ratior (see Appendix Table 4 and Figure 11). For the 0.8B model,r=0.1 achieves
+the best result (0.9744), slightly outperforming the defaultr=0.3 (0.9766), whiler=0.8 degrades
+to 0.9849. For the 27B model,r=0.5 performs best (0.9746), butr=0.8 collapses to 0.9902, which
+is worse than CMA-ES alone. This confirms that CMA-ES should retain majority control of the
+optimization trajectory: the LLM is most effective as an occasional informed perturbation, not as the
+primary search driver.
+6 Conclusion
+We benchmarked classical, LLM-based, and hybrid HPO methods on small-scale language model
+training under identical budgets. Within a fixed search space, classical methods consistently outper-
+formed LLM-based agents, with OOM avoidance mattering more than search diversity. Restricting
+LLMs to a fixed hyperparameter search space does not leverage their strengths; allowing the LLM
+to directly edit source code narrows the gap but does not close it, even with frontier models such as
+Claude Opus 4.6 and Gemini 3.1 Pro Preview. Centaur achieved the best result in our experiments by
+using the LLM on only 30% of trials, where a 0.8B LLM already suffices for hybrid optimization
+while unconstrained code editing requires larger models. Centaur with Opus 4.6 extends this lead
+further, though the improvement comes from higher-quality suggestions rather than better OOM
+avoidance. All in all, our results suggest that LLMs are most effective as a complement to classical
+optimizers, not as a replacement.
+Our study evaluated a single task with open-weight models (Qwen3.5 0.8B and 27B) and two frontier
+models (Gemini 3.1 Pro Preview and Claude Opus 4.6). Scaling from 0.8B to 27B to Gemini Pro
+yields no improvement for hybrid optimization, but Centaur with Opus 4.6 breaks through this plateau.
+More benchmarking and experiments are needed to determine the generality of these findings. All
+LLM methods in this benchmark operate without tools or external knowledge retrieval. Equipping
+LLM optimizers with agentic capabilities such as paper search, documentation lookup, or code
+analysis tools is a promising direction. Additionally, exploring other classical optimizers as the hybrid
+base and pairing CMA-ES with a code-editing LLM agent could allow the search space to co-evolve
+with the optimization trajectory.
+Acknowledgments and Disclosure of Funding
+This research was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foun-
+dation) under grant number 539134284, through EFRE (FEIH_2698644) and the state of Baden-
+Württemberg. We acknowledge funding by the European Union (via ERC Consolidator Grant
+DeepLearning 2.0, grant no. 101045765). Views and opinions expressed are however those of the
+author(s) only and do not necessarily reflect those of the European Union or the European Research
+Council. Neither the European Union nor the granting authority can be held responsible for them.
+Frank Hutter acknowledges the financial support of the Hector Foundation.
+References
+Proc. of ICML’22, 2022.
+T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama. Optuna: A next-generation Hyperparameter
+Optimization framework. InProc. of KDD’19, pages 2623–2631, 2019.
+8
+
+Anthropic. Claude opus 4.6.https://www.anthropic.com/claude/opus, 2026.
+S. Pineda Arango, F. Ferreira, A. Kadra, F. Hutter, and J. Grabocka. Quick-tune: Quickly learning
+which pretrained model to finetune and how. InProc. of ICLR’24, 2024.
+J. Bergstra and Y . Bengio. Random search for hyper-parameter optimization.Journal of Machine
+Learning Research, 13:281–305, 2012.
+J. Bergstra, R. Bardenet, Y . Bengio, and B. Kégl. Algorithms for hyper-parameter optimization. In
+Proc. of NeurIPS’11, pages 2546–2554, 2011.
+B. Bischl, M. Binder, M. Lang, T. Pielok, J. Richter, S. Coors, J. Thomas, T. Ullmann, M. Becker, A.-
+L. Boulesteix, D. Deng, and M. Lindauer. Hyperparameter optimization: Foundations, algorithms,
+best practices, and open challenges.Wiley Interdisciplinary Reviews: Data Mining and Knowledge
+Discovery, page e1484, 2023.
+Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit
+Dhillon, Marcel Blistein, Ori Ram, Dan Zhang, Evan Rosen, et al. Gemini 2.5: Pushing the frontier
+with advanced reasoning, multimodality, long context, and next generation agentic capabilities.
+arXiv preprint arXiv:2507.06261, 2025.
+K. Eggensperger, M. Lindauer, and F. Hutter. Pitfalls and best practices in algorithm configuration.
+Journal of Artificial Intelligence Research, pages 861–893, 2019.
+S. Falkner, A. Klein, and F. Hutter. BOHB: Robust and efficient Hyperparameter Optimization at
+scale. InProc. of ICML’18, pages 1437–1446, 2018.
+F. Ferreira, T. Nierhoff, A. Sälinger, and F. Hutter. Learning synthetic environments and reward
+networks for reinforcement learning. InProc. of ICLR’22, 2022.
+M. Feurer and F. Hutter. Hyperparameter Optimization. In F. Hutter, L. Kotthoff, and J. Vanschoren,
+editors,Automated Machine Learning: Methods, Systems, Challenges, chapter 1, pages 3 – 38.
+Springer, 2019. Available for free athttp://automl.org/book.
+Google DeepMind. Gemini 3.1 flash-lite preview. https://ai.google.dev/gemini-api/docs/
+models#gemini-3.1-flash-lite-preview, 2026.
+Nikolaus Hansen. The CMA evolution strategy: A tutorial.arXiv preprint arXiv:1604.00772, 2016.
+F. Hutter, H. Hoos, and K. Leyton-Brown. Sequential model-based optimization for general algorithm
+configuration. InProc. of LION’11, pages 507–523, 2011.
+Andrej Karpathy. autoresearch.https://github.com/karpathy/autoresearch, 2025a.
+Andrej Karpathy. nanochat.https://github.com/karpathy/nanochat, 2025b.
+Oliver Kramer. LLaMA tunes CMA-ES. InEuropean Symposium on Artificial Neural Networks
+(ESANN), 2024.
+Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E.
+Gonzalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model
+serving with PagedAttention. InProceedings of the ACM SIGOPS 29th Symposium on Operating
+Systems Principles, 2023.
+Robert Tjarko Lange, Yuki Imajuku, and Edoardo Cetin. Shinkaevolve: Towards open-ended and
+sample-efficient program evolution. InThe Fourteenth International Conference on Learning
+Representations, 2026.
+L. Li, K. Jamieson, G. DeSalvo, A. Rostamizadeh, and A. Talwalkar. Hyperband: Bandit-based
+configuration evaluation for Hyperparameter Optimization. InProc. of ICLR’17, 2017.
+Fei Liu, Rui Zhang, Zhuoliang Xie, Rui Sun, Kai Li, Xi Lin, Zhenkun Wang, Zhichao Lu, and Qingfu
+Zhang. Llm4ad: A platform for algorithm design with large language model.arXiv preprint
+arXiv:2412.17287, 2024a.
+9
+
+Tennison Liu, Nicolás Astorga, Nabeel Seedat, and Mihaela van der Schaar. LLAMBO: Large
+language models to enhance Bayesian optimization. InInternational Conference on Learning
+Representations, 2024b.
+Kanan Mahammadli and Schahin Ertekin. Sequential large language model-based hyper-parameter
+optimization.arXiv preprint arXiv:2410.20302, 2024.
+Alexander Novikov, Ngân V˜u, Marvin Eisenberger, Emilien Dupont, Po-Sen Huang, Adam Zsolt
+Wagner, Sergey Shirobokov, Borislav M. Kozlovskii, Francisco J. R. Ruiz, Abbas Mehrabian,
+M. Pawan Kumar, Abigail See, Swarat Chaudhuri, George Holland, Alex Davies, Sebastian
+Nowozin, Pushmeet Kohli, and Matej Balog. Alphaevolve: A coding agent for scientific and
+algorithmic discovery.ArXiv, abs/2506.13131, 2025.
+Yoshihiko Ozaki, Shuhei Watanabe, and Toshihiko Yanase. OptunaHub: A platform for black-box
+optimization.arXiv preprint arXiv:2510.02798, 2025.
+E. Öztürk, F. Ferreira, H. S. Jomaa, L. Schmidth-Thieme, J. Grabocka, and F. Hutter. Zero-shot
+automl with pretrained models. InProc. of ICML’22icm [2022], pages 1128–1135.
+G. Penedo, H. Kydlíˇcek, L. Ben allal, A. Lozhkov, M. Mitchell, C. Raffel, L. V on Werra, and T. Wolf.
+The fineweb datasets: Decanting the web for the finest text data at scale. InProc. of NeurIPS’24,
+2024.
+A. Radford, J. Wu, R. Child, D. Luan, D. Amodei, and I. Sutskever. Language models are unsupervised
+multitask learners.OpenAI blog, 1(8):9, 2019.
+Andrej Schwanke, Lyubomir Ivanov, David Salinas, Fabio Ferreira, Aaron Klein, Frank Hutter, and
+Arber Zela. Improving LLM-based global optimization with search space partitioning. InThe
+Fourteenth International Conference on Learning Representations, 2026a.
+Andrej Schwanke, Lyubomir Ivanov, David Salinas, Frank Hutter, and Arber Zela. Multi-objective
+hierarchical optimization with large language models.ArXiv, abs/2601.13892, 2026b.
+J. Snoek, H. Larochelle, and R. Adams. Practical Bayesian optimization of machine learning
+algorithms. InProc. of NeurIPS’12, pages 2960–2968, 2012.
+T. Strangmann, L. Purucker, J. K.H. Franke, I. Rapant, F. Ferreira, and F. Hutter. Transfer learning for
+finetuning large language models. InNeurIPS Workshop on Adaptive Foundation Models, 2024.
+Qwen Team. Qwen3.5: Towards native multimodal agents, February 2026. URL https://qwen.
+ai/blog?id=qwen3.5.
+D. Wagner, F. Ferreira, D. Stoll, R. T. Schirrmeister, S. Müller, and F. Hutter. On the importance of
+hyperparameters and data augmentation for self-supervised learning. InPre-Training Workshop at
+the International Conference for Machine Learning (ICML)icm [2022].
+Wenyi Wang, Piotr Pi˛ ekos, Li Nanbo, Firas Laakom, Yimeng Chen, Mateusz Ostaszewski, Mingchen
+Zhuge, and Jürgen Schmidhuber. Huxley-g\”odel machine: Human-level coding agent development
+by an approximation of the optimal self-improving machine. InThe Fourteenth International
+Conference on Learning Representations, 2026.
+M. Wistuba and J. Grabocka. Few-shot bayesian optimization with deep kernel surrogates. InProc.
+of ICLR’21, 2021.
+Jenny Zhang, Shengran Hu, Cong Lu, Robert Tjarko Lange, and Jeff Clune. Darwin gödel machine:
+Open-ended evolution of self-improving agents. InThe Fourteenth International Conference on
+Learning Representations, 2026.
+Michael Zhang, Nishkrit Desai, Juhan Bae, Jonathan Lorraine, and Jimmy Ba. Using large language
+models for hyperparameter optimization.arXiv preprint arXiv:2312.04528, 2023.
+10
+
+A Appendix
+A.1 Convergence by Trial Number
+The main text reports convergence against cumulative training time, which is our primary comparison.
+Figures 4 and 5 show convergence by trial number instead, measuring sample efficiency. These views
+can differ substantially because LLM-based methods spend additional time on inference between
+trials, compressing their wall-time curves even when they are competitive per trial.
+Figure 4: Convergence by trial number (mean ± std across 3 seeds). Same methods as Figure 1.
+Trial-number view shows sample efficiency rather than wall-clock cost.
+Figure 5: 0.8B vs 27B by trial number (mean±std across 3 seeds). Same methods as Figure 3.
+A.2 Per-Seed Convergence
+Figures 6 to 8 show the same convergence plots as the main text but with individual seed trajectories
+(thin, transparent) overlaid on the mean (thick, solid) instead of±std bands. This reveals cross-seed
+variance and whether the mean is driven by one outlier seed or consistent behavior.
+11
+
+Figure 6: Per-seed convergence for all 27B methods (wall-time). Thin lines: individual seeds. Thick
+lines: mean across 3 seeds.
+Figure 7: Per-seed convergence for 0.8B vs 27B comparison (wall-time).
+A.3 Frontier Model Comparison
+To test whether a stronger LLM optimizer changes the balance between classical and LLM-based
+methods, we ran Karpathy Agent (Code) and Centaur with three Gemini variants: Gemini 2.5
+Flash [Comanici et al., 2025], Gemini 3.1 Flash-Lite [Google DeepMind, 2026], and Gemini 3.1 Pro
+Preview [Google DeepMind, 2026]. Gemini 2.5 Flash and 3.1 Flash-Lite runs were stopped early
+after 16–18 hours of cumulative training time as no meaningful improvement was observed beyond
+that point. Gemini 3.1 Pro Preview was run for the full 24-hour budget with 3 seeds.
+Figures 9 and 10 compare the Flash variants with Qwen3.5-27B, but neither outperforms it. Notably,
+Karpathy Agent (Code) with Gemini 3.1 Flash-Lite suffers from extremely high failure rates (87–
+94%), as the model frequently generates code modifications that cause the training script to crash (93%
+12
+
+Figure 8: Per-seed convergence for Gemini 3.1 Pro Preview vs Qwen3.5-27B (wall-time).
+of failures are runtime errors, not OOM). In the fixed search space, however, Gemini 3.1 Flash-Lite
+performs comparably to Qwen3.5-0.8B. Figure 2 shows that Gemini 3.1 Pro Preview is competitive
+with Qwen3.5-27B for both unconstrained code editing (Karpathy Agent Code: 0.9826±0.0004 vs
+0.9814±0.0046, 3% OOM) and Centaur in the fixed search space (0.9767±0.0013 vs 0.9763±0.0005).
+Gemini Pro achieves lower variance than Qwen for code editing but does not improve the mean,
+confirming that scaling the LLM optimizer does not close the gap to classical methods.
+Figure 9: Gemini 2.5 Flash vs Qwen3.5-27B as LLM optimizer (cumulative training time). Solid:
+Gemini, dashed: Qwen3.5-27B. Same color per method.
+A.4 Centaur LLM Ratio Ablation
+We ablate the fraction of trials delegated to the LLM in Centaur. Table 4 reports best val_bpb for each
+ratio. The default ratio of r=0.3 balances classical and LLM contributions; higher ratios degrade
+performance, particularly for the 27B model wherer=0.8 performs worse than CMA-ES alone. This
+confirms that CMA-ES needs to retain majority control of the optimization trajectory, with the LLM
+contributing occasional informed suggestions rather than dominating the search.
+13
+
+Figure 10: Gemini 3.1 Flash-Lite vs Qwen3.5-27B as LLM optimizer (cumulative training time).
+Solid: Gemini 3.1, dashed: Qwen3.5-27B. Same color per method.
+Table 4: Centaur LLM ratio ablation. Best val_bpb (mean±std). 2 seeds per ratio, 3 seeds for default
+r=0.3. Bold = best per column.
+LLM RatiorCentaur [0.8B] Centaur [27B]
+0.10.9744±0.00030.9758±0.0005
+0.2 0.9748±0.0013 0.9748±0.0005
+0.3 (default) 0.9766±0.0008 0.9763±0.0005
+0.5 0.9768±0.00190.9746±0.0000
+0.8 0.9849±0.0060 0.9902±0.0000
+Figure 11: Effect of LLM ratio on Centaur performance (2 seeds, 3 for default). Higher ratios give
+the LLM more trials. CMA-ES alone (dotted) shown as reference. Too much LLM control degrades
+performance, especially for the 27B model atr=0.8.
+14
+
+Figure 12: Incumbent traces for classical and hybrid methods (wall-time, best seed). Grey dots: all
+trials. Colored dots: new incumbents. Staircase: best-so-far.
+A.5 Incumbent Traces
+Beyond aggregate convergence, we visualize per-method incumbent traces to reveal when and how
+each optimizer finds improvements. Figures 12 and 13 show incumbent traces against cumulative
+training time (hours) for all methods. Grey dots are all trials, colored dots are new incumbents, and
+the staircase line is the best-so-far trajectory. Each panel shows the best seed for that method.
+15
+
+Figure 13: Incumbent traces for LLM-based methods (wall-time, best seed).
+A.6 Qualitative Agent Behavior
+The convergence plots show that Centaur improves over CMA-ES alone; we now examine how
+the LLM uses the shared optimizer state in practice. In Centaur seed 0, trial 136 produced a new
+incumbent (val_bpb= 0.9837):
+• CMA-ES suggested: WINDOW_PATTERN=LLLL, DEVICE_BATCH_SIZE=61,
+TOTAL_BATCH_SIZE=133143,SCALAR_LR=0.208
+• LLM overrode to: WINDOW_PATTERN=SSSS, DEVICE_BATCH_SIZE=64,
+TOTAL_BATCH_SIZE=131072,SCALAR_LR=0.3
+Three overrides are notable: (1)Attention pattern(LLLL →SSSS): CMA-ES has no domain
+knowledge about attention patterns. The LLM chose all-short attention, which is memory-efficient at
+the given depth (DEPTH = 10). This is transformer-specific knowledge that CMA-ES cannot learn
+from scalar loss values. (2)Hardware-friendly rounding: the LLM chose power-of-2 batch sizes
+(64, 131072) instead of CMA-ES’s arbitrary values (61, 133143), aligning with GPU memory and
+tensor core constraints. (3)Learning rate: the LLM boosted SCALAR_LR from 0.208 to 0.3, closer
+to the regime where good configs cluster.
+Overall in seed 0, 6 of 24 incumbent improvements came from LLM trials (25%), while LLM trials
+constituted 88 out of 275 total trials (32%, close to the 30% target ratio).
+16
+
+A.7 Diversity Metrics
+We now define the diversity metrics reported in Table 3. We compute all metrics on the 13 continuous
+HPs, excluding the categorical WINDOW_PATTERN. We normalize each HP to [0,1] within its bounds
+and use only successful (non-OOM) trials.
+• Spread: mean standard deviation per HP across all trials. Higher values indicate more diverse
+sampling across each dimension.
+• Pairwise: mean L2 distance between all pairs of configurations. Higher values indicate configs are
+more different from each other.
+• Step: mean L2 distance between consecutive trials. Higher values indicate larger jumps between
+suggestions.
+• Cells: we discretized each HP into 5 equal-width bins and counted the number of unique 13-
+dimensional bin vectors across all trials. The theoretical maximum is 513≈1.2×10 9; values in
+Table 3 range from 29 to 805, indicating that all methods cover a small fraction of the search space.
+A.8 0.8B LLM Variant Results
+Table 5 reports diversity metrics for the remaining 0.8B LLM variants not shown in the main Table 3,
+i.e., the fixed-search-space pure LLM methods.
+Table 5: Diversity analysis for 0.8B LLM variants of fixed-search-space pure LLM methods (3 seeds
+each). Same columns as Table 3.
+Method Trials Best val_bpb OOM% Spread Step
+Karpathy Agent (14 HPs) 338±30.9908±0.000216% 0.037 0.062
+LLAMBO (Optuna) 668±29 0.9873±0.0003 64% 0.297 1.311
+LLAMBO (Paper) 605±6 0.9894±0.0007 59% 0.272 1.330
+A.9 LLAMBO (Optuna) vs LLAMBO (Paper): Detailed Comparison
+We include two LLAMBO variants because the OptunaHub port differs from the original paper in
+ways that substantially affect performance. Table 6 summarizes the key implementation differences.
+Table 6: Key differences between LLAMBO (Optuna) and LLAMBO (Paper).
+Aspect Original Paper OptunaHub Port
+Surrogate labels Continuous metric values Binary 0/1 (top 20% threshold)
+Categorical HPs All HPs in LLM prompts Delegated to random sampling
+Failed trials Visible to surrogate Hidden (TrialState.FAIL)
+A.10 Full Convergence with All Methods
+Figure 1 shows±std bands for the top 5 methods only. Figure 14 shows all 9 methods with bands,
+split into competitive methods (top) and remaining methods (bottom) for readability.
+17
+
+Figure 14: All 9 methods with ±std bands, split into top 5 (Centaur, TPE, SMAC, CMA-ES,
+Karpathy Agent Code) and remaining 4 (Karpathy Agent 14 HPs, LLAMBO Paper, LLAMBO
+Optuna, Random).
+18
+
+A.11 LLM Prompts and Problem Context
+We report the prompt templates used by all five LLM-based methods in our benchmark. Each
+prompt includes the optimization goal, the model class and training stack, the dataset, the hardware
+constraints and OOM warning, the search space with bounds, and the trial history. Braces of the form
+{name} are Python format placeholders filled in at runtime. These templates are also available in our
+public code repository3 in the respective backend files.
+Karpathy Agent (Code).Source: autoresearch_automl/backends/karpathy_agent_backend.py.
+The LLM receives the current best train.py source code together with problem context and returns
+a full replacement fortrain.py.
+You are an autonomous ML researcher. Your goal: minimize val_bpb (validation bits-per-byte) for a GPT-2
+scale transformer trained on climbmix-400b-shuffle.
+Current train.py (the version that achieved the best result so far):
+‘‘‘python
+{current_source}
+‘‘‘
+Previous experiments:
+{history}
+Current best val_bpb: {best_val_bpb}
+Rules:
+- You can change ANYTHING in train.py: architecture, optimizer, hyperparameters, training loop, model size.
+- Do NOT modify imports from prepare (prepare.py is read-only).
+- The script runs for exactly 5 minutes on a single GPU with {available_vram} VRAM available.
+- Configs that use too much memory will crash (OOM) - be mindful of DEPTH, HEAD_DIM, DEVICE_BATCH_SIZE.
+- Simplicity wins: a small improvement from deleting code is better than a large improvement from adding
+complexity.
+- Think about what previous experiments tell you - learn from both successes and failures.
+Respond in EXACTLY this format (no extra text before or after):
+DESCRIPTION: <one line explaining what you changed and why>
+‘‘‘python
+<the complete modified train.py - must be valid, runnable Python>
+‘‘‘
+Karpathy Agent (14 HPs).Source: autoresearch_automl/backends/karpathy_agent_hps_backend.py.
+The LLM is constrained to the fixed 14-HP search space and must return a JSON configuration.
+You are optimizing hyperparameters for a GPT-2 scale transformer trained on climbmix-400b-shuffle.
+The goal is to minimize val_bpb (validation bits-per-byte).
+Training runs on a single H200 GPU (141GB VRAM, {available_vram} available after vLLM) - configs with very
+high DEPTH, large HEAD_DIM,
+or large DEVICE_BATCH_SIZE may cause OOM (out of memory) crashes.
+Current search space with bounds:
+{space_description}
+Previous evaluations (config -> result):
+{history}
+{incumbent_info}
+Suggest the next configuration to try. Learn from both successful runs AND failures (OOM crashes
+mean the model was too large for the GPU). Respond with a JSON object mapping HP names to values.
+Only include HPs from the search space. Be creative but principled - consider what you know
+about transformer training dynamics.
+Respond ONLY with a valid JSON object, no explanation.
+Centaur (CMA-ES + LLM).Source: autoresearch_automl/backends/centaur_backend.py.
+On the 30% of trials where the LLM overrides CMA-ES, it receives CMA-ES’s internal state (mean,
+sigma, covariance summary, top-5 configs, last 20 trials) alongside the problem context.
+3https://github.com/ferreirafabio/autoresearch-automl
+19
+
+You are optimizing hyperparameters for a GPT-2 scale transformer trained on climbmix-400b-shuffle.
+Goal: minimize val_bpb. GPU: H200 with {available_vram} available.
+Search space:
+{space_description}
+{cma_analysis}
+Previous evaluations (last 20):
+{history}
+{incumbent_info}
+Use CMA-ES’s analysis as guidance:
+- If CMA-ES is converging (low sigma), exploit near its mean
+- If sigma is large, CMA-ES is still exploring - help by using your transformer knowledge
+- You can diverge from CMA-ES if you see patterns it might miss (e.g., OOM-prone regions, known good
+ratios)
+Respond ONLY with a valid JSON object mapping HP names to values.
+LLAMBO (Paper) and LLAMBO (Optuna).Sources: autoresearch_automl/backends/llambo_original_backend.py
+and llambo_backend.py. Both variants build their prompts via the LLAMBO surrogate / acquisi-
+tion templates from Liu et al. [2024b], with a custom task description prefixed that we reproduce
+below. LLAMBO (Optuna) is the [Ozaki et al., 2025] port; LLAMBO (Paper) is our faithful
+reimplementation of the original (details in Section A.9).
+Optimizing a GPT-2 scale transformer for language modeling on climbmix-400b-shuffle.
+The model uses a Muon+AdamW optimizer with weight decay and learning rate scheduling.
+Architecture hyperparameters control model depth, width (via aspect ratio and head dim), and attention
+patterns. Optimization hyperparameters control learning rates for different parameter groups (
+embedding, unembedding, matrix, scalar), weight decay, and batch sizes.
+Goal: minimize val_bpb (validation bits-per-byte).
+Training runs on a single H200 GPU (141GB VRAM, {available_vram} available after vLLM) with a fixed time
+budget of {budget}s.
+VRAM is a soft constraint - large models with high DEPTH and large DEVICE_BATCH_SIZE can OOM.
+WINDOW_PATTERN is encoded as ordinal: 0=SSSL, 1=SSLL, 2=SLSL, 3=LLLL, 4=SSSS, 5=LSSL (controls sliding
+window vs full attention pattern per layer).
+The LLAMBO surrogate and acquisition functions then append the hyperparameter constraints,
+few-shot examples drawn from prior trials, and a query for the next configuration. LLAMBO (Paper)
+uses continuous metric values as surrogate labels and keeps failed trials visible; LLAMBO (Optuna)
+uses binary top-20% labels and hides failed trials (see Table 6).
+20

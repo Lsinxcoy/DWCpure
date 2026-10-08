@@ -1,0 +1,20 @@
+{
+ "OriGene|2026": "2602.01550",
+ "Li C-evolve|2026": "2509.23331",
+ "Wang SynthAgent|2026": "none",
+ "Sun SEAgent|2026": "2508.04700",
+ "Zhang AFlow|2025": "none",
+ "Zelikman STOP|2024": "2310.02304",
+ "Liu EvoMDT|2026": "none",
+ "Hu ADAS|2025": "none",
+ "Ouyang ReasoningBank|2026": "2509.25140",
+ "Karpathy autoresearch|2026": "none",
+ "Zhao AbsZero|2025": "2505.03335",
+ "Shi S3Gym|2026": "none",
+ "Dai Metis|2026": "none",
+ "SynthAgent|2026": "none2",
+ "AFlow|2025": "2410.10762",
+ "EvoMDT|2026": "2602.13793",
+ "ADAS|2025": "2408.08435",
+ "autoresearch|2026": "2603.24647"
+}
