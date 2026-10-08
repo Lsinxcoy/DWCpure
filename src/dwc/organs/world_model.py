@@ -379,6 +379,36 @@ class WorldModel:
         self.trees[tree_id] = t
         return t
 
+    def seed_tasks(self, task_ids, *, tree_id: str = "dev",
+                   root_action: str = "dev_tasks") -> int:
+        """★ §4.7 职责一「初始播种」: 一棵发现树、root + 每任务一叶。
+
+          𝒲 = {W_1..W_n}, 每个 W = 一棵发现树; W.legal_actions() = 未揭示的
+          叶子 ← 任务列表 —— 所以**一树即一个任务列表源**（多树是运行时
+          演化的事, 播种只建 W_1）。
+
+        ★ ★ node_id = **judge 的 task_id**（同域关键: δ 任务级排序键、
+          执行后 judge.evaluate 回评、C3' 分数点对齐 —— 全靠这个同一命名
+          空间; 不同域则批1/批2 的消费全部空转）。
+        ★ 幂等: 已播 ⇒ 不重播（重复播种=同 id raise 的 seed 会炸构造）。
+        ★ 空任务源 ⇒ 返回 0 不建树（没任务不假装有 —— 空树由调用方按
+          原语义 raise）。
+        ★ 与 ARCHITECTURE「sealed_tasks 15 条(复用 ARSI)」的差异: DWC 现有
+          真值源 = dev 10 条（ARSI 15 条未引入）—— 播**现有可用任务**,
+          数量差异是任务集现实, 不是实现走样。
+        """
+        ids = [t for t in task_ids if isinstance(t, str)
+               and not t.startswith("_")]
+        if not ids:
+            return 0
+        if tree_id in self.trees:
+            return 0                                  # 幂等
+        t = self.seed(tree_id, root_action)
+        for tid in ids:
+            t.add_child("root", node_id=tid,
+                        action="task:%s" % tid, provenance="observed")
+        return len(ids)
+
     def tree(self, tree_id: str) -> WorldTree:
         t = self.trees.get(tree_id)
         if t is None:

@@ -34,7 +34,13 @@ def _ok_executor(task):
 
 
 def _dwc():
-    return DWC(3, 50, executor=_ok_executor)
+    d = DWC(3, 50, executor=_ok_executor)
+    # ★ 测试隔离: 生产 store 路径会载回**生产判分历史**（R71 接线）⇒ δ 排序
+    #   被生产盘数据触发 = 测试结果依赖生产状态（本轮真踩: 005 被排前）。
+    #   换内存 store 后 δ 数据由各测试显式造（不读生产）。
+    from dwc.organs.judge import TaskScoreStore
+    d.judge.store = TaskScoreStore(dw_version="test")
+    return d
 
 
 # ══════════════════════════════════════════════════════════
@@ -75,11 +81,14 @@ def test_step_advances_only_on_new_observations():
     # 灌观测: root 过 ⇒ 池通过率 1.0 > τ=0.75 ⇒ 推进
     wm.record_observation("main", "root", 1.0, True)
     acts = wm.legal_actions()
-    assert [a["node"] for a in acts] == ["a", "b"]    # root 已揭示, 叶子 a/b
+    # ★ R77 播种后: 候选 = dev 树 ∪ main 树 跨树并集（不锁具体名单,
+    #   锁"我建的 a/b 在列"——播种改动不应让本测试脆弱）
+    nodes = [a["node"] for a in acts]
+    assert "a" in nodes and "b" in nodes
     d.step()                                          # 观测变化 ⇒ 判一次
     assert d.el.index == 2, "p̂>τ ⇒ 同代推进 index 1→2"
     picked1 = d._el_pick(acts)
-    assert picked1["node"] == "b"                     # acts[(2-1)%2]=b
+    assert picked1["node"] == acts[1]["node"]         # acts[(2-1)%len]（锁游标语义）
     # ★ 节律: 观测计数没变 ⇒ 不再推进（连续调用不空转）
     n_before = d.el.index
     d._el_pick(acts)
@@ -177,3 +186,62 @@ def test_decide_from_rate_core_equivalence():
     # None ⇒ 同 insufficient
     d_none = ELScheduler().decide_from_rate(None, 4)
     assert d_none.status == STATUS_INSUFFICIENT and d_none.pass_rate is None
+
+
+# ══════════════════════════════════════════════════════════
+# 批2-C · δ 任务源排序（C1: 只排任务源, 不动 select）
+# ══════════════════════════════════════════════════════════
+
+def test_a_delta_rank_puts_rare_failure_task_first():
+    """★★ A 侧: 有判分史 ⇒ 罕见失败任务排前 —— 首次取任务不再是原序首。"""
+    d = _dwc()
+    # 造判分: 001 成功 ×2（其正确观测来自 test_judge 口径）、004 失败 ×1
+    d.judge.evaluate("code_fix_001",
+                     observed={"sum_first_n": [[3, 6], [5, 15]]})
+    d.judge.evaluate("code_fix_001",
+                     observed={"sum_first_n": [[3, 6], [5, 15]]})
+    d.judge.evaluate("code_fix_004", observed={"no_such_fn": [[1, 1]]})
+    dmap = d._task_deltas()
+    # ★ 语义: 任务 δ=失败签名稀有度 ⇒ 004(失败,δ>0) > 001(全成功,=0)
+    assert dmap.get("code_fix_004", 0.0) > 0.0
+    assert dmap.get("code_fix_001", 0.0) == 0.0
+    acts = d.world_model.legal_actions()
+    assert acts[0]["node"] == "code_fix_001"          # 原序首 = 001
+    picked = d._el_pick(acts)                          # δ 排序 + insufficient idx=1
+    assert picked["node"] == "code_fix_004", \
+        "★ 罕见失败任务应排到 acts[0]（δ 降序）"
+
+
+def test_a_no_judgment_keeps_original_order():
+    """零判分 ⇒ dmap 空 ⇒ 不排序 ⇒ 取原序首（真保底, 与接线前一致）。"""
+    d = _dwc()
+    acts = d.world_model.legal_actions()
+    assert d._task_deltas() == {}
+    picked = d._el_pick(acts)
+    assert picked["node"] == acts[0]["node"]
+
+
+def test_b_delta_rank_sorts_wta():
+    """★★ B 侧: 注入带判分史的 judge ⇒ el_selected.picked 是排序后首任务。"""
+    from dwc.organs.judge import Judge, TaskScoreStore
+    j = Judge()
+    j.store = TaskScoreStore(dw_version="test")        # 隔离生产
+    j.evaluate("code_fix_001",
+               observed={"sum_first_n": [[3, 6], [5, 15]]})
+    j.evaluate("code_fix_001",
+               observed={"sum_first_n": [[3, 6], [5, 15]]})
+    j.evaluate("code_fix_004", observed={"no_such_fn": [[1, 1]]})
+    wm_world = __import__("dwc.organs.world_model", fromlist=["WorldModel"]
+                          ).WorldModel(depth_limit=3, max_nodes=50)
+    # 播 10 任务（node_id=task_id 同域 —— seed_tasks 自己建树, 不先 seed 占位）
+    ids = [t for t in j.anchors if not t.startswith("_")]
+    assert wm_world.seed_tasks(ids, tree_id="dev") == len(ids)
+    tr = TermRunner(world_model=wm_world, judge=j,
+                    el_scheduler=ELScheduler())
+    rep = tr.run_term("t", n_steps=1)
+    src = rep.next_task_source
+    wta = [t for t in src["tasks"] if t["kind"] == "world_tree_action"]
+    el = src["el_selected"]
+    # δ 排序后 wta 首位 = 罕见失败任务 004; insufficient idx=1 ⇒ picked=首
+    assert wta[0]["node"] == "code_fix_004", [t["node"] for t in wta[:3]]
+    assert el["picked"]["node"] == "code_fix_004"

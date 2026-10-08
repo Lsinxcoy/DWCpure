@@ -128,6 +128,15 @@ class DWC:
         #: A 侧节律 token（世界树 Σn_obs 没变 ⇒ 不重复推进）
         self._el_token = -1
         self._el_last = None
+        #: R77 批2 · 任务级 δ 缓存（判分点数变才重算）
+        self._delta_token = -1
+        self._delta_map = None
+        # ★★★ R77 · §4.7 职责一「初始播种」—— 构造即播:
+        #   **此前世界树生产上永远为空**（src 内 seed/expand 零生产调用 ——
+        #   R76 核出: 批1 的 el_selected 在生产永不出现的两层原因之二）⇒
+        #   任务源/EL/δ 排序全部空转。播种后 node_id=judge task_id 同域。
+        self.world_model.seed_tasks(
+            [t for t in self.judge.anchors if not t.startswith("_")])
         #: ── 组装件（执行环境 / LLM / term 编排）──
         self.executor = executor
         self.llm = llm
@@ -223,19 +232,34 @@ class DWC:
                                       "(见模块诚实边界)"
                                       % decision.get("action"))}
 
+    def _task_deltas(self) -> Dict[str, float]:
+        """★ 任务级 δ（批2-C, C1 落点）—— 缓存: 判分点数变才重算。"""
+        pts = self.judge.task_scores(split=SPLIT_DEV)
+        token = len(pts)
+        if token != self._delta_token or self._delta_map is None:
+            from dwc.organs.weakness import task_delta_map
+            self._delta_map = task_delta_map(
+                pts, self.judge.store.evidence)
+            self._delta_token = token
+        return self._delta_map
+
     def _el_pick(self, acts: List[Dict[str, Any]]
                  ) -> Dict[str, Any]:
-        """★ L592 三段式① 的采样核心: acts → EL 状态机 → 本轮任务的 act。
+        """★ L592 三段式① 的采样核心: acts → (δ 排序) → EL 状态机 → act。
 
         ★ 节律: 世界树 Σn_obs 没变 ⇒ **不重复推进**（EL 判定绑定观测变化 —
           论文「窗口满 B 判一次」的速率口映射; 没判过则首判必走）。
         ★ insufficient（无观测）⇒ index 不动 ⇒ acts[0] —— **与接线前行为
           一致**（接线不改变"没数据时"的选择, 只在有观测后才开始调度）。
+        ★ 批2-C δ 排序（C1: **只排任务源, 不动 select**）:
+          有任务级 δ>0 ⇒ 按 δ 降序（罕见失败任务优先探 — 稳定排序, 同 δ
+          保 candidate_nodes 原序）; 全 0/无判分 ⇒ **原序**（零历史=真保底）。
         ★ 候选收缩致 index>n ⇒ 游标拉回 1（环境数变, 游标失效 —— 实例化规则,
           不触发 el_sched 的 k>N raise）。
-        ★ acts 的序 = candidate_nodes 的确定序（sorted tree/node id）——
-          游标语义稳定可复现。
         """
+        dmap = self._task_deltas()
+        if any(dmap.get(a["node"], 0.0) > 0.0 for a in acts):
+            acts = sorted(acts, key=lambda a: -dmap.get(a["node"], 0.0))
         n = len(acts)
         if self.el.index > n:
             self.el.index = 1

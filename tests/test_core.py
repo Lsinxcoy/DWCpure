@@ -25,7 +25,12 @@ from dwc.core import ACTIONS, DwcError, DWC  # noqa: E402
 def _dwc(**kw) -> DWC:
     kw.setdefault("depth_limit", 3)
     kw.setdefault("max_nodes", 50)
-    return DWC(**kw)
+    d = DWC(**kw)
+    # ★ R77 测试隔离: 构造走生产 store 路径（R71）⇒ 载回生产判分历史,
+    #   δ 排序被生产盘数据触发 = 结果依赖生产状态 — 换内存 store 断开。
+    from dwc.organs.judge import TaskScoreStore
+    d.judge.store = TaskScoreStore(dw_version="test")
+    return d
 
 
 def _ok_executor(task):
@@ -156,13 +161,23 @@ def test_step_runs_decide_act_ingest_chain():
 
 
 def test_step_takes_task_from_world_tree():
-    """环节⑥: 不给 task ⇒ 从世界树未揭示叶子取（任务自产, 不编造）。"""
+    """环节⑥: 不给 task ⇒ 从世界树未揭示叶子取（任务自产, 不编造）。
+
+    ★ R77 播种改约: 构造即播 dev 任务（§4.7「初始播种」）⇒ 空树不再出现
+      在构造时, 只在**全部揭示后** —— 空 raise 语义保留到那个终态。
+    """
     d = _dwc(executor=_ok_executor)
-    with pytest.raises(DwcError, match="没有可执行对象"):
-        d.step()
-    d.world_model.seed("main", "基线任务")
+    # ★ 播种断言: 构造即有 dev 任务叶, 且 node_id = judge task_id（同域）
+    dev_ids = {t for t in d.judge.anchors if not t.startswith("_")}
+    acts = d.world_model.legal_actions()
+    assert {a["node"] for a in acts} == dev_ids and len(dev_ids) > 0
     out = d.step()
     assert out["trace"].action_params["task_source"].startswith("world_model:")
+    # ★ 全部揭示 ⇒ 空树 raise 原语义仍在
+    for a in acts:
+        d.world_model.record_observation(a["tree"], a["node"], 1.0, True)
+    with pytest.raises(DwcError, match="没有可执行对象"):
+        d.step()
 
 
 def test_step_pre_enactment_layer_is_honestly_absent():

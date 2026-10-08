@@ -92,6 +92,14 @@ def z_id_from_signature(sig: Optional[Mapping[str, str]]) -> str:
     return "c:%s|q:%s" % (sig.get("c") or "", sig.get("q") or "")
 
 
+def _z_of(ev: Mapping) -> str:
+    """evidence → z（三类显式, 与 z_history 同一口径 —— 抽出来供两切面复用）。"""
+    if ev.get("success") is True:
+        return Z_PASS
+    sig = ev.get("failure_signature")
+    return z_id_from_signature(sig) if sig else Z_UNSIGNED
+
+
 def z_history_from_scores(points, evidence_lookup
                           ) -> Dict[str, List[str]]:
     """C3' 分数点序列 → DifficultyEstimator 的 history（★ 生产喂入链）。
@@ -117,14 +125,46 @@ def z_history_from_scores(points, evidence_lookup
     """
     hist: Dict[str, List[str]] = {}
     for p in points:
-        ev = evidence_lookup(p.evidence_ref)
-        if ev.get("success") is True:
-            z = Z_PASS
-        else:
-            sig = ev.get("failure_signature")
-            z = z_id_from_signature(sig) if sig else Z_UNSIGNED
-        hist.setdefault(p.group_id, []).append(z)
+        hist.setdefault(p.group_id, []).append(_z_of(
+            evidence_lookup(p.evidence_ref)))
     return hist
+
+
+def task_delta_map(points, evidence_lookup
+                   ) -> Dict[str, float]:
+    """★ 任务级 δ（R77 批2-C · C1 落点 = 任务源排序偏置, **不动 select**）。
+
+    任务 δ = 该任务**历史失败签名**在组内的最大 δ —— 罕见失败缠身的任务
+    优先探（排序偏置, 无阈值 —— ARCHITECTURE L1105 约束不变）。
+
+    ★ 口径（与组级切面同源, 只换查询面不换公式）:
+      · 分母仍是**组内全部判分**（含 __pass__ 占位）—— hist 同 z_history
+      · 任务的 z 集 = 该任务判分中出现过的**非 __pass__** z（失败签名族 /
+        __unsigned_fail__ 都算 —— 不特判, 口径一致）
+      · 任务 δ = max(z 的 δ)（多签名取最罕见 —— 决定该任务"最难的伤")
+    ★ 无历史 / 历史全成功 ⇒ **0.0 显式入表**（不是缺键 —— 调用方拿
+      get 默认会把"没数据"和"零难度"混掉; 也不是 NaN —— 排序要全序）。
+    ★ 返回**有分数点的全部 task_id**（无失败的也在表里=0.0, 可审计）。
+    """
+    hist: Dict[str, List[str]] = {}
+    task_z: Dict[str, set] = {}
+    task_group: Dict[str, str] = {}
+    for p in points:
+        ev = evidence_lookup(p.evidence_ref)
+        z = _z_of(ev)
+        hist.setdefault(p.group_id, []).append(z)
+        task_group[p.task_id] = p.group_id
+        if z != Z_PASS:
+            task_z.setdefault(p.task_id, set()).add(z)
+    est = DifficultyEstimator(hist)     # 全组一个实例（delta_group 按 g 取）
+    out: Dict[str, float] = {}
+    for tid, g in task_group.items():
+        zs = task_z.get(tid)
+        if not zs:
+            out[tid] = 0.0
+            continue
+        out[tid] = max(est.delta_group(z, g).delta for z in zs)
+    return out
 
 
 class DifficultyEstimator:

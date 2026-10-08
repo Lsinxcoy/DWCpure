@@ -1,0 +1,44 @@
+{
+ "round": "R77 · 批2 δ 任务源排序 + §4.7 初始播种（数据前提清算）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 批2, 裁决①按推荐 C1: select 不动, δ 只排任务源）",
+ "★★ 数据前提发现（执行前核对救了场）": [
+  "seed/expand 生产调用=0 ⇒ 世界树生产上**永远空** ⇒ wta=[] ⇒ el_selected 永不出现",
+  "  —— R76 的 e2e 0 痕迹有两层原因, R76 只写了第一层(不走 DWC), **本轮补第二层**",
+  "  且批2 原落点=接在空转链上 ⇒ 批次内容修正: **先补播种再接 δ 排序**",
+  "播种=设计明文缺口: ARCHITECTURE §4.7 职责一「𝒲每W一棵树; W.legal_actions=任务列表",
+  "  ←初始播种任务集」—— 实现从未落"
+ ],
+ "★ 播种（world_model.seed_tasks + core 构造即播）": [
+  "一树 root+每任务一叶(任务列表源); **node_id=judge task_id 同域**(δ排序键/回评/C3'对齐全靠它)",
+  "幂等(树在则跳过) · 空任务源返回0不建树 · 数量现实: 播 dev 10(设计写 ARSI sealed 15",
+  "  未引入 — 数量差异标注为任务集现实)",
+  "★ 世界树从 0 到 10 任务: el_selected 有了数据前提"
+ ],
+ "★ 批2-C（C1: select 完全未动）": [
+  "weakness: _z_of 抽取(两切面复用) + task_delta_map(任务δ=该任务历史失败签名的组内",
+  "  max δ; 无失败=0.0 显式入表(非缺键非NaN); 返回全部有分任务可审计)",
+  "A core._el_pick: dmap 有>0 ⇒ δ降序(稳定,同δ原序); 全0/无判分=原序真保底",
+  "B run_term: wta 按 δ 排序+tasks 重排(集合不变只换序 — 批1叠加承诺兼容)",
+  "core._task_deltas: 判分点数 token 缓存; B侧每 term 重算(term级频率,可接受)"
+ ],
+ "★ 本轮抓的三个真问题": [
+  "1. WorldModel 方法误写 self.nodes(R76 修过同款又险犯) — 既有测试抓到",
+  "2. task_delta_map 把 z-list 当 history 传 Estimator('list has no items') — 单跑抓到",
+  "3. **测试隔离**: _dwc helper 构造走生产 store ⇒ 载回生产判分史 ⇒ δ 排序被生产数据",
+  "  触发(picked=005 不是 acts[1]) — 两 helper 换内存 store 断开(测试不依赖生产盘)",
+  "改约 2 测试(播种契约): 空树raise移到全揭示后; acts 断言改集合/游标语义(不锁名单)",
+  "破坏 0/2→修正破法→2/2: ①恒值只影响失败分支(改恒0) ②删 if 行=语法错 rc2(改删 sort 体)"
+ ],
+ "验证": [
+  "pytest 741 passed(+5: task_delta_map 单元×2 + A/B 排序×3) rc=0 · gate 8/8 ·",
+  "  e2e rc=0(LLM_SEGMENT=passed) · e2e el_selected 0 处=不走该链的正确沉默(R76 已核)",
+  "破坏 2/2(修正后): map恒0⇒A+B双红 · 拆B sort⇒B红 → 恢复绿"
+ ],
+ "诚实边界": [
+  "★ 播种=构造级行为变更(每 DWC 实例自带 10 任务树) — 影响面已改 2 测试并注明改约",
+  "★ δ 排序的生产验证依赖真实判分积累(e2e 不走 run_term ⇒ 生产 el_selected/δ排序",
+  "  的运行流证据来自 test_el_wiring 集成, e2e 不覆盖)",
+  "★ 裁决②③(Proposal.direction / stuck 标注)仍待拍板; 批3 未动"
+ ]
+}

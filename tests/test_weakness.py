@@ -280,3 +280,49 @@ def test_evidence_to_dict_is_complete():
     assert ev["n_checks"] == v.n_checks
     assert ev["k_passed"] == v.k_passed
     assert isinstance(ev["diffs"], list)
+
+
+# ══════════════════════════════════════════════════════════
+# R77 批2-C · task_delta_map（任务级 δ, C1 落点）
+# ══════════════════════════════════════════════════════════
+
+def test_task_delta_map_units():
+    """★ 任务级 δ: 无失败=0.0 显式入表 · 失败任务=组内稀有度 δ · max 聚合。"""
+    from dwc.organs.weakness import task_delta_map
+    evis = {
+        # t_pass 成功 ×2（占分母）
+        "p1": {"success": True}, "p2": {"success": True},
+        # t_a 失败签名 A ×2（常见）
+        "a1": {"success": False,
+               "failure_signature": {"c": "common", "q": "x"}},
+        "a2": {"success": False,
+               "failure_signature": {"c": "common", "q": "x"}},
+        # t_r 失败签名 R ×1（罕见）
+        "r1": {"success": False,
+               "failure_signature": {"c": "rare", "q": "y"}},
+    }
+    class P2:
+        def __init__(self, tid, ref):
+            self.task_id, self.evidence_ref, self.group_id = tid, ref, "g"
+    pts = [P2("t_pass", "p1"), P2("t_pass", "p2"),
+           P2("t_a", "a1"), P2("t_a", "a2"), P2("t_r", "r1")]
+    dmap = task_delta_map(pts, evis.__getitem__)
+    # 全任务显式在表（无失败的 = 0.0 —— 不是缺键也不是 NaN）
+    assert set(dmap) == {"t_pass", "t_a", "t_r"}
+    assert dmap["t_pass"] == 0.0
+    assert dmap["t_r"] > dmap["t_a"] > 0.0   # 罕见 > 常见 > 无
+    # 无任何点 ⇒ 空表（不装数）
+    assert task_delta_map([], evis.__getitem__) == {}
+
+
+def test_task_delta_map_empty_history_not_nan():
+    """★ 零点 ⇒ 空表; 有组但全成功 ⇒ 全 0.0（排序全序, NaN 会破排序）。"""
+    import math
+    from dwc.organs.weakness import task_delta_map
+    class P2:
+        def __init__(self, tid, ref):
+            self.task_id, self.evidence_ref, self.group_id = tid, ref, "g"
+    dmap = task_delta_map([P2("t1", "p1")], {"p1": {"success": True}}.__getitem__)
+    assert dmap == {"t1": 0.0}
+    assert not any(isinstance(v, float) and math.isnan(v)
+                   for v in dmap.values())

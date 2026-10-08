@@ -649,6 +649,20 @@ class TermRunner:
                                "（world_model.legal_actions）"}
                 tasks.append(item)
                 wta.append(item)
+        # ── R77 批2-C · δ 任务源排序（C1: 只排任务源, 不动 select）──
+        # ★ 罕见失败任务优先（任务级 δ, task_delta_map）; 零判分历史 ⇒
+        #   全 0 ⇒ 稳定排序 = **原序**（真保底, 不动现有顺序）
+        # ★ 集合不变只换序 —— 叠加承诺（批1）与顺序无关, 条目/个数原样
+        if self.judge is not None and wta:
+            from dwc.organs.weakness import task_delta_map
+            _pts = self.judge.task_scores(split="dev")
+            _dmap = task_delta_map(_pts, self.judge.store.evidence)
+            if any(_dmap.get(i["node"], 0.0) > 0.0 for i in wta):
+                wta.sort(key=lambda i: -_dmap.get(i["node"], 0.0))
+                # tasks 里的对应条目同步换序（两列表引用同 dict —
+                # wta 重排不改 tasks; 重排 tasks 的 world_tree 段:
+                _base = [t for t in tasks if t["kind"] != "world_tree_action"]
+                tasks[:] = _base + wta
         # ── R76 批1-B · EL 采样标注（ARCHITECTURE L592 三段式① 的 run_term 落点）──
         # ★★ **叠加式**: 原 tasks 原样保留（含本列表）, 只加 el_selected 顶字段
         #   —— 提案批1 的零破坏接法; 没注入 EL 或无世界树候选 ⇒ 字段不出现
