@@ -50,6 +50,7 @@ from dwc.organs.memory import MemoryKernel, MemoryKind
 from dwc.organs.judge import Judge
 from dwc.organs.world_model import WorldModel
 from dwc.organs.iwm import IwmOrgan, Observations
+from dwc.organs.el_sched import ELScheduler
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -232,7 +233,8 @@ class TermRunner:
                  budget: float = 10.0,
                  judge: Optional["Judge"] = None,
                  world_model: Optional[WorldModel] = None,
-                 iwm: Optional[IwmOrgan] = None):
+                 iwm: Optional[IwmOrgan] = None,
+                 el_scheduler: Optional[ELScheduler] = None):
         self.store = store or CausalChainStore(db_path)
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
@@ -252,6 +254,14 @@ class TermRunner:
         #: R61 · 环节⑤ 防漂移的观测方（可选注入）——
         #: 没注入 ⇒ rep.drift=None 且任务源无 drift_degrade（不假装测过）
         self.iwm = iwm
+        #: R76 批1-B · 环节⑥ 的 EL 调度器（**可选注入** — 与 judge/world_model
+        #: 同款纪律: 没注入 ⇒ 任务源不带 el_selected（不假装采样过）。
+        #: ★ 由 core.DWC 注入 **同一实例**（A step 与 B run_term 共用一台
+        #: 状态机 — 分裂 = 调度语义废, 提案批1 硬约束）
+        self.el_scheduler = el_scheduler
+        #: 节律 token: 世界树 Σn_obs 没变 ⇒ 不重复推进（观测变化才判定）
+        self._el_token = -1
+        self._el_last = None
         #: 预算 B（终止条件②）—— ★ 显式参数，不藏在配置深处
         self.budget = budget
         #: ★ 单步花费（终止条件② 的判据要用"还够不够跑一步"，
@@ -629,13 +639,36 @@ class TermRunner:
                           "why": "D7：召回覆盖不足一半，记忆无法证明被使用"})
         # ── R60 · 环节⑥ 探索: 世界树的未揭示叶子 = 下一轮任务 ──
         # ★ 显式读取（不是事件订阅 —— 与 S3/C2「无隐式驱动」一致）
+        wta: List[Dict[str, Any]] = []
         if self.world_model is not None:
             for act in self.world_model.legal_actions():
-                tasks.append({"kind": "world_tree_action",
-                              "tree": act["tree"], "node": act["node"],
-                              "action": act["action"],
-                              "why": "环节⑥：世界树未揭示叶子"
-                                     "（world_model.legal_actions）"})
+                item = {"kind": "world_tree_action",
+                        "tree": act["tree"], "node": act["node"],
+                        "action": act["action"],
+                        "why": "环节⑥：世界树未揭示叶子"
+                               "（world_model.legal_actions）"}
+                tasks.append(item)
+                wta.append(item)
+        # ── R76 批1-B · EL 采样标注（ARCHITECTURE L592 三段式① 的 run_term 落点）──
+        # ★★ **叠加式**: 原 tasks 原样保留（含本列表）, 只加 el_selected 顶字段
+        #   —— 提案批1 的零破坏接法; 没注入 EL 或无世界树候选 ⇒ 字段不出现
+        #   （"没采样过"不假装采样过 — 与 judge=None 同纪律）
+        el_picked: Optional[Dict[str, Any]] = None
+        if self.el_scheduler is not None and wta:
+            n = len(wta)
+            if self.el_scheduler.index > n:
+                # 实例化规则: 候选收缩致 k>N ⇒ 环境数变, 游标失效拉回 1
+                # （el_sched 自身对 k>N 是 raise — 调用侧先归一, 不静默算）
+                self.el_scheduler.index = 1
+            token = self.world_model.observed_count()
+            if token != self._el_token:
+                # 节律: Σn_obs 变了才判定（观测没变 ⇒ 重复 decide=空推进）
+                self._el_last = self.el_scheduler.decide_from_rate(
+                    self.world_model.observed_rate(), n)
+                self._el_token = token
+            d = self._el_last
+            idx = d.index if d is not None else 1
+            el_picked = wta[(idx - 1) % n]
         # ── R61 · 环节⑤ 防漂移: drift 输出的门控消费（原则 9）──
         #   ★ GDI 超阈 或 保护组回归 ⇒ 下一轮必须先处置漂移（不是记完就算）
         if self.iwm is not None and rep.drift:
@@ -650,12 +683,27 @@ class TermRunner:
                 tasks.append({"kind": "drift_degrade",
                               "gdi": d.get("gdi"),
                               "why": "环节⑤：漂移超阈/回归 ⇒ " + "；".join(trig)})
-        return {
+        out = {
             "chain_id": cid,
             "n_tasks": len(tasks),
             "tasks": tasks,
             "★": "这不是结算报告 —— 它是下一轮的输入（bz 缺口）",
         }
+        if self.el_scheduler is not None and el_picked is not None:
+            d = self._el_last
+            out["el_selected"] = {
+                "status": d.status if d else "initial",
+                "generation": d.generation if d else 1,
+                "index": d.index if d else 1,
+                "pass_rate": d.pass_rate if d else None,
+                "n_candidates": len(wta),
+                "picked": {"tree": el_picked["tree"],
+                           "node": el_picked["node"],
+                           "action": el_picked["action"]},
+                "why": "环节⑥·EL 采样（2609.04128 式2, L592 三段式①）"
+                       " — 叠加标注, 原 tasks 未改",
+            }
+        return out
 
     def _drift_current(self) -> Observations:
         """环节⑤ 的当期观测 —— 只用**公开入口** memory.usage_stats()。

@@ -38,6 +38,7 @@ import yaml
 from dwc.foundation import dial_config
 from dwc.harness.run_term import TermRunner, TermReport
 from dwc.organs.actor import Actor, Trace
+from dwc.organs.el_sched import ELScheduler
 from dwc.organs.evolver import Evolver
 from dwc.organs.iwm import IwmOrgan, Observations
 from dwc.organs.judge import Judge, SPLIT_DEV
@@ -120,6 +121,13 @@ class DWC:
         self.evolver = Evolver()
         self.iwm = IwmOrgan(baseline=iwm_baseline or self._initial_obs())
         self.iron_laws = _load_iron_laws()
+        # ★ R76 批1 · EL 调度器 —— **一个 agent 一台状态机**:
+        #   A（本类 step 缺省取任务）与 B（runner._next_task_source 标注）
+        #   共用 self.el（提案批1 硬约束: 分裂 = 调度语义废）
+        self.el = ELScheduler()
+        #: A 侧节律 token（世界树 Σn_obs 没变 ⇒ 不重复推进）
+        self._el_token = -1
+        self._el_last = None
         #: ── 组装件（执行环境 / LLM / term 编排）──
         self.executor = executor
         self.llm = llm
@@ -127,7 +135,8 @@ class DWC:
         #: 一份记忆, 不许入口各存各的）
         self.runner = TermRunner(db_path=db_path, memory=self.memory,
                                  judge=self.judge, budget=budget,
-                                 world_model=self.world_model, iwm=self.iwm)
+                                 world_model=self.world_model, iwm=self.iwm,
+                                 el_scheduler=self.el)
 
     def _initial_obs(self) -> Observations:
         """θ₀ = 构造时点的状态（空库 → usage_stats 结构标量）。"""
@@ -193,7 +202,9 @@ class DWC:
                 raise DwcError(
                     "step 没给 task 且世界树无未揭示叶子 ⇒ 没有可执行对象"
                     "（先 seed() 或显式给 task —— 不编造任务）")
-            a = acts[0]
+            # ★ R76 批1-A: EL 采样替代 acts[0]（ARCHITECTURE L592 三段式①
+            #   「legal_actions → 采样(EL 调度器) → 本轮任务」—— 设计明文非发明）
+            a = self._el_pick(acts)
             task = {"task_id": a["node"], "kind": "world_tree_action",
                     "action": a["action"], "task_source": "world_model:%s"
                     % a["tree"]}
@@ -211,6 +222,31 @@ class DWC:
                                       "not_dispatched: %s 只记录不路由"
                                       "(见模块诚实边界)"
                                       % decision.get("action"))}
+
+    def _el_pick(self, acts: List[Dict[str, Any]]
+                 ) -> Dict[str, Any]:
+        """★ L592 三段式① 的采样核心: acts → EL 状态机 → 本轮任务的 act。
+
+        ★ 节律: 世界树 Σn_obs 没变 ⇒ **不重复推进**（EL 判定绑定观测变化 —
+          论文「窗口满 B 判一次」的速率口映射; 没判过则首判必走）。
+        ★ insufficient（无观测）⇒ index 不动 ⇒ acts[0] —— **与接线前行为
+          一致**（接线不改变"没数据时"的选择, 只在有观测后才开始调度）。
+        ★ 候选收缩致 index>n ⇒ 游标拉回 1（环境数变, 游标失效 —— 实例化规则,
+          不触发 el_sched 的 k>N raise）。
+        ★ acts 的序 = candidate_nodes 的确定序（sorted tree/node id）——
+          游标语义稳定可复现。
+        """
+        n = len(acts)
+        if self.el.index > n:
+            self.el.index = 1
+        token = self.world_model.observed_count()
+        if token != self._el_token:
+            self._el_last = self.el.decide_from_rate(
+                self.world_model.observed_rate(), n)
+            self._el_token = token
+        d = self._el_last
+        idx = d.index if d is not None else 1
+        return acts[(idx - 1) % n]
 
     def _decide(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """§3.2 三层决策（诚实降级链, 每层的可用性都记进 layers）。"""

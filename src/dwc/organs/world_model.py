@@ -404,6 +404,29 @@ class WorldModel:
                  "depth": c.node.depth, "branch": c.node.branch}
                 for c in self.candidate_nodes()]
 
+    # ── R76 · EL 速率口的观测源（批1 A/B 共用）─────────────
+    def observed_rate(self) -> Optional[float]:
+        """候选池的聚合布尔通过率 Σn_pass/Σn_obs（= ELScheduler 速率口的 p̂）。
+
+        ★ **无任何观测 ⇒ None**（"没观测过"不冒充 0.0 —— X2 同族）。
+        ★ W4 同源: 只吃 n_obs / n_pass 两个整数（信息增益同口径）——
+          不含任何 dynamics confidence。
+        ★ 实例化标注: 论文的 p̂ 是"当前环境最近 B 次布尔的窗口均值"（序列口,
+          世界树节点只存**累计计数**不存序列）⇒ 这里用**池内聚合**替代窗口 ——
+          环境族整体通过率, 调用方负责"观测变化才判定"的节律。
+        """
+        n_obs = n_pass = 0
+        for t in self.trees.values():          # ★ WorldModel 侧是 trees 容器
+            for n in t.nodes.values():
+                n_obs += n.n_obs
+                n_pass += n.n_pass
+        return (n_pass / float(n_obs)) if n_obs else None
+
+    def observed_count(self) -> int:
+        """Σn_obs —— 调用方的节律 token（观测计数没变 ⇒ 不该重复推进）。"""
+        return sum(n.n_obs for t in self.trees.values()
+                   for n in t.nodes.values())
+
     # ── 观测回填（执行后）──────────────────────────────────
     def record_observation(self, tree_id: str, node_id: str,
                            score: float, success: bool) -> None:

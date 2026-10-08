@@ -1,0 +1,32 @@
+{
+ "round": "R76 · 批1 EL 采样接线（A core.step + B run_term —— ⑥ 第一个运行流消费方）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= 提案批1: EL 采样双落点, 设计明文 L592）",
+ "★ 接线本体": [
+  "el_sched 重构: 三段核心拆 decide_from_rate(速率口, p̂直接注入) — decide=读窗+核心+",
+  "  推进清窗, **原 11 测试拆分前后零改等价**(先跑后接)",
+  "观测源: world_model.observed_rate(池聚合 Σn_pass/Σn_obs, 无观测=None 不冒充0) +",
+  "  observed_count(节律 token) — ★ 修一 bug: 方法挂 WorldModel 却写 self.nodes(那是",
+  "  WorldTree 的), 改 self.trees 双层遍历 — 既有测试 test_step_takes 抓到(94绿1红)",
+  "A core.step: acts[0]→_el_pick(EL 状态机游标) — insufficient⇒acts[0]=**与接线前",
+  "  行为一致**(无观测不改变选择); 节律=Σn_obs 变才判定(防连续空推进); index>n 拉回1",
+  "B run_term: world_tree 块收集 wta + **叠加式** el_selected 顶字段(status/generation/",
+  "  index/pass_rate/n_candidates/picked/why), 原 tasks 原样; 没注入⇒字段不出现",
+  "同实例: core 构造 self.el + runner 注入 el_scheduler=self.el(提案硬约束)"
+ ],
+ "★ 验证": [
+  "pytest 736 passed(+9: test_el_wiring) rc=0 · gate 8/8 · e2e rc=0",
+  "既有测试零破坏(95 冒烟) — insufficient 保底 + 叠加式承诺兑现",
+  "破坏 2/2: ①B 改替换式(tasks 吞掉)⇒ 叠加测试红 ②实例分裂(runner 新实例)⇒ 同实例红 → 恢复绿",
+  "写测试 3 红: executor 返回 dict 不是 Receipt(抄 test_core helper 修)"
+ ],
+ "诚实边界": [
+  "★ e2e 中 el_selected 0 处 — **查明为正确沉默**: e2e_loop 从不构造 DWC/TermRunner",
+  "  (grep 零命中, 器官级脚本) ⇒ 批1 不在 e2e 覆盖范围; B 的生产链验证 =",
+  "  test_el_wiring 的 TermRunner 集成测试(真 run_term→next_task_source)",
+  "★ 观测聚合是实例化: 论文 p̂=当前环境 B 次窗口(序列), 世界树只有累计计数 ⇒ 用池聚合",
+  "  替代 — docstring 明标; 节律(观测变化才判)由调用方负责",
+  "★ EL 状态在 step流/term流 交错调用下共用一台推进(单线程假设) — 已在注入注释标注",
+  "★ 提案其余裁决点(①δ_θ与收束 ②direction字段 ③stuck标注)仍待用户拍板"
+ ]
+}

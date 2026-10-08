@@ -109,10 +109,28 @@ class ELScheduler:
 
     # ── 式 2 的三段判定（副作用: 推进时清窗 —— 新环境新窗口）──
     def decide(self, n_envs: int) -> ELDecision:
-        """按式 2 判一次; `n_envs` = 当代环境总数 N（1-based, k∈[1, N]）。
+        """按式 2 判一次（**序列口**: 观测经 record 灌窗, 读窗判）。
 
         ★ insufficient / stalled 不改状态; next_* 推进并**清空窗口**
           （新环境的观测与旧环境不可混窗 —— 混了 p̂ 就不是"当前环境"的了）。
+        ★ R76: 三段核心拆到 decide_from_rate —— 本方法 = 读窗 + 核心 + 推进清窗,
+          行为与拆分前逐条等价（原有 11 项测试锁死不动）。
+        """
+        p = self.pass_rate
+        d = self.decide_from_rate(p, n_envs)
+        if d.status in (STATUS_NEXT_ENV, STATUS_NEXT_GEN):
+            self._window = []                    # 序列口的推进清窗
+        return d
+
+    def decide_from_rate(self, pass_rate: Optional[float],
+                         n_envs: int) -> ELDecision:
+        """式 2 三段核心（**速率口**: 调用方直接给已算好的 p̂）。
+
+        ★ 给 None ⇒ insufficient（"没观测过"不冒充 —— 与序列口同纪律）。
+        ★ 不碰窗口（速率口无窗可清 —— 观测聚合方式归调用方,
+          如世界树候选池 Σn_pass/Σn_obs 的实例化）。
+        ★ R76 批1 接线用: A core.step 缺省取任务 / B run_term 任务源标注 ——
+          与序列口共用同一状态机（generation/index 同一份）。
         """
         if isinstance(n_envs, bool) or not isinstance(n_envs, int) \
                 or n_envs < 1:
@@ -122,7 +140,7 @@ class ELScheduler:
             raise ElSchedError(
                 "当前 k=%d 已超过当代环境数 N=%d —— 状态不一致, "
                 "不许静默算下去" % (self.index, n_envs))
-        p = self.pass_rate
+        p = pass_rate
         if p is None:
             return ELDecision(STATUS_INSUFFICIENT, self.generation,
                               self.index, None)
@@ -138,7 +156,6 @@ class ELScheduler:
             self.generation += 1                 # 换代
             self.index = 1
             status = STATUS_NEXT_GEN
-        self._window = []                        # 新环境新窗口
         return ELDecision(status, self.generation, self.index, p)
 
     def snapshot(self) -> dict:
