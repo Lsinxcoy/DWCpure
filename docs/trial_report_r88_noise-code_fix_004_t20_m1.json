@@ -1,0 +1,2090 @@
+{
+ "round": "R82 trial",
+ "n_terms": 20,
+ "per_term": 3,
+ "noise_tasks": [
+  "code_fix_004"
+ ],
+ "records": [
+  {
+   "term": 0,
+   "el_selected": {
+    "status": "insufficient",
+    "generation": 1,
+    "index": 1,
+    "pass_rate": null,
+    "picked": "code_fix_001",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 3,
+   "pool_rate": 1.0,
+   "delta_top3": [
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ],
+    [
+     "code_fix_002",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.0,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.0,
+     "π(w=0,r=1)": 0.0,
+     "π(w=0.5,r=1)": 0.0,
+     "π(w=1,r=0)": 0.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 1,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 2,
+    "pass_rate": 1.0,
+    "picked": "code_fix_005",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.2528
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.5,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.5,
+     "π(w=0,r=1)": 0.5,
+     "π(w=0.5,r=1)": 0.5,
+     "π(w=1,r=0)": 0.5
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 2,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6094
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.6666666666666666,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.6666666666666666,
+     "π(w=0,r=1)": 0.6666666666666666,
+     "π(w=0.5,r=1)": 0.6666666666666666,
+     "π(w=1,r=0)": 0.6666666666666666
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 3,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.4663
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.75,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.75,
+     "π(w=0,r=1)": 0.75,
+     "π(w=0.5,r=1)": 0.75,
+     "π(w=1,r=0)": 0.75
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 4,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.674
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.8,
+     "π(w=0,r=1)": 0.8,
+     "π(w=0.5,r=1)": 0.8,
+     "π(w=1,r=0)": 0.8
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 5,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.5581
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8333333333333334,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.8333333333333334,
+     "π(w=0,r=1)": 0.8333333333333334,
+     "π(w=0.5,r=1)": 0.8333333333333334,
+     "π(w=1,r=0)": 0.8333333333333334
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 6,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7047
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8571428571428571,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.8571428571428571,
+     "π(w=0,r=1)": 0.8571428571428571,
+     "π(w=0.5,r=1)": 0.8571428571428571,
+     "π(w=1,r=0)": 0.8571428571428571
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 7,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6094
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.875,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.875,
+     "π(w=0,r=1)": 0.875,
+     "π(w=0.5,r=1)": 0.875,
+     "π(w=1,r=0)": 0.875
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 8,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7228
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.8888888888888888,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.8888888888888888,
+     "π(w=0,r=1)": 0.8888888888888888,
+     "π(w=0.5,r=1)": 0.8888888888888888,
+     "π(w=1,r=0)": 0.8888888888888888
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 9,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6422
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9,
+     "π(w=0,r=1)": 0.9,
+     "π(w=0.5,r=1)": 0.9,
+     "π(w=1,r=0)": 0.9
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 10,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7346
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9090909090909091,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9090909090909091,
+     "π(w=0,r=1)": 0.9090909090909091,
+     "π(w=0.5,r=1)": 0.9090909090909091,
+     "π(w=1,r=0)": 0.9090909090909091
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 11,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.665
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9166666666666666,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9166666666666666,
+     "π(w=0,r=1)": 0.9166666666666666,
+     "π(w=0.5,r=1)": 0.9166666666666666,
+     "π(w=1,r=0)": 0.9166666666666666
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 12,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.743
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9230769230769231,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9230769230769231,
+     "π(w=0,r=1)": 0.9230769230769231,
+     "π(w=0.5,r=1)": 0.9230769230769231,
+     "π(w=1,r=0)": 0.9230769230769231
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 13,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6818
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9285714285714286,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9285714285714286,
+     "π(w=0,r=1)": 0.9285714285714286,
+     "π(w=0.5,r=1)": 0.9285714285714286,
+     "π(w=1,r=0)": 0.9285714285714286
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 14,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7492
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9333333333333333,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9333333333333333,
+     "π(w=0,r=1)": 0.9333333333333333,
+     "π(w=0.5,r=1)": 0.9333333333333333,
+     "π(w=1,r=0)": 0.9333333333333333
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 15,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.6946
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 0.9375,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 0.9375,
+     "π(w=0,r=1)": 0.9375,
+     "π(w=0.5,r=1)": 0.9375,
+     "π(w=1,r=0)": 0.9375
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 16,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.754
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 1.0,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 1.0,
+     "π(w=0,r=1)": 1.0,
+     "π(w=0.5,r=1)": 1.0,
+     "π(w=1,r=0)": 1.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 17,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7047
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 1.0,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 1.0,
+     "π(w=0,r=1)": 1.0,
+     "π(w=0.5,r=1)": 1.0,
+     "π(w=1,r=0)": 1.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 18,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_001",
+     true
+    ],
+    [
+     "code_fix_002",
+     true
+    ],
+    [
+     "code_fix_003",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.7579
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 1.0,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 1.0,
+     "π(w=0,r=1)": 1.0,
+     "π(w=0.5,r=1)": 1.0,
+     "π(w=1,r=0)": 1.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "term": 19,
+   "el_selected": {
+    "status": "next_environment",
+    "generation": 1,
+    "index": 3,
+    "pass_rate": 0.8333333333333334,
+    "picked": "reasoning_003",
+    "hint": null
+   },
+   "judged": [
+    [
+     "code_fix_004",
+     false
+    ],
+    [
+     "code_fix_005",
+     true
+    ],
+    [
+     "code_fix_006",
+     true
+    ]
+   ],
+   "n_obs": 6,
+   "pool_rate": 0.8333333333333334,
+   "delta_top3": [
+    [
+     "code_fix_004",
+     1.713
+    ],
+    [
+     "reasoning_001",
+     0.0
+    ],
+    [
+     "code_fix_001",
+     0.0
+    ]
+   ],
+   "dream": {
+    "V": 1.0,
+    "m_star": "π(w=0,r=1)",
+    "k2_max": 8,
+    "v_by": {
+     "π0": 1.0,
+     "π(w=0,r=1)": 1.0,
+     "π(w=0.5,r=1)": 1.0,
+     "π(w=1,r=0)": 1.0
+    },
+    "per_world_kn": [
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ],
+     [
+      "dev",
+      8,
+      8
+     ]
+    ]
+   }
+  }
+ ]
+}

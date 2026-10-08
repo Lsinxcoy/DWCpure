@@ -32,7 +32,11 @@ from dwc.organs.judge import TaskScoreStore                 # noqa: E402
 _NO = sys.argv[sys.argv.index("--noise") + 1] if "--noise" in sys.argv \
     else "code_fix_004"
 NOISE_TASKS = set() if _NO == "none" else {x for x in _NO.split(",") if x}
-N_TERMS = 6
+#: --terms N: 长程轮数（默认 6; 长程运行传 20+）; --m1: Dreaming 带 M>1 网格（R86 首跑）
+_TERMS = int(sys.argv[sys.argv.index("--terms") + 1]) if "--terms" in sys.argv \
+    else 6
+_M1 = "--m1" in sys.argv
+N_TERMS = _TERMS
 PER_TERM = 3          # 每 term 判分任务数（轮询）—— δ 组内样本加速积累
 
 
@@ -101,8 +105,11 @@ def main() -> int:
             j = out["judgement"]
             assert j is not None, "★ R84 契约: 带 observed 应自动判分 (%s)" % tid
             judged.append((tid, bool(j["success"])))
-        # ④ Dreaming
-        dr = d.dream(k2_max=8)
+        # ④ Dreaming（--m1 ⇒ R86 M>1 网格: π0 + w_delta∈{0,0.5} + no-reveal 变体）
+        from dwc.organs.replay import PolicySpec
+        variants = [PolicySpec(w_delta=0.0), PolicySpec(w_delta=0.5),
+                    PolicySpec(prefer_revealable=False)] if _M1 else None
+        dr = d.dream(k2_max=8, policy_variants=variants)
         # ⑤ 当前 δ 排序快照（top3 任务）
         dmap = d._task_deltas()
         top3 = sorted(dmap.items(), key=lambda kv: -kv[1])[:3]
@@ -117,8 +124,8 @@ def main() -> int:
             "n_obs": d.world_model.observed_count(),
             "pool_rate": d.world_model.observed_rate(),
             "delta_top3": [(t, round(x, 4)) for t, x in top3],
-            "dream": {"V": dr.v_by_version["π0"], "m_star": dr.m_star,
-                      "k2_max": dr.k2_max,
+            "dream": {"V": dr.v_by_version[dr.m_star], "m_star": dr.m_star,
+                      "k2_max": dr.k2_max, "v_by": dr.v_by_version,
                       "per_world_kn": [(t, k, n) for t, V, k, n
                                        in dr.per_world]},
         }
@@ -131,7 +138,8 @@ def main() -> int:
             rec["dream"]["V"]))
 
     tag = "clean" if not NOISE_TASKS else "noise-" +         "-".join(sorted(NOISE_TASKS))
-    out = os.path.join(ROOT, "docs", "trial_report_r83_%s.json" % tag)
+    tag += "_t%d%s" % (N_TERMS, "_m1" if _M1 else "")
+    out = os.path.join(ROOT, "docs", "trial_report_r88_%s.json" % tag)
     with open(out, "w", encoding="utf-8") as f:
         json.dump({
             "round": "R82 trial",
