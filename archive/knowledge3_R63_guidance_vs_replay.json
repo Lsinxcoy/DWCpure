@@ -1,0 +1,38 @@
+{
+ "round": "R63 · 记忆 guidance vs replay 三臂对照实验（EVOLUTION_CORE_V2 §十二 · V1 假设的第一个对照检验）",
+ "date": "2026-10-08",
+ "用户指令": "执行1（= guidance vs replay 实验）",
+ "实验设计": [
+  "落点 src/dwc/experiments/mem_guidance_vs_replay.py（§十二 定稿路径）",
+  "三臂: none(下界) / guidance(8 条平铺) / replay(树+真实签名路径 prefix-only 揭示)",
+  "同一批记忆(合成种子 8 条, c/q 值域对齐 judge.classify_c/q 实测) · 同骨架 · 同预算上限 · temperature 0.2",
+  "任务 = e2e 任务床全部 4 个 code_fix（事前固定不挑结果, buggy 实测全 fail）",
+  "下游效果 = judge.evaluate(dev golden) · repeat=2 · 24 次真端点调用"
+ ],
+ "构造迭代（第一次跑暴露的 bug, 如实记）": [
+  "首跑 replay memo_n=[0]: 种子 q 词汇(undercount 等)没对齐 classify_q 真值(wrong_magnitude…)",
+  "  ⇒ B 臂在空回放 = 对照被污染 ⇒ 按真值域重造种子 + 任务集扩全 4 个后重跑",
+  "真实签名: 001–003 = E_VALUE/wrong_magnitude · 004 = E_OFF_BY_ONE/off_by_one_in_range"
+ ],
+ "★ 实测结果（真端点, archive/experiments/mem_guidance_vs_replay.json）": [
+  "arm      calls llm_ok parsed pass pass_rate  memo_n",
+  "none         8      8      8    6    0.750   [0]",
+  "guidance     8      8      8    6    0.750   [8]",
+  "replay       8      8      8    6    0.750   [1,3] ← 路径命中分档(004=1条, 001-003=3条)",
+  "逐任务: 001/003/004 全臂全过(LLM 裸能力覆盖) · 002 全臂全败(空列表语义)",
+  "⇒ V1 检验: 记忆增益未观测(guidance==none) · 论文方向 replay>guidance 未复现(持平)",
+  "⇒ 任务决定结果, 臂无影响 —— 诚实负结果, 只报方向不报证明"
+ ],
+ "验证": [
+  "pytest 644 passed(+14) rc=0 · gate 8/8（实验文件过 G1-G8）· e2e rc=0",
+  "破坏 2/2: ①replay 泄露旁支→2 红 ②记忆块夹指令→首测漏网(骨架比对盲区)",
+  "  ⇒ 补锁 test_memory_block_contains_only_memory_lines 后被抓 → 恢复绿"
+ ],
+ "诚实边界": [
+  "★ 种子记忆是合成的（真实历史尚未积累 —— V1 检验的系统本身年轻）",
+  "★ 样本小(4 任务×2), 三臂持平可能是任务太易/模型太强压平差异, 不是机制不存在",
+  "★ e2e 同轮 LLM 段=candidates_rejected(1 条候选缩进坏构建失败, 单轮生成波动; 早前同配置 passed)",
+  "★ 论文场景=长程多线程搜索+大树; DWC=单步修复+8 条 —— 操作化不同(论文未给 prompt 模板)",
+  "★ 下轮若要区分度: 更难任务 / 更多干扰记忆(平铺稀释效应) / 多轮场景 —— 未在本轮做"
+ ]
+}
