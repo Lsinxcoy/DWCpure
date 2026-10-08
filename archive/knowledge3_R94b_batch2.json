@@ -1,0 +1,18 @@
+{
+ "round": "R94b · RSI 批量精读第二批（4 子代理, 9 落盘 + 2 缺补派）",
+ "date": "2026-10-09",
+ "落盘": "9/11 准入(23-37K/份) · 缺 2501.14249(HLE)/2504.16891(AIMO-2)=Task3 repetition-loop 失败 → 已补派单子代理; τ-bench(2406.12045) 被 Task3/Task4 双写, Task4 版为准",
+ "★ DWC 高价值要点": [
+  "AIRA2 HCE: 搜索信号与最终选择信号解耦(D_val 第三段) — DWC dev 一肩挑两职是真缺口; Best-of-K 消融=并行必须共享同一棵树",
+  "Verma 安慰剂对照: 自我修复反馈包拆解 — 看自己失败代码有害(placebo−resample=−0.061 p=0.006), 锚定机制; DWC 无自修补臂恰绕开陷阱=现状获支持; 引入经验回喂必须配等预算安慰剂+锚定探针+k≈2 上限",
+  "τ-bench pass^k: pass^1=61% 时 pass^8<25% — 均值高估可复现性; pass^k 可当 effective 判定的同预算独立评估口径",
+  "AgentNAS: 失败耗预算不计 patience 的不对称计数; 种群/交叉 vs _assert_single_change 正面冲突须先裁决",
+  "SIA: 其 Future work 把动作选择策略当学习对象 = DWC dream M>1 已落地; coupled Goodhart 反衬评估器不可编辑+test sealed 正是缺的闸",
+  "MemToolAgent: dynamic_n 检索条数可接 recall_search; 失败存 critique 非裸 trace=DWC 分区的实证理由",
+  "PRACTICE: update policy does not learn 批评正中 evolver 人写规则; 技能卡补 invalid_conditions/recovery_strategies(+2.6pp); recovered/regressed 配对口径",
+  "PAHF: O(K) 为失败当轮写入提供理论辩护; 高 access+长期无 effect ⇒ 强制重验可搬",
+  "Phi-4: 评测方差纪律(两次 5-run 差 5-10pp) — DWC 单次判分全链可加重复采样报告",
+  "PRACTICE/PAHF 各标 2-3 处原文内部矛盾"
+ ],
+ "进度": "23 篇 = 21 落盘 + 2 补读中"
+}
