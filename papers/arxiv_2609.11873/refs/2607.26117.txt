@@ -1,0 +1,692 @@
+Try Again, Don’t Look Back:
+Blind Resampling Outperforms Self-Repair in Small Code Models
+Yuvraj Verma1
+Abstract
+Self-repair—returning a failed program to the
+model together with its test output and asking for
+a correction—is a standard component of code
+agents, and is almost always evaluated against a
+baseline that does not retry at all. We argue that
+this comparison confounds the value of the feed-
+back with the value of the extra attempt. Using
+a placebo-controlled design on MBPP+ at three
+model scales (1.5B, 3B, 7B), we compare four
+matched-budget retry conditions: blind resam-
+pling, a content-free failure notice, genuine exe-
+cution feedback, and feedback augmented with
+verbal self-reflection. Blind resampling is the
+strongest condition below 7B, and remains statis-
+tically tied with the best condition at 7B, while
+consuming 2.5–5.5× fewer tokens; conditioning
+on the model’s own failed attempt costs6.1 points
+at 1.5B (p=0.006), and the informational content
+of execution feedback adds nothing measurable
+over the placebo. We attribute this toanchoring:
+when shown its previous attempt, a model repro-
+duces a near-identical program in 33–68% of re-
+tries, against 2–14% under blind resampling. Two
+further experiments delimit the effect. Retrieved
+solutions toothertasks change nothing (bounded
+to±3.5 points), which localizes the harm to self-
+conditioning rather than context length; and reflec-
+tion, the only condition that measurably weakens
+the anchor, remains dominated on cost. Replica-
+tion rules out two competing explanations: the
+penalty is unchanged at full precision, and it re-
+produces on an independent model family. Across
+six configurations spanning two families and two
+precisions, its magnitude is predicted by baseline
+quality alone (r=0.96)—the cost of anchoring is
+the cost of committing to a bad first attempt.
+ORCID: 0009-0004-2138-3159 1Independent Researcher,
+India. Correspondence to: Yuvraj Verma <yuvra-
+jverma282004@gmail.com>.
+Preprint. July 30, 2026.
+1. Introduction
+A code agent that fails a test has an obvious next move: look
+at what went wrong and fix it. Systems built on this idea are
+widespread (Shinn et al., 2023; Madaan et al., 2023; Yang
+et al., 2024), and the evidence offered for them is typically a
+comparison against single-shot generation. That comparison
+cannot separate two mechanisms. Retrying at all raises
+the success rate under stochastic decoding, independently
+of whether the retry is informed; a loop that consumes
+k additional samples should be credited only for what it
+achievesbeyond k uninformed samples. Absent that control,
+an apparent benefit of feedback may be nothing more than
+the benefit of persistence.
+We therefore treat self-repair as a treatment requiring a
+placebo. Our control isblind resampling: the original
+prompt, re-sampled, with no reference to the failed attempt.
+Against this control the standard result inverts. In the 1.5B
+and 3B settings, showing a model its own failed program
+makes itlesslikely to succeed than simply asking again;
+by 7B the penalty has closed to a statistical tie. Across the
+whole range, the execution feedback that practitioners take
+to be the active ingredient contributes nothing detectable
+beyond a content-free notice that the attempt was wrong.
+The mechanism we identify is anchoring. A prompt contain-
+ing a failed program biases generation toward local edits
+of that program, whereas a fresh draw is free to reach a
+different region of the solution space. We measure this di-
+rectly as the textual similarity between consecutive attempts,
+and find it predicts not only the aggregate penalty but the
+relative ordering of every condition that conditions on the
+model’s own output—an ordering the measure was not fitted
+to reproduce.
+Contributions.We (i) give a placebo-controlled decompo-
+sition of the self-repair feedback packet across three model
+scales, using the blind-resampling control that prior evalu-
+ations omit; (ii) show self-repair is dominated by retrying
+on both accuracy and token cost below 7B; (iii) identify
+and measure anchoring as the mechanism, and show it ex-
+plains the scale trend; (iv) establish, through a null result on
+retrieved cross-task experience, that the penalty is specific
+to self-conditioning rather than a generic consequence of
+1
+arXiv:2607.26117v1  [cs.SE]  28 Jul 2026
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+longer prompts; (v) test whether verbal reflection escapes
+the mechanism, finding that it weakens the anchor without
+paying for itself; (vi) rule out quantization and model family
+as explanations by replication, and show that the penalty’s
+magnitude is governed by baseline capability across two
+families; and (vii) release a harness in which every exper-
+iment was pre-registered and runs on a single consumer
+GPU.
+2. Related Work
+Iterative self-correction.Reflexion (Shinn et al., 2023)
+and Self-Refine (Madaan et al., 2023) established verbal self-
+feedback as a general technique, and both report gains over
+non-iterative baselines. Olausson et al. (2024) question how
+much of this survives careful budget accounting, observing
+that self-repair is often no better than drawing additional
+independent samples. Our design differs in isolatingwhich
+componentof the feedback packet carries the effect, and
+in doing so across scale: we separate the act of re-reading
+one’s own program from the information in the test output,
+and compare both against an equal-budget blind control. A
+parallel line of placebo-controlled work on sub-1.5B models
+reports that feedback content beats generic placebos; we
+find that particular contrast indistinguishable from zero once
+blind resampling is in the comparison set.
+Execution feedback in agents.Agent-computer inter-
+faces (Yang et al., 2024) and repository-level benchmarks
+(Jimenez et al., 2024) have made execution central to mod-
+ern coding agents, though Agentless (Xia et al., 2024) shows
+a fixed localize–repair–validate pipeline is competitive with-
+out open-ended agency. Recent work at frontier scale reports
+that prohibiting execution entirely costs little while saving
+substantial token budget. Our 7B results are consistent with
+that regime; our smaller scales show something stronger,
+namely that the feedback is actively harmful.
+Retrieval and accumulated experience.Retrieval-
+augmented prompting (Liu, 2024) and experience-driven
+issue resolution (Zhang et al., 2025b) report benefits from
+relevant exemplars, and self-improving systems such as the
+Darwin G¨odel Machine (Zhang et al., 2025a) motivate the
+broader agenda of agents that learn from their own histo-
+ries. We find no effect from lexically retrieved exemplars in
+small-model code synthesis, and use that null to constrain
+the interpretation of our main result.
+Evaluation methodology.We report pass@1 (Chen et al.,
+2021) on EvalPlus (Liu et al., 2023), which augments Hu-
+manEval (Chen et al., 2021) and MBPP (Austin et al., 2021)
+with substantially more tests. Inference follows McNemar’s
+exact test (McNemar, 1947), bootstrap confidence intervals
+(Efron, 1979), Wilson intervals (Wilson, 1927), and Holm
+correction (Holm, 1979); retrieval uses BM25 (Robertson &
+Zaragoza, 2009).
+3. Method
+Models and data.We evaluate Qwen2.5-Coder (Hui et al.,
+2024) at 1.5B, 3B and 7B (Instruct,Q4 K M), served lo-
+cally on a single 6 GB consumer GPU. MBPP+ (378 tasks)
+is our primary benchmark; HumanEval+ (164) is reported
+as secondary and is underpowered for our contrasts, leav-
+ing only 32–75 failing tasks per cell against 110–164 on
+MBPP+. Because EvalPlus supplies inputs and a reference
+implementation rather than stored outputs, we score by dif-
+ferential testing: a candidate passes an input when it agrees
+with the reference on that input.
+Conditions.The baseline is greedy single-shot generation.
+When a program fails, a repair attempt appends one of
+four suffixes to the original instruction; the conditions are
+identical in every other respect.
+• resample— nothing is appended. Measures the value
+of an additional draw.
+• placebo— the failed program and a content-free notice
+that it was incorrect. Measures the value of re-reading
+one’s own attempt.
+• feedback— the failed program and the actual test
+output (failing input, expected value, observed value).
+Measures the value of the diagnostic content.
+• reflect— as feedback, preceded by an instruction to di-
+agnose the failure in prose before rewriting. Measures
+the value of explicit verbal reasoning.
+Reading these in sequence decomposes the feedback packet:
+the step fromresampletoplaceboisolates self-exposure,
+and the step fromplacebotofeedbackisolates diagnostic
+information.
+Decoding.Retries sample at temperature 0.8, applied
+identically in all conditions; only the shared k=0 point
+is greedy. This is a requirement rather than a preference.
+Under greedy decoding the model returns a byte-identical
+program on every iteration, which would reduceresam-
+pleto a no-op and flatten all curves by construction—an
+artifact we encountered and corrected before running the
+experiment.
+Nested evaluation.A single trajectory of kmax=8 records
+a verdict after every iteration, sopass@1 at allk≤8 is read
+from one run:
+pass@1(k) = 1
+N
+NX
+i=1
+⊮[∃j≤k:a ij passes],(1)
+2
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+Table 1. pass@1 on MBPP+ at k=8 with Wilson intervals, along-
+side output-token cost. Best per model inbold. The strongest
+condition is also the cheapest at every scale.
+Model Conditionpass@1Tokens
+1.5B
+resample0.749 63k
+placebo 0.688 90k
+feedback 0.688 129k
+reflect 0.688 345k
+3B
+resample0.778 76k
+placebo 0.709 89k
+feedback 0.735 84k
+reflect 0.743 284k
+7B
+resample 0.82049k
+placebo 0.802 59k
+feedback 0.810 55k
+reflect0.828122k
+where aij is the j-th attempt on task i. Besides being
+cheaper than independent runs per k, this yields tighter
+pairing: thek=1 andk=8 arms share an identical trajectory
+prefix rather than merely a task set. All repair arms begin
+from the same baseline run, making the pairing between
+baseline and arm exact, and a task that succeeds consumes
+no further attempts.
+Inference.Each paired contrast is tested with McNemar’s
+exact test on discordant pairs (McNemar, 1947) and accom-
+panied by a task-level bootstrap interval on the difference
+(Efron, 1979). We apply Holm correction (Holm, 1979)
+across the primary contrasts atα=0.05 and report Wilson
+intervals (Wilson, 1927) on pass rates. Hypotheses, decision
+rules and falsification criteria were registered before each
+run.
+4. Retrying Beats Repairing
+Figure 1 shows the iteration curves and Table 1 the end-
+point atk=8. Blind resampling attains the highest pass rate
+at 1.5B and 3B and is statistically indistinguishable from
+the best condition at 7B. Both pre-registered hypotheses
+concerning feedback are refuted.
+The informational content of execution feedback is not
+detectable: the contrastfeedback − placebois +0.000,
++0.026 and +0.008 across scale, none significant. Exposure
+to one’s own failed program is harmful rather than neutral:
+placebo− resampleis −0.061 (p=0.006) at 1.5B and
+−0.069 (p<0.001) at 3B. Figure 2 summarizes the nine
+contrasts; none favors an own-output condition at any scale.
+Cost.Blind resampling is the cheapest condition at every
+scale (Figure 3), partly because succeeding more often lets it
+exit earlier. Below 7B this makes the comparison one-sided:
+at 1.5B and 3B the own-output conditions are strictly Pareto-
+dominated, being worse on accuracyandmore expensive.
+At 7B the picture is a genuine trade-off rather than a domi-
+nance: reflection buys +0.8 points, which is not significant,
+for 2.5× the output tokens. Blind resampling remains on
+the Pareto frontier at all three scales.
+Where the gains are.Improvement is concentrated in
+the first two iterations: 46–53% of all attainable gain is
+realized by k=2, and marginal returns approach zero by
+k=7. Budgets beyond roughly two iterations are poorly
+spent regardless of condition.
+5. Anchoring
+We hypothesized before measuring that conditioning on a
+failed program biases the model toward local edits. To test
+this we compute the mean textual similarity between con-
+secutive attempts, using a longest-matching-subsequence
+ratio over extracted code (Figure 4).
+The effect is large and consistent. Similarity rises by 0.30
+to 0.38 relative to blind resampling at every scale, and the
+proportion of retries that are near-identical (>0.95 ) rises
+from 2–14% to 33–68%. Shown its own code, the model
+edits; asked afresh, it reconsiders.
+This also accounts for the scale trend, which the original
+hypothesis did not anticipate. Anchoringstrengthis roughly
+constant across scale, but itscostdeclines: a larger model’s
+failed first attempt is a better object to anchor upon. The
+diminishing penalty at 7B therefore reflects anchoring be-
+coming inexpensive rather than feedback becoming useful.
+A partial ordering the measure was not fitted to.
+Among the three conditions that expose the model to its own
+output, theleastanchored condition is the best performer
+at all three scales (Figure 5): reflection reduces similarity
+by 0.04–0.12 relative to feedback and is correspondingly
+the strongest of the three. The measure does not, however,
+resolve the remaining pair. Placebo and feedback differ in
+anchoring by only 0.034, 0.039 and 0.003 across scale—
+within the noise of the metric—and their accuracy ordering
+does not follow, with placebo the weaker of the two at 3B
+and 7B despite being marginally less anchored. At 1.5B the
+three conditions are exactly tied in accuracy, so no order-
+ing exists to recover. We therefore read this as directional
+support for the mechanism at the resolved end of the range
+rather than as a rank correspondence, and we do not claim
+the measure explains differences between conditions whose
+anchoring is indistinguishable.
+6. Cross-Task Experience Has No Effect
+A natural objection is that long prompts simply distract
+small models, in which case adding any code to the con-
+3
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+0 2 4 6 8
+repair iterations k
+0.575
+0.600
+0.625
+0.650
+0.675
+0.700
+0.725
+0.750pass@1 (MBPP+)
+1.5b
+resample
+placebo
+feedback
+reflect
+0 2 4 6 8
+repair iterations k
+0.600
+0.625
+0.650
+0.675
+0.700
+0.725
+0.750
+0.775
+3b
+0 2 4 6 8
+repair iterations k
+0.72
+0.74
+0.76
+0.78
+0.80
+0.82
+7b
+Self-repair k-curves: blind resampling (blue) dominates at every scale
+Figure 1. pass@1 on MBPP+ against repair iterations k. Blind resampling (blue) dominates the conditions that expose the model to its
+own failed program at 1.5B and 3B; at 7B the conditions converge and reflection edges ahead. Each curve is nested from a single k=8
+trajectory.
+−0.10 −0.08 −0.06 −0.04 −0.02 0.00 0.02 0.04
+Δ pass@1 vs blind resampling (k=8, 95% CI)
+1.5b: feedback
+1.5b: placebo
+1.5b: reflect
+3b: feedback
+3b: placebo
+3b: reflect
+7b: feedback
+7b: placebo
+7b: reflect
+Every own-output condition is at or below zero
+Figure 2.Paired differences in pass@1 against blind resampling at
+k=8, with 95% bootstrap intervals. Red marks a significant loss
+after Holm correction, grey a non-significant difference.
+text should hurt. We test this by prepending two solved
+exemplars—drawn either at random or by BM25 relevance
+from the model’s own past successes—under leave-one-out,
+so a task never retrieves itself. An audit conducted before
+the experiment found that only 1.2–1.7% of retrieved exem-
+plars exceed 0.8 similarity to the reference solution for the
+query task.
+The outcome is a clean null (Table 2). Read alongside
+Section 4 it is informative: both interventions add a com-
+parable quantity of code to the context, yet a model’s own
+failed attempt costs 6.1 points while other tasks’ successful
+solutions cost nothing. The harm is therefore specific to self-
+conditioning, which is what anchoring predicts and what
+a context-dilution account does not. We note that this null
+1026 × 101 2 × 102 3 × 102
+output tokens at k=8 (thousands, log scale)
+0.70
+0.72
+0.74
+0.76
+0.78
+0.80
+0.82pass@1 at k=8 (MBPP+)
+Blind resampling is Pareto-optimal: best accuracy, least cost
+condition
+resample
+placebo
+feedback
+reflect
+model
+1.5b
+3b
+7b
+Figure 3.Pass rate at k=8 against output tokens (log scale). Blind
+resampling is Pareto-optimal at all three scales.
+concerns lexically retrieved exemplars in code synthesis,
+where the required output format is already specified in the
+prompt; it does not contradict retrieval gains reported on
+classification tasks, where exemplars also teach a conven-
+tion.
+7. Reflection Weakens the Anchor
+Verbal reasoning (Shinn et al., 2023) is the natural candidate
+for escaping the mechanism, since articulatingwhyan ap-
+proach failed might license abandoning it. It partially does.
+Reflection is the only own-output condition that measurably
+reduces anchoring—similarity falls by 0.11, 0.04 and 0.12
+relative to feedback, and near-identical regeneration drops
+by roughly a third—and it is correspondingly the strongest
+4
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+1.5b 3b 7b
+0.0
+0.2
+0.4
+0.6
+0.8
+mean inter-attempt
+code similarity
+Anchoring: shown its own code, the model edits instead of rethinking
+resample placebo feedback reflect
+Figure 4.Mean similarity between consecutive attempts. Condi-
+tions that expose the model to its own program reproduce near-
+identical solutions far more often than blind resampling.
+0.750 0.775 0.800 0.825 0.850 0.875 0.900
+mean inter-attempt similarity (more anchored →)
+0.70
+0.72
+0.74
+0.76
+0.78
+0.80
+0.82pass@1 at k=8
+1.5·refl 1.5·plac 1.5·feed
+3b·refl
+3b·plac
+3b·feed
+7b·refl
+7b·plac
+7b·feed
+Among own-output conditions,
+more anchoring = worse accuracy
+Figure 5.Within each model, greater inter-attempt similarity cor-
+responds to lower pass@1. Lines connect the three own-output
+conditions.
+of the three (Table 1).
+It nevertheless does not pay for itself. Reflection loses to
+blind resampling by 6.1 points at 1.5B (p=0.006), loses
+insignificantly at 3B, and merely matches it at 7B while
+consuming 2.5× the output tokens ( 5.5× at 1.5B). It is
+best understood as a partial and expensive mitigation of
+a problem that is avoided entirely by not conditioning on
+one’s own output.
+8. Replication: Precision and Model Family
+Two explanations compete with the anchoring account. The
+penalty might be an artifact of Q4 quantization, which is
+documented to degrade in-context learning more than un-
+conditional generation—and the conditions we find wanting
+are exactly those that place extra material in context. Or it
+might be specific to the Qwen pre-training distribution. We
+test both by re-running the decomposition with one factor
+changed at a time: unquantized weights at 1.5B, and an
+Table 2. pass@1 on MBPP+ with retrieved experience. All nine
+paired contrasts are non-significant after Holm correction, bound-
+ing any effect to±3.5points.
+Model none random retrieved
+1.5B 0.566 0.542 0.542
+3B 0.598 0.595 0.606
+7B 0.709 0.728 0.696
+Table 3.Replication at 1.5B on MBPP+ ( k=8). Changing preci-
+sion leaves every quantity intact, including the anchoring measure.
+QuantityQ4FP16∆
+resample 0.749 0.746−0.003
+placebo 0.688 0.667−0.021
+feedback 0.688 0.683−0.005
+feedback−resample−0.061−0.063−0.002
+anchoring, placebo 0.828 0.8280.000
+anchoring, feedback 0.862 0.865+0.003
+independent model family (DeepSeek-Coder) at 1.3B and
+6.7B. Neither explanation survives, and the family replica-
+tion yields a sharper account of the scale trend.
+Precision.Repeating the experiment with unquantized
+(FP16) weights, which also removes CPU offload because
+the 3.1 GB model fits the GPU entirely, reproduces every
+quantity (Table 3). The headline contrast is−0.063 at FP16
+against−0.061 atQ4, still significant (p=0.0008);feed-
+back− placeboremains null ( +0.016, n.s.); and the an-
+choring measure is unchanged to within0.003, with placebo
+identical at 0.828 in both. The objection predicts the penalty
+should shrink toward zero without quantization. It does not
+shrink at all, and the placebo penalty is in fact slightly larger
+(−0.079). We therefore regard precision as excluded.
+Model family.Repeating the decomposition on
+DeepSeek-Coder—a different laboratory, pre-training
+corpus and tokenizer—reproduces the penalty at both
+scales tested. At 1.3B,placebo − resampleis −0.138
+(p <10 −4) andfeedback − resampleis −0.114
+(p <10−4); at 6.7B the corresponding values are−0.045
+(p=0.007) and−0.029 (n.s.). As with Qwen,feedback−
+placebois null in both cases. The effect is therefore not a
+property of one pre-training distribution.
+The penalty tracks capability, not scale or family.Pool-
+ing all six configurations (Figure 6 and Table 4), the an-
+choring penalty is strongly predicted by baseline quality
+alone (r=+0.96 againstplacebo − resample;r=+0.95
+againstfeedback − resample). Two comparisons sepa-
+rate the candidate explanations. Qwen-3B and DeepSeek-
+6.7B have nearly identical baselines (0.598and0.608) and
+nearly identical penalties (−0.069 and−0.045) despite dif-
+5
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+0.2 0.3 0.4 0.5 0.6 0.7
+baseline pass@1 (first-attempt quality)
+−0.14
+−0.12
+−0.10
+−0.08
+−0.06
+−0.04
+−0.02
+0.00
+anchoring penalty
+(placebo − resample at k=8)
+1.3B
+1.5B fp16
+1.5B
+3B
+6.7B
+7B
+The penalty tracks capability, not family (r = +0.96)
+family
+Qwen
+DeepSeek
+Figure 6.Anchoring penalty against baseline quality. Points from
+the two model families interleave along a single trend, indicating
+that capability rather than family governs the penalty.
+Table 4.Anchoring penalty against baseline quality across two
+families and two precisions. Ordered by baseline;r=+0.96.
+Model Familypass@1placebo−resample
+1.3B DeepSeek 0.201−0.138
+1.5B FP16 Qwen 0.561−0.079
+1.5BQ4Qwen 0.566−0.061
+3B Qwen 0.598−0.069
+6.7B DeepSeek 0.608−0.045
+7B Qwen 0.709−0.019
+ferent families, so family explains little. DeepSeek-1.3B
+and DeepSeek-6.7B share a family yet differ3.1× in penalty
+(−0.138 against−0.045), so capability explains much. This
+is what the mechanism predicts: the cost of committing to a
+previous attempt is the cost of committing to abadattempt,
+and so scales with how bad that attempt typically is. The
+apparent scale trend of Section 4 is thus a capability effect,
+now observed across two independent model families. We
+report the correlation as descriptive support rather than a
+fitted law: six unevenly spaced points do not warrant more.
+9. Discussion
+Instrumentation.Four measurement faults were identi-
+fied and corrected before they could reach a result, each
+of which would have produced a plausible but incorrect
+number: code extraction that stripped leading indentation;
+scored run manifests emitted for an unavailable model; a
+token budget that bound one arm and not another, so that a
+raw pass-rate gap measured budget fit rather than capability;
+and greedy retries returning identical programs. We verified
+that no arm was budget-limited, with zero budget exhaustion
+across all repair and memory responses.
+Threats to validity.Arms differ in token consumption be-
+cause early exit on success is intended and cost is treated as
+an outcome; the direction of that difference favors the losing
+arms, since the winning condition spends least. Feedback
+quotes failing inputs drawn from the same suite used for
+scoring, so any leakage would inflate the condition that lost.
+Our scope is limited to one benchmark family and function-
+level synthesis, with lexical rather than semantic retrieval
+and a single reflection prompt formulation. Two further
+concerns—that the effect is an artifact of quantization, or
+specific to one model family—are addressed directly in
+Section 8.
+The control determines the conclusion.For any capa-
+bility that adds context to a prompt, the appropriate con-
+trol is an equally expensive but uninformative alternative
+rather than the absence of the capability. Measured against
+a no-repair baseline our feedback condition appears to gain
+12.2 points at 1.5B; measured against blind resampling at
+matched budget it loses. The treatment is unchanged—only
+the comparison moved.
+10. Conclusion
+At 1.5B and 3B, self-repair on function-level code tasks
+is worse than blind resampling on both accuracy and cost,
+because conditioning on a failed attempt anchors the model
+to an unsuccessful approach; by 7B the penalty has closed
+to a tie, with reflection buying a non-significant +0.8 points
+for 2.5× the tokens. Seven-billion parameters thus reads
+as a transitional point at which anchoring becomes cheap
+rather than one at which feedback becomes informative—
+the feedback-versus-placebo contrast remains null through-
+out. Replication shows the effect is neither a quantization
+artifact nor a property of one model family, and that its mag-
+nitude is set by baseline capability: the penalty is the cost of
+committing to a bad first attempt, so it fades as first attempts
+improve. Retrieved cross-task experience produces no ef-
+fect, which localizes the mechanism to self-conditioning. A
+practical reading for small-model agents: retry rather than
+patch, cap iteration budgets neark≈2, and treat execution
+feedback as a costed resource rather than a default.
+The capability relationship suggests the sharpest remaining
+test: a model whose first attempts are strong enough that
+anchoring should cost nothing, which our correlation places
+not far beyond the 7B point. Substituting semantic retrieval
+or distilled lessons for raw exemplars would likewise test
+whether cross-task experience remains inert under a stronger
+retriever.
+Impact Statement
+This paper advances the empirical understanding of when
+iterative self-correction helps code-generating models. Its
+principal practical consequence is a reduction in compute:
+6
+
+Blind Resampling Outperforms Self-Repair in Small Code Models
+we find that the cheapest strategy is also the most accurate at
+the scales studied, so practitioners who adopt the recommen-
+dation will spend fewer tokens for equal or better results,
+with a corresponding reduction in energy use. A method-
+ological consequence is that capabilities added to agent
+prompts should be evaluated against equally-expensive un-
+informative controls; adopting this standard should reduce
+the number of overstated capability claims in the literature.
+We see no specific ethical risk arising from this work beyond
+those already general to automated code generation, and our
+findings, being cautionary about an existing technique, do
+not enable new harmful capability.
+Acknowledgements
+The author declares no competing financial interests and
+received no funding for this work. All experiments were run
+on personal hardware.
+An AI coding assistant was used during this project to help
+implement the experimental harness and to draft portions of
+the manuscript. All experimental designs, hypotheses and
+decision rules were pre-registered before the corresponding
+runs; every reported number derives from a recorded run
+manifest and a replayable execution trace, and the author
+has verified the results and takes full responsibility for the
+content of this paper.
+Code and Data Availability
+The harness, pre-registrations, run traces and figure-
+generation scripts are available at https://github.
+com/vermayuvraj/self-improving-agent. Ev-
+ery figure and table is regenerated from recorded run arti-
+facts.
+References
+Austin, J., Odena, A., Nye, M., et al. Program syn-
+thesis with large language models. InarXiv preprint
+arXiv:2108.07732, 2021.
+Chen, M., Tworek, J., Jun, H., et al. Evaluating large
+language models trained on code.arXiv preprint
+arXiv:2107.03374, 2021.
+Efron, B. Bootstrap methods: Another look at the jackknife.
+The Annals of Statistics, 7(1):1–26, 1979.
+Holm, S. A simple sequentially rejective multiple test pro-
+cedure.Scandinavian Journal of Statistics, 6(2):65–70,
+1979.
+Hui, B., Yang, J., Cui, Z., et al. Qwen2.5-Coder technical
+report.arXiv preprint arXiv:2409.12186, 2024.
+Jimenez, C. E., Yang, J., Wettig, A., et al. SWE-bench:
+Can language models resolve real-world GitHub issues?
+International Conference on Learning Representations
+(ICLR), 2024.
+Liu, J., Xia, C. S., Wang, Y ., and Zhang, L. Is your code gen-
+erated by ChatGPT really correct? rigorous evaluation of
+large language models for code generation. InAdvances
+in Neural Information Processing Systems (NeurIPS),
+2023.
+Liu, o. Retrieval-augmented generation for code generation:
+A survey.arXiv preprint, 2024.
+Madaan, A., Tandon, N., Gupta, P., et al. Self-refine: Itera-
+tive refinement with self-feedback.Advances in Neural
+Information Processing Systems (NeurIPS), 2023.
+McNemar, Q. Note on the sampling error of the differ-
+ence between correlated proportions or percentages.Psy-
+chometrika, 12(2):153–157, 1947.
+Olausson, T. X., Inala, J. P., Wang, C., Gao, J., and Solar-
+Lezama, A. Is self-repair a silver bullet for code genera-
+tion?International Conference on Learning Representa-
+tions (ICLR), 2024.
+Robertson, S. and Zaragoza, H. The probabilistic relevance
+framework: BM25 and beyond.F oundations and Trends
+in Information Retrieval, 3(4):333–389, 2009.
+Shinn, N., Cassano, F., Berman, E., Gopinath, A.,
+Narasimhan, K., and Yao, S. Reflexion: Language agents
+with verbal reinforcement learning. InAdvances in Neu-
+ral Information Processing Systems (NeurIPS), 2023.
+Wilson, E. B. Probable inference, the law of succession, and
+statistical inference.Journal of the American Statistical
+Association, 22(158):209–212, 1927.
+Xia, C. S., Deng, Y ., Dunn, S., and Zhang, L. Agentless:
+Demystifying LLM-based software engineering agents.
+arXiv preprint arXiv:2407.01489, 2024.
+Yang, J., Jimenez, C. E., Wettig, A., et al. SWE-agent:
+Agent-computer interfaces enable automated software
+engineering.Advances in Neural Information Processing
+Systems (NeurIPS), 2024.
+Zhang, J., Hu, S., Lu, C., Lange, R., and Clune, J. Darwin
+G¨odel machine: Open-ended evolution of self-improving
+agents.arXiv preprint arXiv:2505.22954, 2025a.
+Zhang, S. et al. SWE-Exp: Experience-driven software issue
+resolution.arXiv preprint arXiv:2507.23361, 2025b.
+7

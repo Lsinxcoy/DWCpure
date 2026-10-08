@@ -1,0 +1,2011 @@
+SEA-Eval: A Benchmark for Evaluating Self-Evolving Agents Beyond
+Episodic Assessment
+Sihang Jiang, Lipeng Ma, Zhonghua Hong, Keyi Wang, Zhiyu Lu, Tengfei Wang,
+Shisong Chen, Jinghao Zhang, Tianjun Pan, Weijia Li, Jiaqing Liang, Yanghua Xiao
+Fudan University
+Abstract
+Current LLM-based agents demonstrate strong
+performance in episodic task execution but re-
+main constrained by static toolsets and episodic
+amnesia, failing to accumulate experience
+across task boundaries. This paper formalizes
+the Self-Evolving Agent (SEA) from the per-
+spective of digital embodiment and continu-
+ous cross-task evolution, introduces the Evolu-
+tionary Flywheel as its minimal sufficient ar-
+chitecture, and presents SEA-Eval—the first
+benchmark designed specifically for evaluating
+SEAs. Grounded in Flywheel theory, SEA-
+Eval establishesSR andT as primary metrics
+and, through sequential task stream design, is
+designed to quantify evolutionary gain, evolu-
+tionary stability, and implicit alignment conver-
+gence. Empirical evaluation reveals that, un-
+der comparable success rates, token consump-
+tion differs by up to 31.2 × between frame-
+works on individual tasks, with divergent evo-
+lutionary trajectories emerging under sequen-
+tial analysis—demonstrating that success rate
+alone creates a capability illusion and that the
+sequential convergence of T is the key crite-
+rion for distinguishing genuine evolution from
+pseudo-evolution.
+1 Introduction
+Large Language Model (LLM) agents have
+emerged as a pivotal paradigm for translating
+generative intelligence into tangible productivity.
+Since the inception of tool-augmented reasoning,
+agents have demonstrated substantial industrial
+utility across domains such as autonomous soft-
+ware engineering, scientific discovery, and com-
+plex workflow orchestration. Recent advance-
+ments in system-native architectures, exemplified
+by frameworks likeGenericAgent 1 (Liang et al.,
+2026) andClaude Code 2, have propelled agents
+1https://github.com/lsdefine/GenericAgent
+2https://docs.anthropic.com/en/docs/
+claude-code
+beyond the confines of text-based reasoning en-
+gines. By achieving deep integration with operat-
+ing systems and native applications, these agents
+are transitioning toward a state ofdigital embod-
+iment: no longer mere semantic processors, but
+functional actors capable of sustaining high-load
+industrial tasks directly upon the underlying digital
+infrastructure. This evolutionary trajectory points
+toward a new agentic paradigm: theSelf-Evolving
+Agent (SEA).
+The core characteristics of an SEA are defined
+by two properties. First,complex interaction in
+open-ended environments: the agent operates di-
+rectly upon raw GUI pixels, dynamic DOM trees,
+and low-level system interfaces, unconstrained by
+predefined API boundaries. Second,continuous,
+multi-turn evolution: by maintaining persistent
+memory across task boundaries, the agent trans-
+forms historical interaction experience into cogni-
+tive priors that reconfigure the execution of subse-
+quent tasks. Architecturally, the SEA is centered on
+theEvolutionary Flywheel—a closed-loop mech-
+anism formed by the symbiotic coupling of an Exe-
+cution Hub and a Cognition Hub, operating through
+three sequential phases of execution, distillation,
+and augmented execution. When the flywheel op-
+erates effectively, execution overhead converges
+monotonically as task frequency increases; when it
+fails, the agent falls intopseudo-evolution, relying
+on zero-shot reasoning with execution overhead
+scaling linearly with task frequency.
+However, the novel characteristics of SEAs ex-
+pose a fundamental mismatch with existing evalu-
+ation frameworks. Current benchmarks adopt the
+isolated task episode as the basic unit of evalua-
+tion, and are built around the episodic paradigm
+in which memory is reset at every task boundary—
+making the assessment of cross-task knowledge
+accumulation and continuous capability growth
+structurally impossible. This mismatch manifests
+across two dimensions: sequential task stream de-
+1
+arXiv:2604.08988v3  [cs.AI]  24 May 2026
+
+signs are absent, making it structurally impossi-
+ble to capture cross-task evolutionary dynamics;
+and success-rate-dominated static metrics cannot
+capture the dynamic convergence of execution
+efficiency as experience accumulates, rendering
+pseudo-evolution entirely invisible to existing eval-
+uation frameworks (Zheng et al., 2025; Cai et al.,
+2026; Gao et al., 2026). This produces a capabil-
+ity illusion in practice: two frameworks achieving
+comparable success rates may differ fundamentally
+in evolutionary quality, yet existing benchmarks
+cannot distinguish them.
+To bridge this evaluative gap, we introduceSEA-
+Eval—the first evaluation benchmark3 designed for
+self-evolving agents. SEA-Eval evaluates agents
+across two complementary dimensions:intra-task
+execution reliability, assessing immediate execu-
+tion capability under environmental uncertainty
+independent of prior experience; andlong-term
+evolutionary performance, assessing evolutionary
+gain, evolutionary stability, and implicit alignment
+convergence across sequential task deployments.
+In terms of metrics, we establishSR andT as the
+primary evaluative primitives, a selection grounded
+directly in the Evolutionary Flywheel framework:
+SR serves as the minimum reliability guarantee for
+task completion, while the sequential convergence
+trajectory ofT serves as the core signal for distin-
+guishing genuine evolution from pseudo-evolution.
+The dataset comprises 32 atomic tasks organized by
+three difficulty tiers and systematically composed
+into three types of sequential streams—correlated,
+orthogonal, and implicit intent—under two noise
+conditions that decouple retrieval robustness from
+evolutionary capability as an independent control
+variable.
+Based on this framework, we conduct an em-
+pirical study evaluating leading agent frameworks
+includingOpenClawandGenericAgent. The re-
+sults reveal a strikingEvolutionary Bottleneck.
+While the frameworks attain comparable success
+rates (85%–96.7%), their token consumption dif-
+fers by an order of magnitude—on individual tasks,
+OpenClaw consumes up to 31.2× as many tokens
+as GenericAgent for the same task. More impor-
+tantly, the two diverge sharply when the same task
+is executed repeatedly: GenericAgent exhibits gen-
+uine evolutionary characteristics, with its token
+consumption decreasing monotonically across rep-
+etitions (by roughly 68% in our experiments) as ex-
+3https://leaperovo.github.io/SEA-Eval/
+perience is distilled into low-cost execution strate-
+gies. OpenClaw, by contrast, displays the hall-
+marks of pseudo-evolution: its token consumption
+barely decreases across repeated executions, fails to
+form a stable convergence trajectory, and even rises
+when unrelated tasks are interleaved, exposing the
+fragility of its reliance on shortcut memorization.
+This contrast demonstrates that success rate alone
+creates an illusion of capability, while the sequen-
+tial convergence of token consumption is necessary
+to faithfully reveal an agent’s evolutionary quality.
+The contributions of this work are three-fold:
+• We are the first to formalize the Self-Evolving
+Agent (SEA) from the perspective of digital
+embodiment and continuous cross-task evo-
+lution, and the first to introduce the Evolu-
+tionary Flywheel as its minimal sufficient ar-
+chitecture. This formalization, for the first
+time, provides a theoretically grounded crite-
+rion for distinguishing genuine evolution from
+pseudo-evolution, and characterizes two fail-
+ure modes—distillation failure and retrieval
+failure.
+• We introduce SEA-Eval, the first benchmark
+designed specifically for evaluating SEAs.
+We are the first to establish SR and T as
+a Flywheel-grounded metric system, which
+jointly covers two evaluation dimensions
+(intra-task execution reliability and long-term
+evolutionary performance). The accompany-
+ing dataset comprises 32 atomic tasks orga-
+nized across three difficulty tiers and systemat-
+ically composed into three types of sequential
+evaluation units, providing sufficient cover-
+age and task diversity to support precise and
+comprehensive evaluation.
+• We reveal a significant evolutionary bottle-
+neck among mainstream frameworks: under
+comparable success rates in static evaluation,
+token consumption differs by up to 31.2× on
+individual tasks, with divergent evolutionary
+trajectories emerging under sequential analy-
+sis, which further demonstrates the effective-
+ness of SEA-Eval.
+2 Related Work
+2.1 LLM Agents and Episodic Amnesia
+The development of autonomous agents has pro-
+gressed from restricted, rule-based systems to in-
+creasingly open-ended and adaptive entities (Wang
+2
+
+et al., 2024; Gao et al., 2026; Xi et al., 2025). The
+emergence of LLMs has catalyzed a new genera-
+tion of agents capable of interleaving reasoning,
+planning, and tool use, forming iterative reasoning–
+action loops that enable interaction with complex
+environments (Yehudai et al., 2025; Rahman et al.,
+2025). However, current LLM-based agents re-
+main fundamentally constrained by episodic am-
+nesia. We extend this concept from cognitive sci-
+ence to the agent lifecycle: just as patients with
+episodic amnesia retain procedural skills yet cannot
+encode specific experiences into persistent mem-
+ory, LLM agents demonstrate strong within-task
+reasoning yet reset their cognitive state at every task
+boundary, failing to transform interaction experi-
+ence into reusable cross-task cognitive assets (Luo
+et al., 2025; Du, 2026). This limitation has been
+studied in the continual learning literature, where
+methods such as EWC (Kirkpatrick et al., 2017)
+mitigate forgetting through parameter-level update
+mechanisms (Cao et al., 2025). However, these ap-
+proaches define evolution at the algorithm level and
+presuppose specific update mechanisms, whereas
+SEA defines evolution at the architecture level with-
+out constraining implementation. SEA further op-
+erates over open-ended digital environments rather
+than closed task distributions, and grounds evolu-
+tion in external memory rather than model parame-
+ters.
+2.2 Technical Foundations of Self-Evolving
+Agents
+Prior work has advanced the technical capabili-
+ties relevant to SEA along two lines correspond-
+ing to its dual-hub architecture. On the Execu-
+tion Hub side, CREATOR (Qian et al., 2023),
+V oyager (Wang et al., 2023), and ToolLLM (Qin
+et al., 2024) have explored tool creation, skill li-
+brary construction, and large-scale tool selection
+respectively, while embodied AI research (Brohan
+et al., 2023; Wahle et al., 2022) has extended the
+perception–action paradigm to physical and digital
+environments. On the Cognition Hub side, Reflex-
+ion (Shinn et al., 2023), ExpeL (Zhao et al., 2024),
+and MemGPT (Packer et al., 2023) have advanced
+memory system construction; CoT (Wei et al.,
+2022) and ReAct (Yao et al., 2023) have improved
+planning and reasoning; and Self-Refine (Madaan
+et al., 2023) and CRITIC (Gou et al., 2024) have
+strengthened self-reflection mechanisms.
+Nevertheless, these works each advance isolated
+capabilities without recognizing that the underlying
+dimensions are structurally interdependent: mem-
+ory quality depends on reflection, reflection signals
+derive from execution, and execution efficiency re-
+flects memory effectiveness. No prior work has
+formalized this interdependence as a closed-loop
+system or identified the minimal sufficient condi-
+tions for instantiating the SEA definition. To the
+best of our knowledge, this paper provides the first
+formal characterization of this closed-loop struc-
+ture.
+2.3 Limitations of Existing Evaluation
+Frameworks
+Because prior work treats these dimensions as in-
+dependent techniques rather than a closed-loop
+system, existing benchmarks have not been de-
+signed to capture the quality of closed-loop evo-
+lution. Mainstream benchmarks including We-
+bArena (Zhou et al., 2024), OSWorld (Xie et al.,
+2024), SWE-bench (Jimenez et al., 2024), τ-
+bench (Yao et al., 2024), and AgentBench (Liu
+et al., 2025) all adopt the single task episode as
+the basic evaluation unit, effectively measuring im-
+mediate execution competence while remaining
+blind to cross-task evolutionary dynamics. Re-
+cent works including LifelongAgentBench (Zheng
+et al., 2025), MetaTool (Huang et al., 2023), Ham-
+merBench (Wang et al., 2025), and EverMem-
+Bench (Hu et al., 2026) have begun to explore expe-
+rience reuse and efficiency dimensions, but treat ef-
+ficiency as a static single-task property rather than
+a dynamic trend across sequential task streams. If
+an agent’s token consumption fails to converge af-
+ter repeated execution of structurally similar tasks,
+this is the true signal of absent evolutionary capabil-
+ity, yet it remains entirely invisible under existing
+frameworks. Among available efficiency proxies,
+token consumption most faithfully reflects this dy-
+namic: execution step count may remain stable
+even as per-step reasoning depth increases, and
+wall-clock latency introduces hardware-dependent
+variance that compromises cross-environment re-
+producibility.
+This gap manifests across two dimensions that
+directly motivate SEA-Eval’s design. First, on se-
+quential design, SEA-Eval introduces persistent
+memory configurations and ordered task streams,
+replacing isolated episodes with cross-task behav-
+ioral trajectories and enabling for the first time the
+direct observation of cross-task knowledge accumu-
+lation and continuous capability growth. Second,
+on efficiency metrics, SEA-Eval tracks the conver-
+3
+
+gence trajectory of token consumption across se-
+quential task streams rather than static single-task
+measurements: if an agent’s token consumption
+fails to converge after repeated execution of struc-
+turally similar tasks, this is the true signal of absent
+evolutionary capability—a signal that remains en-
+tirely invisible under existing frameworks (Gao
+et al., 2026; Cai et al., 2026; Zheng et al., 2025).
+3 The SEA Paradigm
+3.1 Foundational Characteristics
+We formally define a self-evolving agent as a tu-
+pleSEA= (E,A,M,Φ,Ψ) , where E denotes
+an open-ended digital environment characterized
+by dynamic state spaces, heterogeneous interac-
+tion modalities, and the absence of pre-enumerated
+action constraints;A an open and extensible ac-
+tion space subject to autonomous expansion;M=
+Mp∪M e∪M d a persistent stratified memory
+maintained across task boundaries, encompass-
+ing procedural knowledge Mp (reusable execu-
+tion strategies), episodic knowledgeMe (historical
+trajectories and failure attributions), and declara-
+tive knowledgeMd (environmental constraints and
+user preference models); Φ :τ→∆M an expe-
+rience distillation function mapping raw interac-
+tion trajectories to structured memory updates; and
+Ψ :M t×∆M→M t+1 a selective cross-task
+memory transfer function that determines which
+updates produced by Φ are committed to persis-
+tent memory. A detailed discussion of the func-
+tional boundary between Φ and Ψ is provided in
+Appendix B.
+This definition is grounded in two non-
+negotiable foundational characteristics.
+Complex Interaction in Open-ended Environ-
+ments.An SEA operates within open-ended
+digital ecosystems that are not constrained to
+application-specific domains or pre-enumerated ac-
+tion schemas. Unlike benchmarks that evaluate
+agents within simplified synthetic environments or
+sandboxes restricted to specific applications, the
+environments in which SEAs are deployed exhibit
+dynamic state spaces, heterogeneous interaction
+modalities, and persistent stochasticity that cannot
+be fully anticipated at design time. Under these con-
+ditions, the agent must engage directly with raw
+GUI pixels, dynamic DOM trees, and low-level
+system interfaces—a mode of operation we term
+digital embodiment: the capacity for unmediated,
+Figure 1: The Self-Evolving Agent (SEA) framework.
+system-native interaction with the underlying com-
+putational substrate, unconstrained by predefined
+interface abstractions.
+Continuous, Multi-turn Evolution.The second
+characteristic defines the temporal boundary of the
+SEA paradigm. While episodic agents reset M
+upon task completion, an SEA maintains state per-
+sistence across unbounded deployment cycles via
+Ψ. The outcomes of prior tasks—potentially oc-
+curring hours or days earlier—are retained inM
+and actively reconfigure the execution path of sub-
+sequent, structurally unrelated interactions. This
+property overcomes the episodic amnesia inher-
+ent in context-window-bounded systems and estab-
+lishes cross-task behavioral continuity as a defini-
+tional requirement: an agent that resets its cogni-
+tive state at every task boundary is, by definition,
+not evolving, regardless of the sophistication of its
+within-task reasoning. In episodic agents, Φ and
+Ψ degenerate to null operations—M is reset at ev-
+ery task boundary andA remains static. The SEA
+definition formally demarcates this boundary by
+requiring Φ and Ψ to be non-trivial: any system in
+which these functions are effectively identity map-
+pings is, by definition, an episodic agent regardless
+of its within-task reasoning sophistication.
+3.2 Necessary Consequences of the SEA
+Characteristics
+The two foundational characteristics defined above
+are not merely descriptive—they entail necessary
+behavioral consequences that any SEA must ex-
+hibit in open-ended deployment. We identify two
+such derived properties, each following by logical
+necessity from one of the foundational characteris-
+tics.
+Autonomous Tool Synthesis.The first
+characteristic—complex interaction in open-ended
+environments—directly entails the necessity of
+4
+
+autonomous tool synthesis. In environments
+where action constraints are not pre-enumerated,
+pre-defined tool schemas will inevitably encounter
+unhandled states: the agent will face interaction
+requirements that no existing tool inA is equipped
+to satisfy. Under these conditions, the agent must
+autonomously synthesize new functional primi-
+tives, generating and registering validated tools
+through whatever mechanisms are available to it.
+This process directly implements the expansion of
+A: the cardinality|A| grows monotonically over
+deployment time as a function of environmental
+engagement rather than pre-programmed capability.
+Autonomous tool synthesis is therefore not an
+optional capability enhancement but a structural
+necessity imposed by the open-ended nature ofE.
+Implicit User Alignment.The second
+characteristic—continuous, multi-turn evolution—
+directly entails the progressive alignment of the
+agent’s behavior with user-specific preferences.
+Over extended deployment cycles, the SEA
+accumulates interaction data with a specific user,
+including corrective signals such as rollbacks,
+revisions, and explicit feedback. These signals
+constitute a high-dimensional reward source that,
+through repeated application of Φ, drives the
+progressive encoding of user-specific workflows
+and implicit preferences intoMd. The result is an
+alignment process in which the agent’s execution
+strategies increasingly mirror the user’s latent
+intent—not through one-time calibration, but
+through continuous distillation of accumulated
+interaction friction. This emergent alignment is
+a necessary consequence of sustained multi-turn
+evolution with a consistent user, rather than a
+separately engineered component.
+3.3 The Evolutionary Flywheel
+To instantiate the characteristics defined in Sec-
+tion 3.1, an SEA requires a structural backbone
+capable of closing the loop between raw environ-
+mental interaction and the persistent updates toM
+governed by Φ and Ψ. We argue that this struc-
+tural backbone is not an arbitrary design choice
+but aminimal sufficient architecture: any sys-
+tem satisfying theSEA definition must implement
+mechanisms functionally equivalent to the follow-
+ing two hubs and their coupling, in the sense that
+removing either hub or their interaction would vio-
+late at least one of the foundational characteristics
+defined in Section 3.1. The dual-hub architecture
+described below therefore represents a structural
+reference derived from theSEA definition, rather
+than a novel algorithmic contribution in itself, as
+shown in Figure 1.
+3.3.1 Execution Hub: The Digital Limb
+The Execution Hub serves as the agent’s sensory-
+motor interface with E, implementing the opera-
+tional requirements of digital embodiment through
+two functional components.
+Multimodal Perception.The hub continu-
+ously acquires heterogeneous signals from the
+environment—including raw screen visuals, DOM
+structures, system logs, and terminal outputs—and
+transforms them into environmental representations
+available for decision-making. This perceptual ca-
+pacity is the prerequisite for system-native interac-
+tion: without the ability to acquire environmental
+feedback across modalities, the agent cannot op-
+erate beyond the confines of predefined API inter-
+faces.
+Action Execution.The hub executes actions
+withinA, and autonomously synthesizes new tools
+when existing ones prove insufficient for the cur-
+rent environmental demands, registering them as
+persistent tools for future use.
+3.3.2 Cognition Hub: The Cognitive Core
+The Cognition Hub implements the Φ and Ψ func-
+tions that constitute the SEA’s evolutionary capac-
+ity. It operates across two temporal modes: guid-
+ing the Execution Hub during task execution, and
+distilling accumulated experience into persistent
+memory updates after task completion.
+Execution Guidance.During task execution, the
+Cognition Hub provides decision support to the
+Execution Hub by maintaining a representation of
+the current task state, retrieved context from M,
+and a continuously updated execution plan. This
+guidance integrates prior experience fromMp and
+Md into the current execution context, enabling
+the agent to draw on consolidated strategies rather
+than reasoning from scratch at each decision step.
+When execution anomalies are detected, the Cog-
+nition Hub revises the current plan, maintaining
+closed-loop execution stability under environmen-
+tal perturbation.
+Experience Distillation.Following task com-
+pletion, the Cognition Hub instantiates Φ, dis-
+tilling from the raw interaction trajectory τ the
+5
+
+experience most beneficial to future execution—
+including reusable execution strategies, failure at-
+tributions, and user preference signals—and orga-
+nizing these into a structured update ∆M. These
+updates are then passed to Ψ, which selectively
+integrates knowledge assessed as sufficiently gen-
+eralizable into the persistent memory stateMt+1,
+suppressing instance-specific noise to preserve evo-
+lutionary stability.
+3.3.3 The Evolutionary Flywheel and Its
+Failure Modes
+The symbiotic coupling of the Execution Hub and
+Cognition Hub constitutes theEvolutionary Fly-
+wheel: a closed-loop mechanism through which
+raw environmental interaction is progressively
+transformed into persistent cognitive assets. The
+flywheel operates through three sequential phases:
+1. Execution: The Execution Hub engages E,
+generating a raw interaction trajectoryτ that
+captures the full sequence of perceptual inputs,
+actions, environmental responses, and error
+recovery events.
+2. Distillation: The Cognition Hub applies Φ
+toτ, distilling valuable experience into struc-
+tured updates ∆M, which are then selectively
+committed toM t+1 viaΨ.
+3. Augmented Execution: In subsequent tasks,
+the Execution Hub retrieves relevant entries
+fromM—particularly consolidated strategies
+fromMp—replacing exhaustive zero-shot
+reasoning with experience-guided execution.
+The resulting trajectory is of higher quality
+and lower cost than its predecessor, producing
+richer material for the next distillation cycle.
+These three phases form a self-reinforcing loop:
+each execution cycle produces experience that,
+once distilled, reduces the cost and increases the
+quality of future execution. The flywheel generates
+a net evolutionary gain when the reduction in ex-
+ecution cost achieved through experience-guided
+execution exceeds the overhead introduced by dis-
+tillation and retrieval. This condition is met whenΦ
+successfully abstracts generalizable strategies from
+instance-specific trajectories—transforming task-
+level successes into reusable cross-task knowledge.
+The flywheel can degrade intopseudo-evolution
+under two theoretically distinct failure modes. In
+distillation failure, Φ fails to distill generalizable
+experience from the trajectory, producing memory
+updates that cannot transfer beyond the specific
+instance and leaving Mp inert despite apparent
+task success. Inretrieval failure, the Execution
+Hub cannot identify structural similarity between a
+new task and existing entries inM—particularly
+under environmental drift—and defaults to exhaus-
+tive zero-shot reasoning, bypassing the flywheel
+entirely. Critically, both failure modes produce
+an identical behavioral signature: execution cost
+fails to decrease across sequential task variants
+and scales linearly with task frequency rather than
+converging. A detailed diagnostic discussion of
+how these two failure modes can be distinguished
+through auxiliary execution traces is provided in
+Appendix C.
+4 SEA-Eval: Evaluation Framework and
+Benchmark Design
+4.1 Evaluation Principles
+The theoretical analysis in Section 3 establishes
+thatgenuine evolutionin SEAs produces a dis-
+tinguishable behavioral signature: as the Evolu-
+tionary Flywheel operates above the distillation-
+yield threshold, execution costconverges mono-
+tonicallyacross sequential task variants while
+task success is maintained. Conversely,pseudo-
+evolution—arising from distillation or retrieval
+failure—produces no such convergence, with ex-
+ecution cost scalinglinearlywith task frequency
+regardless of accumulated experience. These pre-
+dictions jointly motivate an evaluation design that
+must simultaneously tracktask successandexe-
+cution overheadacross temporally connected task
+sequences, rather than assessing isolated episodic
+tasks. SEA-Eval instantiates this requirement
+across two complementary dimensions, as shown
+in Figure 2.
+4.1.1 Intra-task Execution Reliability
+This dimension directly instantiates the first foun-
+dational characteristic of the SEA paradigm:com-
+plex interactionin open-ended environments. It
+evaluates the agent’s capacity to navigate high-
+complexity, non-stationary tasks without relying
+on prior accumulated experience, assessingimme-
+diate execution capabilityunder environmental
+uncertainty independent of long-term memory evo-
+lution. Intra-task execution reliability encompasses
+two aspects:complex scenario adaptationander-
+ror recovery robustness. A well-functioning SEA
+6
+
+Evaluation
+Principles
+Intra-task Execution Reliability Long-term Evolutionary Performance
+Complex Scenario 
+Adaptation
+Error Recovery 
+Robustness
+Evolutionary 
+Gain
+Evolutionary 
+Stability
+Implicit Alignment 
+Convergence
+Metric
+Design
+PrimaryMetrics Auxiliary Metrics
+Success 
+Rate
+Execution 
+Steps
+Self-Correction 
+Frequency
+User Intervention 
+Rate
+Intra-task Auxiliary Metrics
+Efficiency 
+Evolution Rate
+SR Growth 
+Slope
+Alignment 
+Convergence Rate
+Long-term Auxiliary Metrics
+Token 
+Consumption
+Dataset
+Construction
+AtomicTaskConstruction Sequential Task Construction Noise Injection
+ExecutionEnvironment
+Web
+Automation(18)
+LocalSystem
+Operations(14)
+Difficulty
+Round↑
+ Difficulty↑
+Correlated
+Sequences(30)
+Orthogonal 
+Sequences(30)
+Implicit Intent Sequences (30)
+mask
+Clean Condition
+Agent
+ EmptyMemory
+Noisy Condition
+AgentExistingMemory
+Figure 2: The SEA-Eval framework design pipeline across three layers.
+should sustain coherent task progress across multi-
+step decision chains and long-horizon reasoning
+sequences despite the dynamic and unpredictable
+nature of the deployment environment; when en-
+countering execution failures or unexpected envi-
+ronmental perturbations, it should maintain closed-
+loop execution through self-reflection and self-
+correction, avoiding logical deadlocks or cascading
+system failures.
+4.1.2 Long-term Evolutionary Performance
+This dimension directly instantiates the second
+foundational characteristic of the SEA paradigm:
+continuous, multi-turn evolution. It assesses
+whether the agent’s performance systematically
+improves over successive task deployments and
+whether these improvements remain stable across
+task boundaries. Long-term evolutionary per-
+formance encompasses three aspects:evolution-
+ary gain,evolutionary stability, andimplicit
+alignment convergence. A well-functioning SEA
+should exhibit all three. In terms of evolutionary
+gain, a well-functioning SEA should demonstrate
+measurable performance improvement as task fre-
+quency increases, with execution overheadcontin-
+uously decreasing—this convergence trend con-
+stitutes the empirical signature of a functioning
+Evolutionary Flywheel. In terms of evolutionary
+stability, a well-functioning SEA should ensure
+that capabilities acquired through new tasks donot
+adversely affect ongoing execution performance,
+and that the continuous expansion ofM does not
+interfere with the effective retrieval of existing pro-
+cedural knowledge. In terms of implicit alignment
+convergence, a well-functioning SEA should ex-
+hibit amonotonically decreasinguser intervention
+rate over extended deployment with a consistent
+user, reflecting the progressive internalization of
+user-specific preferences intoMd—directly instan-
+tiating the implicit user alignment property identi-
+fied in Section 3.2 as a necessary consequence of
+continuous multi-turn evolution.
+4.2 Metric Design
+SEA-Eval adopts Success Rate (SR) and Token
+Consumption (T ) as its two primary evaluative
+primitives, a selection motivated directly by the
+Evolutionary Flywheel framework and the require-
+ment to identify pseudo-evolution. SR serves as
+the minimum reliability guarantee for task com-
+pletion, establishing whether an agent possesses
+the baseline execution capability required for de-
+ployment.T serves as the core signal for detecting
+whether the Evolutionary Flywheel is genuinely
+operating: when an agent successfully distills his-
+torical experience into reusable strategies, execu-
+tion overhead should decrease continuously as task
+frequency increases; ifT fails to converge across
+sequential tasks, this indicates that the agent has
+fallen into pseudo-evolution regardless of its SR
+7
+
+performance. Beyond SR and T , SEA-Eval de-
+fines a set of auxiliary metrics that provide finer-
+grained diagnostic analysis of the evolutionary pro-
+cess.
+4.2.1 Primary Metrics
+Success Rate (SR). SR quantifies the accuracy
+of goal achievement, serving as the baseline mea-
+sure of task execution capability and the minimum
+reliability guarantee for deployment viability.
+Token Consumption (T ). T measures the com-
+putational overhead of task execution and serves
+as the core signal for detecting the operational
+state of the Evolutionary Flywheel. When an agent
+achieves genuine evolution, experience-guided exe-
+cution progressively replaces exhaustive zero-shot
+reasoning, andT should exhibit a monotonically
+convergent trend; when the flywheel fails,T scales
+linearly with task frequency, exposing the agent’s
+pseudo-evolutionary nature.
+4.2.2 Intra-task Auxiliary Metrics
+Within a single task execution cycle, the following
+metrics provide diagnostic granularity beyond the
+primarySRandTmeasurements.
+Execution Steps (S). S records the number of
+decision-making steps required to complete a task,
+providing a coarse-grained indicator of action plan-
+ning efficiency that complementsT in characteriz-
+ing intra-task execution paths.
+Self-Correction Frequency (Nfix). Nfix records
+the frequency of autonomous error identification
+and recovery within a single task, reflecting the
+agent’s real-time resilience under environmental
+perturbation and complementingSR as a measure
+of execution robustness.
+User Intervention Rate (Nundo). Nundo records
+the frequency of manual corrections, command roll-
+backs, or user-initiated interventions during task
+execution, quantifying the degree of inconsistency
+between the agent’s execution logic and user intent.
+Its longitudinal behavior across task sequences
+forms the basis for the alignment convergence met-
+ric defined below.
+4.2.3 Long-term Auxiliary Metrics
+Long-term evolution is assessed by constructing a
+time series over sequential task deployments and
+applying dynamic analysis to characterize evolu-
+tionary trajectories.
+Efficiency Evolution Rate (Keff). Keff character-
+izes the trend of token consumption change across
+sequential task variants:
+K(k)
+eff = Tk+1−T k
+∆N (1)
+AK(k)
+eff sequence that converges monotonically to-
+ward zero from the negative side indicates suc-
+cessful experience consolidation, with the agent
+progressively replacing exhaustive reasoning with
+experience-guided execution; a flat or erratic se-
+quence indicates evolutionary stagnation.
+SR Growth Slope ( KSR). KSR measures the
+trend ofSR improvement along the task sequence:
+K(k)
+SR = SRk+1−SR k
+∆N (2)
+KSR characterizes the agent’s learning capacity
+and growth ceiling. Jointly analyzed with Keff,
+the two metrics form the combined criterion for
+identifying pseudo-evolution: when both simulta-
+neously approach zero, the agent completes tasks
+without reducing execution overhead or improving
+reliability across sequential variants, confirming
+evolutionary stagnation as the empirical manifesta-
+tion of flywheel failure.
+Alignment Convergence Rate (Kalign). Kalign
+measures the decreasing trend of user intervention
+frequency as the task sequence progresses:
+K(k)
+align =
+¯Nundo,k+1− ¯Nundo,k
+∆N (3)
+where ¯Nundo,k denotes the sliding-window average
+of the user intervention rate at step k. A K(k)
+align
+sequence converging toward zero from the negative
+side indicates that the agent is successfully internal-
+izing user-specific preferences intoMd, directly
+instantiating the implicit alignment convergence
+dimension defined in Section 4.1.
+From Framework-level Definitions to Exper-
+imental Aggregation.The step-wise rates de-
+fined above—K(k)
+eff ,K(k)
+SR, and K(k)
+align—constitute
+the framework-level primitives that characterize
+the evolutionary trajectory at the granularity of a
+single sequence transition, i.e., the increment be-
+tween two adjacent steps. In the experiments, these
+primitives can be adapted according to the spe-
+cific evaluation target—for instance, to observe the
+change induced after interference is inserted, or to
+8
+
+construct a learning-retention measure that reflects
+the balance between acquiring new knowledge and
+preserving previously consolidated knowledge un-
+der interference.
+4.3 Dataset Design
+To evaluate both the static execution capability and
+the dynamic evolutionary capability of SEAs, the
+dataset is constructed from atomic tasks as the fun-
+damental building blocks, which are then systemat-
+ically composed into task sequences as the primary
+evaluation units. A noise injection mechanism is
+further introduced as an independent control vari-
+able to assess retrieval robustness under realistic
+memory congestion conditions.
+4.3.1 Atomic Task Construction
+To evaluate the foundational execution capability of
+agents on individual tasks, we first construct a set
+of atomic tasks as the basic units of the benchmark.
+Scenario and Capability CoverageTo ensure
+comprehensive coverage of digital embodiment sce-
+narios, we select two categories of tasks:Web
+AutomationandLocal System Operations. The
+former encompasses web browsing and manipula-
+tion at the browser layer; the latter encompasses
+interactions at the operating system’s native layer,
+including file management, script execution, sys-
+tem configuration, and native desktop application
+operations. The benchmark imposes no predefined
+tool interfaces; agents are free to complete tasks
+via GUI manipulation, command-line alternatives,
+or API calls, and the autonomous selection of in-
+teraction pathways is itself part of what is being
+evaluated. The union of two scenario categories
+achieves logical completeness over the execution
+path space of information-processing digital em-
+bodiment tasks, as any digital task can necessarily
+be completed via either a local native path or a web
+access path.
+Three-tier Difficulty SystemTo ensure that the
+benchmark is discriminative across agents of vary-
+ing capability levels, atomic tasks are organized
+into three difficulty tiers. A single-difficulty task
+set cannot simultaneously satisfy the dual require-
+ments of baseline stability and evolutionary dis-
+criminability: tasks that are too simple approach a
+success-rate ceiling that precludes the observation
+of evolutionary gain, while tasks that are too dif-
+ficult produce unstable baseline success rates that
+render evolutionary signals uninterpretable.
+• Easy: Standard atomic operations with clear
+execution paths, requiring basic tool invoca-
+tion and state tracking. These tasks estab-
+lish the baseline capability reference and pro-
+vide the statistical stability necessary for long-
+horizon evolutionary analysis.
+• Normal: Tasks that introduce multiple rounds
+of complex environmental judgment into
+the execution process, involving conditional
+branching and intermediate state uncertainty.
+These tasks constitute the primary evaluation
+objects of the benchmark and provide the
+main source of discriminability for evolution-
+ary capability assessment.
+• Hard: Tasks involving long-range dependen-
+cies and extensive complex retrieval, requiring
+the agent to integrate information across steps
+and perform deep reasoning. These tasks are
+positioned as stress tests to probe the upper
+boundary of intra-task execution reliability un-
+der extreme complexity.
+Variable Slot DesignTo support the systematic
+generation of structurally equivalent task instances
+within sequences, each atomic task contains one to
+two replaceable variable slots—such as retrieval tar-
+gets, destination websites, or file names. Replacing
+a slot changes the specific execution object without
+altering the task’s underlying execution logic or
+difficulty tier; all variants are reviewed by domain
+experts and accompanied by concrete examples
+to ensure equivalence. This design also prevents
+agents from reducing execution overhead by mem-
+orizing specific answers rather than learning gener-
+alizable strategies, ensuring that efficiency changes
+observed across sequences faithfully reflect evolu-
+tionary capability rather than memorization effects.
+4.3.2 Sequential Task Construction
+To evaluate the dynamic evolutionary capability
+of agents, atomic tasks are systematically com-
+posed into task sequences, which serve as the pri-
+mary evaluation units of the benchmark. A well-
+functioning SEA is expected to exhibit three prop-
+erties: it should learn positively from repeated ex-
+perience and progressively improve execution effi-
+ciency; it should resist negative interference from
+unrelated tasks; and its learning should manifest
+as transferable, generalizable strategies rather than
+rote memorization of specific execution paths. Our
+9
+
+sequence design is organized around these three
+properties.
+Let A denote a target atomic task, and let
+A1,A 2,A 3 denote distinct variable-slot instantia-
+tions ofA that share identical execution logic but
+differ only in concrete operands. We takeA1 as the
+reference instance and writeR1,R 2,R 3 for three
+consecutive repeated executions of A1; B,C,D
+denote unrelated tasks drawn from different scenar-
+ios and capability dimensions. On this basis, we
+construct two types of sequences:
+• Correlated Sequences( R1→R 2→R 3→
+A2→A 3): The leading segment repeats the
+identical instanceA1 to examine whether the
+agent learns from identical experience and
+progressively reduces execution overhead; the
+trailing segment switches to the similar in-
+stances A2,A 3 to examine whether the ac-
+quired strategies generalize to new instanti-
+ations of the same task. If efficiency gains
+appear only on the identical repetitions but
+fail to carry over to the similar instances, the
+agent is relying on rote memorization rather
+than strategy generalization.
+• Orthogonal Sequences: Unrelated interfer-
+ence tasks (B,C,D ) are inserted between ex-
+ecutions of the target task to examine whether
+previously acquired skills degrade under cross-
+domain interference. Two sub-conditions are
+constructed:Orth-Same( A1→B→C→
+D→A 1) re-executes the identical instance
+after interference, measuring pure retention
+robustness;Orth-Similar( A1→B→C→
+D→A 2) executes a different instance after
+interference, further examining whether gen-
+eralization ability survives distraction.
+The sequence configuration is summarized in
+Table 1. All sequences are set to length 5, bal-
+ancing trend observability against evaluation over-
+head. After public release, the benchmark can be
+extended by replacing variable slots to generate
+new instances, designing additional atomic tasks,
+or adjusting sequence lengths according to avail-
+able computational budgets.
+4.3.3 Noise Injection Mechanism
+To evaluate retrieval robustness under realistic de-
+ployment conditions, a noise injection mechanism
+is introduced as an independent control variable. In
+real-world deployment, an agent’s memory store
+Table 1: Sequence configuration of SEA-Eval.
+Type Structure # Easy & Normal
+CorrelatedR 1 →R 2 →R 3 →A 2 →A 3 12 / 18
+Orth-SameA 1 →B→C→D→A 1 12 / 18
+Orth-SimilarA 1 →B→C→D→A 2 12 / 18
+M expands continuously over time, and degrada-
+tion in retrieval precision under memory conges-
+tion is an unavoidable operational challenge that di-
+rectly corresponds to the retrieval failure mode ana-
+lyzed in Section 3.3.3. By orthogonally combining
+noise conditions with sequence types, this mecha-
+nism decouples retrieval robustness from evolution-
+ary capability and quantifies it as an independent
+dimension.
+• Clean Condition: The agent begins each se-
+quence from an empty memory state, carrying
+no pre-acquired skills. This condition serves
+as the baseline, eliminating the influence of
+prior knowledge and ensuring that sequence
+evaluation results faithfully reflect the agent’s
+ability to learn from scratch.
+• Noisy Condition: The agent is preloaded with
+20 randomly selected skills that have no sce-
+nario overlap with the current task sequence,
+simulating a memory congestion state repre-
+sentative of real-world deployment. The num-
+ber of preloaded skills substantially exceeds
+the number required for any single sequence,
+thereby constituting an effective retrieval in-
+terference. This condition is used to assess
+whether skill bloat induces retrieval failure
+and whether pre-acquired knowledge inter-
+feres with the evolutionary trajectory of the
+current sequence.
+4.3.4 Dataset Statistics
+The complete SEA-Eval dataset comprises 32
+atomic tasks—12 Easy, 18 Normal, and 2 Hard—
+distributed across Web Automation and Local Sys-
+tem Operations. A total of 92 sequences are con-
+structed from these atomic tasks: 32 correlated se-
+quences, 30 orthogonal sequences and 30 implicit
+intent sequences. All tasks are designed by human
+experts based on publicly accessible resources, en-
+suring baseline solvability and ground-truth verifia-
+bility. No user privacy data is involved in any part
+of the dataset.
+10
+
+Figure 3: Token consumption distribution across rounds on the Easy-Correlated sequence. The boxplot illustrates
+the spread and central tendency of each agent’s token usage from R1 to R3.
+5 Experiments
+5.1 Experimental Setup
+To rigorously evaluate the capabilities of SEAs, we
+establish a controlled and reproducible experimen-
+tal environment.
+Evaluated Systems.We select five representa-
+tive SEAs for evaluation: GenericAgent (GA),
+OpenClaw4, Hermes5, Claude Code, and Codex6.
+These five agents constitute the mainstream repre-
+sentative sample of the current SEAs.
+Foundation Models.The foundation model for
+each agent is configured according to task char-
+acteristics and system compatibility. Specific as-
+signments are determined by each agent’s native
+architecture and task requirements.
+Execution Environment.Given that SEAs pos-
+sess system-level operational capabilities, all eval-
+uations are strictly conducted within isolated con-
+tainerized sandbox environments. This infras-
+tructure ensures that agents can safely execute
+high-complexity, multi-step tasks without cross-
+contamination or host system damage. Memory
+and usage records are retained or cleared according
+to task requirements.
+5.2 Overall Performance Overview
+We first evaluate the five agents on the Easy-
+Correlated sequence. The foundation model for
+4https://github.com/openclaw/openclaw
+5https://github.com/NousResearch/hermes-agent
+6https://github.com/openai/codex
+Table 2: Mean token consumption (K tokens) and suc-
+cess rate of each agent on the Easy-Correlated sequence.
+Agent R1 R2 R3 A2 A3 SR
+GA 198.7 78.8 63.6 96.0 139.8 95.0%
+OC 1905.1 1058.5 1118.7 868.7 897.5 96.7%
+Hermes 355.9 271.4 226.7 234.1 298.6 65.0%
+CC 252.0 94.2 99.7 171.5 104.8 91.7%
+Codex 128.7 116.2 115.3 107.2 157.8 85.0%
+this sequence is uniformly set to Claude Opus 4.6;
+Codex adopts GPT-5.5 as an alternative due to ar-
+chitectural constraints. Table 2 presents the mean
+token consumption of each agent across sequence
+stages. Figure 3 displays the complete distribu-
+tional characteristics7. Three preliminary observa-
+tions warrant attention:
+(1) Token consumption varies widely across
+agents.Although GA’s R1-stage consumption is
+not the lowest overall, its aggregate token consump-
+tion is significantly lower than most agents. No-
+tably, OpenClaw’s consumption is extraordinarily
+high: OpenClaw’s R1 mean (1905K) is 14.8× that
+of Codex (129K). Even after three learning rounds
+at the R3 stage, OpenClaw (1119K) remains 17.6×
+that of GA (64K). This disparity primarily stems
+from OpenClaw’s lack of prompt compression, re-
+sulting in excessive tokens wasted on redundant
+context transmission.
+7Fine-grained per-task token consumption data
+(with fail/timeout annotations) are available at
+https://leaperovo.github.io/SEA-Eval/. Due to
+time and token cost constraints, a 15-minute timeout
+mechanism was applied when testing Hermes, Claude Code,
+and Codex.
+11
+
+(2) Evolutionary efficiency differs markedly
+across models.GA exhibits a steep exponential
+decline (R1→R2 accounts for 88% of total opti-
+mization), Claude Code shows a fast-then-stable
+pattern (R1→R2 decreases 63%, R2 →R3 only
+6%), while Codex remains nearly flat (R1 →R3
+decreases only 10%). These differences reflect
+fundamentally distinct knowledge accumulation
+mechanisms.
+(3) Success rate and token consumption exhibit
+a synergistic relationship.Although the timeout
+mechanism affects SR, the token consumption data
+reveal that low-consumption agents (GA, Claude
+Code, Codex) maintain high success rates (85%–
+95%). This suggests that efficiency and reliabil-
+ity are not contradictory—streamlined execution
+strategies both conserve tokens and facilitate task
+completion. Hermes represents a notable coun-
+terexample: even on tasks not terminated by time-
+out, its token consumption is already significantly
+higher than GA, Claude Code, and Codex, indi-
+cating that its low SR is not solely attributable to
+timeout but reflects systemic inefficiency in execu-
+tion.
+5.3 Evolutionary Capability Analysis
+To analyze evolutionary efficiency under different
+conditions, we plot violin charts of token consump-
+tion changes on identical tasks (Figure 4-a), as well
+as violin charts of consumption changes on similar
+tasks (Figure 4-b and Figure 4-c).
+Finding 1: GA exhibits the most pronounced
+evolutionary efficiency on identical tasks.Fig-
+ure 4-a shows that GA’s R3 vs. R1 change rate
+median reaches−78%, far exceeding other agents.
+Codex’s learning effect is modest (−28%), but this
+does not indicate weak learning capability—rather,
+Codex’s R1-stage token consumption is already
+very low (129K), leaving limited optimization head-
+room. In other words, Codex’s “low learning rate”
+is a natural consequence of its high initial effi-
+ciency.
+Finding 2: Agents exhibit two fundamentally
+distinct evolutionary paradigms.The first is the
+“iterative optimization” paradigm exemplified by
+GA—progressively compressing token consump-
+tion through multiple execution rounds, with learn-
+ing curves showing clear declining trends. The
+second is the “first-shot convergence” paradigm
+exemplified by Claude Code and Codex—tending
+to reach near-optimal states on the first execution,
+with limited variation in subsequent rounds. No-
+tably, both Claude Code and Codex benefit from
+prompt caching mechanisms (Anthropic, 2025;
+Liang et al., 2026), which substantially reduce
+token billing for repeated content, lending their
+consumption data a degree of opacity—ostensibly
+“low consumption” partially derives from cache
+hits rather than genuine strategy optimization. In
+contrast, OpenClaw exhibits negligible evolution-
+ary amplitude, with its R3 vs. R1 change rate ap-
+proaching zero, manifesting a “pseudo-evolution”
+characteristic: token consumption remains virtually
+unchanged across rounds, lacking genuine learning
+accumulation.
+Finding 3: On transfer to similar tasks, agents
+differ little in transfer magnitude but substan-
+tially in stability.Figure 4-b and Figure 4-c show
+that GA’s A3 vs. R1 change rate median is−55%,
+indicating that learning accumulated on identical
+tasks effectively transfers to similar tasks. Across
+agents, the transfer magnitude (median change
+rate) does not differ dramatically, yet the stabil-
+ity differs significantly: Hermes, Claude Code, and
+Codex each exhibit several abnormal task cases
+with sharply increased token consumption, result-
+ing in highly volatile distributions on similar tasks.
+OpenClaw’s apparent stability is highest, but this
+is not genuine transfer stability—rather, it stems
+from its “pseudo-evolution” characteristic: since to-
+ken consumption consistently maintains high levels
+across all rounds, the change amplitude on similar
+tasks naturally remains flat, representing stagnation
+rather than robust transfer.
+To further analyze the impact of unrelated tasks
+on agent performance, we conduct experiments
+on the Easy-Orth-Same and Easy-Orth-Similar
+datasets, with results presented in Figure 5.
+Finding 4: GA retains its learning gains under
+cross-domain interference.In orthogonal exper-
+iments, even when unrelated distractor tasks are
+interleaved between target task executions, GA’s
+efficiency improvements on both identical and sim-
+ilar tasks are preserved (median change rates of
+−35.2% and−29.2%, respectively, remaining in
+the negative range with considerable magnitude),
+indicating that its previously accumulated execu-
+tion strategies are not disrupted by cross-domain
+knowledge. This suggests that GA’s learning mech-
+anism can effectively consolidate experience and
+reuse it after interference. The figure nonetheless
+12
+
+Figure 4: Violin plots of token consumption changes across three conditions: (a) identical tasks (R3 vs. R1), (b)
+similar tasks (A2 vs. R1), and (c) similar tasks (A3 vs. R1). Negative values indicate efficiency improvement (token
+reduction).
+Figure 5: Per-task token consumption trajectories under orthogonal interference. Diamonds indicate post-evolution
+values; circles indicate pre-evolution baselines. Median trajectories are highlighted with bold lines.
+reveals that GA’s learning performance still ex-
+hibits some instability—Figure 5 shows a small
+number of cases with increased token consumption,
+indicating that GA remains susceptible to interfer-
+ence from unrelated tasks, which we attribute to the
+insufficient stability of its memory retrieval mecha-
+nism.
+Finding 5: After interference, OpenClaw’s to-
+ken consumption on similar tasks increases
+markedly.Under the Orth-Similar condition,
+OpenClaw’s median change rate is +22.2%, in
+sharp contrast to the slight improvement (−13.1%)
+under the Orth-Same condition. This again reflects
+OpenClaw’s pseudo-evolution characteristic. Case
+analysis reveals that OpenClaw8 exhibits “shortcut
+8This phenomenon is also present in Hermes. Note that
+Hermes’s orthogonal experiments have not been fully com-
+pleted; related conclusions are preliminary observations to be
+supplemented with complete data.
+memorization” behavior: during repeated execu-
+tion of identical tasks, the agent may directly mem-
+orize operational answers, achieving extremely low
+token consumption. However, the cost of such me-
+chanical memorization is that once task variants
+appear or context is disrupted, evolutionary perfor-
+mance deteriorates dramatically. Figure 5 directly
+corroborates this fragility: OpenClaw is the only
+agent whose median change rate turns from nega-
+tive to positive under the Orth-Similar condition.
+5.4 Comprehensive Capability Profile
+To comprehensively evaluate the multi-dimensional
+capabilities of agents, we introduce task suc-
+cess rate (SR), token consumption (TC), multi-
+ple variants ofKeff, transfer performance (Ktrans),
+and robustness (Keff(Ret)) as evaluation dimen-
+13
+
+Table 3: Stability metrics summary.
+Agent R2 R3 Stab Id A2 A3 Stab Sim
+GA 78.8 63.6−19.3%96.0 139.8+45.6%
+OpenClaw 1058.5 1118.7+5.7%868.7 897.5+3.3%
+Hermes 271.4 226.7−16.5%234.1 298.6+27.6%
+Claude Code 94.2 99.7+5.8%171.5 104.8−38.9%
+Codex 116.2 115.3−0.8%107.2 157.8+47.2%
+sions.9 Specifically, to assess learning effects
+when repeatedly executing the same task, we in-
+troduce Keff(Evo) to measure overall improve-
+ment after multiple repetitions, and Keff(Conv)
+to measure the speed at which learning occurs;
+to evaluate an agent’s ability to retain acquired
+knowledge under orthogonal interference, we in-
+troduce Keff(Stab-Id) for performance stability
+after same-task interference, and Keff(Stab-Sim)
+for stability after similar-task interference; fi-
+nally, to assess the balance between learning
+and forgetting, we compute Keff(Ret), which
+comprehensively reflects the degree to which an
+agent retains old knowledge after acquiring new
+knowledge. Specifically, Keff(Evo) = (T R1−
+TR3)/TR1, Keff(Conv) = (T R1 −T R2)/TR1,
+Ktrans = 1
+2[(TA2−T R1)/TR1 +(T A3−T R1)/TR1],
+Keff(Stab-Id) = (Tpost_same−T pre_same)/Tpre_same,
+Keff(Stab-Sim) = (T post_sim−T pre_sim)/Tpre_sim,
+andK eff(Ret) =K eff(Conv)/Keff(Stab-Id).
+Here,Keff(Evo) andKeff(Conv) measure learn-
+ing efficiency (higher values indicate greater to-
+ken consumption reduction),Ktrans measures cross-
+task transfer capability (negative values indicate ef-
+fective transfer),Keff(Stab-Id) andKeff(Stab-Sim)
+measure post-interference stability (values near
+zero indicate stability), andKeff(Ret) comprehen-
+sively reflects learning retention rate (larger values
+indicate faster learning relative to forgetting).
+We normalize all metrics to the [0,1] interval10
+and generate radar charts (Figure 6) using both
+median and mean as per-task aggregation func-
+tions. Table 4 presents the 8-dimensional compos-
+ite scores (A VG) under both aggregation methods:
+The rankings are highly consistent across both
+aggregation methods: GA > Claude Code >
+Codex > OpenClaw > Hermes. GA ranks first
+with significant margins under both perspectives,
+with its core advantage deriving from compre-
+9Detailed per-task token consumption data
+(with fail/timeout annotations) are available at
+https://leaperovo.github.io/SEA-Eval/.
+10Detailed normalization methodology is provided in Ap-
+pendix A.
+Table 4: Comprehensive capability scores.
+Agent Median-A VG Mean-A VG
+GA0.737 0.668
+Claude Code 0.637 0.621
+Codex 0.591 0.560
+OpenClaw 0.565 0.483
+Hermes 0.524 0.431
+hensive leadership across the learning dimensions
+(Keff(Evo)/Keff(Conv)/Ktrans/Keff(Ret)). Claude
+Code consistently occupies second place, approach-
+ing Codex in efficiency and stability dimensions
+while retaining moderate learning capability.
+The primary divergence between Median and
+Mean appears in GA’sKeff(Ret) dimension: Me-
+dian yields 0.643 (knowledge retention is good
+for most tasks), while Mean drops to 0 (a few
+extreme degradation tasks pull the average into
+negative territory, clipped to 0), corroborating the
+high-variance characteristic of GA identified in Sec-
+tion 5.3.
+Based on radar chart morphology and numerical
+distributions, we categorize the five agents into two
+archetypal patterns:
+(1) Efficient Learning Type (GA).GA leads
+comprehensively across the four learning dimen-
+sions (Keff(Evo), Keff(Conv), Ktrans, Keff(Ret)),
+demonstrating the strongest experience accumu-
+lation and strategy optimization capabilities. In
+terms of raw measurements, GA achieves a 68.0%
+overall efficiency gain on identical tasks (R1→R3)
+and a 60.3% convergence rate (R1 →R2), both
+ranking first among all agents. However, GA’s
+memory retrieval mechanism still has room for im-
+provement: under orthogonal interference, its nor-
+malizedKeff(Stab-Id) score is 0.648—the lowest
+among all agents—corresponding to a raw change
+rate of−19.3%, a fluctuation markedly larger than
+that of OpenClaw (+5.7%), Claude Code (+5.8%),
+and Codex (−0.8%). This indicates that while
+GA’s learning depth is strong, the instability of
+its memory management constrains its cross-task
+14
+
+Figure 6: Radar charts of comprehensive capability profiles using mean (left) and median (right) aggregation across
+8 evaluation dimensions.
+generalization and interference resistance.
+(2) Stable Enhancement Type (Claude Code,
+Codex).Claude Code and Codex benefit from
+caching advantages in their self-deployed archi-
+tectures, achieving the highest normalized TC
+scores among all agents (0.898 and 1.000, respec-
+tively), which makes their memory management
+inherently more efficient—reduced context bur-
+den translates to clearer state maintenance and
+lower interference risk. Claude Code maintains
+high stability (normalizedKeff(Stab-Id) = 0.871,
+Keff(Stab-Sim) = 0.840) while preserving appre-
+ciable learning capability ( Keff(Evo) = 0.253 ,
+Keff(Ret) = 0.406 ); in terms of raw measure-
+ments, it is the only agent that continues optimiza-
+tion on similar tasks after orthogonal interference
+(Stab-Sim raw change rate of −38.9%), making
+it currently the only agent that achieves a favor-
+able balance in the “learning–stability” tradeoff.
+Codex pursues an extreme efficiency route, trading
+minimal cost (TC= 1.000) and maximum consis-
+tency (Keff(Stab-Sim) = 0.969) for near-complete
+abandonment of learning capability (Keff(Conv) =
+0.095,K eff(Ret) = 0.000).
+These two patterns reveal the core tradeoff in
+current agent design: the tension between learn-
+ing depth and execution stability. GA’s aggressive
+learning strategy yields the highest evolutionary re-
+turns, but its dependence on memory retrieval qual-
+ity leads to instability in transfer and interference-
+resistance scenarios; Claude Code’s conservative
+strategy reduces memory management complexity
+through structured caching, achieving more reliable
+overall performance at the cost of partial learning
+depth.
+6 Conclusion
+This paper presents SEA-Eval, a systematic eval-
+uation framework for Self-Evolving Agents that
+integrates intra-task execution reliability and long-
+term evolutionary performance. We contribute a
+formal definition of the SEA paradigm grounded
+in digital embodiment and continuous cross-task
+evolution, and establish the Evolutionary Flywheel
+as its structural necessity. Building on this theo-
+retical foundation, SEA-Eval moves beyond per-
+formance snapshots to measure evolutionary tra-
+jectories directly, supported by a multidimensional
+metric system centered on Success Rate and Token
+Consumption, and a standardized dataset organized
+into sequential task streams for observing agent
+behavior in complex, non-stationary environments.
+Empirical results reveal a fundamental gap between
+apparent capability and genuine evolution: frame-
+works achieving identical success rates exhibit up
+to approximately 30× divergence in token consump-
+tion, and only architectures equipped with effective
+experience distillation demonstrate the monotonic
+convergence that distinguishes true evolution from
+pseudo-evolution. These findings suggest that self-
+evolving agents, as a form of continuously adap-
+tive digital entities, represent a meaningful step
+toward more capable and efficient autonomous sys-
+tems. Challenges remain in areas such as fully
+autonomous bootstrapping, subjective preference
+alignment, and systemic governance, and the eval-
+15
+
+uation principles established in this work provide a
+concrete foundation for addressing them in future
+research.
+7 Discussion and Future Work
+SEA-Eval establishes a rigorous foundation for
+evaluating the evolutionary dynamics of single-
+agent systems across intra-task reliability and long-
+term performance dimensions. However, the SEA
+paradigm as formalized in Section 3 opens several
+directions that extend beyond the current bench-
+mark’s scope. We organize these directions across
+three frontiers: the capability frontier, concerning
+what SEAs can do and how efficiently they do it;
+the evaluation frontier, concerning what aspects of
+SEA behavior remain difficult to measure; and the
+deployment frontier, concerning how SEAs can be
+safely and broadly instantiated in the real world.
+7.1 Expanding the Capability Frontier
+7.1.1 Toward Fully Autonomous
+Bootstrapping
+Current SEA deployments rely on human-provided
+task specifications to initialize the first execution
+cycle, from which the Evolutionary Flywheel be-
+gins distillation. A fully autonomous SEA must
+eventually initiate its own evolutionary cycle with-
+out human scaffolding—identifying performance
+bottlenecks, generating synthetic experiences, and
+triggering self-iteration in the absence of explicit
+external prompts. Solving this cold-start problem
+is a prerequisite for SEAs to achieve genuine gen-
+eralization in unknown domains, and represents
+a capability dimension not currently assessed by
+SEA-Eval.
+7.1.2 Balancing Reasoning Depth and
+Execution Efficiency
+The current SEA architecture relies on large lan-
+guage models as the cognitive core of the Cog-
+nition Hub, whose inference process introduces
+non-negligible latency overhead. For tasks re-
+quiring immediate feedback—such as real-time
+interaction, high-frequency operations, or latency-
+sensitive workflows—the output efficiency of cur-
+rent models falls short of practical deployment
+demands. This gap is particularly pronounced in
+industrial-grade scenarios, where model inference
+latency and task execution requirements diverge
+significantly, limiting the applicability of SEAs
+in such contexts. One promising direction is het-
+erogeneous multi-model orchestration: delegating
+latency-sensitive, high-frequency execution tasks
+to lightweight models while reserving large mod-
+els for offline experience distillation and strategic
+16
+
+planning. How to appropriately delineate the re-
+sponsibility boundary between these two classes of
+models, and how to introduce latency-aware eval-
+uation dimensions into the SEA-Eval framework,
+remain open problems for future work.
+7.1.3 Toward Collective Evolution:
+Multi-agent Co-evolution
+TheSEA formalization characterizes the evolution-
+ary dynamics of a single agent operating within a
+private memory stateM. However, the bounded
+capacity of a single agent’sM imposes an upper
+limit on achievable evolutionary gains, and expand-
+ing productivity beyond this ceiling naturally mo-
+tivates multi-agent coordination. When multiple
+SEAs operate within shared or overlapping envi-
+ronments, new questions emerge: how distilled
+knowledge in Mp should be selectively shared
+across agents without introducing noise from agent-
+specific execution contexts; how coupled Evolu-
+tionary Flywheels interact to produce system-level
+evolutionary gains that may exceed the sum of in-
+dividual contributions; and how functional special-
+ization emerges across agents over extended co-
+deployment. These questions require both theoreti-
+cal extensions to theSEA formalization and new
+system-level evaluation primitives beyond the indi-
+vidualKeff andKSR metrics defined in SEA-Eval.
+7.2 Expanding the Evaluation Frontier
+7.2.1 Subjective Preference and Deep
+Alignment
+SEA-Eval operationalizes user alignment through
+Kalign, which tracks the longitudinal reduction in
+user intervention rate as a behavioral proxy for
+preference internalization. However, this metric
+captures only the observable behavioral layer of
+alignment. A large class of alignment phenomena—
+such as the aesthetic quality of a generated presen-
+tation or the stylistic appropriateness of produced
+content—involve subjective, individualized judg-
+ments whose ground truth cannot be formalized as
+intervention frequencies or task success labels. Fu-
+ture research should explore evaluation paradigms
+that move beyond behavioral proxies toward richer
+preference elicitation methods, capturing the con-
+vergence between an agent’s evolved strategies and
+a user’s latent aesthetic and functional intent.
+7.3 Expanding the Deployment Frontier
+7.3.1 Safety and Systemic Governance
+As SEAs autonomously expandA and updateM,
+safety and governance become non-negotiable de-
+ployment requirements. Two structural insights
+frame this challenge. First, capability-permission
+parity: broader system permissions enhance evolu-
+tionary potential but proportionally scale the risk
+profile of autonomous self-modification, and no
+principled framework currently exists for calibrat-
+ing permission scope to evolutionary stage. Sec-
+ond, safety as system engineering: agent-level
+safeguards are inherently vulnerable to the same
+distillation failures that produce pseudo-evolution,
+making it necessary to enforce evolutionary bound-
+aries through underlying permission management
+frameworks and sandboxed execution environ-
+ments rather than relying on agent-level constraints
+alone. Future research should investigate how the
+Evolutionary Flywheel can be integrated into gov-
+erned scaffolding architectures that keep evolved
+assets in M auditable and controllable within
+mission-critical workflows.
+7.3.2 From Digital Embodiment to Embodied
+AI
+The SEA architecture is built around a modality-
+agnostic closed loop: the Execution Hub perceives
+environmental states, acts upon them, and returns
+feedback; the Cognition Hub distills the resulting
+trajectory into persistent memory updates viaΦ and
+Ψ. This loop is instantiated in digital environments
+through screen pixels and system logs feeding into
+keyboard and mouse actions, but its structural logic
+is isomorphic to the perception-action-feedback cy-
+cles of physical robotic systems. SinceΦ :τ→M
+and Ψ :M t→M t+1 are modality-independent
+by definition, the transition from digital to physi-
+cal embodiment is primarily a challenge of modal-
+ity adaptation rather than architectural reinvention.
+Digital environments therefore offer a high-fidelity,
+low-cost testbed for developing the evolutionary
+mechanisms that physical robotic systems will ulti-
+mately require.
+8 Ethics Statement
+Data Source and PrivacyAll tasks in SEA-Eval
+are constructed by human experts based on pub-
+licly available web resources and local system op-
+eration scenarios. No personal privacy data or user-
+sensitive information is involved. All web automa-
+17
+
+tion tasks target publicly accessible websites, and
+all local system operation tasks are executed within
+isolated sandbox environments, ensuring that no
+real user data is collected or stored during evalu-
+ation. The benchmark dataset and code will be
+publicly released upon publication to support re-
+producibility.
+Experimental SafetySince SEA operates with
+autonomous system-level capabilities including
+code execution, file manipulation, and environment
+configuration, all experiments in this paper are con-
+ducted strictly within containerized sandbox en-
+vironments. This ensures that agent operations
+produce no unintended effects on host systems or
+external environments.
+AI-Assisted Writing and Figure Generation
+This paper used Claude Sonnet 4.6 for language
+polishing and expression refinement during the
+writing process. The framework diagrams are gen-
+erated with the assistance of Gemini 3. All research
+design, experimental implementation, data analy-
+sis, and core arguments were completed indepen-
+dently by the authors. The use of these AI tools
+was limited to improving the fluency and academic
+conventions of English expression and the visual
+presentation of diagrams, and did not involve sub-
+stantive contributions to the research content.
+References
+Anthropic. 2025. Prompt caching: Reduc-
+ing latency and cost for long prompts.
+https://docs.anthropic.com/en/docs/
+build-with-claude/prompt-caching . Accessed:
+2025-06-01.
+Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen
+Chebotar, Xi Chen, Krzysztof Choromanski, Tianli
+Ding, Danny Driess, Avinava Dubey, Chelsea Finn,
+Pete Florence, Chuyuan Fu, Montse Gonzalez Are-
+nas, Keerthana Gopalakrishnan, Kehang Han, Karol
+Hausman, Alexander Herzog, Jasmine Hsu, Brian
+Ichter, and 35 others. 2023. Rt-2: Vision-language-
+action models transfer web knowledge to robotic con-
+trol. volume abs/2307.15818.
+Yuxuan Cai, Yipeng Hao, Jie Zhou, Hang Yan, Zhikai
+Lei, Rui Zhen, Zhenhua Han, Yutao Yang, Junsong
+Li, Qianjun Pan, Tianyu Huai, Qin Chen, Xin Li,
+Kai Chen, Bo Zhang, Xipeng Qiu, and Liang He.
+2026. Building self-evolving agents via experience-
+driven lifelong learning: A framework and bench-
+mark.Preprint, arXiv:2508.19005.
+Yuhong Cao, Jeric Lew, Jingsong Liang, Jin Cheng, and
+Guillaume Sartoretti. 2025. Dare: Diffusion policy
+for autonomous robot exploration. In2025 IEEE In-
+ternational Conference on Robotics and Automation
+(ICRA), pages 11987–11993. IEEE.
+Pengfei Du. 2026. Memory for autonomous llm agents:
+Mechanisms, evaluation, and emerging frontiers.
+arXiv preprint arXiv:2603.07670.
+Huan-ang Gao, Jiayi Geng, Wenyue Hua, Mengkang Hu,
+Xinzhe Juan, Hongzhang Liu, Shilong Liu, Jiahao
+Qiu, Xuan Qi, Yiran Wu, Hongru Wang, Han Xiao,
+Yuhang Zhou, Shaokun Zhang, Jiayi Zhang, Jinyu Xi-
+ang, Yixiong Fang, Qiwen Zhao, Dongrui Liu, and 8
+others. 2026. A survey of self-evolving agents: What,
+when, how, and where to evolve on the path to artifi-
+cial super intelligence.Preprint, arXiv:2507.21046.
+Zhibin Gou, Zhihong Shao, Yeyun Gong, Yelong Shen,
+Yujiu Yang, Nan Duan, and Weizhu Chen. 2024.
+CRITIC: large language models can self-correct with
+tool-interactive critiquing. InThe Twelfth Inter-
+national Conference on Learning Representations,
+ICLR 2024, Vienna, Austria, May 7-11, 2024. Open-
+Review.net.
+Chuanrui Hu, Tong Li, Xingze Gao, Hongda Chen, Dan-
+nong Xu, Yi Bai, Tianwei Lin, Xinda Zhao, Xiaohong
+Li, Jiaqi An, and 1 others. 2026. Evermembench:
+Benchmarking long-term interactive memory in large
+language models.arXiv preprint arXiv:2602.01313.
+Yue Huang, Jiawen Shi, Yuan Li, Chenrui Fan, Siyuan
+Wu, Qihui Zhang, Yixin Liu, Pan Zhou, Yao Wan,
+Neil Zhenqiang Gong, and 1 others. 2023. Meta-
+tool benchmark for large language models: Deciding
+whether to use tools and which to use.arXiv preprint
+arXiv:2310.03128.
+Carlos E. Jimenez, John Yang, Alexander Wettig,
+Shunyu Yao, Kexin Pei, Ofir Press, and Karthik
+Narasimhan. 2024. Swe-bench: Can language mod-
+els resolve real-world github issues?Preprint,
+arXiv:2310.06770.
+James Kirkpatrick, Razvan Pascanu, Neil Rabinowitz,
+Joel Veness, Guillaume Desjardins, Andrei A Rusu,
+Kieran Milan, John Quan, Tiago Ramalho, Ag-
+nieszka Grabska-Barwinska, and 1 others. 2017.
+Overcoming catastrophic forgetting in neural net-
+works.Proceedings of the national academy of sci-
+ences, 114(13):3521–3526.
+Jiaqing Liang, Jinyi Han, Weijia Li, Xinyi Wang, Zhou-
+jia Zhang, Zishang Jiang, Ying Liao, Tingyun Li,
+Ying Huang, Hao Shen, Hanyu Wu, Fang Guo, Keyi
+Wang, Zhonghua Hong, Zhiyu Lu, Lipeng Ma, Si-
+hang Jiang, and Yanghua Xiao. 2026. Genericagent:
+A token-efficient self-evolving LLM agent via contex-
+tual information density maximization (V1.0).CoRR,
+abs/2604.17091.
+Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu
+Lei, Hanyu Lai, Yu Gu, Hangliang Ding, Kaiwen
+Men, Kejuan Yang, Shudan Zhang, Xiang Deng, Ao-
+han Zeng, Zhengxiao Du, Chenhui Zhang, Sheng
+18
+
+Shen, Tianjun Zhang, Yu Su, Huan Sun, and 3 oth-
+ers. 2025. Agentbench: Evaluating llms as agents.
+Preprint, arXiv:2308.03688.
+Junyu Luo, Weizhi Zhang, Ye Yuan, Yusheng Zhao,
+Junwei Yang, Yiyang Gu, Bohan Wu, Binqi Chen,
+Ziyue Qiao, Qingqing Long, and 1 others. 2025.
+Large language model agent: A survey on method-
+ology, applications and challenges.arXiv preprint
+arXiv:2503.21460.
+Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler
+Hallinan, Luyu Gao, Sarah Wiegreffe, Uri Alon,
+Nouha Dziri, Shrimai Prabhumoye, Yiming Yang,
+Shashank Gupta, Bodhisattwa Prasad Majumder,
+Katherine Hermann, Sean Welleck, Amir Yazdan-
+bakhsh, and Peter Clark. 2023. Self-refine: Itera-
+tive refinement with self-feedback. InAdvances in
+Neural Information Processing Systems 36: Annual
+Conference on Neural Information Processing Sys-
+tems 2023, NeurIPS 2023, New Orleans, LA, USA,
+December 10 - 16, 2023.
+Charles Packer, Vivian Fang, Shishir_G Patil, Kevin
+Lin, Sarah Wooders, and Joseph_E Gonzalez. 2023.
+Memgpt: towards llms as operating systems.
+Cheng Qian, Chi Han, Yi Fung, Yujia Qin, Zhiyuan
+Liu, and Heng Ji. 2023. CREATOR: Tool creation
+for disentangling abstract and concrete reasoning of
+large language models. InFindings of the Associa-
+tion for Computational Linguistics: EMNLP 2023,
+pages 6922–6939, Singapore. Association for Com-
+putational Linguistics.
+Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan
+Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang,
+Bill Qian, Sihan Zhao, Lauren Hong, Runchu Tian,
+Ruobing Xie, Jie Zhou, Mark Gerstein, Dahai Li,
+Zhiyuan Liu, and Maosong Sun. 2024. Toolllm: Fa-
+cilitating large language models to master 16000+
+real-world apis. InThe Twelfth International Con-
+ference on Learning Representations, ICLR 2024,
+Vienna, Austria, May 7-11, 2024. OpenReview.net.
+Mizanur Rahman, Amran Bhuiyan, Mohammed Saidul
+Islam, Md Tahmid Rahman Laskar, Ridwan Mahbub,
+Ahmed Masry, Shafiq Joty, and Enamul Hoque. 2025.
+Llm-based data science agents: A survey of capabili-
+ties, challenges, and future directions.arXiv preprint
+arXiv:2510.04023.
+Noah Shinn, Federico Cassano, Ashwin Gopinath,
+Karthik Narasimhan, and Shunyu Yao. 2023. Re-
+flexion: language agents with verbal reinforcement
+learning. InAdvances in Neural Information Pro-
+cessing Systems 36: Annual Conference on Neural
+Information Processing Systems 2023, NeurIPS 2023,
+New Orleans, LA, USA, December 10 - 16, 2023.
+Jan Philip Wahle, Terry Ruas, Frederic Kirstein, and
+Bela Gipp. 2022. Embodied ai: From simulators to
+real-world deployment. volume abs/2210.03568.
+Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Man-
+dlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and
+Anima Anandkumar. 2023. V oyager: An open-ended
+embodied agent with large language models.arXiv
+preprint arXiv:2305.16291.
+Jun Wang, Jiamu Zhou, Xihuai Wang, Xiaoyun Mo,
+Haoyu Zhang, Qiqiang Lin, Jincheng Jincheng,
+Muning Wen, Weinan Zhang, and Qiuying Peng.
+2025. Hammerbench: Fine-grained function-calling
+evaluation in real mobile assistant scenarios. InFind-
+ings of the Association for Computational Linguistics:
+ACL 2025, pages 3350–3376.
+Lei Wang, Chen Ma, Xueyang Feng, Zeyu Zhang, Hao
+Yang, Jingsen Zhang, Zhiyuan Chen, Jiakai Tang,
+Xu Chen, Yankai Lin, and 1 others. 2024. A survey
+on large language model based autonomous agents.
+Frontiers of Computer Science, 18(6):186345.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten
+Bosma, Brian Ichter, Fei Xia, Ed H. Chi, Quoc V . Le,
+and Denny Zhou. 2022. Chain-of-thought prompting
+elicits reasoning in large language models. InAd-
+vances in Neural Information Processing Systems 35:
+Annual Conference on Neural Information Process-
+ing Systems 2022, NeurIPS 2022, New Orleans, LA,
+USA, November 28 - December 9, 2022.
+Zhiheng Xi, Wenxiang Chen, Xin Guo, Wei He, Yi-
+wen Ding, Boyang Hong, Ming Zhang, Junzhe Wang,
+Senjie Jin, Enyu Zhou, and 1 others. 2025. The
+rise and potential of large language model based
+agents: A survey.Science China Information Sci-
+ences, 68(2):121101.
+Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan
+Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhou-
+jun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu,
+Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caim-
+ing Xiong, Victor Zhong, and Tao Yu. 2024. Os-
+world: Benchmarking multimodal agents for open-
+ended tasks in real computer environments.Preprint,
+arXiv:2404.07972.
+Shunyu Yao, Noah Shinn, Pedram Razavi, and Karthik
+Narasimhan. 2024. τ-bench: A benchmark for
+tool-agent-user interaction in real-world domains.
+Preprint, arXiv:2406.12045.
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+Shafran, Karthik R. Narasimhan, and Yuan Cao. 2023.
+React: Synergizing reasoning and acting in language
+models. InThe Eleventh International Conference
+on Learning Representations, ICLR 2023, Kigali,
+Rwanda, May 1-5, 2023. OpenReview.net.
+Asaf Yehudai, Lilach Eden, Alan Li, Guy Uziel, Yilun
+Zhao, Roy Bar-Haim, Arman Cohan, and Michal
+Shmueli-Scheuer. 2025. Survey on evaluation of llm-
+based agents.arXiv preprint arXiv:2503.16416.
+Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu
+Lin, Yong-Jin Liu, and Gao Huang. 2024. Ex-
+pel: Llm agents are experiential learners.Preprint,
+arXiv:2308.10144.
+19
+
+Junhao Zheng, Xidi Cai, Qiuke Li, Duzhen Zhang,
+ZhongZhi Li, Yingying Zhang, Le Song, and
+Qianli Ma. 2025. Lifelongagentbench: Evalu-
+ating llm agents as lifelong learners.Preprint,
+arXiv:2505.11942.
+Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou,
+Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue
+Ou, Yonatan Bisk, Daniel Fried, Uri Alon, and Gra-
+ham Neubig. 2024. Webarena: A realistic web envi-
+ronment for building autonomous agents.Preprint,
+arXiv:2307.13854.
+A Normalization Methodology
+To enable cross-metric comparison on radar charts,
+we normalize all raw metrics to the [0,1] interval.
+Since different metrics have distinct physical se-
+mantics and value ranges, we adopt metric-specific
+normalization strategies (shown in Table 5):
+Design Rationale.For stability metrics (Stab-
+Id/Stab-Sim), we adopt exponential decay rather
+than linear mapping. The motivation is that small
+fluctuations in token consumption (e.g., <20% )
+are typically acceptable in practice and should not
+incur linear penalties, whereas large fluctuations
+(e.g., >50% ) should be substantially penalized.
+The exponential function exp(−|x|) exhibits a gen-
+tle gradient near the origin and rapid decay away
+from it, precisely matching this physical intuition.
+B Functional Boundary Between Φ and Ψ
+The formal definition of SEA in Section 3.1 in-
+troduces two functions, Φ :τ→∆M and
+Ψ :M t×∆M→M t+1, whose functional bound-
+ary warrants explicit clarification, as conflating
+their roles leads to an inconsistent interpretation of
+the SEA’s evolutionary mechanism.
+The Role of Φ: Experience Distillation. Φ op-
+erates on the raw interaction trajectoryτ produced
+by a single task execution and is responsible for ex-
+tracting structured knowledge from it. Specifically,
+Φ performs causal attribution to identify the critical
+decision subsequenceτ ∗⊂τ that produced the ob-
+served outcome, and abstractsτ ∗ into a structured
+knowledge update ∆M. This update is decom-
+posed across the three memory layers: successful
+execution paths are abstracted into parameterized
+strategies destined forMp; failure attributions and
+diagnostic records are destined for Me; and in-
+ferred environmental constraints and user prefer-
+ence signals are destined for Md. Critically, Φ
+operates at the level of a single trajectory and pro-
+duces a candidate update—it does not directly mod-
+ifyM. The quality of Φ’s output is determined
+by its abstraction capacity: a high-quality Φ lifts
+instance-specific execution details to the level of
+generalizable strategies, while a low-quality Φ pro-
+duces updates that are overfitted to the specific
+trajectory and fail to transfer to structurally similar
+future tasks.
+The Role of Ψ: Selective Memory Integration.
+Ψ operates on the current memory state Mt and
+the candidate update ∆M produced by Φ, and is
+responsible for determining which components of
+∆M are committed to the persistent memory state
+Mt+1. This selectivity serves two purposes. First,
+it preserves evolutionary stability by suppressing
+updates that fail to meet generalizability criteria—
+preventing instance-specific knowledge from pol-
+lutingMp and degrading the quality of future re-
+trievals. Second, it manages memory capacity by
+suppressing redundant updates that duplicate exist-
+ing entries inMt, preventing unbounded growth of
+M that would increase retrieval overhead over time.
+Ψ therefore acts as a gating mechanism between
+the distillation process and the persistent memory
+state, ensuring thatM grows in quality rather than
+merely in cardinality.
+The Interaction Between Φ and Ψ.The two
+functions are sequentially coupled: Φ is applied
+first to produce ∆M, which is then passed to Ψ
+for selective integration. This sequential coupling
+has an important implication for failure mode anal-
+ysis: the quality ofMt+1 depends jointly on the
+abstraction quality of Φ and the selectivity preci-
+sion of Ψ. A high-quality Φ paired with an overly
+conservative Ψ will suppress genuinely general-
+izable updates, stunting evolutionary growth; a
+low-quality Φ paired with an overly permissive
+Ψ will admit instance-specific noise intoMp, de-
+grading retrieval precision. The evolutionary fly-
+wheel operates optimally when both functions are
+jointly calibrated—a constraint that has direct im-
+plications for the design of SEA architectures and
+the diagnosis of pseudo-evolution, as discussed in
+Appendix C.
+Degenerate Case: Episodic Agents.In episodic
+agents, both Φ and Ψ degenerate to null operations.
+Φ produces an empty update ∆M=∅ at every
+task boundary, and Ψ trivially mapsMt to a reset
+stateM t+1 =∅regardless of any input. The SEA
+20
+
+Table 5: Normalization strategies for each metric dimension.
+Metric Formula Rationale
+SR raw (already in[0,1]) Direct use
+TC clip(1−raw/max,0,1)Lower is better; invert
+Keff(Evo) clip(raw,0,1)Positive = improvement
+Keff(Conv) clip(raw,0,1)Positive = fast learning
+Ktrans clip(−raw/2,0,1)Negative raw = effective transfer
+Keff(Stab-Id)exp(−|raw|)Near-zero = stable
+Keff(Stab-Sim)exp(−|raw|)Near-zero = stable
+Keff(Ret) clip(raw,0,1)Positive = good retention
+definition formally demarcates this boundary by re-
+quiring both functions to be non-trivial: any system
+in which Φ consistently produces ∆M=∅ or Ψ
+consistently discards all updates is, by definition,
+an episodic agent, regardless of the sophistication
+of its within-task reasoning.
+C Diagnostic Analysis of Evolutionary
+Flywheel Failure Modes
+Section 3.3.3 identifies two theoretically distinct
+failure modes—distillation failure and retrieval
+failure—through which the Evolutionary Flywheel
+degrades into pseudo-evolution. As noted there,
+both failure modes produce an identical primary
+behavioral signature: execution cost fails to de-
+crease across sequential task variants and scales
+linearly with task frequency rather than converging.
+This behavioral equivalence at the observation level
+raises a diagnostic question: given an agent ex-
+hibiting pseudo-evolution, how can one determine
+which failure mode is responsible? This appendix
+provides a formal characterization of each failure
+mode and discusses how they can be distinguished
+through auxiliary execution traces.
+C.1 Formal Characterization of Failure
+Modes
+Distillation Failure.Distillation failure occurs
+when Φ cannot perform effective causal attribution
+on the raw interaction trajectoryτ. Formally, letτ ∗
+denote the critical decision subsequence causally
+responsible for the observed outcome. Distillation
+failure arises when Φ either (1) fails to identifyτ ∗
+withinτ—producing a memory update ∆M that
+encodes instance-specific details rather than gener-
+alizable strategies—or (2) produces a ∆M of in-
+sufficient abstraction quality such that Ψ correctly
+commits it toMt+1, yet the committed knowledge
+fails to transfer to structurally similar future tasks.
+In both cases, Mp remains effectively inert: its
+cardinality may increase across task boundaries,
+but its entries do not reduce execution overhead in
+subsequent tasks. Distillation failure can arise from
+two sources: trajectory noise, in which the raw tra-
+jectoryτ contains a high proportion of irrelevant or
+contradictory actions that obscure the causal struc-
+ture; and insufficient abstraction capacity, in which
+the Cognition Hub lacks the reasoning depth to lift
+instance-specific execution details to the level of
+reusable parameterized strategies.
+Retrieval Failure.Retrieval failure occurs when
+the Execution Hub cannot identify structural sim-
+ilarity between a new task and existing entries in
+M, despiteMp containing relevant and general-
+izable strategies. Formally, let m∗∈M p denote
+the memory entry most relevant to the current task.
+Retrieval failure arises when the similarity function
+used to queryM assignsm∗ a rank below the re-
+trieval threshold, causing the Execution Hub to de-
+fault to zero-shot reasoning and bypass the flywheel
+entirely. Retrieval failure is particularly likely un-
+der environmental drift: when the surface-level fea-
+tures of a new task diverge from those of previously
+encountered tasks—due to interface changes, do-
+main shifts, or linguistic reformulations—shallow
+similarity metrics fail to recognize the underlying
+structural correspondence. Unlike distillation fail-
+ure, retrieval failure does not imply any deficiency
+in the quality of Mp; the knowledge is present
+and generalizable, but inaccessible to the retrieval
+mechanism under the current task presentation.
+C.2 Diagnostic Distinction via Auxiliary
+Execution Traces
+Although both failure modes produce identical pri-
+mary signatures in terms of token consumption
+trajectories, they leave distinguishable traces in
+auxiliary execution data. We describe two diagnos-
+tic approaches that can be applied when detailed
+execution logs are available.
+21
+
+Memory Update Monitoring for Distillation Fail-
+ure.Distillation failure can be diagnosed by in-
+specting the content and growth trajectory ofMp
+across sequential task executions. Specifically, if
+Mp grows in cardinality across task boundaries
+yet execution overhead does not decrease, this is
+consistent with distillation failure: new entries are
+being committed toMp, but they lack sufficient
+generalizability to influence future execution paths.
+A more direct diagnostic signal is thestrategy reuse
+rate: the proportion of execution steps in taskt that
+invoke a strategy retrieved fromMp rather than
+generated through zero-shot reasoning. In distil-
+lation failure, the strategy reuse rate remains near
+zero even as|Mp| grows, indicating that commit-
+ted entries are not being matched to—or are being
+matched but failing to reduce the reasoning burden
+of—subsequent tasks. This distinguishes distilla-
+tion failure from retrieval failure, in which the strat-
+egy reuse rate is also near zero but for a different
+reason: relevant entries exist in Mp but are not
+retrieved.
+Retrieval Trace Analysis for Retrieval Failure.
+Retrieval failure can be diagnosed by inspecting the
+retrieval traces produced during task execution—
+specifically, the ranked list ofMp entries returned
+by the similarity query for each task. If the retrieval
+trace shows thatMp contains entries that are struc-
+turally relevant to the current task (as assessed by
+post-hoc human or automated analysis) yet these
+entries receive low similarity scores and are not
+surfaced to the Execution Hub, this constitutes di-
+rect evidence of retrieval failure. A complementary
+diagnostic is theretrieval precision under pertur-
+bation: given a taskt and a known-relevant entry
+m∗∈M p, retrieval failure is confirmed if small
+surface-level reformulations oft—that preserve its
+structural execution requirements—produce large
+changes in the rank of m∗ in the retrieval out-
+put. This sensitivity to surface-level variation is
+the defining characteristic of retrieval failure under
+environmental drift.
+C.3 Implications for SEA-Eval
+The diagnostic framework described above has di-
+rect implications for the interpretation of SEA-Eval
+results. The primary metric of token consumption
+trajectory, as defined in Section 4.2, serves as the
+first-order signal for detecting pseudo-evolution.
+When pseudo-evolution is detected, the auxiliary
+metrics defined in Section 4.2—in particular exe-
+cution stepsS and self-correction frequencyNfix—
+provide partial diagnostic information: a highNfix
+with stable S is more consistent with distillation
+failure (the agent is attempting execution but fail-
+ing to leverage prior experience), while a lowNfix
+with highT is more consistent with retrieval fail-
+ure (the agent is engaging in extensive zero-shot
+reasoning without attempting to retrieve fromM).
+Full diagnostic resolution, however, requires ac-
+cess to internal memory update logs and retrieval
+traces, which are available in controlled experimen-
+tal settings but may not be accessible in black-box
+agent evaluations. SEA-Eval therefore treats failure
+mode diagnosis as a best-effort auxiliary analysis
+rather than a primary evaluation requirement, and
+encourages future benchmark extensions to incor-
+porate standardized memory and retrieval logging
+interfaces to enable systematic diagnostic evalua-
+tion.
+22

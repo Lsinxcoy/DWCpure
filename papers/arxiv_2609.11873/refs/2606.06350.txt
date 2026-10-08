@@ -1,0 +1,1595 @@
+Edit: Evidence-Diagnosed Intervention Training
+for Rule-Faithful LLM Grading
+Zhihao Wu1∗ Linhai Zhang1∗ Taiyi Wang2∗ Runcong Zhao1
+Peter Andrews3 Cesare Aloisi3 Yulan He1,4†
+1King’s College London 2University of Cambridge 3AQA 4The Alan Turing Institute
+{zhihao.2.wu, linhai.zhang, runcong.zhao, yulan.he}@kcl.ac.uk
+taiyi.wang@cl.cam.ac.uk,{peter.andrews, caloisi}@aqa.org.uk
+Abstract
+Reliablerubricgradingrequiresmorethanaccu-
+rate score prediction. Each judgement must be
+groundedinthemarkschemeandevidencefrom
+the student answer. Existing credit-assignment
+and intervention methods, primarily designed
+forself-containedreasoningtaskssuchasmath-
+ematics reasoning, struggle in this setting be-
+cause they do not identify where grading rea-
+soning goes wrong or how the model’s belief
+about the final mark changes during reason-
+ing. WeproposeEvidence-DiagnosedInterven-
+tion Training (Edit), a two-phase framework
+for training more rubric-faithful LLM graders.
+First,Edit-SFTlocates problematic reasoning
+steps using internal model signals: posterior
+belief over the final mark and input-grounding
+scores. It then revises only these local steps
+withhelpfromarubricchecklist. Second,Edit-
+RLcalibrates the grader with belief-guided
+reward shaping, penalising large harmful belief
+drifts while still allowing helpful exploration.
+Experiments on two real-world, multi-subject
+gradingbenchmarksdemonstratethatEditcon-
+sistently outperforms strong supervised fine-
+tuning and reinforcement learning baselines on
+both in-domain and out-of-domain splits, with
+ablation studies confirming that internal-state
+diagnostics drive these gains. Under determin-
+istic rubric-edit interventions,Edit-SFTis the
+most rule-responsive of all evaluated systems,
+andEdit-RLlargely retains this responsiveness
+while improving accuracy.
+1 Introduction
+Grading a student’s exam response is a rule appli-
+cation task. A grader needs to read the student
+answer, compare it with an explicit mark scheme,
+and assign a holistic mark. Large language mod-
+els (LLMs) are increasingly deployed as automatic
+graders (Grévisse, 2024; Li et al., 2025; Lai et al.,
+2025; Wang et al., 2025). However, training them
+∗ Equal contribution.
+† Corresponding author.
+Figure 1: An illustration of a 4-mark grading question.
+The shared prefix (S1–2) correctly credits two criteria,
+but the standard grader then rejects two correct phrases
+duetowordingmismatches(S3), shiftingitsbeliefaway
+from the gold mark and concluding 2/4.Editlocally
+revisesonlythatstep(S3 ′),linkingeachdisputedphrase
+to its rubric criterion, which pulls the belief trajectory
+back to the gold mark and restores the correct mark.
+to grade reliably remains difficult. The final mark
+depends on a sequence of intermediate judgements,
+such as which rubric criteria are satisfied, what
+evidence supports them, which mark band applies,
+and how partial credits compose.
+This makes rubric grading a demanding credit-
+assignment problem. Outcome-based reinforce-
+ment learning (RL) methods such as GRPO (Shao
+etal.,2024)assignasinglefinalrewardtothewhole
+reasoning trajectory (Pignatelli et al., 2024), and
+they cannot identify which reasoning step caused
+an incorrect mark. More fine-grained credit as-
+signmentmethods,suchastoken-reallocationmeth-
+ods (Jin et al., 2026) or intervention-style train-
+ing (Yang et al., 2026), offer a possible remedy.
+1
+arXiv:2606.06350v2  [cs.CL]  2 Sep 2026
+
+However,thesemethodswereprimarilydesigned
+forself-containedreasoning tasks like mathemat-
+ics, where the answer can often be checked by a
+verifier and the error is usually local. They are less
+suited torule-application reasoningtasks, where
+judging an answer requires checking whether each
+step correctly invokes and applies an external rule,
+rubric, or policy. Rubric grading has two addi-
+tional requirements. First, it requiresexternal
+grounding. Rather than just maintaining internal
+logical consistency, each judgement step must be
+anchoredinboththemarkschemeandthestudent’s
+written evidence. Second, rule-based reasoning is
+anuncertainty reductionprocess. The model’s
+belief about the final mark should progressively
+converge. Existing methods do not directly control
+this decision trajectory. Outcome-only RL ignores
+harmful belief shifts that occur in the middle of
+reasoning process, while token-level constraints
+can over-penalise benign exploratory phrasing.
+To address these challenges, we introduceEdit
+(Evidence-Diagnosed Intervention Training), a
+novel two-phase framework for training rubric-
+faithful LLM graders. As shown in Figure 1, rather
+than relying on prompt-based self-audits or rigid
+token-level rewards,Edituses the model’s internal
+decision signals to locate grading failures, revise
+them locally, and calibrate how the model’s belief
+over the final mark evolves during reasoning. Both
+phases read the same internal quantity, the model’s
+posterior belief over the final mark. The first phase
+uses harmful transitions of this posterior to locate
+the step to repair, and the second constrains its
+trajectory during RL, so the supervision and the
+reward act in one shared coordinate system (§3.2).
+To enforce strict external grounding, the first
+phase,Edit-SFT,replacesprompt-basedself-audits
+withinternal-statelocalisation. Ateachreasoning
+step, it inspects the model’s posterior belief over
+thefinalmarkandcomputesmask-basedgrounding
+signals that measure whether the step depends on
+the student answer, the rubric, and the preceding
+reasoning steps. These signals identify where the
+reasoning first moves away from the correct mark
+or becomes weakly grounded. The selected step
+is then revised as a small atomic edit under a lo-
+cality constraint. A rubric checklist is provided as
+privileged context, helping the reviser use the mark
+scheme without forcing the output to follow a rigid
+checklist format.
+Tomanagetheuncertaintyreductionprocess,the
+second phase,Edit-RL, introducesbelief-guided
+reward shapingfor calibration RL. Instead of
+reallocating sequence-level reward across tokens,
+Edit-RLaugments the standard mark-distance out-
+comerewardwithapenaltyforlargemid-trajectory
+belief drifts. Small fluctuations are allowed as be-
+nign exploration, but belief drifts that move too far
+from the gold mark are penalised in proportion to
+their excess.
+Experimental results on two real-world, multi-
+subject student response grading benchmarks
+demonstrate thatEditsignificantly outperforms
+strong SFT and RL baselines on both in-domain
+and out-of-domain splits. Furthermore, ablation
+studies confirm that our internal-state diagnostics
+are the primary source of these performance gains.
+In conclusion, our contributions are three-fold:
+• We introduceEdit, a novel two-phasetrain-
+ing framework for rubric-faithful grading,
+that adapts credit assignment to externally
+grounded rubric grading rather than closed-
+system reasoning.
+• We replace unreliable prompt-based self-
+audits with robust posterior and grounding
+signals (Internal State Diagnostics), and
+use rubric-checklist context to support local
+atomic revisions without imposing a rigid out-
+put template.
+• We propose a calibration RL mechanism,
+calledBelief-Guided Reward Shaping, that
+penalises severe mid-trajectory belief drifts
+whiletoleratingbenignexploration,improving
+grading accuracy and out-of-domain generali-
+sation.
+2 Methodology
+Edit(Evidence-Diagnosed Intervention Training)
+fine-tunes an LLM grader in two phases (Fig. 2).
+Phase 1 (Edit-SFT, §2.2) builds a supervised train-
+ing set by revising small, local parts of incorrect
+reasoning steps. Theatomicsteps to revise are cho-
+senusingthemodel’sowninternalbeliefsignalsand
+grounding signals. The revised content is guided
+by arubric-checklist, which is extracted from the
+markschemeandthestudentanswer. Phase2(Edit-
+RL, §2.3) then calibrates the resulting policy with
+group-relative outcome-RL. The reward is shaped
+by the posterior belief signal used in Phase 1, giv-
+ing amarking-task-alignedformulation thatwecall
+Belief-guided Reward Shaping.
+2
+
+EDIT-SFT: Rule-Aware Atomic Intervention 
+1
+Rubric 
+checklist
+✓
+✓
+✓
+✓
+✓
+Locate 
+flawed 
+substeps
+𝑠2
+𝑠3
+…
+𝑠𝑇
+𝑠1
+2
+Atomic 
+local 
+revision
+𝑠2,1
+𝑠2,2
+𝑠2,3
+𝑠2
+3
+(1-3)
+Regenerate 
+& filter
+4
+𝑠2,1
+… ……
+𝑚∗
+privileged guidance
+✓
+✓
+𝐺𝑘
+𝜌
+∆𝜖𝑘 = 𝜖𝑘−1 − 𝜖𝑘
+A Posterior Belief
+Inputs
+Question q
+Marking rules 𝜌
+Student answer a
+Base LLM grader rollout
+𝑠1 𝑠2 𝑠3 → ...
+predicted mark m ✗
+B Grounding audit
+Internal State Signals 
+Sample 
+rollouts from 
+SFT policy
+Reward shaping
+Frozen 
+posterior probe
+from EDiT-SFT
+EDIT-RL: Belief-Guided Reward Shaping
+2
+𝑟𝑜 𝑢 𝑡= m a x(0,1− |𝑚 −𝑚∗|
+𝑀𝑞
+)
+1
+𝑟 =
+𝑟out+ 𝛾𝜙 · 𝑟shape
+SFT
+a. Outcome reward
+belief
+m*
+βdrift
+1       k      T
+b. Belief-guided shaping
+𝑟s h a p e= − 1
+𝑀𝑞
+1
+𝑇
+෍
+𝑘
+max0, ത𝑚𝑘 −𝑚∗ −𝛽
+GRPO
+optimization
+3
+Final calibrated 
+LLM grader
+Combine loss
+GRPO
+𝒔𝟏  →...
+→𝒔𝒕
+(𝟐)→  𝒎(𝟐)
+𝒔𝟏  →...
+→𝒔𝒕
+(𝑵)→  𝒎(𝑵)
+𝒔𝟏  →...
+→𝒔𝒕
+(𝟏)→  𝒎(𝟏)
+...
+𝑟 =
+𝑟out+ 𝛾𝜙 · 𝑟sha p e
+Blue: signal extraction 
+(internal states)
+Green: Phase 1 
+(supervised intervention)
+Beige: Phase 2 
+(RL calibration)𝐺𝑘
+𝑎 𝐺𝑘
+𝑝
+Figure 2: TheEditpipeline.Phase 1 (Edit-SFT):For incorrect rollouts, internal-state signals, a posterior belief
+probe and masked-support grounding audits, locate and rank flawed substeps. A per-response rubric checklist is
+then provided to the reviser as privileged input (dashed arrow) to produce atomic corrective edits under a locality
+constraint, without imposing a rigid output template. These corrected trajectories are aggregated for supervised
+fine-tuning (SFT).Phase 2 (Edit-RL):The SFT policy is further calibrated using GRPO, augmented with a
+threshold-respecting, belief-guided reward (Eq. 6). This shaping signal is computed from a frozen posterior probe to
+penalise mid-trajectory excursions.
+2.1 Internal State Signals
+Editfirst extracts two step-level internal-state sig-
+nals from the grading model (i.e., policy), both
+computed offline from existing rollouts. Consider
+a rollout be generated for the questionq, marking
+rulesρ,andastudentanswer a. Therolloutcontains
+T reasoningsteps s1:T. Foreachstepboundary,we
+compute two signals.
+Posterior belief probe.At step boundary k∈
+{0,...,T} , we estimate the policy’s belief about
+the final integer mark,m∈{0,...,M q}, where
+Mq is the maximum available mark for questionq.
+To do this, we append the final markingscaffoldto
+the partial reasoning chain and read the next-token
+logits over the valid mark tokens:
+ˆpk(m)∝exp(logit θ(m|q,ρ,a,s 1:k,scaff.))(1)
+From ˆpk, we derive the expected mark ˆmk =
+Em∼ˆpk[m] and its absolute errorϵk =|ˆmk−m∗|,
+where m∗ is the gold mark. We then define the
+signed per-step change as:
+∆ϵk =ϵ k−1−ϵk (2)
+A positive value means that stepsk moved the
+policy’s beliefcloserto the gold mark, while a
+negative value means that the step moved the belief
+farther away. Thus, the sign shows whether the
+reasoning step locally helped or hurt the model’s
+marking belief.
+Mask-based grounding audit.For each reason-
+ingstep sk,wecomputemask-basedsupportscores
+that measure how much the likelihood ofsk de-
+pends on three information sources: the marking
+ruleρ, the student answera, and the reasoning pre-
+fixs<k = (s1,...,s k−1). Let ℓk(q,ρ,a,s <k) =
+−logp θ(sk|q,ρ,a,s <k) denote the negative log-
+likelihood of stepsk under the full context. We
+write
+ℓfull
+k =ℓ k(q,ρ,a,s <k).
+The support scores are then defined as
+Gρ
+k =ℓ k(q,[MASK],a,s <k)−ℓ full
+k ,
+Ga
+k =ℓ k(q,ρ,[MASK],s <k)−ℓ full
+k ,
+Gp
+k =ℓ k(q,ρ,a,∅)−ℓ full
+k .(3)
+Larger values indicate thatsk is more strongly
+supported by the corresponding masked input
+source. For example, if masking the student an-
+swer makes the step much harder to predict, then
+the step is likely grounded in the student answer.
+BecauseGp
+k naturallyincreasesforlatersteps(later
+steps tend to depend more on the earlier reasoning
+prefix), we use a position-residualisedeGp
+k as the
+reasoning-prefix-support score. Letui,k =k/T i
+3
+
+denote the relative position of stepk in example
+i, andletµp(u) =E (i,j)∼D
+h
+Gp
+i,j
+ui,j =u
+i
+bethe
+dataset-level mean prefix-support score at relative
+positionu. We then define
+eGp
+i,k =G p
+i,k−µp(ui,k).(4)
+Thisauditisaninput-ablationprobe. Wereplace
+one input section with a placeholder and measure
+how much harder it becomes to predict the already-
+generated step. We validate this audit against ex-
+ternal per-step labels produced by a stronger an-
+notator model, as reported in Appendix E. The
+grounding-audit scores correlate with these labels
+in the expected direction, and Appendix F further
+validates the causal utility of the selected steps.
+2.2 Phase 1:Edit-SFT
+Edit-SFTbuildsasupervisedtrainingpoolbyrevis-
+ing small parts of incorrect rollouts. Each rollout
+passes through four sub-stages: rubric-checklist
+generation, candidate step selection using inter-
+nal signals, atomic revision, and outcome filtering.
+Successful revisions are then mixed with naturally
+correct rollouts and used as SFT targets.
+Rubric-checklist.For each sample xi =
+{qi,ρi,ai}, we generate a rubric-checklist by
+promptingthepolicywiththegoldmark m∗
+i aspriv-
+ileged information (available only during training-
+pool construction, not at inference). The policy is
+asked to list every marking point verbatim and to
+judge whether each point is covered, supported by
+a quoted evidence span. This checklist is later used
+as context during intervention.
+Candidate steps selection.In this phase, we lo-
+cate steps in an incorrect rollout (m̸=m ∗) that
+should be edited, using the internal-state signals of
+§2.1. Steps are firstshortlisted by the belief-shift
+criterionalone: werankstepsbythemost-negative
+∆ϵk, discard positive or near-tie values, and keep
+the top-k that most strongly moved the belief away
+from the gold mark. A step with a large negative
+belief shift but strong grounding, where the evi-
+dence was available yet the judgement still went
+wrong, is thus fully eligible and is our primary
+target. The grounding audit thenre-ranks within
+this shortlist, promoting steps whoseGρ
+k,Ga
+k, and
+eGp
+k all fall below the dataset-wide 25th percentile
+ahead of the others before the final candidate selec-
+tion. The audit never excludes a step. Algorithm 1
+(Appendix C) gives the full procedure, Appendix F
+validates this rule against random and belief-shift-
+only alternatives, and implementation details are in
+Appendix B.
+Atomic revision under locality constraint.For
+each selected candidate stepsk, we ask the policy
+to revise it into 1–3 new sub-steps that fix only
+the local reasoning error. The prompt includes the
+sample context{q,ρ,a} , the full reasoning attempt
+withsk highlighted, the internal-signal diagnostic,
+and the previously generated rubric checklist.
+The revision must satisfy a locality constraint,
+ensuring that the intervention does not destroy the
+reasoning structure or coherence of the original
+rollouts. The constraint also prevents the revised
+step from simply copying dense information or
+oracle knowledge from the gold mark or rubric
+checklist. The details for the prompt and checklist-
+mimicry detector are shown in Appendix J.
+Pool composition and training.For each revi-
+sion, we sampleN continuations and retain the
+revision if any continuation reaches the correct
+mark,m=m ∗. The surviving rollouts are used as
+SFTsamples. Topreservethepolicy’sperformance
+on easy or already-correct cases, we also mix the
+originally successful rollouts in the training pool.
+The policy is then trained on this combined dataset.
+2.3 Phase 2:Edit-RL
+Initialised from theEdit-SFTpolicy,Edit-RLap-
+plies distance-aware GRPO (Shao et al., 2024)
+augmented by a belief-guided reward shaping term.
+By re-using the same posterior probe, this shaping
+term calibrates marking accuracy while penalising
+harmful drifts in intermediate beliefs.
+Distance-aware outcome reward.We use a
+dense reward based on mark distance:
+rout = max
+
+0,1− |m−m∗|
+Mq
+
+(5)
+withrout = 0 on parse failure. This reward gives
+higher scores to rollout whose predicted markm
+is closer to the gold markm∗, providing distance-
+sensitive signal for RL calibration.
+Belief-guided reward shaping.AfterEdit-SFT,
+the model has learned to avoid reasoning steps that
+cause large harmful drifts in its posterior marking
+belief. InEdit-RL, we strengthen this behaviour
+by adding a per-rollout shaping signal that uses
+the posterior probe to check whether the model’s
+4
+
+belief drifted too much from the gold mark at any
+intermediate step:
+rshape =− 1
+Mq
+1
+T
+TX
+k=1
+max
+ 
+0,|ˆmk−m∗|−β drift
+
+,
+(6)
+where ˆmk is the expected posterior mark at step
+boundaryk (Eq. 1). The thresholdβdrift is anex-
+ploration tolerance, measured in raw marks, which
+accepts small belief fluctuations that may reflect
+usefulexploration. However,whenthebeliefmoves
+beyond this tolerance, the rollout is penalised in
+proportion to the size of excess drift. The total
+reward is:
+r=r out +γ Φ·r shape (7)
+This reward is used directly in the distance-aware
+GRPO objective. As a result, a rollout can be
+penalised relative to others in the same group if it
+containsalargebeliefdeviation,evenwhenitsfinal
+mark is close tom∗.
+The posterior belief probe is run on thefrozen
+Edit-SFTcheckpoint rather than the active pol-
+icy. This maintains a stationary shaping signal,
+reduces computational overhead, and prevents re-
+ward hacking. We validate this choice by proving
+a small KL divergence between the trained policy
+with the initialised reference in Appendix D. Al-
+though this relaxes the strict policy-invariance of
+classic PBRS (Ng et al., 1999), it provides a stable,
+task-aligned constraint that significantly enhances
+out-of-distribution generalisation.
+3 Experiment
+3.1 Experiment Setup
+DatasetsWeevaluatepolicygradingontwocom-
+plementary benchmarks, covering five datasets in
+total. ThefirstbenchmarkisSAS,drawnfromSAS-
+Bench (Lai et al., 2025), a Chinese short-answer
+scoring benchmark. We use its three diverse sub-
+jects (History, Geography, and Physics). The sec-
+ond benchmark isPrivate-Science1, a proprietary
+collection of student responses to GCSE-level sci-
+ence exam questions in two subjects (Biology and
+Physics), each marked by trained examiners against
+an official mark scheme. The two benchmarks are
+deliberately complementary. SAS comprises many
+questions with only a handful of responses each,
+1A proprietary dataset shared with us under a data-sharing
+agreement. Licensing and privacy constraints prevent public
+release.
+whilePrivate-Sciencecontainsfewerquestions,but
+each is answered by hundreds of students. Full
+dataset statistics are given in Appendix A.
+EvaluationprotocolForPrivate-Science,weuse
+three splits: a train set, anin-distribution (ID)test
+set of held-out responses to questions thatappear
+in training, and anout-of-distribution (OOD)test
+set of responses to questions that areneverseen in
+training. Separating ID from OOD tests whether a
+grader generalises to unseen questions rather than
+fitting question-specific surface patterns. SAS has
+no ID split. Each SAS question receives only two
+to five responses, so we evaluate the SAS only on
+the OOD questions, treating the SAS dataset as a
+subject-level fitting question.
+Followingstandardpracticeinautomatedscoring
+(Li et al., 2025), we use quadratic weighted kappa
+(QWK) as the main metric, macro-averaged over
+questions. We also report exact-match accuracy,
+within-1 accuracy, and mean absolute error (MAE).
+BaselinesAll methods useQwen3-8Bas the pol-
+icy model, adapted with LoRA. Training details
+are reported in Appendix B. We keep the backbone
+fixed across methods so that performance differ-
+ences mainly reflect the training objective rather
+thanmodelcapacity. Wecompareourmethodafter
+each phase (Edit-SFTandEdit-RL) against four
+baselines:
+(1)Base, the off-the-shelf Qwen3-8B grader.
+(2) GRPO(Shaoetal.,2024),RLonstandardgroup-
+relative distance-aware outcome-reward.
+(3) DGPO (Jin et al., 2026), RL with distribution-
+guided token-level advantage reallocation.
+(4) InT (Yang et al., 2026), using SFT and RL
+stages based on self-proposed interventions.
+Editand InT contain an SFT stage followed by
+an RL stage, whereasGRPO and DGPO apply RL
+directly to the base model.
+3.2 Grading Performance
+We first discuss the public SAS benchmark, where
+every evaluation question is unseen during training.
+As shown in Table 1,Edit-RLachieves the best
+results on average across all metrics. In particular,
+it improves macro-QWK from0.727for Baseand
+0.731 for InT to 0.794. These results show that
+the method improves grading accuracy in a fully
+OOD setting.
+The subject-level results show some variation.
+Edit-RLgives the best QWK on History and
+Physics. InT-RLremains strongest on History for
+5
+
+Subject MetricBase RL-onlyInTEdit(Ours)
+GRPO DGPO SFT RLEdit-SFT Edit-RL
+History
+ACC↑0.419 0.471 0.462 0.426 0.461 0.4540.477
+within-1↑0.512 0.597 0.600 0.5660.6250.569 0.623
+MAE↓2.612 1.883 1.865 1.8521.5691.952 1.615
+QWK↑0.783 0.873 0.876 0.871 0.889 0.8630.899
+Geography
+ACC↑0.414 0.400 0.367 0.367 0.3330.433 0.433
+within-1↑0.552 0.533 0.600 0.600 0.5330.6330.600
+MAE↓1.483 1.533 1.533 1.533 1.6671.2671.300
+QWK↑0.706 0.676 0.685 0.745 0.6750.7790.756
+Physics
+ACC↑0.333 0.311 0.289 0.311 0.3560.378 0.378
+within-1↑0.511 0.489 0.489 0.444 0.4440.5560.533
+MAE↓1.756 2.133 1.956 2.444 2.0221.6001.644
+QWK↑0.693 0.518 0.602 0.427 0.630 0.7010.729
+SAS-Avg
+ACC↑0.389 0.394 0.372 0.368 0.383 0.4210.429
+within-1↑0.525 0.540 0.563 0.535 0.5340.586 0.586
+MAE↓1.950 1.850 1.784 1.943 1.753 1.6061.520
+QWK↑0.727 0.689 0.721 0.681 0.731 0.7810.794
+Table 1: Main results onSAS. All SAS questions are unseen during training, so every split is out-of-distribution (no
+ID split). Metrics are over the combined out-of-distribution evaluation set, with the best result per row inbold.
+several metrics, whileEdit-SFTperforms best on
+Geography, where all RL variants degrade the per-
+formance. However,Edit-RLremains the only RL
+calibrated model that strongly outperformsBase.
+Appendix H traces most of this variation to final
+score-band and credit-synthesis errors. For ex-
+ample, InT-SFT never withholds full credit on
+zero-score Physics responses, whereasEdit-SFT
+correctly does so on 64% of them. Nevertheless,
+ourfullmethodprovidesthemostconsistentoverall
+improvement across SAS.
+Because the smallest SAS subjects contain only
+25–30testresponses,wefurtherassesssignificance
+at the question level, pooling all 37 held-out ques-
+tionswithequalweight. Intervalsuseaclusterboot-
+strapoverquestions,comparisonsagainst Baseare
+paired,andHolmcorrectionisappliedacrossthesix
+comparisons (Appendix G). As shown in Table 3,
+baseline gains near0.03 do not survive correction,
+whereasEdit’s gains are two to three times larger
+and remain significant (bothp=0.0006).
+We next evaluate Private-Science, where both
+ID and OOD splits are available. As shown in
+Table 2,Edit-SFTachieves the best QWK among
+all baselines on Private-Biology, improving macro-
+QWKby +0.011ontheID-testsplitand +0.013on
+the OOD-pool over the strongest baseline (GRPO).
+InT-RL outperforms across multiple metrics in
+Private-Physics ID setting, while degrading dras-
+tically in the OOD, suggesting an overfitting on
+the trained types of questions. In contrast,Edit-
+SFTshows steady gains across both ID and OOD.
+This suggests that the improvement is not simply
+due to fitting question-specific patterns seen during
+training. We attribute the improvement fromEdit-
+SFTto three design choices. First, internal signals
+help locate reasoning steps that are likely to need
+revision. Second, atomic revisions keep the inter-
+ventionlocalandavoiddisruptingthefullreasoning
+chain. Third, the rubric-checklist context gives the
+revisor task-specific guidance without forcing it to
+copy the checklist directly. These designs together
+preservethemodel’soriginalreasoningcapabilities
+while making its marking reasoning chain more
+grounded and better aligned with the rubric.
+Edit-RLfurtherimprovesperformanceoverEdit-
+SFTon both test pools. It improves macro-QWK
+by +0.016 and +0.027 on Biology’s ID and OOD,
+respectively. It also improves ACC, within-1, and
+MAE, giving the best results across all metrics.
+Edit-RLattains the highest OOD QWK on both
+subjects and the best value in seven of eight OOD
+subject-by-metric cells. This suggests that belief-
+guided reward shaping is especially useful when
+the model must grade unseen questions.
+Table 5 further separates the effect of the SFT
+and the RL. ApplyingEdit-RLdirectly toBase
+does not improve OOD performance over standard
+GRPO. In contrast, applying RL afterEdit-SFT
+givesstrongerresults,andthefullcombinationEdit-
+SFT+Edit-RLis best on every metric. Figure 3
+illustrates the QWK dynamics on the ID and OOD
+with RL proceeds. Although the improvement
+matches with a GRPO onEdit-SFTin ID,Edit-RL
+6
+
+Subject Split MetricBase RL-onlyInTEdit(Ours)
+GRPO DGPO SFT RL SFT RL
+Private-Biology
+ID
+ACC↑0.456 0.491 0.470 0.437 0.448 0.4850.507
+within-1↑0.793 0.809 0.801 0.812 0.828 0.8210.831
+MAE↓0.821 0.753 0.790 0.838 0.803 0.7560.717
+QWK↑0.701 0.727 0.704 0.630 0.648 0.7380.754
+OOD
+ACC↑0.460 0.478 0.478 0.422 0.425 0.4750.489
+within-1↑0.785 0.825 0.817 0.837 0.836 0.8160.840
+MAE↓0.786 0.718 0.725 0.777 0.772 0.7350.687
+QWK↑0.524 0.535 0.533 0.494 0.508 0.5480.575
+Private-Physics
+ID
+ACC↑0.438 0.489 0.495 0.4540.5120.5060.512
+within-1↑0.762 0.780 0.795 0.8040.8220.782 0.815
+MAE↓0.906 0.823 0.801 0.8130.7820.812 0.795
+QWK↑0.477 0.480 0.535 0.454 0.551 0.5270.555
+OOD
+ACC↑0.429 0.431 0.435 0.374 0.4330.4520.445
+within-1↑0.792 0.808 0.793 0.784 0.815 0.8130.817
+MAE↓0.829 0.805 0.820 0.950 0.840 0.7840.772
+QWK↑0.456 0.465 0.449 0.393 0.409 0.4720.487
+Table 2: Main results onPrivate-Science.↑/↓indicate higher/lower is better. Best fine-tuning result per row inbold
+(per-subject rows).
+Method QWK[95% CI]∆vs. Base(Holmp)
+Base0.760 [0.677, 0.830] –
+GRPO0.794 [0.707, 0.867]+0.034(p=0.391)
+DGPO0.809 [0.732, 0.872]+0.049(p=0.021)
+InT-SFT0.793 [0.707, 0.868]+0.033(p=0.391)
+InT-RL0.822 [0.750, 0.883]+0.062(p=0.051)
+Edit-SFT0.831 [0.764, 0.887]+0.072(p=0.0006)
+Edit-RL0.856[0.784, 0.913]+0.096(p=0.0006)
+Table 3: Question-level pooled QWK on SAS with
+cluster-bootstrap 95% CIs and Holm-correctedp-values
+againstBase(Appendix G).
+shows steady improvement on the OOD setting.
+This suggests that belief-guided reward shaping
+is most effective when the model has first been
+trained on internally located, rubric-aware atomic
+revisions.
+To isolate the effect of the belief-shaped reward
+from seed noise, Table 4 repeats this comparison
+over three seeds on two datasets. Both arms share
+the sameEdit-SFTcheckpoint and identical bud-
+gets, decoding, and final checkpoint, differing only
+in the reward term.Edit-RLoutperforms GRPO
+in all three paired runs on both datasets, and the
+paired 95% CI excludes zero on Private-Biology.
+3.3 Ablation for Rule-Aware Atomic
+Intervention
+We ablate the main design choices ofEdit-SFT
+on SAS-History, the largest dataset in the SAS
+suite we adopted. The ablation focuses on three
+components: internal-signal localisation, rubric-
+Dataset+GRPO+Edit-RL∆
+Private-Biology 0.559±0.0030.580±0.004+0.021 ∗
+SAS-History 0.873±0.0080.885±0.004+0.012
+Table 4: OOD QWK (mean±SD over three seeds).
+∆ is the mean seed-wise paired difference.∗ marks a
+paired 95% CI excluding zero (CIs:[+0.011,+0.030]
+and[−0.007,+0.030]).
+Method ID OOD
+QWK↑ACC↑QWK↑ACC↑
+Base0.701 0.456 0.524 0.460
+Base+ GRPO 0.727 0.491 0.535 0.478
+Base+Edit-RL0.727 0.483 0.518 0.461
+Edit-SFT+ GRPO 0.748 0.506 0.560 0.484
+Edit-SFT+Edit-RL0.754 0.507 0.575 0.489
+Table 5: RL choices (single seed) applied either di-
+rectly onBaseor on theEdit-SFTcheckpoint, Private-
+Biology. The combination ofEdit-SFTSFT andEdit-
+RL(belief-guided shaped GRPO) is best on every met-
+ric/split.
+checklist context, and atomic locality constraints.
+These components test whether performance gains
+comefromselectingbettereditlocations,givingthe
+revisorbetterrulecontext, andkeepingtherevision
+local.
+As shown in Table 6, removing any module de-
+gradesperformance. Excludingtherubric-checklist
+context leads to the largest drop in QWK and MAE
+while leaving ACC largely unchanged, suggesting
+increasedvarianceingradingbehaviour. Removing
+7
+
+Figure 3: Training dynamics of RL choices (GRPO,
+Edit-RL) with base choices (Base,Edit-SFT) in QWK
+on ID and OOD test set. Curves are computed post hoc
+from saved checkpoints (Appendix B).
+Figure 4: Comparison between the relative positions of
+the candidate step selected with or without the internal-
+state driven localiser fromEdit-SFT.
+atomiclocalityconstraintsduringrevisionresultsin
+a slight relative degradation. This is likely because
+SAS scoring is naturally point-based and there-
+fore already imposes contextual constraints.Edit-
+SFTwithout internal-signal localisation exhibits
+the largest drop across all metrics, highlighting the
+critical role of our step-candidate selection for re-
+vision. Appendix F further shows counterfactually
+thatEdit-selectedstepsrecoverthegoldmarkmore
+often than position-matched random or belief-shift-
+only selections. Figure 4 further shows that the
+basemodeltendstoselectearliersteps,whereasour
+localisation module selects middle or final steps,
+where reasoning synthesis typically occurs.
+AblationQWK↑ACC↑Within-1↑MAE↓
+Edit-SFT0.863 0.454 0.569 1.952
+w/o Localiser 0.820 0.408 0.515 2.300
+w/o Checklist 0.817 0.454 0.554 2.346
+w/o Atomic 0.842 0.446 0.562 2.046
+Table 6: Ablation of three core designs ofEdit-SFTon
+SAS-History, reported in all four metrics.
+3.4 Rule-Faithfulness under Interventions
+We also test whether a gradertruly follows the
+rubric, rather than relying on its internalised scor-
+ing scale. To do this, we apply deterministic edits
+to the mark scheme where the gold-score change
+can be computed exactly. We then measure the
+Rule-Sensitivity Ratio (RSR), defined as the ratio
+between the model’s score change and the gold
+score change. (RSR=1 means that the model fol-
+lows the rule edit exactly;<1 under-reacts, >1
+over-reacts). The edits include level-of-response
+band shifts (LoR) and points-total rescaling (PTS).
+The detailed intervention strategies are reported
+in Appendix I.1. One complication is that a pre-
+dicted score of0 is unchanged by every edit, so
+we decompose RSR into two parts: 1. Floor Rate
+(FR), the fraction of predictions equal to zero, and
+2. In-Rubric RSR (IB-RSR), responsiveness only
+among non-zero predictions. A further complica-
+tion is thatsignedIB-RSR means can hide errors,
+because over-reaction and under-reaction cancel
+when averaged across conditions. We therefore
+report AE-RSR, the mean of|IB-RSR−1| across
+edit conditions (lower is better).
+Table 7 averages results across the LoR and PTS
+intervention strategies. Under LoR band shifts,
+every grader is near-faithful.Edit-SFTattains the
+lowest AE-RSR (0.070) andEdit-RLthe lowest
+floor rate (6.60%). The separation appears under
+PTS rescaling, where Base is the weakest sys-
+tem (AE-RSR0.733) andEdit-SFTthe strongest
+(0.500). Aggregated over all six conditions,Edit-
+SFTreaches 0.285 against 0.412 for Base. InT
+attains PTS responsiveness comparable toEdit’s,
+but partly by collapsing predictions to the floor
+(28.57% vs. 19.90% for the SFT variants), which
+removesresponsiverowsfromthein-rubricstatistic.
+Overall,Edit-SFTis the most rule-responsive
+system, andEdit-RLtrades a small amount of
+responsiveness for grading accuracy. Meanwhile,
+PTSrescalingremainsunsolvedforeveryevaluated
+system(AE-RSR≥0.5),pointingtoabsolute-count
+anchoring as an open challenge for rubric grading.
+Our intervention protocol exposes exactly this kind
+of failure, which accuracy metrics alone cannot
+detect: a grader can score well while remaining
+insensitive to the rule it is meant to apply.
+4 Related Work
+Credit Assignment for Reinforcement Learning
+Credit assignment refers to the problem of attribut-
+8
+
+Method LoR PTS Overall
+AE↓FR(%) AE↓FR(%) AE↓
+Base0.090 10.07 0.733 22.43 0.412
+GRPO0.093 7.17 0.710 18.80 0.402
+DGPO0.090 7.20 0.697 19.33 0.393
+InT-SFT0.093 10.57 0.530 28.57 0.312
+InT-RL0.143 9.70 0.507 26.80 0.325
+Edit-SFT0.0707.000.50019.900.285
+Edit-RL0.083 6.60 0.510 19.87 0.297
+Table 7: Rule faithfulness on Private-Biology. AE =
+AE-RSR (lower is better). FR = floor rate (%). Overall
+averages AE-RSR over all six conditions, with per-
+condition signed results in Appendix I.2.
+ing a delayed outcome to specific intermediate
+decisions, which remains a core challenge in LLM
+reasoning. Standard sequence-level objectives like
+GRPO (Shao et al., 2024) broadcast a single scalar
+reward uniformly across a trajectory. To refine this
+coarse signal, recent work generally falls into three
+paradigms. Return redistribution methods, such
+as DGPO (Jin et al., 2026), reallocate trajectory-
+level returns to individual steps. Process reward
+models (PRMs), like Math-Shepherd (Wang et al.,
+2024), train explicit step-level verifiers to provide
+fine-grained supervision. PRMs derive the process
+signalfromexternalstep-levellabels,whereasEdit
+derivesitfromthemodel’sowndecisionstateunder
+final-mark supervision only. Such labels are also
+rubric-specific, defined only relative to one mark
+scheme, so we regard PRM-style supervision as a
+complementary direction that requires per-rubric
+annotation. Alternatively, hindsight interventions,
+such as InT (Yang et al., 2026), prompt the policy
+to self-audit and rewrite erroneous steps. However,
+agrowingbodyofworkshowsthatLLM-generated
+chains-of-thought frequently diverge from actual
+computation, often necessitating external rewards
+toenforcefaithfulness(Turpinetal.,2023;Lanham
+et al., 2023). While prior methods rely on exter-
+nal verifiers or textual self-critique, our framework
+directly localises critical steps using the model’s
+well-calibrated internal signals and guides the pol-
+icy with belief-guided reward shaping.
+LLM-based Automated Student Assessment
+Automated essay scoring (AES) has increasingly
+transitioned from training dedicated classifiers to
+utilizingpretrainedLLMsasevaluatorsordistilling
+their rationales into smaller models (Li and Ng,
+2024;Lietal.,2023). Forshort-answerandscience
+grading, recent benchmarks and systems primarily
+rely on prompt engineering or verbal reflection of
+frozen models (Lai et al., 2025; Li et al., 2025).
+Other approaches explore aligning evaluation ratio-
+nales via preference optimization on thought trees
+to improve explainability (Li et al., 2024). While
+most existing systems treat grading as a zero-shot
+prompting task or rely on external solvers to follow
+rules, our work frames grading as an end-to-end
+trainable credit-assignment problem. By supplying
+the rubric checklist as a privileged input during the
+rewriting phase, our approach decouples analytical
+reasoning from rigid structural formats to ensure
+faithful adherence to external grading criteria.
+5 Conclusion
+In this paper, we proposeEdit, a novel two-phase
+frameworkaddressingtheuniquecredit-assignment
+challenges of rule-faithful LLM grading. To en-
+force strict external grounding,Editreplaces unre-
+liable prompt-based self-audits with internal-state
+localisation and privileged-context rewriting. Fur-
+thermore, our belief-guided reward shaping guides
+the uncertainty reduction process by penalising
+severe belief excursions while tolerating benign ex-
+ploration. Experiments on two real-world grading
+datasets demonstrate thatEditsignificantly outper-
+forms state-of-the-art baselines across in-domain
+and out-of-domain splits. Future work will explore
+generalising the framework to broader domains,
+streamlining the training pipeline, and dynamically
+decomposing holistic rubrics.
+Limitations
+We identify four key limitations of theEditframe-
+work.
+First, our evaluation scenarios are currently re-
+stricted in scope. Although we frame student an-
+swer scoring as a complex rule-based reasoning
+task, we evaluateEditon two datasets primar-
+ily consisting of short-answer and fill-in-the-blank
+questions. We have not yet tested our framework
+on long-form essay scoring tasks, such as those in
+the Automated Student Assessment Prize (ASAP)
+benchmark, nor have we explored its applicability
+in other high-stakes rule-based reasoning domains
+like legal judgment or medical diagnosis. In addi-
+tion, the Private-Science OOD splits contain only
+two to three questions per subject, so our question-
+level significance analysis is limited to SAS. An
+important direction for future work is to verify and
+extend the generalisability of our method across
+9
+
+broaderdomainsandlonger,moreunstructuredtext
+formats.
+Second, the proposed training pipeline involves
+considerable complexity. While our probing-based
+internal-state localisation reduces inference over-
+head compared to prior prompt-elicited self-audits,
+the overall framework still relies on a heavy multi-
+stage process: rigorous SFT data construction fol-
+lowed by a calibration RL phase (GRPO). This
+multi-step orchestration increases both computa-
+tional complexity and engineering effort. In addi-
+tion, while the two RL arms in our controlled com-
+parisonarebudget-matched,thepipeline-levelcom-
+parison against baselines is not:Editincurs extra
+offlinecomputeforposterior-beliefprobing,ground-
+ing audits, and revision sampling (Appendix B).
+Future research should investigate more stream-
+lined, end-to-end training paradigms that simplify
+the pipeline while preserving the precise credit-
+assignment capabilities of evidence-diagnosed in-
+terventions.
+Third,Editrelies on the availability and granu-
+larity of explicit rule sets. Specifically,Edit-SFT
+utilisesaper-criterionrubricchecklistasprivileged
+input to constrain atomic rewrites. However, in
+many real-world settings, rubrics can be vague,
+holistic, or implicitly defined by human graders.
+The effectiveness of our internal-state diagnostics
+and rule-faithful rewriting may degrade when ap-
+plied to such unstructured or noisy criteria. Future
+work could explore mechanisms to dynamically de-
+compose holistic rubrics into structured checklists,
+oradapttheframeworktohandlefuzzyandimplicit
+rule constraints.
+Finally, like other outcome-filtered self-
+improvementmethodsintheSTaRandReSTfamily
+(Zelikmanetal.,2022;Gulcehreetal.,2023),Edit-
+SFTretains only revisions whose continuations
+reachthegoldmark: 62.8%ofincorrectrolloutson
+Private-Biology and 76.4% on SAS-History yield
+no corrected example (Appendix F). This costs
+sampling compute rather than data validity, since
+every retained trajectory is verified against the gold
+mark, but the outcome filter does bias the retained
+pool toward cases that are repairable by a local edit.
+Ethics Statement
+This research has been approved by our institu-
+tional ethics committee. Our dataset comprises
+LLM-augmented open-source question banks and
+proprietary data from a collaborative institution
+(which has also passed their internal rigorous ethi-
+cal review). All data has been strictly de-identified
+to remove Personally Identifiable Information (PII).
+Given that the open-source subset relies on LLM
+generation, it may inherit sociopolitical or linguis-
+tic biases from pre-training corpora. We strongly
+recommend manual review before using this data
+for downstream training to avoid penalising diverse
+linguistic expressions or propagating cognitive dis-
+tortions.
+Furthermore, our framework is intended solely
+for researching LLM reasoning in rule-constrained
+environments. Automated grading involves high-
+stakes decisions with profound psychological im-
+pactsonstudents’academictrajectories. Westrictly
+adviseagainstdeployingthesemodelsinreal-world
+educational settings without human-in-the-loop to
+ensure fairness, accountability, and pedagogical
+empathy.
+Acknowledgements
+ThisworkwassupportedinpartbytheUKEngineer-
+ing and Physical Sciences Research Council (EP-
+SRC) through the Prosperity Partnership scheme
+(grant no. UKRI566) and a Turing AI Fellowship
+(grant no. EP/V020579/1, EP/V020579/2).
+References
+Christian Grévisse. 2024. LLM-based automatic short
+answer grading in undergraduate medical education.
+BMC Medical Education, 24(1):1060.
+Caglar Gulcehre, Tom Le Paine, Srivatsan Srini-
+vasan, Ksenia Konyushkova, Lotte Weerts, Abhishek
+Sharma, Aditya Siddhant, Alex Ahern, Miaosen
+Wang, Chenjie Gu, Wolfgang Macherey, Arnaud
+Doucet,OrhanFirat,andNandodeFreitas.2023. Re-
+inforced self-training (ReST) for language modeling.
+arXiv preprint arXiv:2308.08998.
+Hongbo Jin, Rongpeng Zhu, Zhongjing Du, Xu Jiang,
+Jingqi Tian, Qiaoman Zhang, and Jiayu Ding. 2026.
+DGPO: Distribution-guided policy optimization for
+fine-grained credit assignment.arXiv preprint
+arXiv:2605.03327.
+Peichao Lai, Kexuan Zhang, Yi Lin, Linyihan Zhang,
+Feiyang Ye, Jinhao Yan, Yanwei Xu, Conghui He,
+Yilei Wang, Wentao Zhang, and Bin Cui. 2025. SAS-
+Bench: Afine-grainedbenchmarkforevaluatingshort
+answer scoring with large language models.arXiv
+preprint arXiv:2505.07247.
+Tamera Lanham, Anna Chen, Ansh Radhakrishnan,
+Benoit Steiner, Carson Denison, Danny Hernandez,
+Dustin Li, Esin Durmus, Evan Hubinger, Jackson
+10
+
+Kernion, and 1 others. 2023. Measuring faithful-
+ness in chain-of-thought reasoning.arXiv preprint
+arXiv:2307.13702.
+JiazhengLi,LinGui,YuxiangZhou,DavidWest,Cesare
+Aloisi, and Yulan He. 2023. Distilling ChatGPT for
+explainableautomatedstudentanswerassessment. In
+Findings of the Association for Computational Lin-
+guistics: EMNLP2023,pages6007–6026,Singapore.
+Association for Computational Linguistics.
+Jiazheng Li, Hainiu Xu, Zhaoyue Sun, Yuxiang Zhou,
+David West, Cesare Aloisi, and Yulan He. 2024.
+Calibrating LLMs with preference optimization on
+thought trees for generating rationale in science ques-
+tion scoring. InFindings of the Association for
+Computational Linguistics: EMNLP 2024, pages
+5452–5479, Miami, Florida, USA. Association for
+Computational Linguistics.
+Jiazheng Li, Yuxiang Zhou, Junru Lu, Gladys Tyen,
+Lin Gui, Cesare Aloisi, and Yulan He. 2025. Two
+heads are better than one: Dual-model verbal reflec-
+tion at inference-time. InProceedings of the 2025
+Conference on Empirical Methods in Natural Lan-
+guage Processing, pages 3119–3140, Suzhou, China.
+Association for Computational Linguistics.
+Shengjie Li and Vincent Ng. 2024. Automated essay
+scoring: A reflection on the state of the art. In
+Proceedings of the 2024 Conference on Empirical
+Methods in Natural Language Processing (EMNLP),
+pages 17876–17888, Miami, Florida, USA. Associa-
+tion for Computational Linguistics.
+Andrew Y. Ng, Daishi Harada, and Stuart J. Russell.
+1999. Policyinvarianceunderrewardtransformations:
+Theory and application to reward shaping. InPro-
+ceedings of the Sixteenth International Conference
+on Machine Learning (ICML), pages 278–287.
+Eduardo Pignatelli, Johan Ferret, Matthieu Geist,
+Thomas Mesnard, Hado van Hasselt, and Laura Toni.
+2024. Asurveyoftemporalcreditassignmentindeep
+reinforcement learning.Transactions on Machine
+Learning Research. Survey Certification.
+Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu,
+Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan
+Zhang, Y. K. Li, Yu Wu, and Daya Guo. 2024.
+DeepSeekMath: Pushing the limits of mathematical
+reasoning in open language models.arXiv preprint
+arXiv:2402.03300.
+MilesTurpin,JulianMichael,EthanPerez,andSamuelR.
+Bowman. 2023. Language models don’t always say
+what they think: Unfaithful explanations in chain-
+of-thought prompting. InAdvances in Neural Infor-
+mation Processing Systems (NeurIPS), volume 36.
+ArXiv:2305.04388.
+Peiyi Wang, Lei Li, Zhihong Shao, Runxin Xu, Damai
+Dai, Yifei Li, Deli Chen, Yu Wu, and Zhifang Sui.
+2024. Math-Shepherd: Verify and reinforce LLMs
+step-by-step without human annotations. InProceed-
+ingsofthe62ndAnnualMeetingoftheAssociationfor
+Computational Linguistics (Volume 1: Long Papers),
+pages 9426–9439, Bangkok, Thailand. Association
+for Computational Linguistics.
+ShenWang,TianlongXu,HangLi,ChaoliZhang,Joleen
+Liang, Jiliang Tang, Philip S Yu, and Qingsong Wen.
+2025. Largelanguagemodelsforeducation: Asurvey
+and outlook.IEEE Signal Processing Magazine,
+42(6):51–63.
+Matthew Y. R. Yang, Hao Bai, Ian Wu, Gene Yang,
+Amrith Setlur, and Aviral Kumar. 2026. InT: Self-
+proposed interventions enable credit assignment in
+LLM reasoning.arXiv preprint arXiv:2601.14209.
+Eric Zelikman, Yuhuai Wu, Jesse Mu, and Noah D.
+Goodman. 2022. STaR: Bootstrapping reasoning
+with reasoning. InAdvances in Neural Information
+Processing Systems (NeurIPS), volume 35.
+A Dataset Statistics
+Table 8 reports, for each dataset, the number of
+responses and distinct questions in every split, to-
+gether with the range of per-question maximum
+marks. The three splits play different roles across
+the two benchmarks. ForPrivate-Science, each
+question is answered by hundreds of students: the
+Testsplit holds out responses to questions that are
+seenduring training (in-distribution, ID), whereas
+theHoldoutsplit consists of entirelyunseenques-
+tions (out-of-distribution, OOD). ForSAS, each
+question has only a handful of responses, so ques-
+tionsarepartitioneddisjointlyacrossallthreesplits;
+boththe Test and Holdout splits are therefore out-
+of-distribution, and SAS has no ID split.
+Dataavailability.ThePrivate-Scienceresponses
+were fully anonymised by the data provider before
+being shared with us. We report experimental
+results on this dataset, but it cannot be publicly
+released owing to licensing and privacy constraints.
+TheSASbenchmarkispubliclyavailable(Laietal.,
+2025).
+B Implementation Details
+TrainingAll methods adapt Qwen3-8B using
+a shared LoRA recipe: rankr=64, α=128, ap-
+plied to all attention and MLP projection matrices
+(q,k,v,o,gate,up,down ). We train for2 epochs
+at learning rate2×10 −4 (cosine schedule, 10%
+warmup). For the SAS dataset, we set the effective
+batchsize to 8due tothe small amountof data, and
+to 32on Private-Science. The same recipe is used
+for all subjects and methods, so comparisons are
+not confounded by hyperparameter differences.
+11
+
+Benchmark Dataset Train (resp / q) ID (resp / q) OOD (resp / q) Marks
+Private-Science (proprietary)
+Biology 10,159 / 12 1,264 / 12 2,087 / 2 3–6
+Physics 1,573 / 7 395 / 7 655 / 3 3–6
+SAS (Lai et al., 2025)
+History 510 / 102 – 130 / 26 11–26
+Geography 110 / 22 – 30 / 6 10
+Physics 95 / 19 – 25 / 5 5–20
+Table 8: Dataset statistics. “resp / q” is the number of responses and the number of distinct questions in each split.
+For Private-Science, the ID split is in-distribution (held-out student responses to seen questions), and the OOD split
+is out-of-distribution (unseen questions). For SAS, there is no ID split.
+Decoding and evaluationAt evaluation, we ob-
+tain 1 completion per marking using greedy sam-
+pling. This ensures consistency across all datasets
+and methods. QWK is computed per question over
+the integer score range[0,Mq], whereMq is the
+question’smaximummark,usingquadraticweights,
+and then macro-averaged across questions.
+RL configuration and checkpoint selectionNo
+test metric or test data enters hyperparameter or
+checkpoint selection at any point, and every re-
+ported result uses the final-step checkpoint rather
+than a selected peak. Training horizons are fixed
+in advance at200 RL steps for SAS and500 for
+Private-Science. All RL methods share one opti-
+misation recipe (Table 9): learning rate5×10 −6
+with a cosine schedule and3% warmup, KL co-
+efficient βKL=0.02 towards the initialisation, 8
+rollouts per prompt and4 prompts per optimiser
+step (32 completions), sampling temperature1.0,
+and a completion budget of1,024 tokens. A fresh
+LoRA adapter with the SFT configuration (r=64,
+α=128,allprojectionmatrices)istrainedontopof
+the merged initialisation, which also serves as the
+KL reference. The test-set curves in Figure 3 were
+generated post hoc after training had finished and
+were never used for monitoring or selection. The
+three-seed comparison in Table 4 repeats the full
+training run with seeds42,43, and44.
+Edit-RLintroduces twoadditional hyperparame-
+ters,thedrifttolerance βdrift andtheshapingweight
+γΦ. Both are calibrated per dataset on a random
+10%subset of training rollouts using signal statis-
+tics only, never a performance metric. We sweep
+βdrift and keep the value that maximises the sepa-
+ration between the shaping-penalty firing rates on
+incorrect and correct rollouts, and we setγΦ to
+the largest value that remainsflip-safe: the accu-
+mulated penalty on a correct rollout stays below
+the outcome-reward gap to an incorrect one, so the
+shaping term can never invert the outcome rank-
+ing within a group. The posterior probe is read at
+temperature 0.7. The selected values are listed in
+Table 9.
+Shared by all RL methods
+Learning rate5×10 −6
+LR schedule cosine,3%warmup
+KL coefficientβKL 0.02
+Rollouts per prompt8
+Prompts per step4(32completions)
+Sampling temperature1.0
+Completion budget1,024tokens
+LoRA as in SFT (r=64,α=128)
+Steps, Private-Science500
+Steps, SAS200
+Edit-RLonly:β drift (marks) /γΦ
+Private-Biology0.75/0.3
+Private-Physics0.5/0.15
+SAS-History0.75/0.05
+SAS-Geography0.75/0.10
+SAS-Physics0.75/0.10
+Table9: RLhyperparameters. Theupperblockisshared
+by GRPO, DGPO, InT-RL, andEdit-RL. The lower
+block gives the per-dataset belief-shaping parameters of
+Edit-RL.
+Compute budgetAll RL runs use a single GPU
+(H200 141GB) with the rollout engine co-located.
+SFT uses two GPUs. We compare the two phases
+separately on Private-Biology, the largest dataset.
+Phase 1 (data construction).Edit-SFTand InT
+start from the same pool of20 sampled rollouts
+per training response and the same55,278 incor-
+rect rollouts. InT spends≈8 GPU-hours propos-
+ing interventions and sampling guided continua-
+tions.Edit-SFTspends ≈9 GPU-hours:≈2.5 for
+posterior-beliefprobing,≈4 forcandidateselection
+and the grounding audit, and≈2.5 for sampling
+and validating atomic revisions. The probe reads
+the mark posterior at every step boundary of a roll-
+out (5.2 boundaries on average). We obtain all of
+them in a single forward pass by appending one
+answer scaffold per boundary and using a block
+12
+
+attention mask with matching position indices, so
+that each scaffold attends only to its own prefix.
+The resulting SFT pools hold56,595 samples for
+Edit-SFT( 33,958 golden rollouts and22,637 revi-
+sions) and29,822 for InT. A retained rollout can
+contribute more than one revised candidate step, so
+thenumberofrevisionsslightlyexceedsthenumber
+of repaired rollouts implied by the retention rate
+of Appendix F. The two pools contain comparable
+numbers of generated revisions, and the difference
+is the golden anchor set, which is drawn from the
+shared rollout pool at no generation cost. SFT
+cost is proportional to pool size and identical per
+sample.Phase 2 (RL).Edit-RLand GRPO from
+the sameEdit-SFTcheckpoint differ only by the
+frozen-probereadoneachrolloutgroup,whichadds
+about 2s to a12s optimiser step:≈1.9 versus 1.7
+GPU-hours for the500-step run. Base-initialised
+GRPO and DGPO incur only this RL cost. On the
+smaller datasets every phase takes at most a few
+GPU-hours for either method.
+C Candidate Step Selection Procedure
+Algorithm 1 formalises the two-stage selection rule
+of §2.2. The belief-shift criterion alone forms the
+shortlist. The grounding audit then re-ranks within
+that shortlist, promoting weakly grounded steps,
+and never excludes a step. In particular, a step with
+a large negative belief shift and strong grounding
+remains fully eligible.
+Algorithm 1Candidate step selection inEdit-SFT
+Require: incorrect rollouts1:T (m̸=m ∗); belief
+shifts{∆ϵj}; grounding scores{Gρ
+j,Ga
+j,eGp
+j};
+shortlist sizek; candidate budgetn; near-tie
+marginτ; dataset-wide 25th percentilesp25(·)
+1:C←{j: ∆ϵ j <−τ}▷belief-shift criterion
+alone
+2:C←top-kofCby most-negative∆ϵ j ▷
+shortlist
+3:forj∈Cdo
+4:w j ←
+
+Gρ
+j < p 25(Gρ)
+
+∧
+
+Ga
+j <
+p25(Ga)
+
+∧
+eGp
+j<p 25(eGp)
+
+5:end for
+6: stably reorderC so steps withwj=1 precede
+those withwj=0; ties keep the∆ϵorder▷
+re-rank only; no step removed
+7:returnfirstmin(n,|C|)steps ofC
+D Validity of the Frozen-Probe Reference
+Edit-RLreads the per-step mark beliefˆmk from a
+frozencopy of theEdit-SFTpolicy and penalises
+its drift from gold. We freeze the reference for two
+reasons. (i)Non-gameability:RL could lower the
+shaping penalty by shifting its own beliefreadout
+rather than by grading more faithfully. A fixed,
+exogenousreferenceremovesthisshortcut. (ii)Cal-
+ibration:theEdit-SFTpolicy is already a compe-
+tent grader, so its step-boundary mark posterior is
+a meaningful target for “where belief should sit,”
+unlike the raw policy. This design is sound only if
+the trained policy’s belief remains well-described
+by the frozen readout, so we verify this directly.
+We probe the mark posteriorˆpk(m) (Eq. 1) at
+every step boundary of200 Private-Biology test
+rollouts under the frozenEdit-SFTand under each
+SFT-initialised RL policy, and measure their diver-
+gence (Table 10). TheEdit-RLpolicy stays very
+close to the frozen reference (meanKL=0.026,
+JSD=0.0055)andisflatacrosschainposition,con-
+firming that the frozen probe remains a faithful
+proxy for the policy’s belief. Plain GRPO, the
+same SFT initialisation and KL-to-init term, but
+withoutbelief shaping, drifts about twice as far
+(KL=0.064), and increasingly so deeper in the
+chain. Beliefshapingthusanchorstheintermediate
+trajectory to the calibrated reference, not merely
+the final mark.
+JSD by position
+Policy KL JSD early mid late
+Edit-RL0.026 0.00550.0049 0.0055 0.0061
+GRPO 0.064 0.0119 0.0099 0.0133 0.0132
+Table 10: Step-boundary belief divergence between
+each SFT-initialised RL policy and thefrozenEdit-
+SFTprobe reference. KL and JSD are means over
+boundaries. The last three columns give JSD averaged
+within early/mid/late chain terciles.Edit-RLstays∼2×
+closertothereferenceandisflatacrossposition,whereas
+GRPO drifts further and grows deeper in the chain.
+E Masked-Support Audit Validation
+We validate the masked-support audit against ex-
+ternal step labels produced by a stronger anno-
+tator model (not human annotations), which tag
+each grading step as agroundingstep (a point-
+wise judgement read off the answer against the
+rubric) or asynthesisstep (one that composes prior
+conclusions). These model-generated labels vali-
+13
+
+date the grounding signal itself. The causal ques-
+tion of whether selected steps are error-causing
+is addressed separately in Appendix F. Figure 5
+shows two clean dissociations. Grounding steps oc-
+cupy the high Answer-Grounding region (panel a),
+whereas synthesis steps collapse toGa≈0 ; con-
+versely, synthesis steps carry markedly higher Pre-
+fix Grounding (panel b, mode atGp≈1.5 vs. a
+near-zero mode for grounding steps). Both disso-
+ciations are highly significant (Table 11): Answer
+Grounding separates the two classes with a large
+effect (r=0.71,p<10 −300) and Prefix Grounding
+likewise (r=0.58,p <10−300), and both survive
+collapsing to per-rollout means. Rubric Grounding,
+in contrast, is statistically significant but practically
+negligible (r=0.08): both step types lean equally
+on the rubric, so the discriminating axes arewhich
+evidencea step reads (the answer, for grounding
+steps)andwhetheritintegratespriorreasoning(the
+prefix, for synthesis steps). This confirms thatGa
+andGp behave as intended and are well separated
+from zero.
+Signal Grounding Synthesisr p
+(median) (median)
+Ga 0.720.08 0.71<10 −300
+Gρ 0.89 0.83 0.085.6×10 −17
+Gp 0.661.640.58<10 −300
+Table11: Significanceofthemasked-groundingdissoci-
+ations(Figure5). pisaone-sidedMann–Whitney U test
+in the hypothesised direction (Grounding> Synthesis
+forGa,Gρ; Synthesis> Grounding for PG);r is the
+rank-biserialeffectsize. GaandGpdissociatewithlarge
+effects. Gρ is significant but negligible (r=0.08). All
+three remain significant when collapsed to per-rollout
+means (Ga,Gp p≈0 ;Gρ p=5.8×10−36), ruling out
+within-rollout dependence as the driver.
+F Counterfactual Validation of Step
+Selection
+We test whether the steps selected byEditare
+actually error-causing, in the counterfactual sense
+that repairing the selected step recovers the correct
+final mark. For each incorrect rollout, we compare
+three selection rules under an otherwise identical
+pipeline.Randomdraws a random step matched
+toEdit’s relative-position distribution.Belief shift
+onlyapplies the shortlist criterion without ground-
+ing re-ranking. The fullEditrule applies both.
+Every arm uses the same rewriter, the sameN=4
+sampled continuations, and the same gold-mark
+filter,sodifferencesareattributabletothechoiceof
+step alone.Success@4is the fraction of rewrites
+in which at least one continuation reaches the gold
+mark.Retentionisthefractionofincorrectrollouts
+that yield a usable SFT target.
+Dataset Selection rule S@4 Ret.
+Private-Biology
+Random 30.0 33.1
+Belief shift only 32.7 36.6
+Edit33.5 37.2
+SAS-History
+Random 16.6 18.5
+Belief shift only 17.1 19.6
+Edit22.0 23.6
+Table 12: Counterfactual repair comparison of step-
+selectionrules. S@4=Success@4(%). Ret.=Retention
+(%).
+AsshowninTable12,Edit-selectedstepsrecover
+the gold mark more often than position-matched
+random steps on both datasets. On SAS-History,
+Editraises the repair rate from16.6% to 22.0%,
+a relative gain of1.33×, and yields1.28× more
+usable SFT examples. Private-Biology moves in
+the same direction with a smaller margin. The
+advantage also survives training: removing the
+localiser costs 4.3 QWK points on SAS-History
+(Table 6).
+Outcome filtering is nonetheless costly:62.8%
+of incorrect rollouts on Private-Biology and76.4%
+on SAS-History yield no corrected example. This
+costs sampling compute rather than data validity,
+because every retained trajectory is verified against
+the gold mark. The resulting selection bias toward
+repairable cases is discussed in the Limitations
+section.
+G Question-Level Significance Protocol
+The pooled analysis of Table 3 treats the ques-
+tion as the unit of independence. All37 held-out
+SAS questions are pooled with equal weight, so
+the pooled QWK differs from the subject-macro
+averages of Table 1, which first average within
+subjects. Confidence intervals are obtained with
+a cluster bootstrap that resamples entire question
+clusters, never splitting responses to the same ques-
+tion across resamples. Comparisons againstBase
+are paired: each method’s per-question scores are
+differenced againstBase on the same questions,
+so the tests condition on between-question vari-
+ance even where marginal intervals overlap. Holm
+correction is applied across the six comparisons
+against Base. The pooled analysis complements
+14
+
+Figure 5: Grounding audit distribution with different external step label (grounding, synthesis).
+the per-subject averages of Table 1.
+H Subject-Level Error Analysis
+The smallest SAS subjects contain only25–30test
+responses, so we draw no statistical conclusions
+from per-subject splits. The remaining variance is
+systematic. Across all73 prediction disagreements
+betweenEdit-SFTand InT-SFT, 66% are final
+score-band or credit-synthesis errors rather than
+missed evidence or rubric mapping, and the sub-
+jects stress exactly that mechanism because they
+differsharplyinsupervisiondensityandscorerange.
+In particular,44% of SAS-Physics evaluation re-
+sponses carry a gold score of zero, so the grader
+must repeatedly withhold all credit.
+System History Geography Physics
+Base67 43 55
+InT-SFT7843 0
+Edit-SFT7257 64
+Table 13: Percentage of zero-score SAS responses that
+each system correctly assigns zero.
+Table 13 reports the percentage of zero-score
+responses each system correctly assigns zero.
+InT-SFT never withholds full credit on Physics,
+and its Physics QWK falls to0.427, whileEdit-
+SFTretains 0.701 (Table 1). This follows from the
+training targets: InT inserts a corrective redirec-
+tion, which biases the continuation toward finding
+credit, whereasEditrewrites the erroneous rubric
+judgement itself, so the model also learns when
+credit must be withheld.
+I Rule-Faithfulness Intervention
+I.1 Intervention Strategies
+We probe rule-faithfulness using six deterministic,
+gold-computableeditstothemarkscheme,grouped
+intotwofamiliesthatcorrespondtothetwoPrivate-
+Biology scheme types. For each edit we recom-
+pute the reference (gold) mark under the edited
+scheme,regradethesamestudentresponsewiththe
+edited scheme supplied in-prompt, and compare
+themodel’sscorechangetothegoldchangeviathe
+Rule-Sensitivity RatioRSR =|∆pred|/|∆gold|
+(§3.4).
+Level-of-response (LoR) band shifts.For LoR
+questions, the scheme maps each response-quality
+level to a mark band. We apply:A1 (uni-
+form +2): adding a constant 2 marks to every
+level (|∆gold|=1.85);A2 (expand×2): doubling
+each level’s mark, stretching inter-level spacing
+(|∆gold|=3.00);B1 (differential): a non-uniform
+per-level shift (e.g.+1/+ 2/+ 2 ) from the lowest
+to the highest band.
+Points-total (PTS) rescales.For PTS questions,
+the scheme awards a fixed mark per creditable
+point. Wemultiplyeverypoint’svaluebyaconstant
+factor: ×0.5 (|∆gold|=0.35),×1.5 (0.90), and
+×2.0(1.25).
+Floor confound.A prediction of 0 is a fixed
+point of every edit (it cannot move), so a grader
+can appear faithful merely by predicting0. We
+thereforedecomposeRSRintoafloorrate(fraction
+ofperturbedpredictionsequalto 0)andanin-rubric
+RSR(RSRcomputedonlyoverrowswithanon-zero
+perturbed prediction), and report both.
+15
+
+Base GRPO DGPO InT-SFT InT-RLEdit-SFT Edit-RL
+Rule editFR R ir FR R ir FR R ir FR R ir FR R ir FR R ir FR R ir
+LoR
+LoR-A1 (+2) 8.9 1.00 5.8 0.81 6.1 0.83 10.2 0.82 9.7 0.78 6.5 0.87 6.4 0.86
+LoR-A2 (×2) 12.3 1.13 8.9 0.96 8.8 0.96 10.6 0.99 10.3 0.92 7.8 0.96 6.9 0.94
+LoR-B1 (diff) 9.0 1.14 6.8 0.95 6.7 0.94 10.9 0.91 9.1 0.87 6.7 0.96 6.5 0.95
+PTS
+PTS (×0.5) 14.2 1.47 13.3 1.35 13.5 1.35 31.9 1.06 29.6 1.06 16.8 1.14 17.2 1.11
+PTS (×1.5) 25.6 0.16 21.4 0.13 21.7 0.13 26.0 0.27 25.6 0.29 21.9 0.35 20.7 0.33
+PTS (×2.0) 27.5 0.11 21.7 0.09 22.8 0.13 27.8 0.20 25.2 0.25 21.0 0.29 21.7 0.25
+Table 14: Full per-strategy rule-faithfulness on Private-Biology. Each model column reportsFR(floor rate, %
+predicted0) andRir (in-rubric RSR;1.0=faithful).
+I.2 Full Intervention Results
+Table 14 gives the full breakdown.LoR edits: all
+graders are near-faithful.In-rubric RSR stays in
+[0.78,1.14] and floor rates are low (6–12%); the
+model tracks band shifts as intended. TheEdit
+family is the most faithful trained family here (in-
+rubric RSR0.86–0.96, closest to1) and floors the
+least( 6.4–7.8%),whereas Basemildlyover-reacts
+(1.13–1.14 on A2/B1).PTS rescales: unfaithful
+for everyone.Multiplicative point rescaling col-
+lapsesin-rubricRSRto 0.1–0.35ontheup-rescales
+(×1.5,×2.0)andinflatesfloorratesto 21–32%,ev-
+idence of absolute-count anchoring that no method
+removes.InTfloors hardest (26–32%);Edit-SFT
+retains the highest PTS in-rubric RSR among the
+trained arms (0.25–0.35 on the up-rescales). The
+decompositionalsoexposesaconfoundinthehead-
+line RSR: InT’s competitive aggregate RSR on
+PTS is partly a flooring artefact (its high floor rate
+removes responsive rows), which the floor-rate /
+in-rubric split makes explicit. Signed averages
+can likewise flatterBase, whose over-reactions
+on LoR and under-reactions on PTS partly cancel.
+The AE-RSR aggregation in Table 7 removes this
+cancellation.
+J Prompt
+WedocumentthecorepromptbehindEdit’sPhase-
+1 atomic rewriting under locality constraint (shown
+in Figure 6). For space we show only its struc-
+tural skeleton: the section headers, the per-instance
+privileged inputs (rendered as{·} placeholders),
+and the output contract; the verbose per-section
+guidance is elided ([...]).
+16
+
+SYSTEM: Refine a wrong grading attempt by fixing exactly ONE substep.
+The rest of the chain regenerates after the rewrite.
+# Grading task
+{PROBLEM}
+# Oracle reference
+correct mark = {GOLD} / {TOTAL}
+[oracle only; never state the mark digit or its spelled-out word]
+# The full grading attempt
+{NUMBERED_ATTEMPT}
+# Target for rewriting: Substep {i}
+"{TARGET_STEP_TEXT}"
+# Diagnostic hints for Substep {i}
+{DIAGNOSTIC_HINT_BULLETS}
+[from the internal-state locator (C1); a checklist to CONSIDER, not satisfy]
+# Per-criterion rubric analysis (REFERENCE)
+{RCI_ANALYSIS}
+[privileged input (C2); informs reasoning, never copied into the output]
+# Atomicity + locality
+[serve the SAME local role as the target step; emit multiple atomic
+substeps only when the prefix has already synthesised criteria]
+# Style
+[one claim per step; match the chain's voice; no "(1)(2)" markers,
+no covered/partial verdict labels, no enumeration]
+# Output format
+<rewrite location="{i}" span="1|2|3">
+step 1: <first step text>
+step 2: <optional>
+</rewrite>
+Figure 6:EditPhase-1Rule-Aware Atomic Rewriterprompt (structural skeleton; per-section guidance elided as
+[...]). Braced tokens {·} are filled per instance. The diagnostic hints come from the internal-state locator
+(C1) and the per-criterion rubric analysis is the privileged input (C2); neither the gold mark nor the rubric block’s
+structure may appear in the rewrite.
+17

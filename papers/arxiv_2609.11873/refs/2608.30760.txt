@@ -1,0 +1,1500 @@
+Practice: From Experience to Expertise in Self-Evolving Embodied Agents
+Ziyi Bai1∗, Siqi Li2,3∗, Tinglei Huang2, Börje F. Karlsson1†
+1Beijing Academy of Artificial Intelligence (BAAI)
+2Institute of Software, Chinese Academy of Sciences
+3University of Chinese Academy of Sciences
+Abstract
+Recent studies have shown that multimodal large language
+models (MLLMs) can serve as embodied agents, translating
+language instructions and visual observations into executable
+plans. However, building agents that can continually improve
+through interaction and rapidly adapt to their environments
+remainschallenging.Summingupexperiencefrompastinter-
+action trajectories provides a promising solution, but existing
+experience-based methods often rely on manually designed
+prompting workflows to extract and update skills. Such fixed
+proceduresmaystruggletolearnupdatedskillsfromnewand
+diverse experiences. We introducePractice, which trains a
+skill learner to discover and maintain a persistent skill li-
+braryfrompastinteractiontrajectorieswhilekeepingthetask
+executor frozen. Given the historical accumulated skills and
+incoming trajectories, the skill learner produces structured
+batch-edits that add, refine, merge, or remove skills, and then
+hierarchical consolidate all collected edits into a consistent
+updated skill library. We train the learner with a two-stage
+curriculum. First, it learns basic skill generation and library
+maintenance from oracle trajectories. Then, by contrasting
+successful and failed trajectories from heterogeneous execu-
+tors on the same tasks, it learn to identify invalid action pat-
+terns and recovery strategies. Finally, we apply online skill-
+editdistillationtoaligntheskilllearnerwithastrongerteacher
+on its current edit distribution to further improves the policy.
+Experiments demonstrate that a compact skill learner deliv-
+ers consistent performance improvements across successive
+library-update rounds for multiple frozen executors. On EB-
+ALFRED and EB-Habitat,Practicefurther outperforms the
+strongest experience-based baselines by 9.7 and 2.6 percent-
+age points respectively. Project resources are publicly avail-
+able at: https://baai-agents.github.io/PRACTICE.
+1 Introduction
+Embodiedtaskplanninghasemergedasanimportanttestbed
+for general-purpose agents, requiring them to interpret hu-
+man instructions, decompose complex goals into executable
+steps, and accomplish those goals through interaction with
+the environment (Yang et al. 2025; Liu et al. 2025; Xu,
+Zheng, and Mu 2026). Recent MLLMs have demonstrated
+stronginstructionunderstanding,visualperception,andplan-
+ningcapabilitiesinsuchenvironments (Ahnetal.2022;Yao
+∗These authors contributed equally.
+†Corresponding author.
+Embodied
+Executor
+Incoming
+Trajectories
+✓
+success
+failure
+Skill Learner
+Trajectories + current library →
+updated library
+extract consolidate revise
+Curriculum SFT Skill OPD
+updated skills enable better executions
+Initial
+Skill Library 𝓥𝟎
+Current
+Skill Library 𝓥𝒕
+Updated
+Skill Library 𝓥𝒕+𝟏
+Skill Learner Model
+…
+Wash
+Open
+PickUp
+ TurnOn
+PickUp
+TurnOn
+…
+PickUp
+TurnOn
+Open
+…
+PickUp
+TurnOn
+Open
+Wash
+…
+Figure 1:Overview of our skill learning framework.A
+trainable skill learner extracts, consolidates, and revises
+reusable skills from successful and failed execution trajec-
+tories, progressively updating an external skill library. The
+updatedskillsguidetheembodiedexecutortowardimproved
+task execution.
+et al. 2023; Song et al. 2023; Yuan et al. 2025). To further
+improve their reliability, a growing body of work directly
+post-trainstheexecutorusingexpertormodel-generatedtra-
+jectories, environment-grounded supervision, and task-level
+interactionrewards,typicallythroughsupervisedfine-tuning,
+imitation learning, or reinforcement learning (Zhai et al.
+2024; Wang et al. 2025; Chen et al. 2025; Wu et al. 2026;
+Xu, Zheng, and Mu 2026). These methods enable the model
+to internalize task- and environment-specific experience in
+its parameters. Nevertheless, challenging instructions and
+long-horizoninteractionscontinuetoexposefailures.Insuch
+cases, effective adaptation requires more than generating a
+plan: the agent must reflect on its execution outcomes and
+preserve useful experience for future decisions.
+Therefore,alineofexperience-augmentedmethodsexter-
+nalizes such experience as persistent memories or reusable
+skills. Memory-based methods extract and retrieve episodic
+or semantic records (Zhang et al. 2025; Chhikara et al.
+2025; Zhang, Fu, and Yan 2026), whereas skill-based meth-
+ods distill trajectories into action procedures, lessons, or
+executable rules (Ni et al. 2026; Jiang et al. 2026; Yang
+arXiv:2608.30760v1  [cs.LG]  31 Aug 2026
+
+et al. 2026; Ju et al. 2026; Ding et al. 2026). However, most
+of the current experience-augmented works rely on fixed,
+prompt-engineered workflows to generate, refine, merge, or
+removeskillentries.Consequently,althoughthelibrarycon-
+tent evolves, its update policy does not learn from accumu-
+latedexperienceordownstreamexecutionoutcomes,limiting
+its adaptability across tasks and environments. We therefore
+ask:Can an embodied agent learn not only new skills, but
+also how to grow and refine those skills?
+To address this, we proposePractice, which treats the
+skill library as continuously evolving procedural knowledge
+and the skill learner as a learnable update policy. As shown
+in the Figure 1, the learner and the library are improved
+iteratively. The current library first guides task execution
+and shapes the collected trajectories, which are then used to
+improve the learner’s skill-refinement policy. The updated
+learner, in turn, extracts reusable experience from these tra-
+jectories and produces refined skills. The updated library
+guidesthenextroundofexecutionandprovidesnewexperi-
+ence for further learning. In this way, the policy for refining
+skills and the procedural knowledge being refined improve
+together.
+We instantiate this progression through three training
+stages. Stage 0 uses successful oracle trajectories to cold-
+start skill generation and library maintenance. Stage 1 con-
+trasts successful and failed trajectories from heterogeneous
+executors on the same tasks, teaching the learner to identify
+invalid condition for skill application and derive strategies
+for failure recovery. Finally, Stage 2 introduces online skill-
+refinementpolicydistillation(Skill OPD),wherethelearner
+generates edits from incoming trajectories and aligns its be-
+havior with a stronger teacher on its own edit distribution.
+Eachstageinheritsthelearnerandskilllibraryfromthepre-
+cedingstage,progressivelyimprovingboththeupdatepolicy
+and the procedural knowledge available to the executor.
+We evaluatePracticeon two high-level embodied task-
+planning benchmarks, EB-ALFRED and EB-Habitat, from
+EmbodiedBench (Yang et al. 2025). Across heterogeneous
+executors,Practiceconsistentlyimprovestaskperformance
+and outperforms the strongest experience-augmented base-
+lines by 9.7 and 2.6 percentage points, respectively. These
+findings suggest that sustained agent improvement depends
+notmerelyonevolvingwhatanagentknows,butonlearning
+howitsproceduralknowledgeshouldevolvethroughexperi-
+ence. Our main contributions are:
+•We formulate skill evolution as a coupled learning prob-
+lem and introduce a new framework that treats the skill
+library as evolving procedural knowledge and the skill
+learner as a learnable update policy.
+•We propose a two-stage training framework combining
+curriculum supervised fine-tuning with online skill-edit
+distillation, enabling failure-aware skill maintenance and
+iterative refinement.
+•We outperform the strongest experience-based baselines
+on EB-ALFRED and EB-Habitat while consistently im-
+proving multiple frozen executors.
+2 Related Works
+2.1 Embodied Task Planning
+Embodied task planning requires agents to translate lan-
+guage instructions and visual observations into coherent ac-
+tionsequences.Recentworkprimarilyimprovesthiscapabil-
+ity by post-training MLLM/VLM executors. RL4VLM ap-
+pliesreinforcementlearningtoVLMdecisionpolicies(Zhai
+et al. 2024), while REBP and RoboGPT-R1 combine su-
+pervisedinitializationwith reinforcementlearningforstruc-
+turedreasoning,taskcompletion,andactionconsistency(Wu
+et al. 2025; Liu et al. 2025). VAGEN reinforces state es-
+timation and transition modeling under partial observabil-
+ity (Wang et al. 2025). More recent methods exploit richer
+task supervision: ERA combines embodied priors with on-
+line RL (Chen et al. 2025), ORBIT performs on-policy fine-
+tuning with offline rewards (Wu et al. 2026), and RoboA-
+gent trains coordinated vision-language capabilities through
+behavior cloning, trajectory aggregation, and reinforcement
+learning (Xu, Zheng, and Mu 2026). These approaches im-
+prove planning by internalizing task knowledge and interac-
+tion policies into the executor’s parameters.
+2.2 Experience-Augmented Agents
+Because executor post-training typically requires task-
+specific trajectories, another line of work externalizes expe-
+rience as reusable skills or memories. Prompt-based meth-
+ods summarize trajectories and maintain external knowl-
+edge through predefined operations: Trace2Skill consoli-
+dates trajectory-level lessons (Ni et al. 2026), AutoSkill
+maintains skill artifacts through addition, merging, and re-
+moval (Yang et al. 2026). Memory-based methods organize
+experience into different memory structures (Zhang et al.
+2025; Zhang, Fu, and Yan 2026; Ding et al. 2026), while
+ELITE and EmbodiSkill use reflective updates to refine
+reusable strategies or procedural skills (Wei et al. 2026; Ju
+et al. 2026). However, their maintenance logic is primarily
+prescribed through prompts and heuristics. Therefore, re-
+searches like MemCtrl trains a memory gate to retain or
+discard observations (Dorbala and Manocha 2026), SkillOS
+learnsacuratorforanexternalskillrepository(Ouyangetal.
+2026).Incontrast,Practiceprogressivelytrainsadedicated
+learner to grow and refine a persistent skill library.
+3 Methodology
+3.1 Problem Formulation
+Our agent system consists of an embodied task executor,
+a persistent skill library, and a learnable skill learner: the
+library guides task execution, while the learner converts the
+resulting trajectories into library updates, forming a closed
+loop of skill-level self-evolution.
+Embodied task executor.We consider an embodied task
+executor that interacts with a physically grounded environ-
+mentEunder natural-language instructions. Each task is
+modeled as a partially observable decision process. Given
+an instructionI, the executor receives an observationot at
+eachtimesteptandselectsanactiona tfromtheactionspace
+
+0
+Stage 0: Oracle-Grounded SFT
+Success-only oracle trajectories
+Teacher SFT
+data
+- Skill generation/persistent
+- ADD/REVISE/MERGE/REMOVE
+Cold Start
+Skill 
+Learner 𝓢
+Skill 
+Library 𝓥
+co-evolve
+1
+Stage 1: Failure-Aware SFT
+Succ/Fail Traj from diverse models
+Teacher
+ SFT
+data
+- Invalid condition discovery
+- Failure recovery strategy
+Broaden skill coverage
+2
+Stage 2: Skill OPD :Online trajectory-to-skill learning loop
+Succ/Fail
+Traj from 
+Executor
+OPD data
+ Generate token prefix
+Student logits
+ Teacher top-k logits
+Forward KL on teacher 
+top-k distribution
+Trajectory 𝓣
+Figure 2:Training pipeline ofPractice.Stages 0–1 use oracle-grounded and failure-aware SFT to initialize skill learning
+while Stage 2 appliesSkill OPDto match a teacher’s token distributions on student-generated prefixes via forward KL.
+A.Wedenotetheexecutorpolicybyπ exec.Anexecutiontra-
+jectory is represented as
+τ= (I,o 1,a 1,...,o T,aT,y),(1)
+whereTis the trajectory length andy∈{0,1}denotes the
+final task-success outcome. Throughout our framework, the
+parameters ofπexec remain frozen.
+Skill Library.The skill libraryVstores reusable proce-
+dural knowledge available to the executor for embodied task
+execution. The skill library is a collection of skill cards:
+V={v j}|V|
+j=1.(2)
+We define a skill card as a parameterized procedural unit.
+Each skill cardvj consists of an action pattern sequencepj
+and a structured usage specificationuj:
+vj = (pj,uj), p j = [(a1,ϕ 1),...,(a L,ϕL)],(3)
+wherea l∈Ais a primitive action andϕ l denotes its ar-
+guments, such as an object category or a target state. For
+example,thepattern(pick_up,object_target)could
+describe a reusable “picking-up” skill. The usage specifi-
+cationu j describes the semantic scope and execution con-
+straints of the skill, such aswhenthe skill is applicable and
+howthe executor should recover from failure.
+Skill-guided execution.The task executor is augmented
+with the current skill libraryV. The library provides pro-
+cedural guidance for action planning, including applicable
+action patterns, execution preconditions, expected effects,
+and recovery strategies. Letht denotes the interaction his-
+tory available at stept. The executor selects its next action
+according to
+at∼π exec (·|I,h t,V).(4)
+Although the parameters ofπ exec remain unchanged, dif-
+ferent versions of the skill library induce different action
+distributions and therefore different trajectory distributions.
+Skilllearner.WeintroducetheskilllearnerSasaparam-
+eterized library-update policy. It interprets execution trajec-
+tories,extractreusableproceduralexperience,anddetermine
+how the persistent skill library should grow and be refined
+over time. At update roundi, the current libraryVi is pro-
+vided to the task executor to collect a new trajectory setTi.
+Then the skill learner predicts a set of structured edits to
+grow the skill library like:
+∆ =S(V,T).(5)
+Here,∆maycontainoperationsthatADD,REVISE,MERGE,
+orREMOVEskill cards. The predicted edits are applied to
+produce the next skill library:
+V= Apply (V,∆).(6)
+The skill learner and skill library thus form a coupled
+evolution process. An improved skill learner produces more
+reliable library edits, while the updated library changes the
+executor’s future trajectory distribution and provides new
+on-policy evidence for learning subsequent update policies.
+
+3.2PracticeOverview
+As illustrated in Figure 2, instead of relying on a fixed,
+prompt-engineeredprocedureforconstructingandmaintain-
+ing a skill library,Practiceestablishes a coupled update
+cycle between a learnable skill learner and a persistent skill
+library.
+(1) Learner update(Si
+(Vi,Ti)
+−−−−→Si+1). At roundi, the
+currentlibraryV iguidestheexecutorandinducestrajectories
+Ti,whichprovidesupervisionforimprovingtheskilllearner.
+(2)Libraryupdate(V i
+Si+1
+−−−→Vi+1).Theupdatedlearner
+interpretsT i in the context ofVi and produces structured
+edits to constructVi+1.
+The updated library subsequently changes the executor’s
+trajectorydistributionandprovidesnewinteractionevidence
+for the next round:
+Vi→T i→S i+1→V i+1→T i+1.(7)
+Weinstantiatethiscoupledprogressionthroughthreestages:
+oracle-grounded SFT, failure-aware SFT, and online skill-
+refinement policy distillation (Skill OPD). Each stage in-
+herits the learner and library from the preceding stage, pro-
+gressivelyimprovingboththeskill-refinementpolicyandthe
+procedural knowledge. We introduce each stage below.
+Initial Skill Library ConstructionWe construct the ini-
+tiallibrarythroughaction-patterndiscoveryinspiredbybyte-
+pair encoding (BPE) (Sennrich, Haddow, and Birch 2016).
+Wefirstcollectsuccessfultrajectoriesfromtheexecutorwith-
+out skill augmentation and convert them into sequences of
+primitiveactions.Frequentadjacentactionsubsequencesare
+then iteratively merged to discover recurring multi-step pat-
+terns. Finally, the initial skill learnerS0, initialized from a
+pretrainedbasemodel,consolidatesthesepatternsintostruc-
+tured skill cards, forming the initial libraryV0.
+3.3 Curriculum Training of the Skill Learner
+Followingcurriculumlearning,whichorganizestrainingex-
+amples in a meaningful progression from simpler to more
+difficultconcepts(Bengioetal.2009),wecold-starttheskill
+learnerthroughtwostages.Stage0usessuccessfuloracletra-
+jectories to establish fundamental skill generation, editing,
+and consolidation capabilities. Stage 1 subsequently intro-
+duces heterogeneous executor rollouts containing both suc-
+cesses and failures, enabling the learner to perform failure-
+aware skill attribution and revision.
+Structured skill-editing supervision.At stagei, the
+learner receives the current libraryVi and a trajectory batch
+Bi⊆T i.Astrongteachermodelgeneratesastructuredtarget
+edit set:
+∆∗
+i =G(V i,Bi),(8)
+whereGdenotes the teacher-based data generation process.
+Depending on the trajectory evidence and current library
+state,∆∗
+i maycontainADD,REVISE,MERGE,andREMOVE
+operations. Given the resulting curriculum datasetDk, the
+skilllearnerisoptimizedwiththeautoregressiveSFTobjec-
+tive:
+L(i)
+SFT =−E (x,y)∼Di
+
+
+|y|X
+t=1
+logpSi+1 (yt|x,y <t)
+
+,(9)
+wherexcontainsthecurrentlibraryandtrajectoryevidence,
+andydenotes the teacher-generated editing output.
+Stage 0: Oracle-Grounded Skill EditingStage 0 uses
+only successful oracle trajectories. This controlled setting
+allows the learner to acquire basic skill-editing capabilities
+beforeitmustreasonaboutnoisyandpotentiallyambiguous
+failures.
+To simulate the streaming arrival of executor experience,
+we randomly sampleNoracle trajectories to form each tra-
+jectory batch:
+B0,b⊆T oracle,|B 0,b|=N,(10)
+wherebdenotesthebatchindex.Weconstructthreecomple-
+mentary types of Stage-0 supervision.
+Skill generation from an empty library.The first type
+removes all existing skill context and asks the teacher to
+constructreusableskillcardsdirectlyfromatrajectorybatch:
+∆gen
+0,b =G(∅,B 0,b).(11)
+These examples teach the learner to identify reusable proce-
+duralabstractionswithoutrelyingonpre-existingskillcards.
+Editing the initialized library.The second type provides
+the BPE-initialized libraryV0 together with the same trajec-
+tory evidence:
+∆edit
+0,b =G(V 0,B 0,b).(12)
+The teacher determines whether the evidence supports
+addingamissingskill,revisinganincompleteskill,merging
+overlappingcards,removinganunsupportedcard,orpreserv-
+ing the existing library. These examples train the learner to
+makelocalizededitsratherthanregeneratethewholelibrary.
+Cross-batch library consolidation.Edits obtained from
+individual batches may describe the same procedure at dif-
+ferentgranularitiesorintroducepartiallyconflictingapplica-
+bility conditions. We therefore construct an additional con-
+solidation task overMindependently sampled batches:
+C0 =G merge
+
+V0,
+
+∆edit
+0,b
+	M
+b=1
+
+,(13)
+whereC 0 is a globally consolidated editing target. The con-
+solidationprocessremovessemanticduplicates,mergescom-
+patibleactionpatterns,reconcilesoverlappingtriggercondi-
+tions, and preserves distinct skills when their preconditions
+or effects differ. This task teaches the learner to maintain
+library-level consistency beyond a single local update.
+The complete Stage-0 dataset is
+D0 =D gen
+0 ∪D edit
+0 ∪D con
+0 ,(14)
+where the three subsets correspond to skill generation,
+library-conditioned editing, and cross-batch consolidation.
+Training onD 0 updates the initial learnerS0 intoS 1. The
+trained learner then evolves the initial library:
+∆0 =S 1 (V0,T 0),V 1 = Apply (V0,∆ 0).(15)
+
+Stage 1: Failure-Aware LearningStage 0 exposes the
+learner only to successful oracle behavior. However, an on-
+line skill learner must also determine whether a failed ex-
+ecution reveals a missing action, an incorrect action or an
+invalidenvironmentalcondition.Stage1introducestrajecto-
+ries generated by a heterogeneous pool of executor models,
+covering both successful and failed task executions.
+Instead of randomly mixing trajectories from unrelated
+tasks, we construct each batch from multiple executors at-
+tempting the same task. For taskq, the corresponding com-
+parison batch is
+B1,q ={τ q,m|m∈M},(16)
+whereMdenotes the executor pool. Since all trajectories
+sharethesameinstructionandsuccesscriterion,theirbehav-
+ioral differences provide controlled evidence for identifying
+generalizable skill content.
+For each same-task batch, the teacher jointly analyzes all
+trajectories and produces a failure-aware editing target:
+∆∗
+1,q =G(V 1,B 1,q).(17)
+These examples constitute the Stage-1 datasetD 1. Fine-
+tuning onD 1 updatesS 1 into the failure-aware learnerS2,
+which subsequently produces the next library:
+∆1 =S 2 (V1,T 1),V 2 = Apply (V1,∆ 1).(18)
+In summary, Stage 0 teaches the learner to perform struc-
+turedlibraryedits,whileStage1teachesittoidentifyinvalid
+conditions and recovery strategies by contrasting successful
+and failed trajectories.
+3.4 Skill OPD
+Although curriculum SFT provides a strong initialization,
+its supervision is constructed from a fixed output distribu-
+tion.WethereforeintroduceSkillOPD,adaptingknowledge
+distillation (Hinton, Vinyals, and Dean 2015) and on-policy
+sequencedistillation(Agarwaletal.2024;Shengetal.2025;
+Li et al. 2026) to skill-library editing. Unlike offline SFT,
+Skill OPD trains the learner on contexts induced by its own
+generated outputs, reducing the train–inference distribution
+mismatch in autoregressive skill editing.
+At OPD iterationi, we group incoming executor trajec-
+tories into editing batches. Conditioned on the current skill
+libraryVi and a trajectory batch, the current learnerSi sam-
+plesmulti-turneditingrolloutsfromitsownoutputdistribu-
+tion.Eachrolloutcontainsproposededitoperationstogether
+with the intermediate library states induced by applying and
+merging those operations.
+A frozen stronger teacher computes token distributions
+on the same student-generated prefixes. Skill OPD does not
+use task rewards or policy-gradient updates; instead, it di-
+rectly minimizes a top-Kapproximation to the forward KL
+divergence from the teacher to the student. Letcℓ denote a
+student-visitedskill-editingcontextattokenpositionℓ,p (K)
+T
+the teacher distribution restricted and renormalized over its
+top-Ksupport, andp Si the student distribution. The OPD
+objective is
+L(i)
+OPD =E cℓ
+h
+DKL
+
+p(K)
+T (·|c ℓ)∥pSi(·|c ℓ)
+i
+.(19)
+The expectation is taken over token contexts visited by the
+student’sowneditingrollouts.Minimizingthisobjectiveup-
+dates the learner fromSi toS i+1. The improved learner is
+then used to regenerate the edits and produce the next skill
+library.
+The updated library guides the executor in the next it-
+eration, producing a new trajectory distribution for further
+skill-learner optimization. Skill OPD therefore forms a re-
+cursive loop in which the learner improves the library, and
+the evolving library continually supplies new on-policy ex-
+perience for improving the learner.
+4 Experiments
+4.1 Experimental Setup
+Benchmarks.We evaluate on 2 high-level embodied task-
+planning benchmarks from EmbodiedBench (Yang et al.
+2025): EB-ALFRED and EB-Habitat. Both of them contain
+6 splits that assess distinct capability dimensions: basic ca-
+pabilities(Base),commonsensereasoning(Com.),complex-
+instructionfollowing(Comp.),visualrecognition(Vis.),spa-
+tial reasoning (Spat.), and long-horizon planning (Long).
+Implementation Details.We use Qwen3-VL-8B-
+Instruct (Bai et al. 2025) as the base model and Qwen3.7-
+Max (Alibaba Cloud 2026b) to construct supervision. Skill
+edits are generated from batches of 10 trajectories, and
+each consolidation step merges 15 candidate edits. SFT is
+performedforthreeepochswithalearningrateof5×10 −7.
+For Skill OPD, we use Qwen3-VL-32B-Instruct (Bai et al.
+2025) as the teacher and train for 20 epochs with a global
+batch size of 8 and one rollout per prompt. We apply top-K
+forward-KL distillation withK= 32and no auxiliary
+policy-gradient loss.
+Baselines.Weselectbaselinestodistinguishthreesources
+ofperformanceimprovement:backbonecapability(NoSkill),
+direct executor post-training (Training-based MLLMs), and
+the use of knowledge derived from experience (Experience-
+Augmented MLLMs).
+4.2 Main Results
+AsshowninTable1,Practiceachievesthebestoverallper-
+formance among experience-augmented methods under the
+same Qwen3-VL-32B-Instruct executor. It obtains average
+success rates of 49.7% on EB-ALFRED and 58.3% on EB-
+Habitat,exceedingthestrongestpriorexperience-augmented
+baseline. Among the reported split-level results,Practice
+performs best on five EB-ALFRED splits and four EB-
+Habitat splits. The improvements are especially pronounced
+on Complex and Long in EB-ALFRED and on Complex
+and Visual in EB-Habitat, showing the benefit of converting
+experience into reusable guidance for complex instruction
+following and task breakdown.Practicetrails the strongest
+baselines on Base and Long in EB-Habitat, where highly
+variable target locations are less amenable to fixed action
+patterns, suggesting room for more adaptive search skills.
+Some training-based methods, such as ELITE (Wei et al.
+2026), achieve higher performance by post-training the ex-
+ecutor on substantial task-specific data and interactions. In
+
+Model / Method EB-ALFRED EB-Habitat
+Avg. Base Common Complex Visual Spatial Long Avg. Base Common Complex Visual Spatial Long
+No skill
+GPT-5.4 65.3 76 72 76 54 58 56 65.7 98 52 62 62 40 80
+Gemini-3-Flash 59.0 70 56 60 68 56 44 51.0 86 52 46 62 30 30
+Qwen3.5-Flash 47.7 54 50 62 32 44 44 38.0 70 22 28 50 36 22
+Qwen3-VL-32B-Instruct 24.3 30 38 34 28 16 0 37.3 70 34 38 32 32 18
+Training-based MLLMs
+REBP (Wu et al. 2025) 35.6 54 42 46 28 38 6 20.0 ∗ 56 8 18 16 14 8
+ORBIT†(Wu et al. 2026) 72.4†86 62 82 72 60 – 22.4 ∗ 56 8 18 16 14 –
+RoboGPT-R1 (Liu et al. 2025) 55.3 62 56 64 50 50 50 22.0 ∗ 64 8 18 20 12 10
+RoboAgent (Xu et al. 2026) 67.0 72 48 64 78 60 80 22.3 ∗ – – – – – –
+ESCA (Huang et al. 2025) 38.0 46 – – – – 30 60.0 86 – – – – 34
+ELITE (Wei et al. 2026) 70.8 78 78 68 68 62 – 67.0 90 – – – – 44
+Experience-Augmented MLLMs (Executor: Qwen3-VL-32B)
+G-Mem (Zhang et al. 2025) 25.3 34 36 38 24 14 6 44.0 88 24 36 50 32 34
+Mem0 (Chhikara et al. 2025) 30.3 40 42 40 26 26 8 38.3 84 24 26 42 34 20
+A-Mem (Xu et al. 2025) 32.3 46 50 34 30 30 4 36.7 86 12 38 24 36 24
+LangMem (LangChain 2025) 31.3 38 44 44 28 26 8 38.3 86 26 28 40 32 18
+MemGen (Zhang et al. 2026) 14.2 22 18 16 6 20 4 25.7 50 14 22 36 22 10
+EmbodiedSkill (Ju et al. 2026) – – – – – – – 52.39644 52 62 36 24
+MemCompiler (Ding et al. 2026) 40.0 52 5448 38 38 10 55.7 90 58 44 64 40 38
+Practice(Ours) 49.7 6650 70 42 46 24 58.38268 60 76 4222
+Practice-GPT 5.4(Ours)67.7 74 74 72 60 6066 72.096765492 5460
+Table 1: Success rate (%) on EB-ALFRED and EB-Habitat.† indicates that the average is computed over the five reported
+splits,excludingtheLongsplit. ∗ denotesunseen/OODevaluation.“–”denotesresultsthatarenotreported.Thebestresultsare
+showninbold,andthesecond-bestresultsareunderlined .PracticeresultswithGPT-5.4executor(OpenAI2026)areitalicfor
+distinction.
+contrast,Practicetrainsaseparateskilllearnerwhilekeep-
+ing the executor unchanged. It can substantially improve the
+taskperformancesbycontinuallyconvertingnewtrajectories
+intorefinedskillswithoutrepeatedlyupdatingtheexecutor’s
+parameters.
+Notably,Practice-augmented Qwen3-VL-32B-Instruct
+surpassesthestrongproprietaryQwen3.5-Flash,whilePrac-
+tice-augmented GPT-5.4 achieves new state-of-the-art per-
+formance on EB-habitat benchmarks among all methods.
+These results show that our learner–library co-evolution
+pipeline can strengthen heterogeneous executors, narrowing
+the gap to stronger foundation models with a compact skill
+learner.
+4.3 Ablation
+Generalizationacrosstaskexecutors.Weadditionalcon-
+duct a cross-executor generalization study. Following the
+multi-executor evaluation protocol of MemCompiler (Ding
+et al. 2026), we instantiate the task executor with GPT-
+5.2, Gemini-3-Flash (Google 2025) (Gemini for shot), and
+Qwen3-VL-32B-Instruct (Qwen), covering both proprietary
+and open-weight models. For each executor, we compare
+skill-augmented performance against its matched unaug-
+mented baseline under the same evaluation protocol.
+As shown in Table 2,Practiceconsistently improves all
+threeexecutors.ItincreasestheaveragesuccessrateofGPT-
+5.4, GPT-5.2, Gemini and Qwen of 2.4, 30.3, 15.3, and
+25.4percentagepoints,respectively.Amongtheexperience-
+Method Executor No Aug. With Aug.∆
+BrainMem Claude-3.5-Sonnet 64.0 74.7 +10.7
+MemCtrl‡ Gemma-3-12B 25.6 27.8 +2.2
+MemCompiler Qwen3-VL-32B 19.0 40.0 +21.0
+LangMem
+GPT-5.2 32.0 46.7 +14.7
+Gemini-3-Flash 59.078.0 +19.0
+Qwen3-VL-32B 19.0 31.3 +12.3
+Practice(Ours)
+GPT-5.4 65.3 67.7 +2.4
+GPT-5.2 32.062.3 +30.3
+Gemini-3-Flash 59.0 74.3 +15.3
+Qwen3-VL-32B 24.349.7 +25.4
+Table 2: Average success rate on EB-ALFRED.∆denotes
+theabsoluteimprovementfromtheexperienceaugmentation.
+‡indicatesthattheaverageiscomputedoverthefivereported
+splits, excluding the Visual split.
+augmentedmethodsshownwiththesameexecutor,Practice
+yieldsthelargestreportedmatchedimprovementonGPT-5.2
+and Qwen. These results demonstrate the potential of im-
+proving diverse base executors through an evolving external
+skill library and support our claim thatPracticeprovides
+a general mechanism for sustained capability improvement
+without separately post-training each executor.
+Effect of progressive skill-learner training.Table 3
+presents a stage-wise ablation ofPractice’s training
+pipeline. The average success rate improves consistently
+
+Setting #Cards Base Com. Comp. Vis. Spat. Long Avg.
+No Skill 0 30 38 34 28 16 0 24.3
+Initial Skill (BPE) 17 60 36 504642 10 40.7
+Stage 0 (SFT) 21 62 48 58 36 44 6 42.3
+Stage 1 (SFT) 17 66 46 60 40 46 14 45.3
+Stage 2 (OPD) 29 66 50 704246 24 49.7
+Table3:AblationofPractice’sprogressivetrainingpipeline
+onEB-ALFRED.Wereporttasksuccessrate(SR,%)across
+threetrainingstages:curriculumSFT(Stages0–1)andonline
+skill-edit distillation (Stage 2).Executor: Qwen3-VL-32B-
+Instruct;Student:Qwen3-VL-8B-Instruct.Thebestresultin
+each column is shown inbold.
+across all subsequent training stages. Stage 0 increases the
+average from 40.7% to 42.3% by teaching the learner ba-
+sic skill generation and consolidation from successful or-
+acle trajectories. Introducing failure-aware skill editing in
+Stage 1 further raises performance to 45.3%, with a particu-
+larly clear improvement on the Long split from 6% to 14%.
+Finally, Stage 2 achieves the largest incremental gain among
+thelearnedstages,improvingtheaveragesuccessrateby4.4
+points. At the same time, the number of skill cards in this
+stage also grows to the greatest one with 29 cards. These
+results indicate that during Skill OPD stage, skill learner ef-
+fectively learn to extract more new and effective skills by
+aligning with the stronger teacher on the skill-edit distribu-
+tion, reducing the discrepancy between offline supervision
+and the edits encountered during iterative library evolution.
+Effect of failure-aware skill learning.To isolate the con-
+tributionoffailure-awaresupervision,wecomparetwovari-
+ants of Stage 1. The full variant (Failure-Aware) uses both
+successfulandfailedtrajectories,requiringtheskilllearnerto
+contrast their action sequences and environment feedback to
+identify invalid conditions and derive corresponding recov-
+ery strategies. These findings are recorded in the respective
+fields of each skill card. As a control, Stage 1 (Succ-Only)
+usesonlysuccessfultrajectoriesandremovessupervisionfor
+thesetwofailure-relatedfieldswhileretainingtherestofthe
+skill-learning procedure.
+As shown in Table 4, simply adding more successful tra-
+jectories provides only a marginal improvement, increasing
+the average success rate from 42.3% to 42.7%. In contrast,
+failure-aware skill learning raises the average to 45.3%, out-
+performingthesuccess-onlyvariantby2.6percentagepoints
+and Stage 0 by 3.0 points. The largest improvement appears
+on the Long split, where success increases from 8% to 14%.
+Failure-awarelearningalsoimprovesBaseandComplexby4
+points and Spatial by 2 points over the success-only control.
+Theseresultsindicatethatfailedtrajectoriesprovidesupervi-
+sion that cannot be obtained merely by collecting additional
+successful examples: they expose invalid action patterns, vi-
+olated preconditions, and corrective behaviors that help the
+executor recover during complex and long-horizon tasks.
+Figure3illustrateshowfailure-awareskillsrecoveryfrom
+execution errors. After the initial pickup fails, the executor
+matches the environment feedback to an invalid condition
+recorded in the skill card and invokes the corresponding
+Variant Base Com. Comp. Vis. Spat. Long Avg.
+Stage 0 624858 36 44 6 42.3
+Stage 1 (Succ-Only) 62 46 56 40 44 8 42.7
+Stage 1 (Failure-Aware)664660 40 46 14 45.3
+∆+4 +0 +4 +0 +2 +6 +2.6
+Table4:Ablationstudyoffailure-awarerecoverylearningon
+EB-ALFRED.AllresultsareSR,%.∆denotestheimprove-
+ment of Stage 1 (Failure-Aware) over Stage 1 (Succ-Only).
+Figure3:Arepresentativefailure-recoverytrajectory.The
+PickUpfailure triggered “object not found” strategy redi-
+rects the search to an alternative location. The executor then
+resumes the task and completes it usingWashObjectand
+PlaceObjectReceptaclein 16 steps.
+recovery action. This example demonstrates that learned re-
+coverystrategiesmakeskill-guidedexecutionmorerobustto
+unexpected environment states.
+5 Conclusion
+Thisworkreframessustainedimprovementinembodiedtask
+planningasaproblemoflearninghowinteractionexperience
+shouldbetransformedintopersistentproceduralknowledge.
+Practiceshows that reusable action patterns become sub-
+stantiallymoreeffectivewhenpairedwithexplicitapplicabil-
+ity conditions and failure-recovery strategies: together, they
+help executors decompose complex instructions, avoid re-
+peated failure modes, and recover when execution deviates
+from the expected procedure. Rather than relying on a fixed,
+prompt-engineered maintenance workflow,Practicelearns
+thistransformationthroughaco-evolutionoflearner–library
+but with a frozen executor: the updated skill library shapes
+future trajectories, while those trajectories improve both the
+skill refinement policy and the knowledge retained in the
+next library. The consistent gains across training stages and
+heterogeneous executors validate the effectiveness and gen-
+erality of this cycle. More broadly, our results suggest that
+learning to maintain an evolving procedural layer offers an
+effectivepathcomplementarytopost-trainingtheexecutorit-
+self.Sustainedcapabilitygrowthcanthereforearisenotonly
+from improving how an agent acts, but also from improving
+how it turns past experiences into reusable knowledge for
+future decisions.
+
+References
+Agarwal, R.; Vieillard, N.; Zhou, Y.; Stanczyk, P.;
+Ramos Garea, S.; Geist, M.; and Bachem, O. 2024. On-
+PolicyDistillationofLanguageModels:LearningfromSelf-
+Generated Mistakes. InInternational Conference on Learn-
+ing Representations (ICLR).
+Ahn, M.; Brohan, A.; Brown, N.; Chebotar, Y.; Cortes, O.;
+David, B.; Finn, C.; Fu, C.; Gopalakrishnan, K.; Hausman,
+K.;Herzog,A.;Ho,D.;Hsu,J.;Ibarz,J.;Ichter,B.;Irpan,A.;
+Jang, E.; Ruano, R. J.; Jeffrey, K.; Jesmonth, S.; Joshi, N. J.;
+Julian, R.; Kalashnikov, D.; Kuang, Y.; Lee, K.-H.; Levine,
+S.;Lu,Y.;Luu,L.;Parada,C.;Pastor,P.;Quiambao,J.;Rao,
+K.; Rettinghouse, J.; Reyes, D.; Sermanet, P.; Sievers, N.;
+Tan,C.;Toshev,A.;Vanhoucke,V.;Xia,F.;Xiao,T.;Xu,P.;
+Xu, S.; Yan, M.; and Zeng, A. 2022. Do As I Can, Not As
+I Say: Grounding Language in Robotic Affordances.arXiv
+preprint arXiv:2204.01691.
+Alibaba Cloud. 2026a. Qwen3.5-Flash. https://www.
+alibabacloud.com/help/en/model-studio/vision-model/.
+Model snapshot qwen3.5-flash-2026-02-23; accessed July
+30, 2026.
+Alibaba Cloud. 2026b. Qwen3.7-Max. https:
+//www.alibabacloud.com/help/en/model-studio/text-
+generation-model/. Alibaba Cloud Model Studio documen-
+tation. Accessed: 2026-07-29.
+Bai, S.; Cai, Y.; Chen, R.; Chen, K.; Chen, X.; Cheng, Z.;
+Deng,L.;Ding,W.;Gao,C.;Ge,C.;etal.2025. Qwen3-VL
+Technical Report.arXiv preprint arXiv:2511.21631.
+Bengio,Y.;Louradour,J.;Collobert,R.;andWeston,J.2009.
+Curriculum Learning. InProceedings of the 26th Annual
+International Conference on Machine Learning, 41–48.
+Chen, H.; Zhao, M.; Yang, R.; Ma, Q.; Yang, K.; Yao, J.;
+Wang, K.; Bai, H.; Wang, Z.; Pan, R.; Zhang, M.; Barreiros,
+J.;Onol,A.;Zhai,C.;Ji,H.;Li,M.;Zhang,H.;andZhang,T.
+2025. ERA:TransformingVLMsintoEmbodiedAgentsvia
+Embodied Prior Learning and Online Reinforcement Learn-
+ing. arXiv:2510.12693.
+Chhikara, P.; Khant, D.; Aryan, S.; Singh, T.; and Ya-
+dav, D. 2025. Mem0: Building Production-Ready AI
+Agents with Scalable Long-Term Memory.arXiv preprint
+arXiv:2504.19413.
+Comanici, G.; Bieber, E.; Schaekermann, M.; et al. 2025.
+Gemini2.5:PushingtheFrontierwithAdvancedReasoning,
+Multimodality, Long Context, and Next Generation Agentic
+Capabilities.arXiv preprint arXiv:2507.06261.
+Ding, X.; Wang, X.; Yang, Y.; Wu, H.; Jiang, S.; Zhang, Q.;
+Mi, L.; Zhu, H.; Li, K.; Liu, Y.; et al. 2026. MemCom-
+piler: Compile, Don’t Inject–State-Conditioned Memory for
+Embodied Agents.arXiv preprint arXiv:2605.07594.
+Dorbala, V. S.; and Manocha, D. 2026. MemCtrl: Us-
+ing MLLMs as Active Memory Controllers on Embodied
+Agents.arXiv preprint arXiv:2601.20831.
+Google.2025.Gemini3FlashPreview.https://ai.google.dev/
+gemini-api/docs/models/gemini-3-flash-preview. Accessed:
+2026-07-29.
+Google DeepMind. 2025. Gemini 3 Flash Model Card.
+https://deepmind.google/models/model-cards/gemini-3-
+flash/. Published December 17, 2025.
+Google DeepMind. 2026a. Gemini 3.1 Pro Model Card.
+https://deepmind.google/models/model-cards/gemini-3-1-
+pro/. Published February 19, 2026.
+Google DeepMind. 2026b. Gemini 3.5 Flash Model Card.
+https://deepmind.google/models/model-cards/gemini-3-5-
+flash/. Published May 19, 2026.
+Hinton, G.; Vinyals, O.; and Dean, J. 2015. Distill-
+ing the Knowledge in a Neural Network.arXiv preprint
+arXiv:1503.02531.
+Huang, J.; Sethi, A.; Kuo, M.; Keoliya, M.; Velingker, N.;
+Jung, J.; Lim, S. N.; Li, Z.; and Naik, M. 2025. ESCA:
+ContextualizingEmbodiedAgentsviaScene-GraphGenera-
+tion. InAdvancesinNeuralInformationProcessingSystems
+(NeurIPS), volume 38, 2828–2870.
+Jiang,G.;Su,Z.;Qu,X.;andFung,Y.R.2026. XSkill:Con-
+tinual Learning from Experience and Skills in Multimodal
+Agents. InProceedingsofthe43rdInternationalConference
+on Machine Learning (ICML).
+Ju, R.; Wang, X.; Ding, X.; Yang, Y.; Wu, H.; Jiang, S.;
+Zhang, Q.; Wen, H.; Li, X.; Wang, W.; et al. 2026. Em-
+bodiSkill: Skill-Aware Reflection for Self-Evolving Embod-
+ied Agents.arXiv preprint arXiv:2605.10332.
+LangChain.2025. LangMem. https://github.com/langchain-
+ai/langmem. Accessed: 2026-05-04.
+Li, Y.; Zuo, Y.; He, B.; Zhang, J.; Xiao, C.; Qian, C.; Yu,
+T.; Gao, H.-a.; Yang, W.; Liu, Z.; and Ding, N. 2026. Re-
+thinking On-Policy Distillation of Large Language Models:
+Phenomenology, Mechanism, and Recipe.arXiv preprint
+arXiv:2604.13016.
+Liu,J.;Nie,B.;Li,B.;Chen,Y.;Wang,Y.;He,S.;andLi,H.
+2025. RoboGPT-R1: Enhancing Robot Task Planning with
+Reinforcement Learning.arXiv preprint arXiv:2510.14828.
+Ni, J.; Liu, Y.; Liu, X.; Sun, Y.; Zhou, M.; Cheng, P.; Wang,
+D.;Zhao,E.;Jiang,X.;andJiang,G.2026. Trace2Skill:Dis-
+till Trajectory-Local Lessons into Transferable Agent Skills.
+arXiv:2603.25158.
+OpenAI. 2026. Introducing GPT-5.4. https://openai.com/
+index/introducing-gpt-5-4/. Published March 5, 2026.
+Ouyang, S.; Yan, J.; Chen, Y.; Han, R.; Wang, Z.; Mishra,
+B.D.;Meng,R.;Li,C.-L.;Jiao,Y.;Zha,K.;etal.2026. Skil-
+lOS: Learning skill curation for self-evolving agents.arXiv
+preprint arXiv:2605.06614.
+Sennrich, R.; Haddow, B.; and Birch, A. 2016. Neural Ma-
+chine Translation of Rare Words with Subword Units. In
+Proceedings of the 54th Annual Meeting of the Association
+for Computational Linguistics, 1715–1725.
+Sheng, G.; Zhang, C.; Ye, Z.; Wu, X.; Zhang, W.; Zhang,
+R.; Peng, Y.; Lin, H.; and Wu, C. 2025. HybridFlow: A
+Flexible and Efficient RLHF Framework. InProceedings of
+the Twentieth European Conference on Computer Systems
+(EuroSys), 1279–1297. ACM.
+Song, C. H.; Wu, J.; Washington, C.; Sadler, B. M.; Chao,
+W.-L.; and Su, Y. 2023. LLM-Planner: Few-Shot Grounded
+
+PlanningforEmbodiedAgentswithLargeLanguageModels.
+InProceedings of the IEEE/CVF International Conference
+on Computer Vision, 2998–3009.
+Wang, K.; Zhang, P.; Wang, Z.; Gao, Y.; Li, L.; Wang, Q.;
+Chen, H.; Lu, Y.; Yang, Z.; Wang, L.; Krishna, R.; Wu, J.;
+Li, F.-F.; Choi, Y.; and Li, M. 2025. VAGEN: Reinforcing
+WorldModelReasoningforMulti-TurnVLMAgents. InAd-
+vancesinNeuralInformationProcessingSystems(NeurIPS),
+volume 38.
+Wei, B.; Xia, Z.; Liu, D.; Zhou, X.; Lin, Z.; and Wang,
+Y. 2026. ELITE: Experiential Learning and Intent-Aware
+Transfer for Self-improving Embodied Agents.arXiv
+preprint arXiv:2603.24018.
+Wu, D.; Fan, J.; Gu, C.; Wang, G.; Yin, W.; Li, W.; and Jin,
+B.2026. On-PolicyReinforcementFine-TuningwithOffline
+Reward for Multi-Step Embodied Planning. InProceedings
+of the 64th Annual Meeting of the Association for Computa-
+tional Linguistics (ACL), 39277–39307. San Diego, Califor-
+nia, United States: Association for Computational Linguis-
+tics.
+Wu, D.; Fan, J.; Zang, J.; Wang, G.; Yin, W.; Li, W.; and
+Jin,B.2025. ReinforcedReasoningforEmbodiedPlanning.
+arXiv preprint arXiv:2505.22050.
+Xu, P.; Zheng, J.; and Mu, Y. 2026. RoboAgent: Chaining
+BasicCapabilitiesforEmbodiedTaskPlanning. InProceed-
+ings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR), 15276–15290.
+Xu, W.; Liang, Z.; Mei, K.; Gao, H.; Tan, J.; and Zhang, Y.
+2025. A-MEM: Agentic Memory for LLM Agents. InAd-
+vancesinNeuralInformationProcessingSystems(NeurIPS),
+volume 38.
+Yang, R.; Chen, H.; Zhang, J.; Zhao, M.; Qian, C.; Wang,
+K.;Wang,Q.;Koripella,T.V.;Movahedi,M.;Li,M.;Ji,H.;
+Zhang, H.; and Zhang, T. 2025. EmbodiedBench: Compre-
+hensive Benchmarking Multi-modal Large Language Mod-
+els for Vision-Driven Embodied Agents. InProceedings
+of the 42nd International Conference on Machine Learning
+(ICML), volume 267, 70576–70631. PMLR.
+Yang, Y.; Li, J.; Pan, Q.; Zhan, B.; Cai, Y.; Du, L.; Zhou,
+J.; Chen, K.; Chen, Q.; Li, X.; Zhang, B.; and He, L. 2026.
+AutoSkill: Experience-Driven Lifelong Learning via Skill
+Self-Evolution. arXiv:2603.01145.
+Yao, S.; Zhao, J.; Yu, D.; Du, N.; Shafran, I.; Narasimhan,
+K.; and Cao, Y. 2023. ReAct: Synergizing Reasoning and
+ActinginLanguageModels. InInternationalConferenceon
+Learning Representations.
+Yuan, H.; Bai, Y.; Fu, Y.; Zhou, B.; Feng, Y.; Xu, X.; Zhan,
+Y.; Karlsson, B. F.; and Lu, Z. 2025. Being-0: A Humanoid
+Robotic Agent with Vision-Language Models and Modular
+Skills.arXiv preprint arXiv:2503.12533.
+Zhai, Y.; Bai, H.; Lin, Z.; Pan, J.; Tong, S.; Zhou, Y.; Suhr,
+A.; Xie, S.; LeCun, Y.; Ma, Y.; and Levine, S. 2024. Fine-
+Tuning Large Vision-Language Models as Decision-Making
+Agents via Reinforcement Learning. InAdvances in Neu-
+ral Information Processing Systems (NeurIPS), volume 37,
+110935–110971.
+Benchmark Stage Succ. Fail. # Gen/Edit # Conso. Total
+EB-ALFRED Stage 0A 300 0 1,000 400 1,400
+Stage 0B 300 0 400 0 400
+Stage 1 1,285 1,123 300 150 450
+Subtotal 1,885 1,123 1,700 550 2,250
+EB-Habitat Stage 0A 300 0 1,000 400 1,400
+Stage 0B 150 0 300 100 400
+Stage 1 1,316 1,084 300 150 450
+Subtotal 1,766 1,084 1,700 550 2,250
+Table5:StatisticsofthefinalcurriculumSFTdatasets.Succ.
+and Fail. count source trajectories before batching, whereas
+Edit, Consolidation (Conso.), and Total count the resulting
+SFT samples.
+Zhang, G.; Fu, M.; Wang, K.; Wan, F.; Yu, M.; and Yan, S.
+2025. G-Memory: Tracing Hierarchical Memory for Multi-
+AgentSystems. InAdvancesinNeuralInformationProcess-
+ing Systems (NeurIPS), volume 38.
+Zhang, G.; Fu, M.; and Yan, S. 2026. MemGen: Weaving
+Generative Latent Memory for Self-Evolving Agents. InIn-
+ternationalConferenceonLearningRepresentations(ICLR).
+A Additional Method Details
+A.1 Training Data Construction
+Ourcurriculumsupervisedfine-tuning(SFT)consistsoftwo
+stages. Stage 0 uses only successful oracle trajectories to
+establish the learner’s basic skill-generation, skill-edit and
+skill-consolidatecapabilities.Forgeneration(Stage0A),the
+current_skill_poolis set to an empty list. We ran-
+domly sampleN= 10trajectories as a batch from 300
+oracle trajectories in both EB-ALFRED and EB-Habitat to
+construct supervision fromQwen-3.7-max(Bai et al. 2025).
+Therefore we get several generated skill candidates for each
+batch, after that, we randomly sampleM= 15candidates
+to construct skill-consolidate data. For editing (Stage 0B),
+thecurrent_skill_poolis the initial skill libraryV0.
+Similarly as Stage 0A, we generate skill editing data from
+randomly trajectories batches from oracle.
+Stage 1 groups trajectories produced by 8 hetero-
+geneous executors according to the task:Gemini-2.5-
+Flash(Comanici et al. 2025),Gemini-3-Flash(Google
+DeepMind 2025),Gemini-3.1-Pro(Google DeepMind
+2026a),Gemini-3.5-Flash(Google DeepMind 2026b),
+GPT-5.4(OpenAI 2026),Qwen3.5-Flash(Alibaba Cloud
+2026a), andQwen3-VL-8B/32B-Instruct(Bai et al. 2025).
+By contrasting successful and failed executions of the
+same task, the learner generates failure-aware edits
+that capture additionalinvalid_conditionsand
+recovery_strategies.Thenfromeachgroup,wecol-
+lect the corresponding skill editing with the skill pool ofV1,
+and consolidation data after that.
+InTable5,skill-generationandlocallibrary-editingexam-
+ples are jointly counted asedit samples, while cross-batch
+consolidation examples are counted asmerge samples.
+
+Algorithm 1: Progressive Learner–Library Co-Evolution in
+Practice.
+Require:Frozentaskexecutorπ exec;initialskilllearnerS 0;
+oracle trajectoriesT ora; heterogeneous executorsΠhet;
+SFT supervision teacherPsup; OPD teacherPT; OPD
+roundsR
+Ensure:TrainedskilllearnerS R+1andevolvedskilllibrary
+VR+1
+1:// Initial skill-library construction
+2:P 0←BPE-PatternDiscovery(T ora)
+3:V 0←InitializeSkillLibrary(S 0,P 0,T ora)
+4:// Stage 0: Oracle-Grounded SFT
+5:D 0 ←ConstructOracleSupervi-
+sion(Psup,V 0,T ora)
+6:S 1←SupervisedFineTune(S 0,D 0){Learner update}
+7:T 0←Rollout(π exec,V 0)
+8:V 1←UpdateLibrary(S 1,V 0,T 0){Library update}
+9:// Stage 1: Failure-Aware SFT
+10:T 1←CollectSameTaskRollouts(Π het,V 1)
+11:B 1←GroupByTask(T 1)
+12:D 1 ←ConstructFailureA wareSupervi-
+sion(Psup,V 1,B 1)
+13:S 2←SupervisedFineTune(S 1,D 1){Learner update}
+14:V 2←UpdateLibrary(S 2,V 1,T 1){Library update}
+15:// Stage 2: On-Policy Distillation
+16:fori= 2,...,Rdo
+17:T i←Rollout(π exec,Vi)
+18:D OPD
+i ←ConstructOPDPrompts(Vi,Ti)
+19:S i+1 ←OnPolicyDistillation(S i,P T,D OPD
+i )
+{Algorithm 2}
+20:V i+1←UpdateLibrary(Si+1,Vi,Ti){Library up-
+date}
+21:end for
+22:returnS R+1,VR+1
+23:// Subroutine: UpdateLibrary(S,V,T)
+24:Partition trajectories into batches{Bm}M
+m=1
+25:form= 1,...,Mdo
+26:∆ m←S(V,B m)
+27:∆ m∈{ADD,REVISE,MERGE,REMOVE}
+28:end for
+29: eV←ApplyEdits(V, SM
+m=1 ∆m)
+30:V ′←HierarchicalConsolidation(eV)
+31:returnV ′
+A.2 Training Algorithm
+Algorithm1presentsthepseudocodefortheoverallPrac-
+ticeframework.Specifically,weimplementtheStage2train-
+ingusingtheon-policydistillation(OPD)pipelineinverl.
+Thetrainingdataareprompt-only:givenatrajectoryprompt,
+thecurrentstudentfirstgeneratesaskillupdatefromitsown
+policy.Afrozenteacherthenevaluatesthestudent-generated
+sequence and provides its Top-Ktoken distribution at each
+response position. We directly optimize the student using a
+Top-KapproximationoftheforwardKLdivergence.Notask
+reward or policy-gradient objective is used.
+Letπ θ denote the student skill learner andπT the frozen
+teacher. For a promptx, the student first samples
+y∼π θ(·|x),(20)
+wherey= (y 1,...,y T )isthestudent-generatedskillupdate.
+At each response positiont, the teacher is evaluated on the
+student-inducedcontexts t = (x,y<t)andreturnsitsTop-K
+token set
+Kt = TopKK (πT (·|s t)).(21)
+We minimize the truncated forward-KL objective
+ℓt =
+X
+v∈Kt
+πT (v|s t)
+×[logπ T (v|s t)−logπ θ(v|s t)].
+(22)
+The loss is aggregated only over valid student-response to-
+kens:
+LOPD =
+PT
+t=1mtℓt
+PT
+t=1mt
+,(23)
+wheremtistheresponse-tokenmask.Inourimplementation,
+K= 32. The student is updated by direct backpropagation
+throughL OPD, while the teacher remains frozen.
+Unlike policy-gradient OPD, our configuration directly
+backpropagates the distribution-matching objective through
+the student probabilities. Task rewards and PPO/GRPO
+policy-gradientlossesaredisabled;hencethetotaloptimiza-
+tion objective is simply
+Ltotal =L OPD.(24)
+Becauseeachnewresponseissampledfromthelateststudent
+before teacher scoring, the distillation states evolve together
+with the student policy, rather than remaining fixed to an
+offline teacher-generated dataset.
+B Implementation Details
+We first train Qwen3-VL-8B-Instruct with curriculum SFT
+using supervision constructed by Qwen3.7-Max. The re-
+sulting SFT checkpoint initializesSkill OPD, in which a
+fixed Qwen3-VL-32B-Instruct teacher provides token-level
+soft targets for the editing rollouts generated by the current
+student policy. We use pure Top-Kforward-KL distillation
+without auxiliary reward or policy-gradient objectives. The
+completedata-generation,optimization,batching,sequence-
+length, and system configurations are reported in Table 6.
+The training time for SFT stages are about 7 GPU hours in
+total and 64 GPU hours for OPD. So overall, the method is
+computationally lightweight.
+C Skill Analysis
+C.1 What We Learned
+We analyze the action-sequence lengths of the skill libraries
+producedbytheskilllearnerafterallthreetrainingstageson
+bothEB-ALFREDandEB-Habitat.AsshowninFigure4-5,
+we visualize the ten longest skills for each benchmark. On
+EB-ALFRED, the learned library contains 29 skills, com-
+prising 13 single-action skills and 16 composite skills. On
+EB-Habitat, it contains 15 skills, including 5 single-action
+skills and 10 composite skills.
+
+Algorithm 2: On-Policy Distillation for the Skill Learner
+Require:Prompt-onlydatasetD;studentπ θ;frozenteacher
+πT; Top-KsizeK; chunk sizeC
+Ensure:Distilled studentπ θ
+1:foreach training stepdo
+2:Sample prompt batchB={x i}B
+i=1 fromD
+3:// On-policy student rollout
+4:foreachx i∈Bdo
+5:Sampley i∼π θ(·|x i)
+6:Form sequencez i = [xi;yi]
+7:Construct response maskm i
+8:end for
+9:// Frozen-teacher supervision
+10:foreach student-generated sequencez i do
+11:Evaluate frozenπ T onzi
+12:foreach response positiontdo
+13:Set contexts i,t = (xi,yi,<t)
+14:Obtain teacher Top-KsetK i,t
+15:Storelogπ T (v|s i,t)forv∈K i,t
+16:end for
+17:end for
+18:// Student distribution matching
+19:Forwardπ θ on{zi}B
+i=1
+20:forresponse positions in chunks of sizeCdo
+21:Compute student log-normalizers
+22:Gather logits at teacher Top-Kindices
+23:Obtainlogπ θ(v|s i,t)forv∈K i,t
+24:end for
+25:Clipteacherandstudentlog-probabilitiesfrombelow
+at−10
+26:// Top-Kforward-KL distillation
+27:foreach valid response position(i,t)do
+28:Computeℓ i,t using Eq. (22)
+29:Clipℓ i,t to[0,10]
+30:end for
+31:Aggregate token losses using Eq. (23)
+32:SetL total =L OPD
+33:Updateθ←θ−η∇ θLtotal
+34:Synchronize student weights to the rollout engine
+35:end for
+The learner discovers reusable procedures at sub-
+stantially different levels of complexity. On EB-
+ALFRED,HeatAndStoreFoodItemexpands into
+15 actions, integrating object retrieval, appliance op-
+eration, heating, and final storage. On EB-Habitat,
+MultiObjectSearchAndTransfercontains8actions
+and captures repeated object search, retrieval, and delivery.
+TheseexamplesdemonstratethatPracticecanabstractcom-
+plete long-horizon procedures. Such long macros can sim-
+plify planning, especially those compex long-horizon tasks.
+AsshownintheFigure6,bothlibrariesexhibitaclearhier-
+archy between primitive control and procedural abstraction.
+InEB-ALFRED,11ofthe16compositeskillscontain4to7
+actions. In EB-Habitat, 9 of the 10 composite skills contain
+2 to 4 actions, with only one extending to 8 actions. This
+differenceindicatesthatPracticeadaptsskillgranularityto
+Hyperparameter Value
+Curriculum SFT
+Student model Qwen3-VL-8B-Instruct
+Supervision model Qwen3.7-Max
+Training epochs 3
+Optimizer AdamW
+Learning rate5×10 −7
+Learning-rate schedule Cosine
+Weight decay0.01
+Gradient clipping1.0
+Maximum sequence length8,192
+Training precisionbfloat16
+Stage 0 Training time∼4 GPU hours
+Stage 1 Training time∼3 GPU hours
+Skill OPD
+Student model Stage 1 SFT checkpoint
+Teacher model Qwen3-VL-32B-Instruct
+Teacher update Frozen
+Distillation objective Top-Kforward KL
+Teacher Top-K32
+Top-Kchunk size 8
+Distillation loss coefficient1.0
+Maximum loss clipping10
+Minimum log-prob. clipping−10
+Training epochs 6
+Training time∼64 GPU hours
+Global rollout batch size 8
+Rollouts per promptN1
+Optimization mini-batch size 8
+Optimizationepochsperrollout
+batch
+1
+Policyupdatesperrolloutbatch 1
+Per-GPU micro-batch size 1
+Optimizer AdamW
+Learning rate5×10 −7
+Learning-rate schedule Constant
+Weight decay0.01
+Gradient clipping1.0
+Per-GPU token budget12,289
+Student training resources FSDP on8×A100-40GB
+Student rollout vLLM Colocated, TP= 2
+Teacher serving resources vLLM on8×A100-40GB,
+TP= 8
+Rollout precisionbfloat16
+vLLM memory utilization0.6
+Table6:Traininghyperparametersandsystemconfigurations
+for curriculum SFT andSkill OPD.
+the procedural structure of each environment: EB-ALFRED
+requires longer manipulation routines, whereas EB-Habitat
+primarilybenefitsfromcompactsearch-and-transferabstrac-
+tions.
+C.2 Skill Execution Analysis
+Weanalyzehowthesameexecutorbehaveswithandwithout
+the learned skill library. Figure 7 summarizes all 300 EB-
+
+Figure 4: The 10 skills with the longest default action se-
+quences in the EB-ALFRED skill library.
+Figure 5: The 10 skills with the longest default action se-
+quences in the EB-Habitat skill library.
+ALFRED episodes. First, learned skills enable more failure-
+freeexecution.Thenumberofepisodeswithoutanyrejected
+Figure 6: Distribution of default skill-expansion lengths in
+the learned skill libraries for (a) EB-ALFRED and (b) EB-
+Habitat.Skilllengthismeasuredbythenumberofprimitive
+actions in the default expansion pattern.
+action increases from 40/300 (13.3%) to 77/300 (25.7%),
+while successful failure-free episodes increase from 38/300
+(12.7%) to 73/300 (24.3%). This indicates that the learned
+skills help the executor generate more executable plans that
+satisfy action preconditions.
+Second, learned skills substantially improve outcomes
+even when rejected actions still occur. Although the number
+of episodes containing a rejected action decreases from 260
+to 223, successful episodes within this branch increase from
+35/300 (11.7%) to 76/300 (25.3%). The lower population-
+level percentages for different follow-up actions and imme-
+diate local recovery mainly reflect that fewer episodes enter
+the failure branch; they should not be interpreted as condi-
+tional recovery rates.
+Overall, the improvement is jointly explained by proac-
+tivefailureavoidanceandpost-failurerecovery.Theseresults
+show thatPracticeimproves embodied task execution not
+only by producing more valid plans, but also by helping the
+executor preserve progress and ultimately complete the task
+after execution failures.
+We further analyze the execution situation of each skills.
+The Figure 8 illustrates the relationship between skill usage
+frequency and task-level benefit. The x-axis shows the num-
+ber of skill invocations, while the y-axis reports the paired
+
+Figure7:Executionoutcomeswithandwithoutlearnedskills
+over 300 EB-ALFRED episodes.
+success-rate improvement over the no-skill 0-shot baseline
+on the same episodes. Bubble size represents task coverage,
+and error bars indicate 95% bootstrap confidence intervals.
+Compared with success rates conditioned only on skill in-
+vocation, this paired comparison better controls for episode
+difficulty and reduces selection bias.
+Overall, thePracticemethod improves the task suc-
+cess rate from 24.3% to 40.0%.TurnOff,Close,
+TurnOn,Open,PutDown,Find, andPickUpall show
+consistent positive improvements. In particular,Find,
+PickUp, andPutDowncombine high invocation fre-
+quency with broad task coverage, demonstrating strong
+generalizability.TurnOff,Close, andTurnOnachieve
+larger gains, suggesting that skill cards effectively stabi-
+lize interaction procedures that are otherwise error-prone.
+MoveObjectToReceptacleandWashObjectalso
+show large improvements, although their limited coverage
+requires further validation.
+The four quadrants represent distinct types of skills. The
+upper-right quadrant contains frequent, broadly applicable,
+and effective skills, which form the core strength of the
+learned skill library. The upper-left quadrant contains
+promising specialized skills with insufficient coverage and
+thereforecallsforadditionalevaluationdata.Thelower-right
+quadrant represents frequently used but harmful skills; this
+region is nearly empty, indicating that high-frequency skills
+do not introduce systematic negative effects. The lower-left
+quadrantmainlycontainslow-frequencyskillssuchasDrop
+andHoldObjectWhileTurningOnLight, whose
+negativeestimatesremainuncertainbecauseoflimitedsam-
+ples. Skills such asPlaceObjectInContainer,
+PlaceObjectOnNonContainerSurface,
+TurnOffLight, andSliceWithTooldo not show
+robustimprovementsandshouldbeprioritizedforexpansion
+or routing refinement.
+Overall, the learned skill library improves success while
+concentrating model usage on broadly reusable skills with
+stable positive returns. These results demonstrate that the
+proposedmethodcanextracttransferablebehavioralpatterns
+from trajectories and improve execution reliability across
+diverse tasks.
+C.3 Skill Usage in Different Splits
+WecomparethePracticewiththeNo-Skillbaselinethrough
+paired evaluation through six different splits. Each episode
+is categorized as both agents succeeding, only thePrac-
+ticesucceeding,onlytheNo-Skillagentsucceeding,orboth
+agents failing.
+AsshowninFigure9-10,thePracticeprovidesconsistent
+gains on both benchmarks. On EB-ALFRED, skills recover
+91episodesthattheNo-Skillbaselinefails,whileintroducing
+regressions on only 15 episodes, resulting in a net improve-
+ment of∆SR = +25.3percentage points. The largest gains
+appear on base and complex-instruction tasks (+36points),
+followed by spatial tasks (+30points). On long-horizon
+tasks, thePracticesolves 12 episodes while the baseline
+solves none. These results indicate that reusable skills ef-
+fectively translate diverse instructions into stable multi-step
+action sequences.
+On EB-Habitat, skills recover 58 failed episodes while
+causing 32 regressions, producing an overall improvement
+of∆SR = +8.7points. The largest gain occurs on
+visual-appearancetasks(+20points),followedbycomplex-
+instruction (+12points) and base tasks (+10points). The
+smaller improvement on EB-Habitat reflects its stronger de-
+pendence on scene exploration and object localization: nav-
+igation is restricted to receptacles, so successful execution
+often requires locating an object indirectly before applying
+a reusable manipulation pattern. Spatial tasks show no net
+improvement, while long-horizon tasks improve by only 4
+points, suggesting that spatial grounding and extended state
+tracking remain difficult to encode through fixed skill struc-
+tures alone.
+Overall, skills provide a substantial paired advantage on
+bothbenchmarks.Theirprimarybenefitisreducingtheplan-
+ning complexity of recurring multi-step behaviors and im-
+proving execution consistency. Remaining failures are con-
+centrated in tasks requiring visual grounding, indirect ob-
+jectsearch,spatialreasoning,andlong-horizoncoordination,
+highlightingtheneedforstrongeradaptiveskillselectionand
+state-aware composition.
+
+Figure 8: Skill-level benefit–risk analysis. Invocation frequency is plotted against paired success-rate improvement over the
+no-skill baseline; bubble size indicates task coverage, color denotes skill family, and error bars show 95% bootstrap confidence
+intervals.
+Figure9:Pairedepisodeoutcomesbetweentheno-skillbase-
+line andPracticeacross six EB-ALFRED splits. Each bar
+shows the four paired outcome categories, with the corre-
+spondingchangeinsuccessrate(∆SR)reportedontheright.
+Table 7: Skill execution and recovery statistics on EB-
+ALFRED. Inv.: skill invoked; Exp.: valid expansion; Acc.:
+primitive-action acceptance; Fail: episodes with rejected ac-
+tions; Rec.: locally recovered episodes; Succ.: task success.
+Each split contains 50 episodes.
+Split Inv. Exp. Acc. Fail Rec. Succ.
+Base 50/50 47/50 82.6% 31/50 30/50 66.0%
+CS 49/50 42/50 81.2% 36/50 32/50 50.0%
+CI 49/50 48/50 85.8% 31/50 29/50 70.0%
+VA 49/50 41/50 74.6% 40/50 34/50 42.0%
+SR 50/50 44/50 76.5% 40/50 37/50 46.0%
+LH 50/50 48/50 80.5% 45/50 45/50 24.0%
+All 297/300 270/300 80.2% 223/300 207/300 49.7%
+Table 7 analyzes skill invocation, action expansion, ex-
+ecution validity, and failure recovery across different splits
+on EB-ALFRED. The best results occur on Complex In-
+struction and Base, which achieve the highest task success
+rates (70.0% and 66.0%) together with reliable skill expan-
+sionandactionacceptance.Thissuggeststhatreusableskills
+effectively convert diverse language instructions into stable
+action structures. Common Sense remains moderately suc-
+cessful, while Visual Appearance and Spatial Relationship
+
+Figure 10: Paired episode outcomes between the no-skill
+baseline andPracticeacross six EB-Habitat splits. Each
+bar shows the four paired outcome categories, with the cor-
+responding change in success rate (∆SR) reported on the
+right.
+aremoredifficultbecausecorrectexecutiondependsheavily
+onvisualinstanceidentificationandspatialgrounding.Long
+Horizon exhibits high expansion validity and recovers from
+everylocalfailure,yetreachesonly24.0%tasksuccess.This
+indicatesthatlocalrecoveryiseffective,butcannotfullypre-
+vent error accumulation or maintain state consistency over
+extendedskillcompositions.Overall,theresultshighlightthe
+method’s strong execution and recovery capabilities while
+identifying visual grounding and long-horizon coordination
+as the main remaining bottlenecks.
+D Qualitative Analysis
+Wequalitativelyexaminerepresentativesuccessfulandfailed
+trajectories to understand how the learned skill library sup-
+ports execution and where its limitations arise. We focus on
+whetherreusableskillsreduceplanningcomplexity,howthe
+executor responds to rejected actions, and whether failures
+originatefromtheskillabstractionorfromonlinegrounding
+and execution.
+D.1 Case Study in EB-ALFRED
+Successful cases: light-assisted inspection.Light-
+assisted inspection requires the agent to coordinate object
+localization, illumination, and manipulation. Figure 11
+shows two representative examples. In Common Sense-49,
+the agent grounds the indirect expressions “keys” and “one
+fixture on the table” toKeyChainandDeskLamp. It
+first invokesTurnOnto establish the required lighting
+condition and then usesFindandPickUpto inspect the
+keys. After one rejected pickup, the executor re-localizes
+the keychain and completes the task without restarting the
+plan. In Complex-30, the composite skillPlaceObjec-
+tOnNonContainerSurfacegrounds the remote control
+and armchair as a reusable placement subtask, while the
+executor additionally activates the floor lamp. Together,
+these examples demonstrate that the method can combine
+explicit composite skills with feedback-aware primitive
+executiontoefficientlysolvesemanticallydiverseinspection
+tasks.
+Successful cases: observable long-horizon transforma-
+tions.Figure 12 presents two long-horizon tasks involv-
+ing object transformation and relocation. Long-27 retrieves
+reusableFindObjectcards for the knife, lettuce, and refrig-
+erator, and composes them with slicing, cooling, and final
+placement actions. Long-45 similarly uses object-location
+skills as anchors for slicing a tomato, heating it in the mi-
+crowave, and placing it in the sink. These trajectories do
+not rely on a single monolithic task program. Instead, the
+executorcomposesreusableskillswithstate-changingprim-
+itiveactionsandcontinuesafterseveralrejectedactions.This
+modular structure allows it to preserve completed subgoals
+andrecoverlocallyratherthanrestartingtheentiresequence.
+Failure cases: containment and holding state.Tasks re-
+quiring one object to be placed inside another are particu-
+larly sensitive to holding-state consistency. In Base-07, the
+agent must insert a butter knife into a cup and then move
+the cup to the sink. It alternates between the two objects,
+repeatedly attempts pickup while holding another object,
+and loses the required containment relation. Complex-35
+retrievesPlaceObjectOnNonContainerSurfaceforplac-
+ing an apple in a pan. This skill is insufficient because the
+task additionally requires transporting the filled pan into the
+refrigerator. The executor consequently alternates between
+the apple and pan without establishing a stable nested state.
+Thesecasesexposebothincompleteskillcoveragefornested
+transportandinsufficientexecutor-sidetrackingoftheobject
+in hand.
+Overall, the learned skills compress recurring multi-step
+behaviors into stable execution structures and enable recov-
+ery from isolated local errors. The remaining limitations
+largely lie outside basic skill expansion: dynamic ground-
+ing,persistentobjectidentity,holding-statemanagement,and
+long-term consistency across multiple skill calls.
+D.2 Case Study in EB-Habitat
+Successful cases: feedback-guided search.Unlike EB-
+ALFRED, EB-Habitat permits navigation only to recepta-
+cles. Object retrieval therefore requires the agent to infer
+a source receptacle before executing a pickup. Figure 14
+shows howSearchAndRetrievestructures this process. In
+Base-36, the agent first searches the sofa for a toy airplane.
+After pickup fails, it moves to another candidate receptacle,
+successfully retrieves the airplane from a table, and deliv-
+ers it to the left counter. Spatial-35 exhibits a longer search
+for a wrench: the executor visits several cabinets and coun-
+ters, but preserves the same object and destination argu-
+ments until pickup succeeds. The composite skill provides
+a stable navigation–pickup–navigation–placement skeleton,
+whilefeedbackisusedtorevisetheuncertainsourcelocation.
+
+Figure 11: Successful light-assisted inspection in EB-ALFRED. Common Sense-49 (left) establishes illumination and recovers
+from a rejected keychain pickup, while Complex-30 (right) combines reusable object placement with lamp activation.
+Figure 12: Successful long-horizon transformations in EB-ALFRED. The agent composes reusable object-location skills with
+slicing, cooling or heating, and final placement.
+Figure 13: Containment and holding-state failures in EB-ALFRED. The executor fails to preserve the required cup–knife (left)
+and pan–apple (right) relations.
+Successful cases: repeated multi-object transport.The
+same abstraction also supports tasks containing several in-
+dependent relocations. In Figure 15, Long-14 sequentially
+movesacleanser,sponge,andscrewdrivertotheirrespective
+destinations.Long-36searchesseveralreceptaclesandtrans-
+portsallorangeinstancestothebrowntable.Ratherthangen-
+erating a separate plan template for every object, the policy
+repeatedly instantiatesSearchAndRetrievewith different
+object,source,anddestinationarguments.Thisreusereduces
+planning complexity while still allowing each failed pickup
+to trigger local search.
+Failure cases: incorrect source-receptacle hypotheses.
+The same factor that makesSearchAndRetrieveuseful
+also creates a Habitat-specific failure mode. In Figure 16,
+Base-01 begins with an incorrect source hypothesis for the
+pear. Although the executor visits several receptacles, it re-
+
+Figure 14: Feedback-guided object search in EB-Habitat.SearchAndRetrievemaintains the task structure while the executor
+switches candidate source receptacles.
+Figure 15: Successful multi-object transport in EB-Habitat. A sharedSearchAndRetrievestructure is repeatedly instantiated
+for different objects and destinations.
+peatedly attempts pickup at locations where the object is
+not reachable and eventually explores unrelated containers.
+Base-26 similarly searches tables, counters, cabinets, and
+drawersforanorange,butlacksacoverage-awarestrategyfor
+deciding which receptacle to inspect next. The skill schema
+correctly represents object transport, but its source argu-
+ment is uncertain; the eventual failure is primarily caused
+by executor-side exploration and recovery rather than by the
+navigation–pickup–placement pattern itself.
+Sharedandenvironment-specificobservations.Bothen-
+vironments exhibit failures from semantic grounding, re-
+peated invalid-action loops, multi-object identity tracking,
+and error accumulation over long trajectories. Their domi-
+nant bottlenecks, however, differ. EB-Habitat restricts nav-
+igation to receptacles, making object retrieval dependent
+on source-receptacle inference, indirect exploration, and the
+mapping of expressions such as “right of the sink” to simu-
+lator receptacles. Its long-horizon tasks mainly accumulate
+search costs across several relocations. EB-ALFRED per-
+mits more direct object search but places greater pressure
+on manipulation state, including holding constraints, object
+containment, and transformations such as slicing, washing,
+heating, and cooling.
+Overall,skillsinEB-Habitataremostvaluableforstructur-
+ing repeated object search and transport, whereas their main
+limitation is not the transport pattern itself but uncertain
+source-receptacle inference and ineffective exploration after
+failure. In contrast, EB-ALFRED is more strongly limited
+bynestedmanipulation,holding-stateconsistency,andlong-
+horizonobject-statetransitions.Acrossbothbenchmarks,the
+learned library provides reusable planning structure, while
+robustgroundingandstate-awareexecutionremainessential
+for realizing its full benefit.
+
+Figure 16: Source-receptacle failures in EB-Habitat. Incorrect initial hypotheses lead to repeated pickup attempts and unstruc-
+tured exploration.

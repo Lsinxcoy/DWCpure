@@ -113,3 +113,4 @@ config/anchors/merge_log.jsonl
 #   同 R50/R68 惯例: 运行期持久状态, 不进 git —— 查询口负责读回）
 config/anchors/task_scores.jsonl
 config/anchors/evidence.jsonl
+papers/**/refs/*.pdf

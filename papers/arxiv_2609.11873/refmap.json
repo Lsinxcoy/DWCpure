@@ -1,0 +1,1258 @@
+[
+ {
+  "author": "Zhang",
+  "year": "2026",
+  "freq": 34,
+  "arxiv": null,
+  "entry": "Z. Zhang, Z. Qiu, Y. Wu, S. Li, D. Wang, Y. Liu, Z. Zhou, Y. Hu, Y. Chen, D. An, Y. Wang, Y. Li, Z. Zhong, C. Ou, Z. Wang, F. Tang, J. X. Chen, R. Ma, J. Li, X. Wang, W. Lu, H. Xue, W. Zhang, Z. Wei, R. Ma, Z. Shi, K. Wa",
+  "in_bib": true
+ },
+ {
+  "author": "Li",
+  "year": "2026",
+  "freq": 18,
+  "arxiv": null,
+  "entry": "T. Li, Y. Wang, Z. Chen, Z. Wang, L. Ma, and G. Qi C-evolve: consensus-based evolution for prompt groups . In International Conference on Learning Representations , C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang",
+  "in_bib": true
+ },
+ {
+  "author": "Wu",
+  "year": "2026",
+  "freq": 15,
+  "arxiv": "2606.06350",
+  "entry": "Z. Wu, L. Zhang, T. Wang, R. Zhao, P. Andrews, C. Aloisi, and Y. He EDIT: evidence-diagnosed intervention training for rule-faithful llm grading . arXiv preprint arXiv:2606.06350 . External Links: 2606.06350 , Link Cited",
+  "in_bib": true
+ },
+ {
+  "author": "Wang",
+  "year": "2026",
+  "freq": 14,
+  "arxiv": null,
+  "entry": "Z. Wang, Y. Liang, X. Zhang, Q. Wu, S. Han, A. Bastos, R. Wang, C. Bansal, B. Peng, J. Gao, S. Rajmohan, and H. Yao SynthAgent: adapting web agents with synthetic supervision . In Proceedings of the 64th Annual Meeting o",
+  "in_bib": true
+ },
+ {
+  "author": "Sun",
+  "year": "2026",
+  "freq": 13,
+  "arxiv": null,
+  "entry": "Z. Sun, Z. Liu, Y. Zang, Y. Cao, X. Dong, T. Wu, D. Lin, and J. Wang SEAgent: self-evolving computer use agent with autonomous learning from experience . In Forty-third International Conference on Machine Learning , Exte",
+  "in_bib": true
+ },
+ {
+  "author": "Chen",
+  "year": "2026",
+  "freq": 12,
+  "arxiv": "2607.25675",
+  "entry": "J. Chen, Z. Song, J. Liu, S. Zhou, H. Wu, H. Shi, C. Zhou, H. Li, X. Yang, D. Zhu, et al. Decoevo: score-decoupled co-evolution of solver and rubric-generator skills in text space . arXiv preprint arXiv:2607.25675 . Cite",
+  "in_bib": true
+ },
+ {
+  "author": "Wang",
+  "year": "2023",
+  "freq": 11,
+  "arxiv": null,
+  "entry": "G. Wang, Y. Xie, Y. Jiang, A. Mandlekar, C. Xiao, Y. Zhu, L. Fan, and A. Anandkumar Voyager: an open-ended embodied agent with large language models . External Links: 2305.16291 , Link Cited by: §3.4.3 , Table 2 , Table ",
+  "in_bib": true
+ },
+ {
+  "author": "Zhang",
+  "year": "2025",
+  "freq": 11,
+  "arxiv": null,
+  "entry": "J. Zhang, J. Xiang, Z. Yu, F. Teng, X. Chen, J. Chen, M. Zhuge, X. Cheng, S. Hong, J. Wang, B. Zheng, B. Liu, Y. Luo, and C. Wu AFlow: automating agentic workflow generation . In International Conference on Learning Repr",
+  "in_bib": true
+ },
+ {
+  "author": "Dai",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": "2606.24151",
+  "entry": "Z. Dai, S. He, H. Li, Q. Zhou, J. Li, M. Song, G. Long, H. Si, X. Yao, L. Zhang, et al. Metis: bridging text and code memory for self-evolving agents . arXiv preprint arXiv:2606.24151 . Cited by: §2.1 , §3.5.1 , §3.5.1 ,",
+  "in_bib": true
+ },
+ {
+  "author": "OpenAI",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": null,
+  "entry": "OpenAI Harness engineering: leveraging codex in an agent-first world . Note: https://openai.com/index/harness-engineering/ Published February 11, 2026; accessed September 9, 2026 Cited by: §3.2.6 , Table 2 , Table 2 , Ta",
+  "in_bib": true
+ },
+ {
+  "author": "Hu",
+  "year": "2025",
+  "freq": 10,
+  "arxiv": null,
+  "entry": "S. Hu, C. Lu, and J. Clune Automated design of agentic systems . In International Conference on Learning Representations , Cited by: §2.2.3 , §2.2.3 , §2.2 , §3.3.2 , Table 2 , Table 2 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Liu",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": null,
+  "entry": "Q. Liu, Z. Hu, T. Huang, Y. Niu, X. Zhang, S. Ma, C. Lin, G. K. Huat, H. E. Kwon, F. Gao, X. Sun, Z. Ying, and G. Qiang EvoMDT: A Self-Evolving Multi-Agent System for Structured Clinical Decision-Making in Multi-Cancer .",
+  "in_bib": true
+ },
+ {
+  "author": "Zheng",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": null,
+  "entry": "J. Zheng, C. Shi, X. Cai, Q. Li, D. Zhang, C. Li, D. Yu, and Q. Ma Lifelong Learning of Large Language Model based Agents: A Roadmap . IEEE Transactions on Pattern Analysis and Machine Intelligence . Note: arXiv version ",
+  "in_bib": true
+ },
+ {
+  "author": "Shi",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": "2608.31100",
+  "entry": "J. Shi, S. Tao, Y. Wu, Z. Wang, J. Zhang, J. Liu, X. Lei, X. Zhang, S. Fang, Z. Tan, et al. S3Gym: can llms turn self-testing and self-judging into self-improvement? . arXiv preprint arXiv:2608.31100 . Cited by: §3.5.2 ,",
+  "in_bib": true
+ },
+ {
+  "author": "Iacob",
+  "year": "2026",
+  "freq": 10,
+  "arxiv": "2606.26294",
+  "entry": "A. Iacob, A. Jovanović, W. F. Shen, D. Burkhardt, M. Kurmanji, N. Tastan, L. Sani, N. A. E. Venanzi, A. Odonnat, Z. Cao, B. Marino, X. Qiu, and N. D. Lane The red queen gödel machine: co-evolving agents and their evaluat",
+  "in_bib": true
+ },
+ {
+  "author": "Zelikman",
+  "year": "2024",
+  "freq": 10,
+  "arxiv": null,
+  "entry": "E. Zelikman, E. Lorch, L. Mackey, and A. T. Kalai Self-taught optimizer (STOP): recursively self-improving code generation . In Conference on Language Modeling , External Links: Link Cited by: §1.2 , §3.6.1 , §3.6.5 , §3",
+  "in_bib": true
+ },
+ {
+  "author": "Lin",
+  "year": "2026",
+  "freq": 9,
+  "arxiv": null,
+  "entry": "E. Lin, S. Modi, S. K. S. Hari, Q. Huang, Z. Ye, N. Qin, F. Zhou, Y. Zhang, J. Wang, S. Damani, D. Peri, O. Xie, A. Kane, M. Maor, M. Behar, T. Cao, R. Mehta, V. Singh, V. S. Mailthody, T. Chen, Z. Ye, H. Chen, T. Chen, ",
+  "in_bib": true
+ },
+ {
+  "author": "Huang",
+  "year": "2026",
+  "freq": 9,
+  "arxiv": null,
+  "entry": "W. Huang, W. Zhang, Y. Liang, Y. Bei, Y. Chen, T. Feng, X. Pan, Z. Tan, Y. Wang, T. Wei, S. Wu, R. Xu, L. Yang, R. Yang, W. Yang, C. Yeh, H. Zhang, H. Zhang, S. Zhu, H. P. Zou, W. Zhao, S. Wang, W. Xu, Z. Ke, Z. Hui, D. ",
+  "in_bib": true
+ },
+ {
+  "author": "Ouyang",
+  "year": "2026",
+  "freq": 8,
+  "arxiv": null,
+  "entry": "S. Ouyang, J. Yan, I. Hsu, Y. Chen, K. Jiang, Z. Wang, R. Han, L. Le, S. Daruki, X. Tang, et al. Reasoningbank: scaling agent self-evolving with reasoning memory . In International Conference on Learning Representations ",
+  "in_bib": true
+ },
+ {
+  "author": "Team",
+  "year": "2026",
+  "freq": 8,
+  "arxiv": null,
+  "entry": "N. Team S1-nexusagent: a self-evolving agent framework for multidisciplinary scientific research . External Links: 2602.01550 , Link Cited by: §4.1.2 . team et al. (2025) S. team, A. Bolton, A. Lerchner, A. Cordell, A. M",
+  "in_bib": true
+ },
+ {
+  "author": "Lu",
+  "year": "2026",
+  "freq": 7,
+  "arxiv": null,
+  "entry": "H. Lu, Y. Wen, P. Cheng, R. Ding, J. Guo, H. Xu, C. Wang, H. Chen, xiaoxi jiang, and guanjunjiang Search self-play: pushing the frontier of agent capability without supervision . In The Fourteenth International Conferenc",
+  "in_bib": true
+ },
+ {
+  "author": "NVIDIA",
+  "year": "2024",
+  "freq": 6,
+  "arxiv": "2406.11704",
+  "entry": "NVIDIA Nemotron-4 340b technical report . arXiv preprint arXiv:2406.11704 . External Links: 2406.11704 , Link Cited by: §3.2.1 , Table 2 , Table 2 , Table 2 , Table 2 , Table 3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Engineering",
+  "year": "2026",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "Meta Engineering Capacity efficiency at meta: how unified ai agents optimize performance at hyperscale . Note: https://engineering.fb.com/2026/04/16/developer-tools/capacity-efficiency-at-meta-how-unified-ai-agents-optim",
+  "in_bib": true
+ },
+ {
+  "author": "Fang",
+  "year": "2025",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "J. Fang, Y. Peng, X. Zhang, Y. Wang, X. Yi, G. Zhang, Y. Xu, B. Wu, S. Liu, Z. Li, Z. Ren, N. Aletras, X. Wang, H. Zhou, and Z. Meng A comprehensive survey of self-evolving ai agents: a new paradigm bridging foundation m",
+  "in_bib": true
+ },
+ {
+  "author": "Yang",
+  "year": "2026",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "Y. Yang, J. Li, Q. Pan, J. Zhou, K. Chen, Q. Chen, J. Zhao, N. Zhou, X. Li, and L. He PsychAgent: an experience-driven lifelong learning agent for self-evolving psychological counselor . External Links: 2604.00931 , Link",
+  "in_bib": true
+ },
+ {
+  "author": "Zhao",
+  "year": "2025",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "A. Zhao, Y. Wu, T. Wu, Q. Xu, Y. Yue, M. Lin, S. Wang, Q. Wu, Z. Zheng, and G. Huang Absolute zero: reinforced self-play reasoning with zero data . In NeurIPS , Cited by: §3.4.2 , Table 2 , Table 2 , Table 2 , Table 5 , ",
+  "in_bib": true
+ },
+ {
+  "author": "Xiao",
+  "year": "2026",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "W. Xiao, J. Xie, T. Zhang, H. Lin, L. \". Fu, H. Xue, J. Lu, Y. Yang, C. Dai, Z. Wang, J. Wu, G. Wang, S. S. Sastry, K. Goldberg, L. \". Fan, Y. Zhu, and G. Shi ENPIRE: agentic robot policy self-improvement in the real wor",
+  "in_bib": true
+ },
+ {
+  "author": "Karpathy",
+  "year": "2026",
+  "freq": 6,
+  "arxiv": null,
+  "entry": "A. Karpathy Autoresearch: ai agents running research on single-gpu nanochat training automatically . Note: GitHub repository External Links: Link Cited by: §3.3.3 , Table 2 , Table 2 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Agrawal",
+  "year": "2026",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "L. A. Agrawal, S. Tan, D. Soylu, N. Ziems, R. Khare, K. Opsahl-Ong, A. Singhvi, H. Shandilya, M. J. Ryan, M. Jiang, C. Potts, K. Sen, A. G. Dimakis, I. Stoica, D. Klein, M. Zaharia, and O. Khattab GEPA: reflective prompt",
+  "in_bib": true
+ },
+ {
+  "author": "Penedo",
+  "year": "2024",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "G. Penedo, H. Kydlíček, L. B. allal, A. Lozhkov, M. Mitchell, C. Raffel, L. Von Werra, and T. Wolf The fineweb datasets: decanting the web for the finest text data at scale . In Advances in Neural Information Processing ",
+  "in_bib": true
+ },
+ {
+  "author": "Xia",
+  "year": "2026",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "H. Lu and C. Xia Agent-agnostic end-to-end c/c++ application performance optimization . In Proceedings of the 2026 International Conference on Supercomputing Workshops , pp. 65–69 . External Links: Document , Link Cited ",
+  "in_bib": true
+ },
+ {
+  "author": "Jaber",
+  "year": "2026",
+  "freq": 5,
+  "arxiv": "2603.21331",
+  "entry": "J. Jaber and O. Jaber AutoKernel: autonomous gpu kernel optimization via iterative agent-driven search . arXiv preprint arXiv:2603.21331 . Cited by: §3.3.3 , Table 2 , Table 2 , Table 2 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Research",
+  "year": "2025",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "Microsoft Research SynthLLM: breaking the ai data wall with scalable synthetic data . Note: https://www.microsoft.com/en-us/research/articles/synthllm-breaking-the-ai-data-wall-with-scalable-synthetic-data/ Accessed Sept",
+  "in_bib": true
+ },
+ {
+  "author": "Li",
+  "year": "2025",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "D. Li, B. Jiang, L. Huang, A. Beigi, C. Zhao, Z. Tan, A. Bhattacharjee, Y. Jiang, C. Chen, T. Wu, K. Shu, L. Cheng, and H. Liu From generation to judgment: opportunities and challenges of LLM-as-a-judge . In Proceedings ",
+  "in_bib": true
+ },
+ {
+  "author": "Ni",
+  "year": "2026",
+  "freq": 5,
+  "arxiv": "2603.25158",
+  "entry": "J. Ni, Y. Liu, X. Liu, Y. Sun, M. Zhou, P. Cheng, D. Wang, E. Zhao, X. Jiang, and G. Jiang Trace2skill: distill trajectory-local lessons into transferable agent skills . arXiv preprint arXiv:2603.25158 . Cited by: §3.5.1",
+  "in_bib": true
+ },
+ {
+  "author": "Ma",
+  "year": "2025",
+  "freq": 5,
+  "arxiv": null,
+  "entry": "K. Dong and T. Ma STP: self-play LLM theorem provers with iterative conjecturing and proving . In ICML , Proceedings of Machine Learning Research , Vol. 267 . Cited by: §3.4.2 , Table 2 , Table 2 , Table 2 , Table 5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Suzgun",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "M. Suzgun, M. Yuksekgonul, F. Bianchi, D. Jurafsky, and J. Zou Dynamic cheatsheet: test-time learning with adaptive memory . In Proceedings of the 19th Conference of the European Chapter of the Association for Computatio",
+  "in_bib": true
+ },
+ {
+  "author": "Su",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": "2604.14661",
+  "entry": "J. Su, Z. Wu, S. Huang, and W. Feng AIPC: agent-based automation for ai model deployment with qualcomm ai runtime . arXiv preprint arXiv:2604.14661 . External Links: 2604.14661 , Link Cited by: §3.2.5 , Table 2 , Table 2",
+  "in_bib": true
+ },
+ {
+  "author": "Shi",
+  "year": "2025",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "H. Shi, Z. Xu, H. Wang, W. Qin, W. Wang, Y. Wang, Z. Wang, S. Ebrahimi, and H. Wang Continual learning of large language models: a comprehensive survey . ACM Comput. Surv. 58 ( 5 ). External Links: ISSN 0360-0300 , Link ",
+  "in_bib": true
+ },
+ {
+  "author": "Zeng",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "X. Zeng, Y. Chen, L. Liu, C. Luo, Y. Chen, and Zhuangzhuoran Teaching llm to be persuasive: reward-enhanced policy optimization for alignment from heterogeneous rewards . In Proceedings of the 64th Annual Meeting of the ",
+  "in_bib": true
+ },
+ {
+  "author": "Zhu",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "C. Zhu, L. Tian, B. Tan, Z. Zhou, Y. Sun, Y. Wang, C. Lv, Y. Wen, Y. He, J. Lin, Y. Chen, C. W. Tan, Q. Wei, L. Zhao, B. Pu, K. Li, Y. Xue, and J. Lin The Path to Self-Evolving Clinical Systems: Scaling Medical Agents fr",
+  "in_bib": true
+ },
+ {
+  "author": "Yin",
+  "year": "2025",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "X. Yin, X. Wang, L. Pan, L. Lin, X. Wan, and W. Y. Wang Gödel agent: a self-referential agent framework for recursive self-improvement . In Proceedings of the 63rd Annual Meeting of the Association for Computational Ling",
+  "in_bib": true
+ },
+ {
+  "author": "He",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "Y. He, J. Liu, Z. Hu, Y. Chen, Y. Liu, Y. Sui, Y. Li, N. Chen, J. Hu, B. Hooi, X. Xu, and J. Bian EvoClinician: a self-evolving agent for multi-turn medical diagnosis via test-time evolutionary learning . External Links:",
+  "in_bib": true
+ },
+ {
+  "author": "Wilf",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "A. Wilf, P. Aggarwal, B. Parno, D. Fried, L. Morency, P. P. Liang, and S. Welleck Propose, solve, verify: self-play through formal verification . In Forty-third International Conference on Machine Learning , External Lin",
+  "in_bib": true
+ },
+ {
+  "author": "Shang",
+  "year": "2025",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "Y. Shang, Y. Li, K. Zhao, L. Ma, J. Liu, F. Xu, and Y. Li AgentSquare: automatic LLM agent search in modular design space . In International Conference on Learning Representations , Cited by: §2.2.3 , §3.3.2 , Table 2 , ",
+  "in_bib": true
+ },
+ {
+  "author": "Holdings",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "OpenAI and Thrive Holdings Building self-improving tax agents with Codex . Note: Engineering case study External Links: Link Cited by: §3.5.3 , Table 2 , Table 2 , Table 6 .",
+  "in_bib": true
+ },
+ {
+  "author": "Jiang",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": "2604.08988",
+  "entry": "S. Jiang, L. Ma, Z. Hong, K. Wang, Z. Lu, T. Wang, S. Chen, J. Zhang, T. Pan, W. Li, et al. SEA-eval: a benchmark for evaluating self-evolving agents beyond episodic assessment . arXiv preprint arXiv:2604.08988 . Cited b",
+  "in_bib": true
+ },
+ {
+  "author": "Choi",
+  "year": "2026",
+  "freq": 4,
+  "arxiv": null,
+  "entry": "Y. Choi, D. Kim, J. Baek, and S. J. Hwang Multimodal prompt optimization: why not leverage multiple modalities for mllms . External Links: 2510.09201 , Link Cited by: §3.3.1 , Table 2 , Table 2 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Yang",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "A. Yang, A. Li, B. Yang, B. Zhang, B. Hui, B. Zheng, B. Yu, C. Gao, C. Huang, C. Lv, C. Zheng, D. Liu, F. Zhou, F. Huang, F. Hu, H. Ge, H. Wei, H. Lin, J. Tang, J. Yang, J. Tu, J. Zhang, J. Yang, J. Yang, J. Zhou, J. Zho",
+  "in_bib": true
+ },
+ {
+  "author": "Yamada",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "Y. Yamada, R. T. Lange, C. Lu, S. Hu, C. Lu, J. Foerster, J. Clune, and D. Ha The ai scientist-v2: workshop-level automated scientific discovery via agentic tree search . External Links: 2504.08066 , Link Cited by: §2.2.",
+  "in_bib": true
+ },
+ {
+  "author": "AI",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "01. AI, :, A. Young, B. Chen, C. Li, C. Huang, G. Zhang, G. Zhang, G. Wang, H. Li, J. Zhu, J. Chen, J. Chang, K. Yu, P. Liu, Q. Liu, S. Yue, S. Yang, S. Yang, W. Xie, W. Huang, X. Hu, X. Ren, X. Niu, P. Nie, Y. Li, Y. Xu",
+  "in_bib": true
+ },
+ {
+  "author": "Wei",
+  "year": "2026",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "Y. Wei, Z. Sun, E. McMilin, J. Gehring, D. W. Zhang, G. Synnaeve, D. Fried, L. ZHANG, and S. Wang Toward training superintelligent software agents through self-play SWE-RL . In Forty-third International Conference on Mac",
+  "in_bib": true
+ },
+ {
+  "author": "Trirat",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "P. Trirat, W. Jeong, and S. J. Hwang AutoML-agent: A multi-agent LLM framework for full-pipeline automl . In ICML , Proceedings of Machine Learning Research , Vol. 267 . Cited by: §2.2.3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Ren",
+  "year": "2026",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "R. Ren, Y. Wang, Y. Liang, L. Luo, J. Liu, H. Wang, C. Feng, Y. Zhang, C. Miao, J. Wen, and W. X. Zhao Emulating clinician cognition via self-evolving deep clinical research . External Links: 2603.10677 , Link Cited by: ",
+  "in_bib": true
+ },
+ {
+  "author": "Jeong",
+  "year": "2026",
+  "freq": 3,
+  "arxiv": "2607.07984",
+  "entry": "S. Jeong, M. Kim, and T. Kim Agentic neural architecture search . arXiv preprint arXiv:2607.07984 . External Links: 2607.07984 , Link Cited by: §1.1 , §3.3.3 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Guo",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "Z. Guo, J. Wang, F. Ling, W. Wei, X. Yue, Z. Jiang, W. Xu, J. Luo, L. Cheng, Y. Ham, F. Song, P. Gentine, T. Yamagata, B. Fei, W. Zhang, X. Gu, C. Li, Y. Wang, T. Chen, W. Ouyang, B. Zhou, and L. Bai A self-evolving ai a",
+  "in_bib": true
+ },
+ {
+  "author": "Chan",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "J. S. Chan, N. Chowdhury, O. Jaffe, J. Aung, D. Sherburn, E. Mays, G. Starace, K. Liu, L. Maksin, T. Patwardhan, L. Weng, and A. Mądry MLE-bench: evaluating machine learning agents on machine learning engineering . In In",
+  "in_bib": true
+ },
+ {
+  "author": "Fernando",
+  "year": "2024",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "C. Fernando, D. Banarse, H. Michalewski, S. Osindero, and T. Rocktäschel Promptbreeder: self-referential self-improvement via prompt evolution . In Proceedings of the 41st International Conference on Machine Learning , I",
+  "in_bib": true
+ },
+ {
+  "author": "Arora",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": "2505.08775",
+  "entry": "R. K. Arora, J. Wei, R. Soskin Hicks, P. Bowman, J. Quiñonero-Candela, F. Tsimpourlas, M. Sharman, M. Shah, A. Vallone, A. Beutel, J. Heidecke, and K. Singhal HealthBench: evaluating large language models towards improve",
+  "in_bib": true
+ },
+ {
+  "author": "Ye",
+  "year": "2026",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "D. Ye, Z. Zhang, H. Wang, and C. Miao A Survey on AI for AI: When the Improver Becomes the Improvee . Note: Preprints.orgPreprint External Links: Document , Link Cited by: §1.7 , §2.2.3 , §2.2 .",
+  "in_bib": true
+ },
+ {
+  "author": "Wei",
+  "year": "2025",
+  "freq": 3,
+  "arxiv": "2511.20857",
+  "entry": "T. Wei, N. Sachdeva, B. Coleman, Z. He, Y. Bei, X. Ning, M. Ai, Y. Li, J. He, E. H. Chi, et al. Evo-memory: benchmarking llm agent test-time learning with self-evolving memory . arXiv preprint arXiv:2511.20857 . Cited by",
+  "in_bib": true
+ },
+ {
+  "author": "Shen",
+  "year": "2026",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "W. Shen, B. Jian, J. Li, C. Liu, J. Moll, X. Hu, D. Rueckert, H. B. Li, and J. Pan Evo-medagent: beyond one-shot diagnosis with agents that remember, reflect, and improve . External Links: 2604.14475 , Link Cited by: §4.",
+  "in_bib": true
+ },
+ {
+  "author": "Wang",
+  "year": "2019",
+  "freq": 3,
+  "arxiv": null,
+  "entry": "R. Wang, J. Lehman, J. Clune, and K. O. Stanley Paired open-ended trailblazer (poet): endlessly generating increasingly complex and diverse learning environments and their solutions . External Links: 1901.01753 , Link Ci",
+  "in_bib": true
+ },
+ {
+  "author": "Soldaini",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "L. Soldaini, R. Kinney, A. Bhagia, D. Schwenk, D. Atkinson, R. Authur, B. Bogin, K. R. Chandu, J. Dumas, Y. Elazar, V. Hofmann, A. H. Jha, S. Kumar, L. Lucy, X. Lyu, N. Lambert, I. Magnusson, J. Morrison, N. Muennighoff,",
+  "in_bib": true
+ },
+ {
+  "author": "Zala",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Zala, J. Cho, H. Lin, J. Yoon, and M. Bansal EnvGen: generating and adapting environments via llms for training embodied agents . External Links: 2403.12014 , Link Cited by: §4.2.1 , §4.2.5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Sharma",
+  "year": "2023",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Sharma, A. M. Ahmed, R. Ahmad, and C. Finn Self-improving robots: end-to-end autonomous visuomotor reinforcement learning . External Links: 2303.01488 , Link Cited by: §4.2.3 , §4.2.5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Hebbar",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": "2605.27276",
+  "entry": "P. Hebbar, Y. Manawat, S. Verboomen, A. Ivanova, S. Palanimalai, K. Bhatia, and V. Baskaran SIA: self improving ai with harness and weight updates . arXiv preprint arXiv:2605.27276 . External Links: Link Cited by: §4.1.3",
+  "in_bib": true
+ },
+ {
+  "author": "Kang",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "H. Kang, X. Ye, Y. Liu, S. H. Mantri, L. Mao, J. Fleming, D. Regmi, and L. Qin SimWorld studio: automatic environment generation with evolving coding agent for embodied agent learning . External Links: 2605.09423 , Link ",
+  "in_bib": true
+ },
+ {
+  "author": "Cloud",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "Alibaba Cloud Alibaba unveils Qwen3.8-Max: its largest and most capable flagship model to date . Note: Alibaba Cloud Press Release External Links: Link Cited by: §1.1 , §1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Starace",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "G. Starace, O. Jaffe, D. Sherburn, J. Aung, C. J. Shern, L. Maksin, R. Dias, E. Mays, B. Kinsella, W. Thompson, J. Heidecke, A. Glaese, and T. Patwardhan PaperBench: evaluating ai’s ability to replicate ai research . In ",
+  "in_bib": true
+ },
+ {
+  "author": "Luo",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "C. Luo, Z. Zeng, M. Jia, Y. Du, and C. Sun Self-improving loops for visual robotic planning . External Links: 2506.06658 , Link Cited by: §4.2.4 , §4.2.5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Moshkov",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": "2504.16891",
+  "entry": "I. Moshkov, D. Hanley, I. Sorokin, S. Toshniwal, C. Henkel, B. Schifferer, W. Du, and I. Gitman Aimo-2 winning solution: building state-of-the-art mathematical reasoning models with openmathreasoning dataset . arXiv prep",
+  "in_bib": true
+ },
+ {
+  "author": "Patwardhan",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "T. Patwardhan, R. Dias, E. Proehl, G. Kim, M. Wang, O. Watkins, S. Fishman, M. Aljubeh, P. Thacker, L. Fauconnet, et al. Gdpval: evaluating ai model performance on real-world economically valuable tasks . In Internationa",
+  "in_bib": true
+ },
+ {
+  "author": "Services",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "Amazon Web Services Agent toolkit for aws . Note: https://aws.amazon.com/products/developer-tools/agent-toolkit-for-aws/ Announced May 6, 2026; accessed September 9, 2026 Cited by: §3.2.6 , Table 3 . Anthropic",
+  "in_bib": true
+ },
+ {
+  "author": "Hambardzumyan",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": "2603.26499",
+  "entry": "K. Hambardzumyan, N. Baldwin, E. Toledo, R. Hazra, M. Kuchnik, B. A. Omari, T. S. Foster, A. Protopopov, J. Gagnon-Audet, I. Mediratta, K. Niu, M. Shvartsman, A. Lupidi, A. Audran-Reiss, P. Pathak, T. Shavrina, D. Magka,",
+  "in_bib": true
+ },
+ {
+  "author": "Madaan",
+  "year": "2023",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, et al. Self-refine: iterative refinement with self-feedback . Advances in neural information processing system",
+  "in_bib": true
+ },
+ {
+  "author": "Chen",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "D. Chen, Y. Huang, Z. Ma, H. Chen, X. Pan, C. Ge, D. Gao, Y. Xie, Z. Liu, J. Gao, Y. Li, B. Ding, and J. Zhou Data-juicer: a one-stop data processing system for large language models . In Proceedings of the 2024 Internat",
+  "in_bib": true
+ },
+ {
+  "author": "Abdin",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": "2504.21318",
+  "entry": "M. Abdin, S. Agarwal, A. Awadallah, V. Balachandran, H. Behl, L. Chen, G. de Rosa, S. Gunasekar, M. Javaheripi, N. Joshi, P. Kauffmann, Y. Lara, C. C. T. Mendes, A. Mitra, B. Nushi, D. Papailiopoulos, O. Saarikivi, S. Sh",
+  "in_bib": true
+ },
+ {
+  "author": "Razzhigaev",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Razzhigaev, A. Gritsaev, A. Kaznacheev, N. Dragunov, R. Yampolskiy, and A. Kuznetsov Ouroboros: a self-developing frontier coding agent with reviewed core evolution . External Links: 2608.08311 , Link Cited by: §1.2 ,",
+  "in_bib": true
+ },
+ {
+  "author": "Liang",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": "2602.16173",
+  "entry": "K. Liang, J. Kruk, S. Qian, X. Yang, S. Bi, Y. Yao, S. Nie, M. Zhang, L. Liu, J. F. Fisac, et al. Learning personalized agents from human feedback . arXiv preprint arXiv:2602.16173 . Cited by: §3.5.1 , Table 6 .",
+  "in_bib": true
+ },
+ {
+  "author": "Yuksekgonul",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "M. Yuksekgonul, D. Koceja, X. Li, F. Bianchi, J. McCaleb, X. Wang, J. Kautz, Y. Choi, J. Zou, C. Guestrin, and Y. Sun Learning to discover at test time . External Links: 2601.16175 , Link Cited by: §4.1.1 , §4.1.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Wu",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "T. Wu, L. Luo, Y. Li, S. Pan, T. Vu, and G. Haffari Continual Learning for Large Language Models: A Survey . Note: arXiv version 2, revised 2024-02-07 External Links: 2402.01364 , Link , Document Cited by: §2.2.3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Schmidhuber",
+  "year": "2003",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "J. Schmidhuber Gödel machines: self-referential universal problem solvers making provably optimal self-improvements . arXiv preprint cs/0309048 . External Links: Link Cited by: §1.2 , §2.2 . Shan and",
+  "in_bib": true
+ },
+ {
+  "author": "Jordan",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "K. Jordan, J. Bernstein, B. Rappazzo, @fernbear.bsky.social, B. Vlado, Y. Jiacheng, F. Cesista, B. Koszarsky, and @Grad62304977 Modded-nanogpt: speedrunning the nanogpt baseline . Note: https://github.com/KellerJordan/mo",
+  "in_bib": true
+ },
+ {
+  "author": "Qu",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Qu, H. Zheng, Z. Zhou, Y. Yan, Y. Tang, S. Y. Ong, F. Hong, K. Zhou, C. Jiang, M. Kong, J. Zhu, X. Jiang, S. Li, C. Wu, B. K. H. Low, J. Zhao, and P. P. Liang CORAL: towards autonomous multi-agent evolution for open-e",
+  "in_bib": true
+ },
+ {
+  "author": "AI",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "Moonshot AI Kimi K3: open frontier intelligence . Note: Kimi Research Blog External Links: Link Cited by: §1.1 , §1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Phan",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": "2501.14249",
+  "entry": "L. Phan, A. Gatti, Z. Han, N. Li, J. Hu, H. Zhang, C. B. C. Zhang, M. Shaaban, J. Ling, S. Shi, et al. Humanity’s last exam . arXiv preprint arXiv:2501.14249 . Cited by: §1.1 , §1.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Lan",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "K. Lan, B. Jin, Z. Zhu, S. Chen, S. Zhang, K. Q. Zhu, and M. Wu Depression diagnosis dialogue simulation: self-improving psychiatrist with tertiary memory . External Links: 2409.15084 , Link Cited by: §4.4.1 , §4.4.4 . L",
+  "in_bib": true
+ },
+ {
+  "author": "Ju",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "R. Ju, X. Wang, X. Ding, Y. Yang, H. Wu, S. Jiang, Q. Zhang, H. Wen, X. Li, W. Wang, K. Li, Y. Liu, H. Dai, W. Wang, and T. Cao EmbodiSkill: skill-aware reflection for self-evolving embodied agents . External Links: 2605",
+  "in_bib": true
+ },
+ {
+  "author": "Wen",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "J. Wen, L. Qiu, J. Benton, J. H. Kirchner, and J. Leike Automated weak-to-strong researcher . Note: Anthropic Alignment Science Blog External Links: Link Cited by: §1.3 , §3.3.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Almansoori",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "M. Almansoori, K. Kumar, and H. Cholakkal MedAgentSim: Self-Evolving Multi-Agent Simulations for Realistic Clinical Interactions . In Medical Image Computing and Computer Assisted Intervention – MICCAI 2025 , Lecture Not",
+  "in_bib": true
+ },
+ {
+  "author": "Bai",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": "2608.30760",
+  "entry": "Z. Bai, S. Li, T. Huang, and B. F. Karlsson PRACTICE: from experience to expertise in self-evolving embodied agents . arXiv preprint arXiv:2608.30760 . Cited by: §3.5.1 , Table 6 .",
+  "in_bib": true
+ },
+ {
+  "author": "Khajeh",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "A. Khajeh, X. Lei, W. Ye, Z. Yang, L. Hung, D. Schweigert, and H. Kwon A materials discovery framework based on conditional generative models applied to the design of polymer electrolytes . Digital Discovery 4 ( 1 ), pp.",
+  "in_bib": true
+ },
+ {
+  "author": "Kasaei",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "G. Tziafas and H. Kasaei Lifelong robot library learning: bootstrapping composable and generalizable skills for embodied control with language models . External Links: 2406.18746 , Link Cited by: §4.2.2 , §4.2.5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Abdin",
+  "year": "2024",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "M. Abdin, J. Aneja, H. Behl, S. Bubeck, R. Eldan, S. Gunasekar, M. Harrison, R. J. Hewett, M. Javaheripi, P. Kauffmann, J. R. Lee, Y. T. Lee, Y. Li, W. Liu, C. C. T. Mendes, A. Nguyen, E. Price, G. de Rosa, O. Saarikivi,",
+  "in_bib": true
+ },
+ {
+  "author": "Er",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": "2606.07909",
+  "entry": "S. A. Er, D. Ribeiro, Y. Virkar, S. Lakew, A. Kalyanpur, J. Gung, T. Delteil, and A. Gupta MemToolAgent: leveraging memory for tool using agents based on environment and user feedback . arXiv preprint arXiv:2606.07909 . ",
+  "in_bib": true
+ },
+ {
+  "author": "Robeyns",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "M. Robeyns, M. Szummer, and L. Aitchison A self-improving coding agent . In ICLR Workshop on Scaling Self-Improving Foundation Models , External Links: Link Cited by: §4.3.1 , §4.3.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Fan",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "L. Fan, P. Dai, Z. Deng, H. Wang, X. Gong, Y. Zheng, and Y. Ou Evolving medical imaging agents via experience-driven self-skill discovery . External Links: 2603.05860 , Link Cited by: §4.4.3 , §4.4.4 . Fan and",
+  "in_bib": true
+ },
+ {
+  "author": "Zhou",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "C. Zhou, H. Chai, W. Chen, Z. Guo, R. Shan, Y. Song, T. Xu, Y. Yang, A. Yu, W. Zhang, C. Zheng, J. Zhu, Z. Zheng, Z. Zhang, X. Lou, C. Zhang, Z. Fu, J. Wang, W. Liu, J. Lin, and W. Zhang Externalization in LLM Agents: A ",
+  "in_bib": true
+ },
+ {
+  "author": "Lyu",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "Y. Lyu, X. Zhang, X. Yi, Y. Zhao, S. Guo, W. Hu, J. Piotrowski, J. Kaliski, J. Urbani, Z. Meng, L. Zhou, and X. Yan EvoScientist: towards multi-agent evolving ai scientists for end-to-end scientific discovery . External ",
+  "in_bib": true
+ },
+ {
+  "author": "NVIDIA",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "NVIDIA NVIDIA NeMo Curator: data curation for generative ai . Note: https://docs.nvidia.com/nemo/curator/ Accessed September 9, 2026 Cited by: §3.2.1 , Table 3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Dibia",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "L. Quintanilla and V. Dibia Introducing agent optimizer in Foundry Agent Service . Note: Microsoft Foundry BlogPublished June 3, 2026; accessed September 5, 2026 External Links: Link Cited by: §3.3.2 , Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Zheng",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "J. Zheng, S. Qiu, C. Shi, and Q. Ma Towards lifelong learning of large language models: a survey . ACM Comput. Surv. 57 ( 8 ). External Links: ISSN 0360-0300 , Link , Document Cited by: §2.2.3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Ghasemipour",
+  "year": "2025",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "S. K. S. Ghasemipour, A. Wahid, J. Tompson, P. Sanketi, and I. Mordatch Self-improving embodied foundation models . External Links: 2509.15155 , Link Cited by: §4.2.3 , §4.2.5 .",
+  "in_bib": true
+ },
+ {
+  "author": "Han",
+  "year": "2026",
+  "freq": 2,
+  "arxiv": null,
+  "entry": "X. Han, Y. Fan, S. Zhao, H. Wang, and B. Qin GSEM: graph-based self-evolving memory for experience augmented clinical reasoning . External Links: 2603.22096 , Link Cited by: §4.4.1 , §4.4.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Tsui",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "K. Tsui Self-correction bench: uncovering and addressing the self-correction blind spot in large language models . External Links: 2507.02778 , Link Cited by: §3.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Olausson",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "T. X. Olausson, J. P. Inala, C. Wang, J. Gao, and A. Solar-Lezama Is self-repair a silver bullet for code generation? . In International Conference on Learning Representations , B. Kim, Y. Yue, S. Chaudhuri, K. Fragkiada",
+  "in_bib": true
+ },
+ {
+  "author": "Verma",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": "2607.26117",
+  "entry": "Y. Verma Try again, don’t look back: blind resampling outperforms self-repair in small code models . arXiv preprint arXiv:2607.26117 . External Links: Link Cited by: §3.1 . Wang and",
+  "in_bib": true
+ },
+ {
+  "author": "Weng",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Z. Weng, A. Antoniades, D. Nathani, Z. Zhang, X. Pu, and X. E. Wang Group-evolving agents: open-ended self-improvement via experience sharing . External Links: 2602.04837 , Link Cited by: §4.3.3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Xu",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Y. Xu, W. Zhang, Y. Chen, X. Lin, and Y. Zhang Self-Evolving Agents as Dynamic Graph Transformation: A Survey and New Perspective . External Links: 2608.18104 , Link , Document Cited by: §1.7 .",
+  "in_bib": true
+ },
+ {
+  "author": "Shao",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Z. Shan and F. Shao A Survey on Rubric-Guided Reinforcement Learning for Language Models . Note: arXiv version 2, revised 2026-08-31; Accepted to Findings of EMNLP 2026 External Links: 2608.27505 , Link , Document Cited ",
+  "in_bib": true
+ },
+ {
+  "author": "Faldor",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "M. Faldor, J. Zhang, A. Cully, and J. Clune OMNI-epic: open-endedness via models of human notions of interestingness with environments programmed in code . External Links: 2405.15568 , Link Cited by: §4.2.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Brumley",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "S. Lee and D. Brumley ExploitBench: a capability ladder benchmark for llm cybersecurity agents . External Links: 2605.14153 , Link Cited by: §2.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Yehudai",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "A. Yehudai, L. Eden, A. Li, G. Uziel, Y. Zhao, R. Bar-Haim, A. Cohan, and M. Shmueli-Scheuer A Survey on Evaluation of LLM-based Agents . In Findings of the Association for Computational Linguistics: ACL 2026 , pp. 26690",
+  "in_bib": true
+ },
+ {
+  "author": "Yao",
+  "year": "2023",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "S. Yao, D. Yu, J. Zhao, I. Shafran, T. Griffiths, Y. Cao, and K. Narasimhan Tree of thoughts: deliberate problem solving with large language models . In NeurIPS , Cited by: §3.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Long",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "L. Long, R. Wang, R. Xiao, J. Zhao, X. Ding, G. Chen, and H. Wang On LLMs-driven synthetic data generation, curation, and evaluation: a survey . In Findings of the Association for Computational Linguistics: ACL 2024 , L.",
+  "in_bib": true
+ },
+ {
+  "author": "DeepSeek-AI",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "DeepSeek-AI, A. Liu, A. Mei, et al. DeepSeek-v3.2: pushing the frontier of open large language models . External Links: 2512.02556 , Link Cited by: §1.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Anthropic",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Anthropic How we built our multi-agent research system . External Links: Link Cited by: §1.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Bi",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "H. Bi, Z. Zhou, Y. Tang, J. Pang, S. Huang, H. Liu, R. Wang, S. Huang, Y. Wang, Y. Cheng, R. Zhao, Z. Li, H. Tan, X. Liu, J. Wan, J. Liu, M. Zhao, F. Bao, and J. Zhu Motus2: a self-evolving general world model for dexter",
+  "in_bib": true
+ },
+ {
+  "author": "Hu",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Y. Hu, Y. Cai, Y. Du, X. Zhu, X. Liu, Z. Yu, Y. Hou, S. Tang, and S. Chen Self-evolving multi-agent collaboration networks for software development . External Links: 2410.16946 , Link Cited by: §4.3.2 .",
+  "in_bib": true
+ },
+ {
+  "author": "Tyen",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "G. Tyen, H. Mansoor, V. Carbune, P. Chen, and T. Mak LLMs cannot find reasoning errors, but can correct them given the error location . In Findings of the Association for Computational Linguistics: ACL 2024 , pp. 13894–1",
+  "in_bib": true
+ },
+ {
+  "author": "Zong",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Q. Zong, J. Liu, J. Shen, Z. Tang, L. Wu, Y. Liu, R. Wang, Z. Wang, W. Wang, C. Qian, X. Chen, and Y. Song Co-Evolution in Agentic Systems: Toward Self-Directed Evolution Beyond Human Design . External Links: 2608.10299 ",
+  "in_bib": true
+ },
+ {
+  "author": "Jimenez",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "C. E. Jimenez, J. Yang, A. Wettig, S. Yao, K. Pei, O. Press, and K. Narasimhan Swe-bench: can language models resolve real-world github issues? . In International Conference on Learning Representations , Vol. 2024 , pp. ",
+  "in_bib": true
+ },
+ {
+  "author": "Du",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Z. Du, L. Zheng, R. Hu, Y. Xu, X. Li, Y. Sun, W. Chen, J. Wu, H. Cai, and H. Ying LLMs can simulate standardized patients via agent coevolution . In ACL (1) , pp. 17278–17306 . Cited by: §4.4.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Yue",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "L. Yue, K. R. Bhandari, C. Ko, D. Patel, S. Lin, N. Zhou, J. Gao, P. Chen, and S. Pan From Static Templates to Dynamic Runtime Graphs: A Survey of Workflow Optimization for LLM Agents . External Links: 2603.22386 , Link ",
+  "in_bib": true
+ },
+ {
+  "author": "Tencent",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Tencent Tencent releases and open-sources Tencent Hy4 preview . Note: TencentPublished August 28, 2026; accessed September 5, 2026 External Links: Link Cited by: §2.2.2 . The ForgeStencil",
+  "in_bib": true
+ },
+ {
+  "author": "Authors",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "The ForgeStencil Authors ForgeStencil: autonomous agents for stencil optimization and deployment . Note: https://github.com/OpenBMB/ForgeStencil GitHub repository Cited by: §5.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Yao",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": "2406.12045",
+  "entry": "S. Yao, N. Shinn, P. Razavi, and K. Narasimhan τ \\tau -bench: a benchmark for tool-agent-user interaction in real-world domains . arXiv preprint arXiv:2406.12045 . Cited by: §1.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Merrill",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "M. A. Merrill, A. G. Shaw, N. Carlini, B. Li, H. Raj, I. Bercovich, L. Shi, J. Y. Shin, T. Walshe, E. K. Buchanan, J. Shen, G. Ye, H. Lin, J. Poulos, M. Wang, M. Nezhurina, J. Jitsev, D. Lu, O. M. Mastromichalakis, Z. Xu",
+  "in_bib": true
+ },
+ {
+  "author": "Venktesh",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "V. Venktesh, M. Rathee, and A. Anand Trust but Verify! A Survey on Verification Design for Test-time Scaling . Note: arXiv version 3, revised 2025-09-09 External Links: 2508.16665 , Link , Document Cited by: §1.7 .",
+  "in_bib": true
+ },
+ {
+  "author": "Shinn",
+  "year": "2023",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "N. Shinn, F. Cassano, E. Berman, A. Gopinath, K. Narasimhan, and S. Yao Reflexion: language agents with verbal reinforcement learning . External Links: 2303.11366 , Link Cited by: §3.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Banerjee",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "P. Banerjee, M. Moshtaghi, and A. Chadha APEX-EM: non-parametric online learning for autonomous agents via structured procedural-episodic experience replay . External Links: 2603.29093 , Link Cited by: §3.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Zhao",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "A. Zhao, D. Huang, Q. Xu, M. Lin, Y. Liu, and G. Huang ExpeL: LLM agents are experiential learners . In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 38 , pp. 19632–19642 . External Links: Document",
+  "in_bib": true
+ },
+ {
+  "author": "Kim",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "H. Kim, D. Ryu, X. Yi, J. Yao, J. Lian, M. Huang, S. Duan, J. Bak, and X. Xie The Road to Artificial SuperIntelligence: A Comprehensive Survey of Superalignment . Note: arXiv version 4, revised 2026-06-17 External Links:",
+  "in_bib": true
+ },
+ {
+  "author": "Giridhar",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "V. Giridhar, A. Khandelwal, J. A. Collins, I. Georgiev, and A. Garg Beyond imitation: self-improving robot policies via off-policy q-planning . External Links: 2608.21204 , Link Cited by: §4.2.3 . Google",
+  "in_bib": true
+ },
+ {
+  "author": "Rodge",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "D. Rodge Post-train NVIDIA Cosmos 3 in one day using agent skills . Note: NVIDIA Technical Blog External Links: Link Cited by: §3.3.3 .",
+  "in_bib": true
+ },
+ {
+  "author": "Meyerzon",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "E. Wang and D. Meyerzon How we optimized Dash’s relevance judge with DSPy . Note: Dropbox.TechPublished March 17, 2026; accessed September 5, 2026 External Links: Link Cited by: §3.3.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Li",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "J. Li, A. Fang, G. Smyrnis, M. Ivgi, M. Jordan, S. Y. Gadre, H. Bansal, E. K. Guha, S. S. Keh, K. Arora, S. Garg, R. Xin, N. Muennighoff, R. Heckel, J. Mercat, M. F. Chen, S. Gururangan, M. Wortsman, A. Albalak, Y. Bitto",
+  "in_bib": true
+ },
+ {
+  "author": "Niu",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "S. Niu, G. Chen, Y. Chen, Z. Wen, J. Hu, Z. Deng, D. Chen, S. Zhang, R. Chen, Z. Lian, S. Xu, G. Dai, Y. Zhang, W. Luo, Y. Zhang, M. Tan, and C. Deng A Survey on Self-Improving Test-Time Intelligence: Feedback-Driven Ada",
+  "in_bib": true
+ },
+ {
+  "author": "Liu",
+  "year": "2023",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "J. Liu, C. S. Xia, Y. Wang, and L. Zhang Is your code generated by ChatGPT really correct? rigorous evaluation of large language models for code generation . Advances in Neural Information Processing Systems 36 , pp. 215",
+  "in_bib": true
+ },
+ {
+  "author": "Gao",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "H. Gao, J. Geng, W. Hua, M. Hu, X. Juan, H. Liu, S. Liu, J. Qiu, X. Qi, Q. Ren, Y. Wu, H. Wang, H. Xiao, Y. Zhou, S. Zhang, J. Zhang, J. Xiang, Y. Fang, Q. Zhao, D. Liu, C. Qian, Z. Wang, M. Hu, H. Wang, Q. Wu, H. Ji, an",
+  "in_bib": true
+ },
+ {
+  "author": "Lee",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Y. Lee, G. Yi, M. Liu, J. Lu, G. Yang, and Y. Chen Compound AI systems optimization: a survey of methods, challenges, and future directions . In Proceedings of the 2025 Conference on Empirical Methods in Natural Language",
+  "in_bib": true
+ },
+ {
+  "author": "Ding",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "T. Ding, A. Nannapaneni, B. Liu, and L. Zhang Autonomous Research Agents: A Survey of AI Scientists and the Verification Gap . External Links: 2608.05179 , Link , Document Cited by: §1.7 . Dong and",
+  "in_bib": true
+ },
+ {
+  "author": "Tao",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Z. Tao, T. Lin, X. Chen, H. Li, Y. Wu, Y. Li, Z. Jin, F. Huang, D. Tao, and J. Zhou A survey on self-evolution of large language models . External Links: 2404.14387 , Link Cited by: §1.7 .",
+  "in_bib": true
+ },
+ {
+  "author": "Guo",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Y. Guo, T. Lee, L. X. Shi, J. Chen, P. Liang, and C. Finn VLAW: iterative co-improvement of vision-language-action policy and world model . External Links: 2602.12063 , Link Cited by: §4.2.4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Qian",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Z. Qian, J. Lei, Y. Wang, and N. Cao HypoForge: a self-improving multi-agent framework for automated hypothesis generation and testing via scientific skill learning . External Links: 2608.25770 , Link Cited by: §4.1.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Ning",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "J. Ning, X. Li, J. Zeng, H. Kang, and C. Xiong Auto research with specialist agents develops effective and non-trivial training recipes . External Links: 2605.05724 , Link Cited by: Table 4 .",
+  "in_bib": true
+ },
+ {
+  "author": "Salimans",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "D. Shepard and R. Salimans AutomationBench . External Links: 2604.18934 , Link Cited by: §2.1 .",
+  "in_bib": true
+ },
+ {
+  "author": "Du",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Y. Du, B. Yu, T. Liu, T. Shen, J. Chen, J. G. Rittig, K. Sun, Y. Zhang, A. Krishnan, Y. Zhang, D. Rosen, R. Pirone, Z. Song, B. Zhou, C. Masschelein, Y. Wang, H. Wang, H. Jia, C. Zhang, H. Zhao, M. Ester, N. Hacohen, T. ",
+  "in_bib": true
+ },
+ {
+  "author": "Huang",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "J. Huang, X. Chen, S. Mishra, H. S. Zheng, A. W. Yu, X. Song, and D. Zhou Large language models cannot self-correct reasoning yet . In International Conference on Learning Representations , External Links: Link Cited by:",
+  "in_bib": true
+ },
+ {
+  "author": "Ferrari",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "M. Ferrari, P. Tillet, A. Ibrahim, J. Gershenson, and S. Coffey How GPT-5.6 fuses frontier intelligence with frontier efficiency . Note: OpenAI EngineeringPublished July 29, 2026; accessed September 3, 2026 Cited by: §1.",
+  "in_bib": true
+ },
+ {
+  "author": "Institute",
+  "year": "2026",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "Anthropic Institute When ai builds itself . Note: https://www.anthropic.com/institute/recursive-self-improvement Accessed: 2026-09-08 Cited by: §2.2.2 .",
+  "in_bib": true
+ },
+ {
+  "author": "Pan",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "L. Pan, M. Saxon, W. Xu, D. Nathani, X. Wang, and W. Y. Wang Automatically correcting large language models: surveying the landscape of diverse automated correction strategies . Transactions of the Association for Comput",
+  "in_bib": true
+ },
+ {
+  "author": "Ramnath",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "K. Ramnath, K. Zhou, S. Guan, S. S. Mishra, X. Qi, Z. Shen, S. Wang, S. Woo, S. Jeoung, Y. Wang, H. Wang, H. Ding, Y. Lu, Z. Xu, Y. Zhou, B. Srinivasan, Q. Yan, Y. Chen, H. Ding, P. Xu, and L. L. Cheong A systematic surv",
+  "in_bib": true
+ },
+ {
+  "author": "Slattery",
+  "year": "2024",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "P. Slattery, A. K. Saeri, E. A. C. Grundy, J. Graham, M. Noetel, R. Uuk, J. Dao, S. Pour, S. Casper, and N. Thompson The AI risk repository: A meta-review, database, and taxonomy of risks from artificial intelligence . N",
+  "in_bib": true
+ },
+ {
+  "author": "Jin",
+  "year": "2025",
+  "freq": 1,
+  "arxiv": null,
+  "entry": "R. Jin, Z. Zhang, M. Wang, and L. Cong STELLA: self-evolving llm agent for biomedical research . External Links: 2507.02004 , Link Cited by: §4.1.2 .",
+  "in_bib": true
+ },
+ {
+  "author": "Tang",
+  "year": "2026",
+  "freq": 0,
+  "arxiv": null,
+  "entry": "Z. Tang et al. Workspace-bench 1.0: benchmarking ai agents on workspace tasks with large-scale file dependencies . External Links: 2605.03596 , Link Cited by: §5.1 .",
+  "in_bib": true
+ }
+]
