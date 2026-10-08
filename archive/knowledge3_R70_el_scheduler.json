@@ -1,0 +1,30 @@
+{
+ "round": "R70 · EL 调度器落地（器官⑥ 第二件 · 论文式2 两处口语出入按逐字锁死）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= EL 调度器 B=8 τ=6/8; 器官⑥ 第二件, 世界树已有布尔观测一半）",
+ "★ 论文原文核清（papers_txt/2609.04128.txt 式2+参数段逐字）": [
+  "(g,k) 三段: p̂≤τ ⇒ 不动(停滞) · p̂>τ∧k<N ⇒ (g,k+1) 同代推进 · p̂>τ∧k=N ⇒ (g+1,1) 换代",
+  "p̂=(1/B)Σr · B=8, τ=6/8 · \"Once the current environment exceeds this threshold,",
+  "  the scheduler moves to the next environment in the same generation.",
+  "  It advances to the next generation only when no environments remain\"",
+  "★★ 与 EVOLUTION_CORE_V2 §8.2「6/8 通过才放行下一代」的两处出入（口语压缩）:",
+  "  ① 6/8 是**同代移动**门槛, 换代看代内环境用尽 — 不是 6/8 直接放行下一代",
+  "  ② 恰 6/8=τ 走「≤τ停滞」分支 ⇒ **7/8 才推进** — 按论文 ≤τ/>τ, 不按口语"
+ ],
+ "★ 实现 organs/el_sched.py": [
+  "ELScheduler: record(布尔滑窗) + decide(n_envs=式2判定+推进清窗) + snapshot(只读审计)",
+  "四态: insufficient(窗口未满 B ⇒ pass_rate=None 不装0) / stalled / next_environment / next_generation",
+  "锁值常量 B_WINDOW=8 TAU=6/8(出处=式2后原文, NOISE_DELTA 同款锁值测试)",
+  "k>N ⇒ ElSchedError(状态不一致不静默) · 1-based k/g 对齐公式 · ELDecision frozen 可审计",
+  "实例化差异明标: 论文 N_{i,g} 静态任务集; DWC 代内环境数动态 ⇒ n_envs 每次调用方传"
+ ],
+ "诚实边界": [
+  "★ 路线: 论文逐字 vs 设计口语冲突时按论文(实现对齐设计、设计对齐论文的三级链)",
+  "★ 未与第二人复核"
+ ],
+ "验证": [
+  "pytest 687 passed(+11) rc=0 · gate 8/8 · e2e rc=0(LLM_SEGMENT=passed)",
+  "破坏 2/2: ①=τ 放宽(<τ)⇒恰6/8停滞测试红 ②两级短路(>τ直接换代)⇒2测试红 → 恢复绿",
+  "写测试时 1 红(越界段构造错: 换代后 k=1≤N 不越界) — 改显式 index=2>N=1"
+ ]
+}

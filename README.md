@@ -86,18 +86,18 @@ dwc/
 ```text
 定位    已定：独立 agent，记忆 + 自进化（丙方向为未来扩展）
 架构    已定 → ARCHITECTURE.md v4（器官式骨架 + 进化循环七环节）
-代码    25 个 .py / 10,743 行（七器官 + core.py 主类 + experiments 实验包）
-测试    30 文件 / 629 函数 → pytest 676 项全过（19.5s）
+代码    26 个 .py / 10,911 行（七器官 + core.py 主类 + experiments 实验包）
+测试    31 文件 / 640 函数 → pytest 687 项全过（21.2s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R69 · 61 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R70 · 62 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
 ★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R69 · δ_θ 残差难度落地: 器官⑥ weakness.py 路线丙, X1/X2/X3 全激活）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 本节最后实测 **2026-10-08（R70 · EL 调度器落地: 器官⑥ 第二件, 论文式2 两处口语出入按逐字锁死）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 
