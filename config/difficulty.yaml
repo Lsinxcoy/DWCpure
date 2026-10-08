@@ -46,4 +46,7 @@ difficulty:
 #   ② deep_research.enabled=false 时，X3 无法被检验（没有代理可查）
 #     ⇒ 切到 true 时必须补一条阳性测试，否则 X3 是死判据（形态3: 能力不可得）
 #   ③ 本文件只声明"用哪种语义"，不保证语义算得对 ——
-#     δ_θ 的计算实现在 organs/world_model，而该目录尚不存在
+#     δ_θ 的计算已落地: **organs/weakness.py**（R69, 路线丙 DifficultyEstimator）
+#     ★ 2026-10-08 修正: 原写"实现在 organs/world_model, 而该目录尚不存在"
+#       —— 双重过期: world_model 已于 R60 建成; 计算落点按 EVOLUTION_CORE_V2
+#       ⑥ search/weakness.py 的组件树走（平铺 organs/weakness.py, 与 iwm 同惯例）

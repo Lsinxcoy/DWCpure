@@ -5,5 +5,6 @@
 ★ 每个器官的模块 docstring 必须声明 DWC-MEM 或 DWC-AUTO（判据 G1 定位门）。
 
 ★ 本包现有: memory · judge · actor · evolver · applier · candidates ·
-  world_model（R60 第七器官, 承载环节⑥）。
+  world_model（R60 第七器官, 承载环节⑥）· iwm（R61 防漂移）·
+  weakness（R69 残差难度 δ_θ, 器官⑥ 第一件）。
 """

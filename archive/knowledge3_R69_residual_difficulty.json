@@ -1,0 +1,39 @@
+{
+ "round": "R69 · δ_θ 残差难度落地（器官⑥ 第一件: weakness.py 路线丙）",
+ "date": "2026-10-08",
+ "用户指令": "继续执行1（= δ_θ 残差难度; 三选一里设计文档权重最高）",
+ "设计对齐（实现跟设计, 不反向）": [
+  "出处核清: δ_θ 唯一出处 2609.04128 §2.1（不是 2609.14858, 后者 difficulty 0 命中）",
+  "ARCHITECTURE §4.7 ② + docs/RESIDUAL_DIFFICULTY.md（设计定稿）+ config/difficulty.yaml 三处已备",
+  "★ 裁决=路线丙组内基线: p_θ 物理不可得(云端 API 无 logits), p_𝒯 需外部知识源不划算",
+  "  δ_θ^group = [−log r]₊ · r=(n_z+1)/(n+1) Laplace k=1 · ARCHITECTURE 实测例 −log(12/55) 同构",
+  "  语义窄化是裁决一部分(『罕见于本组』非『罕见于世界』) — docstring 明写"
+ ],
+ "★ 实现 organs/weakness.py": [
+  "Difficulty frozen dataclass（semantics/n_obs 必填无默认 — X1/X2 双保险, 加载器已有校验）",
+  "DifficultyEstimator: delta_group(路线丙) + delta_trajectory(Δ_θ=Σ, NaN 传播) + weak_ranking(排序偏置)",
+  "X2: 组无观测(n=0)⇒NaN; ★ 区分『没观测过』与『观测过频率0』(n_z=0,n>0 ⇒ 有限高δ) —",
+  "  这条区分是跑测试时红出来的(实现对、断言错), 修正后锁进 docstring+测试",
+  "X3: semantics=world_knowledge ⇒ raise（无 deep-research 代理不假装能算）",
+  "X4: report_field 透出（门报告 delta_semantics 来源）",
+  "无阈值接口(weak_ranking 只给顺序) — 对齐 ARCHITECTURE『只可作排序偏置』"
+ ],
+ "诚实边界（全部写进模块尾）": [
+  "★ 生产数据链未接: TaskScorePoint 落盘(TS3 查询口)未做 ⇒ history 唯一注入源=测试",
+  "  （设计文档称『数据前提已具备』需打折: A6 三组✓, C3' TaskScorePoint 实测未落）",
+  "★ z 无统一操作化（设计只写『稳定 id』）⇒ z_id 由调用方定, 模块不锁",
+  "★ 收束接线=需设计裁决（select 加 δ 会动 W4『只吃信息增益』已定判据）⇒ 不顺手改",
+  "★ EL 调度器(B=8 τ=6/8)与三方向枚举 = 器官⑥ 其余两件, 未做",
+  "顺手同步: difficulty.yaml 边界③双重过期修正 · world_model 边界⑦销账 · organs/__init__ 清单补 iwm/weakness"
+ ],
+ "验证": [
+  "pytest 676 passed(+10) rc=0 · gate 8/8 · e2e rc=0",
+  "破坏 2/2: ①X2 NaN→0.0 ⇒ 2 测红 ②X3 门拆 ⇒ 拒算测试红 → 恢复绿",
+  "数值锚: −log(12/55) 与 ARCHITECTURE 实测例同构(测试 abs=1e-12 锁死)"
+ ],
+ "诚实边界": [
+  "★ 路线丙是**裁决后的语义**, 不是论文原式 — 模块头明写两项不可得的原因",
+  "★ Laplace 细节 (n_z+1)/(n+1) 是我对『k=1』的读法, 与实测例一致但未与第二人复核",
+  "★ 器官⑥ 三件只完成第一件; 收束接线前 δ_θ 无生产消费点（能力+测试, 同 R60 纪律）"
+ ]
+}

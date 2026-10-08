@@ -475,11 +475,11 @@ class WorldModel:
 #         + 接线诚实边界: expand/merge 是器官能力, 进 run_term 环节⑥的
 #           运行流接线待世界树展开流落地（与 R60 的范围纪律一致 —— 不假装接了）
 # ★ 未做（下轮, 依赖 TaskScorePoint 历史或另需裁决）:
-#   · 残差难度 δ_θ（裁决的路线丙 组内基线, ARCHITECTURE §4.7 ②）
+#   · 残差难度 δ_θ → **R69 已落 organs/weakness.py**（路线丙组内基线,
+#     Difficulty/delta_group/Δ_θ —— 数据链 TS3 与收束接线见 weakness 诚实边界）
 #   · 三方向枚举 FORWARD / LATERAL / REVERSE（§4.7 ③）
 #   · EL 完整调度器（窗口 B=8 τ=6/8 —— 本轮只取了「布尔观测」这一半）
-#   · Z4 候选持久化 / Z5 merge 三条件（config 声明在, 实现未落 ——
-#     与 world_tree.yaml 诚实边界② 同步标注）
+#   · Z4 候选持久化 / Z5 merge 三条件 → **R68 已落**（expand/merge, 见上方）
 # ★ 谱系路径求和的聚合口径是**我的实例化**（与 Δ_θ 轨迹和同形）,
 #   论文没给「信息增益该怎么聚合」的逐字公式 —— 未与第二人复核。
 # ★ 剪枝策略仍是 WORLD_TREE 诚实边界⑤（未定）—— max_nodes 只是
