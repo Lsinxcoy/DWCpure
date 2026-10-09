@@ -1,0 +1,79 @@
+{
+ "round": "R133 · 部分起底探针 — 假设被证伪: 根因B 真机制= dream 每轮穷举 K₂×段=12 节点(与起底量无关)",
+ "date": "2026-10-10",
+ "★ 假设(当初)与证伪(实测)": [
+  "假设: 起底全揭示 8 节点 ⇒ dream 观测面耗尽 ⇒ 部分起底(只注入 m<n)可让 N/k 可变",
+  "证伪: m=0/4/8 三档 per_world n_revealed **恒 12** ⇒ dream 每轮自己穷举 K₂(4)×段数(3)=12 与起底量无关 ⇒ 部分起底对观测面无影响"
+ ],
+ "★★ 根因B 的真机制(更正)": "不是起底耗尽, 是 dream 自身穷举 ⇒ 要造出 N/k 的**策略间差异**, 须动 dream 的终止条件或段结构, 不是改起底量 — 假设错了, 如实记档(reading/caveats 双写)",
+ "★ 决定性诊断的执行过程": "探针 18 组合全退化 ⇒ 读 per_world tuple 得 n_revealed 恒 12 ⇒ 空树(m=0)也恒 12 证明 dream 自己填满 ⇒ 假设推翻靠的是 per-field 诊断不是猜",
+ "★ 对整改路径的影响": "路径①(部分起底)此路不通; 真实剩下: ①动 dream 终止/段(改 core, 需评测影响面) ②继续用 judge_mean 执行体轴(R129 已验证) ③深水欠账",
+ "★ 坑(记档)": "patch 旧断言残留(L48 循环外 assert len(set(seen)))⇒ 2 测试红不是实现错是我编辑残留 ⇒ 逐行 read 现场后 patch 删除; 教训: 大字符串替换后必须回读原区域核对缩进/作用域",
+ "验证": "pytest 906(902+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 133,
+  "at": "2026-10-10T05:00:00+08:00",
+  "parent_gen": 132,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 141,
+   "pytest": 902,
+   "inheritance_gen_prev": 132
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_partial_seed.py(m×β 部分起底探针+假设证伪如实) + 4 测试",
+   "files": [
+    "scripts/probe_partial_seed.py",
+    "tests/test_r133_partial_seed.py",
+    "docs/partial_seed_probe.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r133_partial_seed.py (4 tests)",
+     "claim": "n_revealed恒12/全m全β退化/证伪如实/配置不动"
+    },
+    {
+     "type": "test",
+     "ref": "docs/partial_seed_probe.json#verdict",
+     "claim": "假设被证伪, 根因B= dream 自身穷举"
+    },
+    {
+     "type": "test",
+     "ref": "archive/knowledge3_R132_beta_calibration.json",
+     "claim": "R132 两因(β=0 + 起底耗尽)的后者被本轮更正"
+    }
+   ],
+   "numbers": {
+    "pytest": 906,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 906 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/partial_seed_probe.json",
+   "user_decision": "『继续』→ R132 路径①的执行(证伪也如实收官)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

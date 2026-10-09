@@ -1,0 +1,220 @@
+{
+ "probe": "R133: 部分起底探针 — 根治因B(揭示面耗尽)。起底只注入前 m 个节点 ⇒ dream 时未揭示节点仍可供各策略变体按 δ 排序差异化揭示 ⇒ N(k₂) 真不同 ⇒ β 校准有可变对象。扫 m×β 网格: 全起底应仍退化(R132 复现), 部分起底应出分化。",
+ "rule": "不改 config/replay.yaml（R132 校准纪律不变; 探针只给数据）",
+ "grid": {
+  "m_seeded": [
+   0,
+   4,
+   8
+  ],
+  "beta1": [
+   0.0,
+   0.02,
+   0.05
+  ],
+  "beta2": [
+   0.0,
+   0.05
+  ],
+  "score_plan": "首节点 0.0 其余 1.0（同 R128 混合观察面）"
+ },
+ "n_search": 8,
+ "n_results": 18,
+ "results": [
+  {
+   "m_seeded": 0,
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 0,
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 0,
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 0,
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 0,
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 0,
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 4,
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  },
+  {
+   "m_seeded": 8,
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true
+  }
+ ],
+ "verdict": {
+  "full_seed_always_degenerate": true,
+  "★ 恒等证据": "m=0/4/8 三档 per_world n_revealed 恒 12 ⇒ dream 每轮穷举 K₂(4)×段(3), 起底量不影响观测面 ⇒ 部分起底假设被证伪, 根因B 真机制 = dream 自身穷举",
+  "n_separating_total": 0,
+  "n_separating_partial": 0,
+  "separating_combos": [],
+  "reading": "★ 所有 m 全退化, 且 m=0/4/8 的 per_world n_revealed 恒 12（诊断实测）⇒ 根因B 真机制**不是**起底耗尽, 而是 dream 自己每轮穷举 K₂(4) × 段数(3) = 12 节点, 与起底量无关 ⇒ 部分起底对 dream 的观测面**无影响** ⇒ 要根治得动 dream 的终止条件/段数, 不是改起底量 — 如实更正当初假设"
+ },
+ "caveats": [
+  "注入观测不走真端点 ⇒ 隔离 β 效应, 换不来 LLM 真差异(同 R128/R132)",
+  "δ 可分辨性假设被本轮证伪: 分化的缺失与 δ 无关, 是 dream 每轮 n_revealed 恒 12（K₂×段）所致",
+  "注入观测任务的 δ 与真锚点 delta 不同源 — 但本轮证明这不是分化的必要前提",
+  "不改 config/replay.yaml — 校准协议裁决归用户/后续轮",
+  "k2_max=4 固定(ga_duel 同值) ⇒ 揭示轮数上限不参与扫描"
+ ]
+}
