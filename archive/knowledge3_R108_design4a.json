@@ -1,0 +1,18 @@
+{
+ "round": "R108 · 阶段4a — 两份设计稿（六段继承格式 + matched-term 最小对照）· 设计先行不默认动",
+ "date": "2026-10-09",
+ "稿1 六段继承格式": {
+  "文件": "docs/proposal_six_stage_inheritance.html (17.3KB)",
+  "六段原文": "综述§7: parent state→proposed change→motivating evidence→evaluation configuration→acceptance decision→subsequent use (SYNTHESIS §二·4 逐字引回)",
+  "内容": "现状盘点(4有1半1缺带代码行号) + 四工业对照物属性对齐(Lark时间接地/Humanlaya版本化/Hyra可执行经验/ARA轨迹实证) + knowledge3 档 inheritance 字段扩展 schema(只扩不破, 旧107档 legacy 兼容) + 写入即校验七判据 + T5族6/6处置 + 执行验收清单"
+ },
+ "稿2 matched-term 最小对照": {
+  "文件": "docs/proposal_matched_term_design.html (13.3KB)",
+  "文献状态": "三件套各≤1篇(Verma matched-budget 2607.26117/RQGM独立锚 2606.26294/Verma安慰剂) ⇒ 无现成协议可抄, DWC=跟随设计者",
+  "内容": "π0/π*载体(PolicySpec+dials+树快照+记忆dump, 界定=单轮一档周期) + 三件套最小版(CostLedger匹配账/锚truth_sha8前后断言/π̂盲改动臂=R107 blind_placebo换对象) + 三臂同memory底(剥记忆混淆) + 内容效应=π*−max(π0,π̂) + 禁用措辞表(✗L5e/✗显著) + 执行验收清单",
+  "刻意不做": "1−ε Beta下界(裁决②域)/跨代累积统计/自适应停止(裁决④)"
+ },
+ "设计纪律": "两稿均不给结论只给协议; 诚实条款含R107教训吸收(旁路即如实报结构必然); 两稿无依赖可并行过审",
+ "验证": "pytest 806 · gate 8/8 · e2e RC=0 — 三层全绿(设计轮零代码变动, 原样确认)",
+ "下一步": "4a 过审→执行轮; 4b 四项裁决独立轮(需用户拍板: ①HCE ②评估器dep(z)(推荐不开) ③Pareto ④种群(推荐不引))"
+}

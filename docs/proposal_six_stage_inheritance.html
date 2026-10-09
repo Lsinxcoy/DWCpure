@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿① 六段继承产物格式（R108 · 4a/2）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:230px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+h3{font-size:15.5px;color:var(--acc);margin-top:22px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.5}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;
+vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.t-green{color:var(--green);border-color:var(--green)}
+.t-gold{color:var(--gold);border-color:var(--gold)}
+.t-red{color:var(--red);border-color:var(--red)}
+.t-acc{color:var(--acc);border-color:var(--acc)}
+.lead{color:var(--dim);font-size:14px}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿① · 六段继承产物格式</h1>
+<div class="sub">R98 方案 §⑦T5 · 阶段 4a · 4a/2 · 设计先行不默认动 — 2026-10-09 ·
+综述 §7 原文六段 → knowledge3 档字段扩展设计 · 对齐四工业对照物</div>
+</header>
+<nav>
+<a href="#why">① 为什么缺它</a>
+<a href="#origin">② 综述 §7 原文六段</a>
+<a href="#map">③ DWC 逐段映射（现状盘点）</a>
+<a href="#industrial">④ 四工业对照物对齐</a>
+<a href="#schema">⑤ knowledge3 档字段扩展（核心设计）</a>
+<a href="#write">⑥ 写入点与校验</a>
+<a href="#t5">⑦ T5 族 6 条在本稿的处置</a>
+<a href="#accept">⑧ 验收清单 + 执行序</a>
+<a href="#honest">⑨ 诚实条款</a>
+</nav>
+<main>
+
+<section id="why">
+<h2>① 为什么缺它 — 一句话</h2>
+<div class="card gold">
+<b>综述 §7 点名「跨轮继承缺产物格式」</b>：DWC 每轮收官有知识档（knowledge3_R*.json）
+与提交，但<b>没有一份「这轮改了什么→凭据→判过没→后来被用没」的跨轮标准产物</b> ——
+改了不算数的继承侧缺口。R106 的三列连接（evidence→subsequent use→old vs new）是
+雏形，本稿把它扩成综述原文的<b>六段</b>并给 schema、写入点、校验判据。
+<span class="tag t-gold">设计稿 · 待过审</span><span class="tag">不默认动代码</span>
+</div>
+<div class="card">
+<b>溯源</b>：综述 §7 原文六段格式被 SYNTHESIS.md §二·4 点名待建；R98 方案
+§⑦T5「设计稿 · 六段继承产物格式」= 本稿；T5 族 6 条归族机器源
+<code>papers/arxiv_2609.11873/matrix_families.json</code>（family=T5_递归与继承）。
+</div>
+</section>
+
+<section id="origin">
+<h2>② 综述 §7 原文六段</h2>
+<div class="card purple">
+<pre>parent state → proposed change → motivating evidence
+             → evaluation configuration → acceptance decision
+             → subsequent use</pre>
+（§7 原文, 经 SYNTHESIS §二·4 逐字引回; 中译: 亲代状态 → 拟议改动 →
+ 动因证据 → 评估配置 → 接纳决定 → 后续使用）— 六段 = 一份「改动物料」的
+ 完整生命周期记录, <b>缺任何一段 ⇒ 继承物不可审计</b>（接收方无法判断
+ 「拿这个改动能不能直接跑、凭什么信、在什么评估下过、过了没、后来有用没」）。
+</div>
+</section>
+
+<section id="map">
+<h2>③ DWC 逐段映射（现状盘点 — 有/缺/半）</h2>
+<table>
+<tr><th>六段</th><th>DWC 现有对应物（代码证据）</th><th>状态</th></tr>
+<tr><td><b>parent state</b><br>亲代状态</td>
+<td>evolver <code>PROPOSAL_STATES</code>（evolver.py:1027, draft/gated/rejected/
+adopted/adopted_not_implemented）+ 知识条目 <code>target_layer/component</code>
+（evolver:1043-1060 迁移实录）</td>
+<td><span class="tag t-green">有</span> 状态机齐；缺「本轮快照版本号」</td></tr>
+<tr><td><b>proposed change</b><br>拟议改动</td>
+<td><code>Candidate(patch+source+grounding)</code>（candidates.py:96-112, 无 patch/
+无 grounding 即 raise）；applier 回执 <code>{"candidate": patch, "readback_at_copy": ok}</code>
+（applier.py:281）</td>
+<td><span class="tag t-green">有</span> 可执行语义已在（patch 字符串）</td></tr>
+<tr><td><b>motivating evidence</b><br>动因证据</td>
+<td><code>grounding</code>（依据哪条 diff, 纪律②）+ failure_signature 三元组
+(c,q,m)（judge 聚簇）+ R99 <code>repair_layer</code> 三来源映射</td>
+<td><span class="tag t-green">有</span> 证据链在</td></tr>
+<tr><td><b>evaluation configuration</b><br>评估配置</td>
+<td><code>TRUTH_SOURCE=config/anchors/dev.json</code>（G2, 指向不到即 raise）+
+<code>SPLIT_DEV/SPLIT_TEST</code> + judge frozen（RQGM 同构, R98 T5-5）+
+dw_version 契约（run_term 铁律 T3）</td>
+<td><span class="tag t-green">有</span> 但<b>散在</b>: 每轮档未记录「当轮评估配置指纹」</td></tr>
+<tr><td><b>acceptance decision</b><br>接纳决定</td>
+<td>ProposalGate.check → Evolver.accept；e2e 三态
+candidates_accepted/rejected/no_candidates（已硬记账）；R106 遵循率报表
+（memory PROPOSAL 源）</td>
+<td><span class="tag t-gold">半有</span> 接纳在, 但接纳理由/门回执<b>不进知识档</b></td></tr>
+<tr><td><b>subsequent use</b><br>后续使用</td>
+<td>memory <code>recall()→access_count+1</code> / <code>record_effect()→effect_count+1</code>
+（memory.py:317-329）+ R106 三列连接中 <code>subsequent_use</code> 列</td>
+<td><span class="tag t-red">缺</span> R106 实测双缺口: 生产零调用方 + 默认
+<code>:memory:</code> 不落盘（读数存在/数据断供）</td></tr>
+</table>
+<div class="card red">
+<b>盘点结论</b>: 六段中 4 段有实体、1 段半有（接纳决定不进档）、1 段缺
+（后续使用 — 已在 R106 如实入档为候选硬规则）。<b>本稿做的是「把六段
+装进一份标准产物」+「补 3 个缺口的接线设计」，不是造新机制。</b>
+</div>
+</section>
+
+<section id="industrial">
+<h2>④ 四工业对照物对齐（方案 §⑦T5 指定）</h2>
+<table>
+<tr><th>对照物</th><th>它保证什么</th><th>DWC 六段的对应设计</th></tr>
+<tr><td><b>Lark 时间接地</b></td>
+<td>每段变更带可信时间戳, 可回答「先后」</td>
+<td>六段每段带 <code>at</code>（ISO-8601, UTC）+ 顶层 <code>gen</code>（第几轮）;
+写入即 stamp, 禁事后改（改=新档+<code>supersedes</code> 指针）</td></tr>
+<tr><td><b>Humanlaya 版本化</b></td>
+<td>产物版本链可回溯</td>
+<td><code>parent_gen</code>（上一份六段档的 gen）+ <code>supersedes</code>（被替代
+的档 id）⇒ 跨轮链可走（同 knowledge3 <code>round</code> 字段延续, 只扩不破）</td></tr>
+<tr><td><b>Hyra 可执行经验</b></td>
+<td>经验不是文本是<b>可执行物</b></td>
+<td><code>proposed_change</code> 必带可执行形态之一: <code>patch</code>（diff 串）/
+<code>config_delta</code>（dial 变更）/ <code>rule</code>（RULES 条目）; 三者皆无
+⇒ 该段非法（写入时 raise — G1 定位声明同款）</td></tr>
+<tr><td><b>ARA 轨迹实证</b></td>
+<td>主张须挂轨迹/运行证据, 不接受孤证文本</td>
+<td><code>motivating_evidence</code> 必带机器可回查引用之一:
+<code>trial_report</code>（docs/*.json 路径+字段）/ <code>commit</code>（hash）/
+<code>gate_trace</code>（archive/gate_trace.jsonl 行）; 纯叙述 ⇒ 非法</td></tr>
+</table>
+<div class="card">
+<span class="tag t-acc">对齐语义</span> 四对照物不是照抄实现, 是给六段的
+<b>四个必备属性</b>打样: 时间可信（Lark）、链可信（Humanlaya）、改动可执行（Hyra）、
+证据可回查（ARA）。违反任一属性 ⇒ 该档不合格, 不进继承链。
+</div>
+</section>
+
+<section id="schema">
+<h2>⑤ knowledge3 档字段扩展（核心设计）</h2>
+<div class="card purple">
+<b>原则</b>: 现有 knowledge3_R*.json（每轮一档, 已 107 份）<b>只扩不破</b> —
+新档加六段对象 <code>inheritance</code>, 旧档保持 legacy 无该键（读取方按
+「有键走六段, 无键=legacy」判, 不迁移不改写历史档）。
+<pre>// 新档必带（写入即校验, 缺段 raise — 方案验收『三列连接齐全』的六段版）
+{
+  "round": "R108",
+  "date": "2026-10-09",
+  ...现有字段照旧...,
+
+  "inheritance": {
+    "gen": 108,                       // ① Lark: 轮次即代号
+    "at": "2026-10-09T…Z",            // ① Lark: 写入即 stamp
+    "parent_gen": 107,                // ② Humanlaya: 链
+    "supersedes": null,               // ② 改档时指旧 id（不原地改）
+
+    "parent_state": {                 // §7 段1: 亲代状态
+      "commits": 113,                 //   改前 git rev-list
+      "proposal_states": {"adopted": 0, "gated": 1},   // 有则记, 无则 {}
+      "config_fingerprint": "…"       //   dials/anchors sha8（评估配置快照）
+    },
+
+    "proposed_change": {              // §7 段2: 拟议改动（Hyra: 必可执行）
+      "kind": "patch | config_delta | rule",
+      "exec_form": "diff 串 / {"dial":…} / RULES 条目 id",
+      "files": ["src/…", "scripts/…"]
+    },
+
+    "motivating_evidence": {          // §7 段3: 动因证据（ARA: 必可回查）
+      "refs": [{"type": "trial_report | commit | gate_trace | test",
+                 "ref": "docs/…json#field / <hash> / 行号",
+                 "claim": "本档主张对应的那句话"}],
+      "numbers": {"pytest": 806, "gate": "8/8", "e2e_rc": 0}
+    },
+
+    "evaluation_config": {            // §7 段4: 评估配置（G2 落指纹）
+      "truth_source": "config/anchors/dev.json",
+      "truth_sha8": "…",              //   变了 = 分数不可比（R99 同口径）
+      "splits": ["SPLIT_DEV", "SPLIT_TEST"],
+      "judge_frozen": true,
+      "dw_version": "…"
+    },
+
+    "acceptance_decision": {          // §7 段5: 接纳决定（R106 补进档）
+      "gate": "三层验证字面: pytest/gate/e2e",
+      "verdict": "accepted | rejected",
+      "evidence_ref": "e2e log 路径 + RC",      // 门回执可回查
+      "user_decision": null           //   4b 裁决类必填（用户拍板的档）
+    },
+
+    "subsequent_use": {               // §7 段6: 后续使用（R106 三列的持续版）
+      "status": "pending | invoked | effective | not_assessable",
+      "access": null, "effect": null, //   接 recall/record_effect 记账
+      "observed_at_gen": null,        //   哪一代观察到被用
+      "gap_note": null                //   断供时如实写（R106 双缺口同款）
+    }
+  }
+}</pre>
+</div>
+<div class="card gold">
+<b>与 R106 的关系</b>: R106 三列（evidence / subsequent_use /
+old_vs_new_effect）= 六段的<b>子集映射</b> — 三列继续管「遵循率报表行」,
+六段管「整轮档」; <code>old_vs_new_effect</code> 并入六段的
+<code>evaluation_config.numbers</code> 前后对比（同轮 pytest 数即最简
+新旧读数, 不发明新度量）。
+</div>
+</section>
+
+<section id="write">
+<h2>⑥ 写入点与校验</h2>
+<div class="card green">
+<b>写入点（唯一）</b>: 每轮收官流程的档写入处 — 即现有
+<code>archive/knowledge3_R*.json</code> 写入脚本段（每轮收官 execute 段内）。
+本稿过审后 = 收官段加 <code>inheritance</code> 构造（git rev-list 取
+parent_state, sha8 取 truth 指纹, 三层结果填 acceptance）。
+<br><br>
+<b>校验（写入即 raise, 不留读取期发现）</b>:
+</div>
+<pre>六段齐全     : parent_state/proposed_change/motivating_evidence/
+               evaluation_config/acceptance_decision/subsequent_use 一个不缺
+段2 可执行   : kind ∈ {patch, config_delta, rule} ∧ exec_form 非空
+段3 可回查   : refs 至少 1 条 ∧ 每条 type+ref 齐
+段4 指纹     : truth_sha8 8 位 hex ∧ judge_frozen 是 bool
+段5 判定     : verdict ∈ {accepted, rejected}（本轮三层红=档不写 — 现行纪律）
+段6 诚实     : status ∈ 五值; 断供 ⇒ gap_note 必填（不许留 null 装有）
+时间/链     : at 是 ISO-8601; parent_gen == 上一档 gen（链断 raise）</pre>
+<div class="card">
+<b>不做的</b>: 不动旧档（不迁移）、不建新数据库（档即产物）、不自动改判据
+（六段是记录格式不是行为）— 与方案「设计先行不默认动」一致。
+</div>
+</section>
+
+<section id="t5">
+<h2>⑦ T5 族 6 条在本稿的处置</h2>
+<table>
+<tr><th>#</th><th>借鉴点（机器源 matrix_families.json）</th><th>本稿处置</th></tr>
+<tr><td>1</td><td>Nemotron 弱到强迭代（生成器随轮升）— 半有</td>
+<td>六段的 <code>parent_state.proposal_states</code> + <code>gen</code> 链 =
+「上轮产出当下轮输入」的记录面; 生成器升级本身 = M>1（R86 已落）, 不在本稿</td></tr>
+<tr><td>2</td><td>AIMO 自举回路（生成器随轮升）— 半有</td>
+<td>同上（同构两归并: 记录面本稿, 动力面 M>1 已有）</td></tr>
+<tr><td>3</td><td>GenSelect 选择器（k 选 1）— 半有</td>
+<td>确认型余量: <code>select_policy</code>（replay.py:165）已有; 本稿不碰</td></tr>
+<tr><td>4</td><td>rubric 特权输入（gold 当特权输入）— 半有</td>
+<td>不适用面（无训练期）; 段4 的 <code>truth_sha8</code> = 金标指纹的
+<b>可比性用途</b>（同型不同用, 如实标）</td></tr>
+<tr><td>5</td><td>RQGM 独立 anchor + 保守下界（1−ε Beta）— 半有</td>
+<td><b>下界统计不在本稿</b>（无明文口径不发明）; 本稿段4 只记 anchor 配置指纹
+= 「独立锚可审计」的记录面; 统计下界若引入须裁决②同批（评估器域）</td></tr>
+<tr><td>6</td><td>RQGM epoch/checkpoint（段内冻结段界换）— 半有</td>
+<td>段4 的 <code>judge_frozen</code> 字段 + 铁律 T3（dw_version）已同构;
+「段界才可换」的合同 = 裁决②域, 本稿不默认动</td></tr>
+</table>
+<div class="card">
+<b>覆盖断言</b>: T5 族 6/6 有处置（4 条记录面/确认面在本稿, 2 条归裁决域）—
+与 163 零漏项总账（T5=6）自洽。
+</div>
+</section>
+
+<section id="accept">
+<h2>⑧ 验收清单 + 执行序</h2>
+<div class="card green">
+<b>验收（执行轮 — 本稿过审后）</b>:
+</div>
+<pre>□ 新档 inheritance 六段构造 + 写入即校验（缺段/坏段 raise 的探针测试 ≥5）
+□ parent_gen 链连续（连续两档跑出 parent_gen == gen 前值, 断链红）
+□ 段2/段3 非法形态（纯叙述、无 exec_form）被拒的破坏测试
+□ 现有 107 份 legacy 档零改动（读取方兼容分支测试）
+□ 三层验证不变: pytest 全绿 · gate 8/8 · e2e rc=0
+□ 一档一提交一知识档（同批自洽 current+1）</pre>
+<div class="card gold">
+<b>执行序</b>: 本稿 + 稿②（matched-term 对照）→ <b>用户过审</b> →
+执行轮（实现→三层→档→提交, 只做实现不做新设计）→ 4b 四项裁决逐项独立轮。
+</div>
+</section>
+
+<section id="honest">
+<h2>⑨ 诚实条款</h2>
+<div class="card red">
+1. <b>六段格式不评估任何东西</b> — 它是记录/继承格式, 不是判据; 「改了算数」
+仍靠 R106 遵循率 + 三层验证, 本稿只让跨轮可审计。<br>
+2. <b>段6 未来多数时间是 pending</b> — 在 R106 双缺口（零喂数调用 +
+<code>:memory:</code> 不落盘）接线前, <code>subsequent_use</code> 读不出有效
+数据; 档会如实写 <code>gap_note</code>, 不装有。<br>
+3. <b>字段值示例中的数字</b>（806/8/…）是现轮实测, 未来档以当轮实测为准。<br>
+4. <b>四工业对照物为属性对齐</b> — 未读其论文实现, 不声称行为级兼容
+（<code>refs</code> 需时再补原文核）。
+</div>
+<div class="sub" style="margin-top:30px">设计稿① · R98 §⑦T5 · 六段原样自综述 §7（SYNTHESIS §二·4 引回）·
+T5 族 6/6 处置 · 待过审后进入执行轮 · 上一档: R107（git 113）</div>
+</section>
+
+</main>
+</body>
+</html>

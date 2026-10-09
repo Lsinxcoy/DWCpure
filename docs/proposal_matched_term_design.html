@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿② effective-L5 matched-term 最小对照（R108 · 4a/2）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:230px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+h3{font-size:15.5px;color:var(--acc);margin-top:22px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.5}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.t-green{color:var(--green);border-color:var(--green)}
+.t-gold{color:var(--gold);border-color:var(--gold)}
+.t-red{color:var(--red);border-color:var(--red)}
+.t-acc{color:var(--acc);border-color:var(--acc)}
+.formula{background:#1c2128;border:1px dashed var(--gold);border-radius:8px;
+padding:10px 16px;font-size:15px;text-align:center;margin:12px 0;
+font-family:Consolas,monospace;color:#e3b341}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿② · effective-L5 matched-term 最小对照</h1>
+<div class="sub">R98 方案 §⑦T5 · 阶段 4a · 4a/2 · 「同 term 预算下 π0 vs π*」最小对照 —
+不声称 L5e · 2026-10-09</div>
+</header>
+<nav>
+<a href="#lit">① 文献状态（为什么只能做最小版）</a>
+<a href="#pi">② π0 / π* 在 DWC 的载体</a>
+<a href="#trio">③ 三件套最小版映射</a>
+<a href="#design">④ 对照设计（臂/预算/判读）</a>
+<a href="#protocol">⑤ 协议与成本记账</a>
+<a href="#verdict">⑥ 判读规则 + 禁用措辞</a>
+<a href="#accept">⑦ 验收清单 + 执行序</a>
+<a href="#honest">⑧ 诚实条款</a>
+</nav>
+<main>
+
+<section id="lit">
+<h2>① 文献状态 — 为什么 DWC 只能做「最小版」</h2>
+<div class="card gold">
+<b>综述 §3.6.5 对 effective recursion 的要求</b>:
+「matched budgets, <i>including the cost of evaluating the mechanisms</i>」
+— 这是<b>要求不是现状</b>（原文逐字引自 SYNTHESIS §二·1）。
+<br><br>
+<b>R96 反刍横搜（32 篇全文, RUMINATE.md 视角1/视角3）的硬结论</b>:
+</div>
+<table>
+<tr><th>三件套</th><th>文献命中</th><th>篇目</th></tr>
+<tr><td>matched budget（同预算对照）</td><td><b>仅 1 篇</b></td>
+<td>Verma 2607.26117（+ 其安慰剂臂）</td></tr>
+<tr><td>独立锚（评估器不读被评臂）</td><td><b>仅 1 篇</b></td>
+<td>RQGM 2606.26294（1−ε 保守下界 + anchor）</td></tr>
+<tr><td>安慰剂/等预算假改进</td><td><b>仅 1 篇</b></td>
+<td>Verma 2607.26117（把 +12.2 变负的手段）</td></tr>
+</table>
+<div class="card red">
+<b>⇒ 空白坐实</b>: 三件套各≤1 篇 = 没有可抄的现成协议（不是共识缺失）。
+综述要的「effective L5 判定」在 32 篇中<b>无一篇给出完整证据</b>
+（RUMINATE 视角3·2: 无任何篇同时具备结构递归+有效递归证据）。
+<br>
+<b>⇒ DWC 定位 = 跟随设计者, 不是抄袭者</b>（方案 §⑦T5 原话）:
+先出「同 term 预算下 π0 vs π*」的<b>最小对照设计</b> —— 本稿。
+<b>成稿与结果均不声称 L5e</b>（禁用措辞见 §⑥）。
+</div>
+</section>
+
+<section id="pi">
+<h2>② π0 / π* 在 DWC 的载体</h2>
+<div class="card purple">
+<b>定义（本设计内, 不外推）</b>:
+</div>
+<table>
+<tr><th>符号</th><th>含义</th><th>DWC 载体（代码证据）</th></tr>
+<tr><td><b>π0</b>（基线策略）</td>
+<td>改进发生<b>前</b>的完整策略快照 — 世界树 + 调度序 + 记忆状态 + 配置</td>
+<td>一轮收官时刻的: <code>PolicySpec</code>(R86, pid+seg_order 锁值) +
+<code>dials</code> + 世界树快照（run_term 快照 ℋ）+ 记忆库 dump
+（六段档的 <code>parent_state</code> 正好是它的记录形态 — 稿①复用）</td></tr>
+<tr><td><b>π*</b>（改进后策略）</td>
+<td>经<b>一轮自我改进</b>后的策略 — 同快照结构, 差异=该轮被接纳的 change</td>
+<td>执行轮跑完后的同结构快照; 差异项由六段档 <code>proposed_change</code>
++ <code>acceptance_decision=accepted</code> 界定（只比被接纳的差, 不比全量）</td></tr>
+<tr><td><b>term 预算</b></td>
+<td>两臂各自运行的 term 数与评估成本</td>
+<td><code>CostLedger</code>（R99: history 结账 + open 标记）— 逐 term 记账,
+可断言两臂 <code>n_terms</code> 与 <code>cost</code> 相等</td></tr>
+</table>
+<div class="card">
+<b>「一轮」的界定</b>: π0→π* = <b>一个</b> knowledge3 档周期
+（一档一提交的那一轮）。多轮累积属综述 §3.6.5 另一缺口
+（「跨代统计可靠累积」, 本设计<b>不碰</b> — 单轮最小版）。
+</div>
+</section>
+
+<section id="trio">
+<h2>③ 三件套最小版映射（跟随设计的落点）</h2>
+<table>
+<tr><th>件</th><th>文献原型（≤1 篇各自）</th><th>DWC 最小版</th><th>现状</th></tr>
+<tr><td><b>matched budget</b></td>
+<td>Verma: matched budgets 含评估成本</td>
+<td>两臂 <b>同 term 数</b>（N）+ <b>同判分次数</b> + CostLedger 断言
+<code>cost(π0)==cost(π*)</code>（评估开销计入 — §3.6.5 字面）</td>
+<td><span class="tag t-green">账本在</span> CostLedger 已落 R99</td></tr>
+<tr><td><b>独立锚</b></td>
+<td>RQGM: anchor + 1−ε 保守下界</td>
+<td>judge frozen + TRUTH_SOURCE golden（G2）+ <b>锚不读两臂</b>
+（anchors 只在评估时读, 不进任一臂的执行 prompt/状态）— 断言:
+两臂跑完后 <code>truth_sha8</code> 与臂前一致（稿①段4 字段直接复用）</td>
+<td><span class="tag t-green">锚在</span> G2/judge frozen 已落;
+<b>统计下界不引入</b>（无明文口径, 裁决②域）</td></tr>
+<tr><td><b>安慰剂臂</b></td>
+<td>Verma: 等预算假改进把 +12.2 变负</td>
+<td><b>π̂ 臂</b> = 等预算<b>盲改动</b>: 与 π* 同数量级的改动注入, 但改动内容
+与证据无关（随机 dial 摆动/随机规则 — 与 R107 <code>blind_placebo</code>
+同族, 只是对象从「记忆工件」升到「策略改动」）</td>
+<td><span class="tag t-gold">机制在</span> blind_placebo 臂协议已跑通 R107,
+本设计换对象复用</td></tr>
+</table>
+<div class="card gold">
+<b>刻意不做的三件</b>: ① 1−ε Beta 下界（统计口径无核不发明）② 跨代累积统计
+（§3.6.5 另一缺口, 非最小版）③ 自适应停止判据（裁决④域）。
+</div>
+</section>
+
+<section id="design">
+<h2>④ 对照设计 — 臂 / 预算 / 判读</h2>
+<div class="card purple">
+<pre>臂 A: π0        — 改进前快照原样跑 N term（基线）
+臂 B: π*        — 改进后快照跑 N term（被接纳 change 生效）
+臂 C: π̂(placebo) — 等预算盲改动快照跑 N term（安慰剂, Verma 同款）
+
+同条件: 同一批任务(seed 定序) · 同 N term · 同判分器(frozen) ·
+       同 CostLedger 口径 · 同 memory 状态起底（π0 的 dump 为三臂共同底,
+       差异只在 change 注入 — 否则混入「记忆不同」的混淆）</pre>
+</div>
+<div class="formula">
+内容效应 = score(π*) − max( score(π0), score(π̂) )
+</div>
+<div class="card">
+<b>判读直觉</b>: π* 必须<b>同时</b>超过基线与安慰剂 — 只超基线不超安慰剂 =
+「有改动就行」的安慰剂效应（Verma 把 +12.2 变负的正是这步）。<br>
+<b>「同 memory 底」是本设计的关键约束</b>: 三臂从 π0 同一 dump 出发,
+π* 臂只多「被接纳的 change」, π̂ 臂只多「等预算假 change」— 把记忆差异
+从臂间差里剥掉（否则重演 R107 教训: golden 替身把差异旁路）。
+</div>
+</section>
+
+<section id="protocol">
+<h2>⑤ 协议与成本记账（复用 R107 已验证形态）</h2>
+<pre>protocol 字段（进 docs/matched_term_design.json 的报告头）:
+  seed          : 显式（args.seed, 默认固定）
+  n_terms       : N（两/三臂相同 — matched 字面）
+  budget_rows   : CostLedger 每臂逐 term 账（n_terms, cost, 判分次数）
+  arms          : ["pi0", "pi_star", "placebo_pi"]
+  anchor        : {truth_source, truth_sha8(前), truth_sha8(后), judge_frozen}
+                  — 前后一致断言（独立锚字面）
+  change_scope  : 六段档 acceptance=accepted 的 change 列表（π* 臂注入物,
+                  可回查档 id — 与稿①互链）
+  placebo_spec  : 盲改动的生成规则 + seed（可复现同一批假 change）
+  verdicts      : {vs_baseline, vs_placebo, content_effect} 三读数
+  claims_allowed: 只许报 matched-term 三读数（§⑥ 禁用词生效）</pre>
+<div class="card green">
+<b>可复跑</b>: 确定性 golden executor + 固定 seed ⇒ 同输入同输出;
+LLM 形态若启用则标注 <code>endpoint="llm"</code> + 三态记账
+（candidates_* 同款）, <b>只报方向不报显著性</b>（既有纪律, n 小）。
+</div>
+</section>
+
+<section id="verdict">
+<h2>⑥ 判读规则 + 禁用措辞</h2>
+<div class="card red">
+<b>禁用措辞（本设计产出的任何报告不得写）</b>:
+</div>
+<pre>✗ 「DWC 达成 effective L5 / effective recursion」
+✗ 「L5e 通过」/「有效递归已验证」
+✗ 「显著优于」（n 小只报方向, 无显著性检验不许用「显著」）
+✓ 允许: 「matched-term 对照: π*−π0=…, π*−π̂=…（方向性, 单轮, 样本小）」
+✓ 允许: 「在本设计的最小协议下, 内容效应方向为正/零/负」</pre>
+<div class="card gold">
+<b>为什么如此保守</b>: 三件套文献各≤1 篇（§①）⇒ 无公认协议 ⇒ 我们的最小版
+<b>只是跟随设计不是达成判定</b>; 且 §3.6.5 要求「评估成本计入预算」+
+「跨代可靠累积」两条本设计只覆盖前者的一半（单轮 CostLedger 记账,
+无跨代统计）— 按 §3.6.5 原文, 这离「effective」判定还差一整段。
+<b>报告中的差距按缺口如实写, 不修辞。</b>
+</div>
+</section>
+
+<section id="accept">
+<h2>⑦ 验收清单 + 执行序</h2>
+<pre>□ 三臂脚本跑通（π0/π*/π̂ 同底同预算）+ CostLedger 断言两账相等
+□ 独立锚断言: truth_sha8 前后一致（不一致=红, 污染即拒报）
+□ 内容效应三读数出数（vs_baseline / vs_placebo / content_effect）
+□ 报告头协议字段齐全（§⑤ 逐字段断言）+ 禁用措辞扫描测试（§⑥）
+□ 盲改动可复现（同 seed 同一批假 change）
+□ 三层验证不变 · 一档一提交 · 同批自洽 current+1
+□ ★ 结果无论正负全报（方向为负也入档 — W5 不覆盖）</pre>
+<div class="card gold">
+<b>执行序</b>: 本稿 + 稿① → 用户过审 → 执行轮（实现→三层→档→提交）→
+4b 四项裁决独立轮。<b>两稿无依赖</b>, 可并行过审。
+</div>
+</section>
+
+<section id="honest">
+<h2>⑧ 诚实条款</h2>
+<div class="card red">
+1. <b>本稿不给结论只给协议</b> — 未跑任何对照, 无数字可报（跑数在执行轮）。<br>
+2. <b>π* 的「change」以六段档 acceptance=accepted 为准</b> — 若执行时六段档
+未落地（稿①未过审）, 则退化为「本轮 git diff 为 change 清单」, 如实标注
+<code>change_scope="git_diff(legacy)"</code>。<br>
+3. <b>placebo 的假 change 生成规则须在执行轮写死</b>（本稿只定「与证据无关、
+等预算」两约束, 具体分布不预设 — 无明文不发明）。<br>
+4. <b>R107 教训已吸收</b>: golden 替身下记忆不进执行路径 — 本设计 π 载体是
+「整快照含记忆」, 若执行中发现三臂差异被旁路, <b>如实报结构必然</b>（与
+R107 caveat 同款措辞）, 不把恒等当「无效」证据。
+</div>
+<div class="sub" style="margin-top:30px">设计稿② · R98 §⑦T5 · π0/π* 同 term 预算最小对照 ·
+三件套文献各≤1(Verma/RQGM/Verma) · 不声称 L5e · 待过审 · 上一档: R107（git 113）</div>
+</section>
+
+</main>
+</body>
+</html>
