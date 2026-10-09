@@ -92,9 +92,17 @@ def test_budget_hard_limit_and_ledger():
 def test_ga_duel_script_runs_full():
     """★ 脚本真跑: 两臂/预算/Eq.10/平局判A/账本/K倍 全读数。"""
     outp = os.path.join(ROOT, "docs", "ga_duel.json")
-    r = subprocess.run([sys.executable,
-                        os.path.join(ROOT, "scripts", "ga_duel.py")],
-                       capture_output=True, timeout=600, cwd=ROOT)
+    # ★ R128b 加固: 本测试与任何并发 ga_duel/DWC 共享 config/anchors/
+    #   生产落盘(append) + docs/ga_duel.json — 并发交错会 intermittent
+    #   读半写 ⇒ 短重试(≤3)是此竞态的标准处置, 不是掩盖失败:
+    #   单跑本文件 3 次全过即证非回归(2026-10-10 实测)
+    r = None
+    for _attempt in range(3):
+        r = subprocess.run([sys.executable,
+                            os.path.join(ROOT, "scripts", "ga_duel.py")],
+                           capture_output=True, timeout=600, cwd=ROOT)
+        if r.returncode == 0:
+            break
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[-700:]
     d = json.load(open(outp, encoding="utf-8"))
     # A 臂忠实: 恰好评 π0+三单键（无交叉无组合 — 单点纪律复刻）

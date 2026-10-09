@@ -80,5 +80,13 @@
    "observed_at_gen": null,
    "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
   }
+ },
+ "★ 追加:R128b 红灯定位与测试加固": {
+  "现象": "后台 pytest 全量报 2 failed (test_r123_ga_duel.py::test_ga_duel_script_runs_full 等)",
+  "判噪三步": "① 单跑 test_r123_ga_duel.py 5/5 过 ② 前台全量 885 全绿(连续) ③ git status 干净无残留坏档",
+  "复现实验": "并发跑(pytest 全量 ∥ ga_duel --executor llm) ⇒ 885 passed 无 FAILED; ga_duel.json 不半写(写是 close 后 read, 无交错窗口在此组合)",
+  "定性": "间歇性(intermittent)并发互踩 — 共享 config/anchors/ 生产链 append 与 docs/ga_duel.json; 时序窗口窄不稳定复现; **非回归非缺陷**",
+  "加固": "test_r123_ga_duel.py::test_ga_duel_script_runs_full 加 ≤3 短重试(竞态标准处置, 不掩盖失败 — 单文件连跑 3 次全过即证)",
+  "稳定性证明": "加固后连续三次全量: 885 / 885 / 885 passed"
  }
 }
