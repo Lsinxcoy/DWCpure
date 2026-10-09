@@ -1,0 +1,8 @@
+{
+ "round": "R97c · RSI 综述架构 × DWC 架构对照落盘（用户拍板「落盘入库」）",
+ "date": "2026-10-09",
+ "交付": "papers/arxiv_2609.11873/NOTE_architecture_diff.md — 九组件映射(全带 grep 机器核行号)+三横切对照+L1-L5 逐层定位+同5异6",
+ "★ L 定位结论": "DWC = L2 稳 + L3 选择型成立(§3.4 外部池选择型明文背书) + L4 bounded + L5 structural 最小子集 + effective 无(matched budget 三件套文献各≤1篇)",
+ "★ 6 异": "Successor 缺位(状态继承非系统继承) / Strategy 仅参数域 / 评估器路线有意相反(留裁决) / 零训练不落 C1-C4 / 触发=机械节律非反思立项 / Verifier 拆四层超出综述粒度",
+ "机器证据": "core.py:93/173/205/252/292/359/387 · evolver:1079/1168/1515/1560/657 · judge:96/686/923 · replay:165/189/201 · el_sched:38 · W纪律×5"
+}
