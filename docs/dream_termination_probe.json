@@ -1,0 +1,180 @@
+{
+ "probe": "R134: dream 终止解剖 — 扫 k2_max 看 n_revealed/k 是否受控。实测 k2_max ∈ {1,2,4,8,16} ⇒ (k, n) 恒 ⇒ K₂ 是死参数; dream 真实终止 = §2.5 的 C=∅（树内候选耗尽）⇒ 12 节点是结构上限 ⇒ 策略间 N/k 数学无差异 ⇒ β 校准无对象。",
+ "k2_values": [
+  1,
+  2,
+  4,
+  8,
+  16
+ ],
+ "rows": [
+  {
+   "k2_max": 1,
+   "v_set": [
+    0.0
+   ],
+   "n_distinct_v": 1,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     1,
+     1
+    ]
+   ],
+   "n_segments": 1,
+   "degenerate": true
+  },
+  {
+   "k2_max": 2,
+   "v_set": [
+    0.0
+   ],
+   "n_distinct_v": 1,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     2,
+     7
+    ]
+   ],
+   "n_segments": 1,
+   "degenerate": true
+  },
+  {
+   "k2_max": 4,
+   "v_set": [
+    0.0
+   ],
+   "n_distinct_v": 1,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     4,
+     12
+    ]
+   ],
+   "n_segments": 2,
+   "degenerate": true
+  },
+  {
+   "k2_max": 8,
+   "v_set": [
+    0.0
+   ],
+   "n_distinct_v": 1,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     4,
+     12
+    ]
+   ],
+   "n_segments": 2,
+   "degenerate": true
+  },
+  {
+   "k2_max": 16,
+   "v_set": [
+    0.0
+   ],
+   "n_distinct_v": 1,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     4,
+     12
+    ]
+   ],
+   "n_segments": 2,
+   "degenerate": true
+  }
+ ],
+ "verdict": {
+  "k2_is_dead_parameter": false,
+  "k2_growing_zone": [
+   1,
+   2
+  ],
+  "k2_saturated_zone": [
+   4,
+   8,
+   16
+  ],
+  "n_by_k2": {
+   "1": 1,
+   "2": 7,
+   "4": 12,
+   "8": 12,
+   "16": 12
+  },
+  "k_by_k2": {
+   "1": 1,
+   "2": 2,
+   "4": 4,
+   "8": 4,
+   "16": 4
+  },
+  "all_degenerate": true,
+  "reading": "★ 实测分两区（如实）: k2 ∈ [1, 2] 时 n 随 K₂ 增长（{1: 1, 2: 7}）⇒ K₂ 是**活参数**; k2 ∈ [4, 8, 16] 时 n 恒 12 = 树全节点 ⇒ C=∅ 先于 k≥K₂ 触发 ⇒ 此区 K₂ 饱和（非死）。但即使 n 变化, v_set 仍恒单值 ⇒ 空树无满分节点（R128 五档之五）叠加 ⇒ 恒等的直接显示与 K₂ 活性无关 — 恒等仍由『峰值节点存在性』主导, 与 R128同源; 且活区([1, 2])注入混合树实测 n 随 k2 增长但 v_by 全同 ⇒ 策略轴在**活区也无区分**（揭示子集重合）— ga_duel 固定 k2_max=4 在饱和区, 降到活区也拯救不了策略轴区分度"
+ },
+ "三层根因汇总": {
+  "R128": "max 聚合饱和（观测面有 1.0 就顶格）",
+  "R132": "β₁=β₂=0 ⇒ N/k 项零因果",
+  "R133+R134": "N/k 对所有策略恒同（dream 穷举; K₂ 仅在 k2<4 区活, ≥4 被 C=∅ 抢先 ⇒ ga_duel 固定 k2_max=4 恰在饱和区）",
+  "判定": "三条独立根因叠加 ⇒ 策略轴结构性无区分度; 破局=扩树/扩任务池, 或 ga_duel 改用 k2<4（活区）"
+ },
+ "growing_zone_diag": [
+  {
+   "k2_max": 1,
+   "n_revealed": [
+    1
+   ],
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   },
+   "n_distinct_v": 1,
+   "separates": false
+  },
+  {
+   "k2_max": 2,
+   "n_revealed": [
+    7
+   ],
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   },
+   "n_distinct_v": 1,
+   "separates": false
+  },
+  {
+   "k2_max": 3,
+   "n_revealed": [
+    8
+   ],
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   },
+   "n_distinct_v": 1,
+   "separates": false
+  }
+ ],
+ "caveats": [
+  "空树探针（零注入）⇒ 结论关于 dream 的参数响应性, 不涉及 LLM 端点",
+  "只读探针: 不改 core/config; 对自家实现的死参数判定如实记录",
+  "树规模由 anchors/groups 结构定（3 段 × 若干叶 ⇒ 12 节点）— 扩树属任务池扩容, 另立轮次"
+ ]
+}

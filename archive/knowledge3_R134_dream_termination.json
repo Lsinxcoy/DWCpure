@@ -1,0 +1,85 @@
+{
+ "round": "R134 · dream 终止解剖 — K₂ 两区坐实(活区1/2 饱和区4/8/16), 活区混合树实测也无策略区分 ⇒ 恒等终极根因收敛于『扩树/扩任务池』",
+ "date": "2026-10-10",
+ "★ K₂ 两区(五档实测)": [
+  "活区 k2=1/2: n_revealed = 1 / 7 随 K₂ 增长 ⇒ K₂ 是活参数",
+  "饱和区 k2=4/8/16: n_revealed 恒 12 = 树全节点 ⇒ C=∅ 先于 k≥K₂ 触发（§2.5 终止条件第一条）",
+  "ga_duel 固定 k2_max=4 恰在饱和区起点"
+ ],
+ "★★ 活区也无区分(决定性)": "活区 k2=1/2/3 注入混合树(既有0又有1)实测: n 确实随 k2 增长(1/7/8), 但 v_by 四变体全同 ⇒ 即使 N 可变, 各策略揭示到同一子集 ⇒ 策略轴在活区与饱和区都无区分（但成因不同: 饱和区=C=∅抢先, 活区=揭示子集重合）",
+ "★★ 恒等终极根因(三层汇总, 本轮收敛)": {
+  "R128": "max 聚合饱和（观测面有 1.0 就顶格）",
+  "R132": "β₁=β₂=0 ⇒ N/k 项零因果",
+  "R133+R134": "N/k 对所有策略恒同（dream 穷举; K₂ 活区子集重合）",
+  "判定": "三条独立 ⇒ 策略轴结构性无区分; 破局=扩树/扩任务池（或接 judge 均值执行体轴 R129）"
+ },
+ "★ 我的预判被部分推翻(如实)": "初判『K₂ 死参数』被实测证伪(活区 n 增长) ⇒ 两区模型更正为一区死(C=∅)一区活(子集重合); 定性: 结论方向不变(策略轴无区分), 但机制叙述更精确 — 这正是如实记录推翻过程的价值",
+ "★ 坑(记档)": "reading 加 %s 忘加参数 ⇒ TypeError(R125 同款第二次) ⇒ 改完必须实跑",
+ "验证": "pytest 910(906+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 134,
+  "at": "2026-10-10T05:50:00+08:00",
+  "parent_gen": 133,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 142,
+   "pytest": 906,
+   "inheritance_gen_prev": 133
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_dream_termination.py(K₂两区+活区混合树补强诊断) + 4 测试",
+   "files": [
+    "scripts/probe_dream_termination.py",
+    "tests/test_r134_dream_termination.py",
+    "docs/dream_termination_probe.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r134_dream_termination.py (4 tests)",
+     "claim": "两区/活区无区分/文档结构/配置不动"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/dream_termination_probe.json#verdict",
+     "claim": "k2 活区[1,2] 饱和区[4,8,16]; 活区 v_by 全同"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/core.py dream L512-514",
+     "claim": "段循环 if done or k>=k2_max: break = 终止条件实现位"
+    }
+   ],
+   "numbers": {
+    "pytest": 910,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 910 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/dream_termination_probe.json",
+   "user_decision": "『继续推进』→ R133 的 dream 终止追问"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
