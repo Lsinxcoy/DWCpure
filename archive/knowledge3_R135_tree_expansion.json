@@ -1,0 +1,84 @@
+{
+ "round": "R135 · 树结构与扩池影响面 — 拓扑账坐实(13=1+2+10) + 扩池 12→20 n 跟随但策略区分恒锁 ⇒ 扩池非充分条件",
+ "date": "2026-10-10",
+ "★ Q1 拓扑账(施工前测绘)": [
+  "树 13 节点 = root(1) + 组根(2: g_code_repair/g_knowledge_reasoning) + 叶(10: search 8 + val 2)",
+  "可揭示节点 = 12（root 不计）; max_nodes=50 池子上限当前只用 13/50 ⇒ 扩容有余量",
+  "组根 = category 分层（code_repair 6 叶 / knowledge_reasoning 4 叶）"
+ ],
+ "★ Q2/Q3 扩池四档(内存合成叶, 不动 anchors)": [
+  "n_revealed: 12 → 14 → 16 → 20（+2/+4/+8 跟随 ⇒ 上限=树规模）",
+  "v_distinct 恒 1 全四档 ⇒ **单纯扩池不解锁策略区分**",
+  "每档 dream 都穷举到底(dream_exhausts_tree_every_tier=true) ⇒ 与 R133/R134 同机制"
+ ],
+ "★★ 结论(扩池非充分条件)": "扩池只增大 N/k 的分母, 不改『max 顶格』与『子集重合』两根因 ⇒ 要解锁策略轴区分还须联合 k2_max 提升(活区)或 judge 口径(R129); 扩池本身不做（数据决策归用户, 本路线①以『测绘+否决』收官）",
+ "★ add_child 签名实测(坑)": "add_child(parent_id, *, node_id, action, provenance, confidence_source, group_id) — 位置参数版 TypeError; PROVENANCES 只 {observed, simulated} ⇒ 合成叶用 simulated; W6 深度/max_nodes 上限显式拒绝",
+ "★ 纪律": "合成叶只进内存树(anchors 字节不变, 6 测试含字节级锁) ⇒ 探针结论关于机制不改生产数据",
+ "验证": "pytest 916(910+6) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 135,
+  "at": "2026-10-10T06:40:00+08:00",
+  "parent_gen": 134,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 143,
+   "pytest": 910,
+   "inheritance_gen_prev": 134
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_tree_expansion.py(拓扑账+四档扩池+签名合规合成叶) + 6 测试",
+   "files": [
+    "scripts/probe_tree_expansion.py",
+    "tests/test_r135_tree_expansion.py",
+    "docs/tree_expansion_probe.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r135_tree_expansion.py (6 tests)",
+     "claim": "拓扑账/扩池跟随/不区分/穷举/签名枚举/anchors不动"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/tree_expansion_probe.json#verdict",
+     "claim": "扩池 12→20, v_distinct 恒1, expansion_unlocks_separation=false"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/world_model.py add_child L143",
+     "claim": "签名与枚举合规 = 合成叶的实现依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 916,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 916 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/tree_expansion_probe.json",
+   "user_decision": "『先做1再做2』的项1(扩树探查)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

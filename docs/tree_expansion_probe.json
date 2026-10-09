@@ -1,0 +1,99 @@
+{
+ "probe": "R135: 扩池施工前测绘 — Q1 节点构成账 / Q2 扩叶后 K₂ 饱和点移动 / Q3 扩池能否解开策略轴区分（子集重合是否解除）",
+ "Q1_topology": {
+  "dev": {
+   "n_nodes": 13,
+   "root_id": "root",
+   "group_roots": {
+    "g_code_repair": 6,
+    "g_knowledge_reasoning": 4
+   },
+   "n_leaves": 10,
+   "n_revealable_excl_root": 12
+  }
+ },
+ "Q1_baseline": {
+  "per_world": [
+   "dev",
+   1.0,
+   4,
+   12
+  ],
+  "n_segments": 2,
+  "v_set": [
+   1.0
+  ]
+ },
+ "Q2_Q3_tiers": [
+  {
+   "added_leaves": 0,
+   "per_world": [
+    "dev",
+    1.0,
+    4,
+    12
+   ],
+   "n_distinct_v": 1,
+   "v_set": [
+    1.0
+   ],
+   "separates": false
+  },
+  {
+   "added_leaves": 2,
+   "per_world": [
+    "dev",
+    1.0,
+    4,
+    14
+   ],
+   "n_distinct_v": 1,
+   "v_set": [
+    1.0
+   ],
+   "separates": false
+  },
+  {
+   "added_leaves": 4,
+   "per_world": [
+    "dev",
+    1.0,
+    4,
+    16
+   ],
+   "n_distinct_v": 1,
+   "v_set": [
+    1.0
+   ],
+   "separates": false
+  },
+  {
+   "added_leaves": 8,
+   "per_world": [
+    "dev",
+    1.0,
+    4,
+    20
+   ],
+   "n_distinct_v": 1,
+   "v_set": [
+    1.0
+   ],
+   "separates": false
+  }
+ ],
+ "verdict": {
+  "baseline_revealable": 12,
+  "dream_exhausts_tree_every_tier": true,
+  "last_tree_revealable": 20,
+  "max_n_revealed": 20,
+  "expansion_unlocks_separation": false,
+  "reading": "扩池([0, 2, 4, 8] 叶)后 n_revealed 上限 20(= 该档树可揭示节点总数) 且每档 dream 都穷举到底; 策略区分 仍未出现 — ⇒ 单纯扩池不解锁策略区分（子集仍重合/仍饱和）⇒ 扩池非充分条件, 需与 k2_max 提升或 judge 口径（R129）联合"
+ },
+ "caveats": [
+  "合成叶带交替 0/1 分 ⇒ 测的是『扩池+分布变化』的联合效应, 不是纯节点数效应",
+  "合成叶只在内存树（不动 config/anchors/dev.json）⇒ 结论关于机制, 不直接改生产数据",
+  "k2_max 固定 4（ga_duel 同值）⇒ 扩池若提上限须另测",
+  "合成叶挂在首个组根下 ⇒ 组间平衡未动（真扩池应顾及, 留待数据轮）"
+ ]
+}
