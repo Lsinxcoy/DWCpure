@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿④ 评估器共演化 · RQGM 四件套版（R112 · 裁决② 开）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:238px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.t-green{color:var(--green);border-color:var(--green)}
+.t-gold{color:var(--gold);border-color:var(--gold)}
+.t-red{color:var(--red);border-color:var(--red)}
+.quote{border-left:3px solid var(--purple);background:#131820;padding:10px 16px;
+font-size:13.5px;color:#c9d1d9;font-style:italic;margin:10px 0}
+.formula{background:#1c2128;border:1px dashed var(--gold);border-radius:8px;
+padding:10px 16px;font-size:15px;text-align:center;margin:12px 0;
+font-family:Consolas,monospace;color:#e3b341}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿④ · 评估器共演化 — RQGM 四件套版</h1>
+<div class="sub">裁决②（用户拍板: 做）· 分层锚安全 + epoch/checkpoint 合同 +
+dep(z) 定向失效（与裁决① HCE 合流）· 2026-10-09 · 设计先行不默认动</div>
+</header>
+<nav>
+<a href="#verdict">① 裁决与两篇的作用域调和</a>
+<a href="#rqgm">② RQGM 四件套（原文细节）</a>
+<a href="#gfixed">③ 𝒢_fixed 三性质与冲突重述</a>
+<a href="#layer">④ 分层判定（本稿核心）</a>
+<a href="#epoch">⑤ epoch/checkpoint 合同</a>
+<a href="#depz">⑥ dep(z) 定向失效（与①合流）</a>
+<a href="#scores">⑦ 旧分弃置与历史可比性</a>
+<a href="#stages">⑧ 渐进 E0→E2 与验收</a>
+<a href="#honest">⑨ 诚实条款</a>
+</nav>
+<main>
+
+<section id="verdict">
+<h2>① 裁决与两篇的作用域调和 — 冲突在作用域, 不在对错</h2>
+<div class="card gold">
+<b>裁决（用户拍板）</b>: 评估器共演化 <b>做</b> —— 理由: 进化要彻底到连进化
+方式与评估标准一起进化, 更符合 RSI。<br>
+<b>方案义务（R98 §⑨②原文）</b>: 「开 = 先改判据设计」且「dep(z) 与
+epoch/checkpoint <b>必须同批设计</b>」⇒ 本稿 = 该判据设计（E0）。
+</div>
+<div class="card purple">
+<b>两篇看似冲突, 实际作用域不同（本稿最锋利的论点）</b>:
+</div>
+<table>
+<tr><th>篇</th><th>它固定/演化的是什么</th><th>原文依据</th></tr>
+<tr><td><b>Recuris</b><br>2608.24876</td>
+<td>固定 = <b>记忆 patch 的验收门</b> 𝒢_fixed（外部验收边界包住递归的记忆
+控制层）; 递归改记忆, 验收判定者不动</td>
+<td>"The fixed gate provides an <b>external acceptance boundary</b> around
+the recursively evolving memory-control layer"; 𝒟_dev 含 anchor tasks;
+test/trajectories/scores never enter localization/patch/admission</td></tr>
+<tr><td><b>RQGM</b><br>2606.26294</td>
+<td>演化 = <b>评估器</b>（打分标准）, 但 epoch 内冻结 + 换界只按
+<b>独立 ground-truth anchor</b> 的 best-belief 比 + 平票判在位者 + 换掉
+slot 的效用记录<b>选择性抹除</b></td>
+<td>"only at checkpoints and only by anchor best-belief"（Algorithm
+L22–27）; "freeze within epoch"; "selective erasure"</td></tr>
+<tr><td colspan="3" style="background:#131820">
+<b>⇒ 共同点 = 两篇都固定独立锚</b>（Recuris 的 anchor tasks / RQGM 的
+ground-truth anchor）。真正的硬约束不是「评估标准永不进化」, 而是
+<b>「锚永不进化」+「验收边界外部化」</b> — RSI 的彻底性在锚之上的层实现。</td></tr>
+</table>
+</section>
+
+<section id="rqgm">
+<h2>② RQGM 四件套（精读原文细节 — 执行轮直接照抄的骨架）</h2>
+<div class="card">
+<b>机制一：epoch 内评估器冻结</b> — 搜索切成 epoch, epoch 内 evaluator
+frozen（保住 HGM 的逐 epoch 收敛保证）; Algorithm 1 L22 注释逐字:
+"只在 checkpoint 上、且只按 anchor best-belief 换评估器"。
+<br><br>
+<b>机制二：challenger vs 在位者同锚比</b> —
+</div>
+<div class="formula">
+BB_ε(a) = I⁻¹_ε(1+S_a, 1+F_a)　（Beta 后验 ε 分位 = 以概率 1−ε 被超越的保守下界）<br>
+e★ ← Best(Γ_m, BB; <b>tie = 在位者</b>)　（平票判在位者 — 保守原则）
+</div>
+<div class="card">
+<b>机制三：换代即选择性抹除</b> — 评估器换掉后
+<code>EraseSlotRecords(T, m); RecomputeCMPStats(T)</code>（被换 slot 的
+效用记录抹除并重算统计）— <b>这就是 dep(z) 在 RQGM 的形式</b>
+（RUMINATE 探针③: dep(z) 两篇独立命名同型 = RQGM + Metis invalidate,
+从直觉升级为「文献已知做法」）。<br><br>
+<b>机制四：指数 checkpoint</b>（power-of-two, 把重处理压到 O(B)）+
+训练分只做 lineage 证据。<br><br>
+<b>实测（论文数字）</b>: Polyglot 用 1.35×–1.72× 更少搜索 token 把
+held-out 通过率 69.9%→71.7%; writer 接收率 21.8%→40.5%; 对抗目标把
+reviewer 校准到人机一视同仁。<br>
+<b>论文自报限制</b>: 无 p 值/多 seed 显著性、被抹除证据的累计 regret
+未实测 — 引用时如实带。
+</div>
+</section>
+
+<section id="gfixed">
+<h2>③ 𝒢_fixed 三性质 — 判据要改哪句, 先看清它保护什么</h2>
+<div class="card red">
+<b>DWC 现状判据（judge.py 文档头逐字, RQGM 精读亦引）</b>:
+「★ 它<b>不进递归</b>（2608.24876 §5.1.1 硬要求: "𝒢_fixed 不能进递归。
+递归改记忆，判分器不动。"）」— 全仓 grep 无 challenger→judge 替换路径。
+RQGM 精读判定:「<b>缺（且是判据层面刻意的缺）… 要搬必须先改判据而不是加
+代码</b>」— 本稿就是「先改判据」的那一步。
+</div>
+<div class="card">
+<b>Recuris 𝒢_fixed 保护的三件事（§2.3.3 精读）</b>:
+</div>
+<pre>① 外部验收边界 : 判定者固定 ⇒ 记忆层不能自改准入标准（防自我放行）
+② 锚点任务回归 : 𝒟_dev = held-out anchor tasks — 回归判据=不破坏已会做的
+③ 三重隔离     : test / trajectories / scores 从不进 localization、
+                 patch generation、admission
+递归边界（Eq.10 明列）: 固定 base LLM + 𝒜_fixed + 𝒫_fixed + 𝒢_fixed</pre>
+<div class="card gold">
+<b>逐条核对: 哪些在「评估器共演化」下仍然要保?</b>
+① <b>保</b> — 记忆 patch 的验收门照旧外部化（验收门 ≠ 评估器: 门判
+「这个改动能不能进」, 评估器判「这个行为得几分」— 两个对象）;
+② <b>保 且加强</b> — 锚任务是 challenger 比对的场地（两篇共同点）;
+③ <b>保</b> — test 隔离原样（DWC 的 SPLIT_TEST「metric 演化不许读」字面）。
+⇒ <b>Recuris 真正禁止的只是「验收门自身被递归改写」, 不禁止评估策略层
+在锚约束下演化</b> — 判据重述见 §④。
+</div>
+</section>
+
+<section id="layer">
+<h2>④ 分层判定 — 判据重述（「先改判据设计」的字面落点）</h2>
+<table>
+<tr><th>层</th><th>对象</th><th>判定</th><th>依据</th></tr>
+<tr><td><b>L-inner 锚</b></td>
+<td>golden 对值比对 · TRUTH_SOURCE 文件 · SPLIT_TEST 锁定集</td>
+<td><span class="tag t-red">永不进化</span></td>
+<td>两篇共同点; 锚进化 = 无真值 = 自己给自己判分（S3Gym 自评 0.496≈抛硬币
+的实测反面）</td></tr>
+<tr><td><b>L-gate 验收门</b></td>
+<td>patch admission（𝒢 式外部边界）· 三层验证 pytest/gate/e2e</td>
+<td><span class="tag t-red">外部化保持</span></td>
+<td>Recuris 三性质①③; 生产门裁决归用户（既有纪律）</td></tr>
+<tr><td><b>L-mid 评估策略</b></td>
+<td>dev 内任务权重 · 门槛 · pass^k 口径 · 回归判据的参数 ·
+challenger 评估器本体</td>
+<td><span class="tag t-green">可共演化</span></td>
+<td>RQGM 主张; RSI 彻底性层 — 但必须过 §⑤epoch 合同 + §⑥dep(z) +
+challenger 准入门</td></tr>
+<tr><td><b>L-outer 元评估</b></td>
+<td>R100 meta-eval（macro-F1=1.0 实测）· 锚回归一致率</td>
+<td><span class="tag t-gold">challenger 准入门</span></td>
+<td>新评估器上岗前先过 meta-eval + 锚上与在位者同场比对; 1−ε Beta 下界
+<b>留位</b>（T5-5 半有, 无核口径不发明）</td></tr>
+</table>
+<div class="card purple">
+<b>judge.py 判据声明的重述（E1 执行轮改字面, 本稿是设计）</b>:
+</div>
+<pre>旧（现状）: "判分器不进递归。递归改记忆，判分器不动。"
+新（分层）: "**锚与判分执行**（golden 对值比对 / TRUTH_SOURCE /
+            SPLIT_TEST）不进递归; **验收门外部化**（patch admission +
+            三层验证）不可自改; **评估策略层**（dev 权重/门槛/口径/
+            challenger 评估器）可经『epoch 内冻结 + 点界 challenger
+            对锚比对 + 平票在位者 + dep(z) 抹除』共演化 — 依据:
+            RQGM 2606.26294 四件套 + Recuris 2608.24876 三性质的作用域
+            拆分（设计稿④ R112, 用户裁决: 做）。"
+⇒ 这是"改判据而非加代码"的顺序: 判据声明先行, 代码后动（E1）。
+</pre>
+</section>
+
+<section id="epoch">
+<h2>⑤ epoch/checkpoint 合同（同批义务 — 方案原文）</h2>
+<pre>epoch 定义 : term 批 = 2^n（power-of-two, RQGM 指数 checkpoint 同款;
+             DWC 落点 = run_term 计数, CostLedger 已有逐 term 账可定界）
+段内合同   : evaluator_frozen = true — 段内任何评估器改动非法
+             （六段档 evaluation_config.judge_frozen 字段已在, E1 把它
+              从"记录"升为"约束": 段内改评估器 ⇒ 构造期 raise）
+点界动作   : ① challenger 提案（评估策略层任一键的修订）
+             ② challenger vs 在位者: 同锚同任务集对拍
+                - 准入: meta-eval macro-F1 ≥ 在位者 − δ（δ 初值待校准）
+                - 比对规则: 平票判在位者（RQGM 字面, 保守）
+             ③ 赢 ⇒ 换代: 新评估器治理下一 epoch + dep(z) 抹除（§⑥）
+             ④ 输 ⇒ 在位者续任, challenger 记录归档（不静默丢 — G7）
+checkpoint : 与 el_sched 代/环境两级推进的"代"对齐（B=8, τ=6/8 已有
+             分段推进形状）— 段界才可换 = RQGM/T5-6 的"段内冻结段界换"
+             （DWC 现状半有: 有分段推进, 缺"段内判据冻结"合同 ⇒ 本稿补）
+</pre>
+<div class="card gold">
+<b>成本</b>: challenger 对拍 = +2–4 次 matched 跑（同稿②协议）, 计入
+CostLedger（§3.6.5 评估成本入预算字面）; 不常发（点界才跑）。
+</div>
+</section>
+
+<section id="depz">
+<h2>⑥ dep(z) 定向失效 — 与裁决① HCE 合流（同一份记录两处用）</h2>
+<div class="card purple">
+<b>dep(z) 语义（RQGM selective erasure + Metis invalidate 同型,
+RUMINATE 探针③: 文献已知做法, 两篇独立命名）</b>:
+换评估器 ⇒ <b>只抹依赖该评估器的记录</b>, 其余历史不动。
+</div>
+<div class="card">
+<b>DWC 落点（六段档指纹驱动 — R109 已埋的字段正好是依赖记录）</b>:
+</div>
+<pre>依赖声明 : 每份知识档的 inheritance.evaluation_config 带
+           {truth_sha8, judge_fingerprint, epoch_id}   ← E1 加 judge 指纹
+换代时   : dep(z) 扫描 — evaluation_config.judge_fingerprint == 旧评估器
+           的档/分数 ⇒ 置 status="deprecated_by_evaluator_change"
+           + 记 {old_judge, new_judge, at, gen}
+           ★ 不物理删（Humanlaya 版本化 — 历史可审计）只改有效性状态
+消费规则 : 汇报/报表只统计 status≠deprecated 的分数; 被弃分数仍可查
+           （带弃置标注）— 与 RQGM "discarded" 同义但保留轨迹
+
+与裁决①(HCE 第三段)的合流:
+  HCE 要拆 dev 的搜索/选择信号 ⇒ split 结构变更同样触发 dep(z)
+  （split 是 evaluation_config 的一员 — 指纹变 ⇒ 依赖旧 split 的分数同弃）
+  ⇒ 一份 dep(z) 记录机制同时服务「评估器换代」与「split 重组」,
+    E1 只建一次（方案义务"同批设计"的最省实现）
+</pre>
+</section>
+
+<section id="scores">
+<h2>⑦ 旧分弃置与历史可比性（动 eval 结构的声明义务）</h2>
+<pre>可比性规则:
+  同 judge_fingerprint + 同 truth_sha8 + 同 split ⇒ 分数可横比
+  任一不同 ⇒ 不可横比（报表分栏, 不混算 — R99 truth_sha8 口径延伸）
+弃置三态: active | deprecated_by_evaluator_change | deprecated_by_split_change
+声明义务: 换代轮的六段档 acceptance_decision 必带 "historical_comparability":
+          {broken_since: gen, reason, dep_scan: {n_deprecated, refs[]}}
+          —— "历史分数可比性受影响" 从裁决①的警告变成**结构化字段**
+报告纪律: 跨换代的趋势图必须断开（不连不可比的两段 — 禁止视觉误导）
+</pre>
+<div class="card red">
+<b>这就是方案说「影响一切历史分数可比性」的正面处置</b>: 不是不碰,
+是<b>碰了以后让不可比性可见、可查、可分栏</b> — 装作可比才是真危险。
+</div>
+</section>
+
+<section id="stages">
+<h2>⑧ 渐进 E0→E2 — 先记录层, 后换代层</h2>
+<table>
+<tr><th>级</th><th>内容</th><th>验收（进执行轮写死）</th></tr>
+<tr><td><b>E0</b> 本稿</td>
+<td>判据分层设计 + epoch 合同 + dep(z) + 可比性规则</td><td>过审（用户）</td></tr>
+<tr><td><b>E1</b> 记录与约束层</td>
+<td>judge.py 判据声明重述（§④）· 档加 judge_fingerprint+epoch_id ·
+dep(z) 扫描器（deprecated 置位）· 段内评估器改动构造期 raise ·
+报表分栏（弃置分不混算）</td>
+<td>□ 判据声明字面 = 本稿 §④（逐字比对）<br>
+□ dep(z) 破坏测试: 换指纹⇒依赖档被置 deprecated, 其余不动<br>
+□ 段内改评估器⇒raise 探针<br>
+□ 六段链连续 + 三层 + 同批自洽<br>
+□ <b>本级不引入任何评估器换代</b>（纯记录/约束, 零行为风险）</td></tr>
+<tr><td><b>E2</b> 首次换代（真正开演化）</td>
+<td>challenger 机制 + 点界对拍 + 平票在位者 + 换代 dep(z) 联动 +
+首个非默认评估器提案（如 dev 权重修订）</td>
+<td>□ challenger 准入=meta-eval+锚对拍跑通（对拍脚本可复跑）<br>
+□ 平票判在位者断言 · 输者归档不静默<br>
+□ 换代后历史分弃置清单 + 可比性字段齐全<br>
+□ <b>首次换代结果呈用户过目后才常态化</b>（生产门纪律延伸）</td></tr>
+</table>
+<div class="card green">
+<b>E1 零行为风险的设计意图</b>: 记录层先落, 换代层后开 — 即使 E2 最终被
+叫停, E1 的 dep(z)/指纹/分栏对现有体系是纯增益（可比性从隐式变显式）。
+</div>
+</section>
+
+<section id="honest">
+<h2>⑨ 诚实条款</h2>
+<div class="card red">
+1. <b>本稿无实测</b> — E0 纯设计; challenger/换代的数字在 E2 执行轮, 且
+   1−ε Beta 下界<b>留位不发明</b>（T5-5 半有, 无核口径）— 准入暂用
+   meta-eval+锚对拍, 标注为最小替代。<br>
+2. <b>RQGM 实测的引用边界</b>: 69.9→71.7 等数字是 Polyglot/writer 域,
+   与 DWC 域不同 — 不外推; 其「无多 seed 显著性」自报限制一并带。<br>
+3. <b>S3Gym 反面弹药在位</b>: 自评 0.496≈抛硬币、ρ(A,g)=−0.010 ⇒
+   <b>challenger 永不许只靠自评</b> — 锚对拍是硬门（分层表 L-outer）。<br>
+4. <b>𝒢_fixed 重述的边界</b>: 本稿只重述作用域（验收门≠评估器）,
+   不解除「验收门外部化」与 test 隔离 — Recuris 三性质①②③全保。<br>
+5. <b>E2 首次换代须呈用户</b>（本稿按方案义务设计, 但第一次真换标准的
+   执行轮结果呈你过目 — 评估标准变化的影响面太大, 不默认常态化）。
+</div>
+<div class="sub" style="margin-top:30px">设计稿④ · 裁决②（用户: 做）·
+RQGM 2606.26294 四件套 × Recuris 2608.24876 三性质的作用域拆分 ·
+dep(z) 与裁决①合流 · E0→E2（记录层先行零行为风险）· 待过审 ·
+上一档: R111（git 117, 六段链 gen=111）</div>
+</section>
+
+</main>
+</body>
+</html>

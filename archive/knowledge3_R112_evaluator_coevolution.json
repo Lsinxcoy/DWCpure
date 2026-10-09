@@ -1,0 +1,72 @@
+{
+ "round": "R112 · 裁决②设计稿 — 评估器共演化(RQGM四件套版) · 用户拍板: 做",
+ "date": "2026-10-09",
+ "★ 稿": "docs/proposal_evaluator_coevolution.html (17.7KB)",
+ "★ 用户理由(原话)": "进化要彻底到连进化方式和评估标准都跟随着一起进化 更符合RSI — 论文=RQGM 2606.26294(核实: refs coevol 64次最高, Table4 'Adaptive/Co-Evolving Evaluator' 家族行, 综述§4.2.4 Evolving Evaluators)",
+ "核心论点(作用域调和)": [
+  "两篇看似冲突实则作用域不同: Recuris 𝒢_fixed 固定的是**记忆patch验收门**(外部验收边界), RQGM 演化的是**评估器** — 共同点=都固定独立锚 ⇒ 真硬约束是『锚不进化+验收边界外部化』, RSI彻底性在锚之上层实现",
+  "判据重述(先改判据后动代码): 锚与判分执行不进递归 / 验收门外部化不可自改 / 评估策略层可经『epoch冻结+点界challenger对锚比对+平票在位者+dep(z)抹除』共演化"
+ ],
+ "RQGM四件套(精读原文)": "epoch内冻结(HGM收敛) · challenger vs 在位者同锚比 BB_ε(Beta ε分位保守下界, tie=在位者) · 换代selective erasure(EraseSlotRecords→dep(z)的RQGM形式) · 指数checkpoint(power-of2); 实测 Polyglot 69.9→71.7(1.35-1.72×更少token), writer 21.8→40.5; 自报限制:无多seed显著性",
+ "dep(z)与裁决①合流": "六段档 evaluation_config 加 judge_fingerprint+epoch_id → 换代扫描置 deprecated(不物理删,版本化) → 一份记录机制同时服务评估器换代与HCE split重组 — 方案『同批设计』的最省实现",
+ "历史可比性处置": "弃置三态(active/deprecated_by_evaluator_change/deprecated_by_split_change) + 换代档必带 historical_comparability字段 + 跨换代趋势图断开 — '影响一切历史分数可比性'从警告变结构化字段",
+ "渐进": "E0本稿(过审) → E1记录与约束层(判据声明+指纹+dep(z)扫描+段内改动raise — **零行为风险纯记录层**) → E2首次换代(challenger对拍+平票在位者+dep联动 — 首次结果呈用户过目后才常态化)",
+ "诚实": "1−ε Beta下界留位不发明(准入暂用meta-eval+锚对拍标最小替代) · S3Gym自评0.496反面弹药⇒challenger永不得只靠自评 · Recuris三性质全保 · RQGM数字不外推",
+ "验证": "pytest 816 · gate 8/8 · e2e RC=0 — 三层全绿(设计轮零代码变动)",
+ "裁决状态": "②已拍(做→本稿) · ①HCE与②dep(z)已合流待①拍 · ③Pareto待目标/权重 · ④种群已翻转为归因模型(M0稿R111待过审)",
+ "下一步": "M0过审→M1(归因) / E0过审→E1(记录层) — 两线独立可并行; 或先拍①③",
+ "inheritance": {
+  "gen": 112,
+  "at": "2026-10-09T13:00:00+08:00",
+  "parent_gen": 111,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 117,
+   "pytest": 816,
+   "inheritance_gen_prev": 111
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+docs/proposal_evaluator_coevolution.html (裁决②设计稿 E0, 待过审 — 纯文档非代码)",
+   "files": [
+    "docs/proposal_evaluator_coevolution.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_evaluator_coevolution.html §①-§③",
+     "claim": "RQGM四件套×Recuris三性质作用域拆分+判据分层重述"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2606.26294.md + 2608.24876.md (R94逐行精读)",
+     "claim": "两篇基石段原文(Algorithm L22-27/§2.3.3三性质)"
+    }
+   ],
+   "numbers": {
+    "pytest": 816,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true
+  },
+  "acceptance_decision": {
+   "gate": "pytest 816 + gate 8/8 + e2e rc=0 (设计轮)",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r112.log"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
