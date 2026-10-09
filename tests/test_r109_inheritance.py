@@ -39,6 +39,7 @@ def _ok(**over):
                            "judge_frozen": True,
                            # ★ E1(R113) 新增必填: dep(z) 依赖字段
                            "judge_fingerprint": "abcd5678",
+                           "split_fingerprint": "5a5a1111",  # R117 新增
                            "epoch_id": None,
                            "epoch_note": "epoch 合同 E2 生效"},
         acceptance_decision={"gate": "pytest+gate+e2e",

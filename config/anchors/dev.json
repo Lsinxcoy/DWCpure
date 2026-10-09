@@ -233,5 +233,24 @@
   ],
   "n_excluded": 0,
   "excluded_ids": []
+ },
+ "_split": {
+  "search": [
+   "code_fix_001",
+   "code_fix_002",
+   "code_fix_003",
+   "code_fix_004",
+   "code_fix_005",
+   "reasoning_001",
+   "reasoning_002",
+   "reasoning_003"
+  ],
+  "val": [
+   "code_fix_006",
+   "reasoning_004"
+  ],
+  "rule": "分层(verifier_kind) + 层内字典序末位进val（稿⑥§③机械规则,可复算）",
+  "hce": "2603.26499 §3.3 Hidden Consistent Evaluation",
+  "note": "8/2 = DWC 10任务适配比例, 非 HCE 原 80/10/10（val=1抛硬币不可取,如实标注）"
  }
 }

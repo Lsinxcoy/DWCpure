@@ -184,6 +184,13 @@ def validate_inheritance(obj: Dict[str, Any]) -> None:
         raise InheritanceError(
             "段4 epoch_id=None 时必带 epoch_note（epoch 合同未启用须如实"
             " 声明 — 不留空装有）")
+    # ★ HCE 拆分（稿⑥§⑥ · 裁决①执行轮）: split 指纹进档 —
+    #   dep(z) split_change 栏的数据源（拆分动作=指纹变=历史分分栏）
+    sfp = ec.get("split_fingerprint")
+    if not (isinstance(sfp, str) and re.match(r"^[0-9a-f]{8}$", sfp)):
+        raise InheritanceError(
+            "段4 split_fingerprint 必须 8 位小写 hex（稿⑥§⑥: dev 拆分"
+            "指纹 — dep(z) split_change 触发源）, 实为 %r" % sfp)
 
     # 判据7 · 段5 判定 + 段6 诚实
     ad = obj["acceptance_decision"]

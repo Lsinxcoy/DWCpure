@@ -79,4 +79,5 @@ def test_challenger_duel_script_runs_tie_holds():
     # dep 扫描联动（分栏在位 — 计数随源状态, 不锁死值）
     assert set(d["dep_scan_after"]) == {"active",
                                         "deprecated_by_evaluator",
+                                        "deprecated_by_split_change",
                                         "pre_depz_legacy"}

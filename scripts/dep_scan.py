@@ -33,9 +33,26 @@ from dwc.foundation.inheritance import judge_fingerprint  # noqa: E402
 JUDGE_PATH = os.path.join(ROOT, "src", "dwc", "organs", "judge.py")
 
 
-def scan(archive_dir: str, current_fp: str) -> Dict[str, Any]:
+def split_fingerprint(root: str) -> str | None:
+    """★ 当前 split 指纹 = dev.json _split 分组 sha8（稿⑥§⑥）。
+    缺 _split ⇒ None = 拆分未启用 ⇒ split 栏全 0 如实（不装）。"""
+    import hashlib
+    dev = json.load(open(os.path.join(root, "config", "anchors",
+                                      "dev.json"), encoding="utf-8"))
+    sp = dev.get("_split")
+    if not (isinstance(sp, dict) and sp.get("val")):
+        return None
+    blob = json.dumps({"search": sorted(sp.get("search", [])),
+                       "val": sorted(sp.get("val", []))},
+                      ensure_ascii=False).encode()
+    return hashlib.sha256(blob).hexdigest()[:8]
+
+
+def scan(archive_dir: str, current_fp: str,
+         cur_split: str | None = None) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
-    bucket = {"active": [], "deprecated_by_evaluator": [], "pre_depz_legacy": []}
+    bucket = {"active": [], "deprecated_by_evaluator": [],
+              "deprecated_by_split_change": [], "pre_depz_legacy": []}
     for fn in sorted(os.listdir(archive_dir)):
         if not (fn.startswith("knowledge3_") and fn.endswith(".json")):
             continue
@@ -50,16 +67,28 @@ def scan(archive_dir: str, current_fp: str) -> Dict[str, Any]:
                          "judge_fingerprint": None,
                          "why": "无六段/无依赖字段（dep(z) 建立前）"})
             continue
-        fp = (inh.get("evaluation_config") or {}).get("judge_fingerprint")
-        status = ("active" if fp == current_fp else
-                  "deprecated_by_evaluator" if fp else "pre_depz_legacy")
+        ec = inh.get("evaluation_config") or {}
+        fp = ec.get("judge_fingerprint")
+        sfp = ec.get("split_fingerprint")
+        # ★ 判定树（稿⑥§⑥ 第二触发源激活 · 优先级: pre > 换代 > 拆分 > active）
+        if not fp:
+            status = "pre_depz_legacy"
+            why = "字段缺失（E1 依赖字段建立前）"
+        elif fp != current_fp:
+            status = "deprecated_by_evaluator"
+            why = "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+        elif cur_split is not None and (sfp is None or sfp != cur_split):
+            # 拆分启用后: 无 split 指纹 = 拆分前档; 有但不同 = 拆分改过
+            status = "deprecated_by_split_change"
+            why = ("★ 拆分前档（无 split_fingerprint）" if sfp is None
+                   else "★ split 指纹 ≠ 当前 ⇒ 拆分触发")
+        else:
+            status = "active"
+            why = "judge + split 指纹均与当前一致"
         bucket[status].append(fn)
         rows.append({"file": fn, "status": status,
-                     "judge_fingerprint": fp,
-                     "why": ("指纹与当前 judge 一致" if status == "active"
-                             else "★ 指纹 ≠ 当前 judge ⇒ 换代时须置 "
-                                  "deprecated" if status ==
-                             "deprecated_by_evaluator" else "字段缺失")})
+                     "judge_fingerprint": fp, "split_fingerprint": sfp,
+                     "why": why})
     return {
         "protocol": ("dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, "
                      "置位动作在换代轮(E2)按此执行"),
@@ -68,8 +97,10 @@ def scan(archive_dir: str, current_fp: str) -> Dict[str, Any]:
         "rows": rows,
         "note": ("deprecated_by_evaluator=0 属正常（E2 首次换代前无换代）"
                  " — 不装数不造档"),
-        "split_change": ("deprecated_by_split_change 栏随裁决① HCE 拍定后"
-                         "启用（dep(z) 同一份记录, 第二触发源）"),
+        "current_split_fingerprint": cur_split,
+        "split_change": ("★ 第二触发源已激活（裁决① HCE: 拆, R117 执行轮）: "
+                         "拆分前档进 deprecated_by_split_change, "
+                         "不物理删（版本化）"),
     }
 
 
@@ -80,7 +111,7 @@ def main() -> int:
                                                   "dep_scan.json"))
     args = ap.parse_args()
     fp = judge_fingerprint(JUDGE_PATH)
-    rep = scan(args.archive, fp)
+    rep = scan(args.archive, fp, split_fingerprint(ROOT))
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)
     print("judge fp:", fp, "| 分栏:", rep["counts"])

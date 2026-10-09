@@ -116,6 +116,7 @@ def test_inheritance_attribution_optional_segment():
         motivating_evidence={"refs": [{"type": "test", "ref": "r", "claim": "c"}]},
         evaluation_config={"truth_source": "s", "truth_sha8": "abcd1234",
                            "judge_frozen": True, "judge_fingerprint": "beef0001",
+                   "split_fingerprint": "5a5a1111",
                            "epoch_id": None, "epoch_note": "n"},
         acceptance_decision={"verdict": "accepted"})
     # 不带 attribution = 合法（单点档）

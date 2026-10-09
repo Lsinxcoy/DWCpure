@@ -1,9 +1,10 @@
 {
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
- "current_judge_fingerprint": "1cc940df",
+ "current_judge_fingerprint": "ba8aaeba",
  "counts": {
-  "active": 1,
-  "deprecated_by_evaluator": 2,
+  "active": 0,
+  "deprecated_by_evaluator": 4,
+  "deprecated_by_split_change": 0,
   "pre_depz_legacy": 121
  },
  "rows": [
@@ -77,7 +78,8 @@
    "file": "knowledge3_R109_sixstage.json",
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
-   "why": "字段缺失"
+   "split_fingerprint": null,
+   "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
    "file": "knowledge3_R10_gate.json",
@@ -89,37 +91,50 @@
    "file": "knowledge3_R110_matched_term.json",
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
-   "why": "字段缺失"
+   "split_fingerprint": null,
+   "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
    "file": "knowledge3_R111_population_attribution.json",
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
-   "why": "字段缺失"
+   "split_fingerprint": null,
+   "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
    "file": "knowledge3_R112_evaluator_coevolution.json",
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
-   "why": "字段缺失"
+   "split_fingerprint": null,
+   "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
    "file": "knowledge3_R113_e1_record_layer.json",
    "status": "deprecated_by_evaluator",
    "judge_fingerprint": "fffdf35a",
-   "why": "★ 指纹 ≠ 当前 judge ⇒ 换代时须置 deprecated"
+   "split_fingerprint": null,
+   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
   },
   {
    "file": "knowledge3_R114_m1_attribution.json",
    "status": "deprecated_by_evaluator",
    "judge_fingerprint": "fffdf35a",
-   "why": "★ 指纹 ≠ 当前 judge ⇒ 换代时须置 deprecated"
+   "split_fingerprint": null,
+   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
   },
   {
    "file": "knowledge3_R115_e2_first_duel.json",
-   "status": "active",
+   "status": "deprecated_by_evaluator",
    "judge_fingerprint": "1cc940df",
-   "why": "指纹与当前 judge 一致"
+   "split_fingerprint": null,
+   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+  },
+  {
+   "file": "knowledge3_R116_verdicts_1_3.json",
+   "status": "deprecated_by_evaluator",
+   "judge_fingerprint": "1cc940df",
+   "split_fingerprint": null,
+   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
   },
   {
    "file": "knowledge3_R11_scripts.json",
@@ -753,5 +768,6 @@
   }
  ],
  "note": "deprecated_by_evaluator=0 属正常（E2 首次换代前无换代） — 不装数不造档",
- "split_change": "deprecated_by_split_change 栏随裁决① HCE 拍定后启用（dep(z) 同一份记录, 第二触发源）"
+ "current_split_fingerprint": "e61f2cef",
+ "split_change": "★ 第二触发源已激活（裁决① HCE: 拆, R117 执行轮）: 拆分前档进 deprecated_by_split_change, 不物理删（版本化）"
 }

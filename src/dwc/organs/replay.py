@@ -193,6 +193,65 @@ def no_worse_than_current(v_by_version: Dict[str, float], *, current: str
     return best >= v_by_version[current]
 
 
+# ════════════════════════════════════════════════════════════
+# R117 · HCE D_val 终评链（稿⑥§⑤ · 2603.26499 §3.3
+#        「最终选择只用从未参与搜索的 D_val」）
+# ════════════════════════════════════════════════════════════
+
+def shortlist_candidates(v_search: Dict[str, float], *, current: str,
+                         k: int = 2) -> List[str]:
+    """★ 第②步: 搜索信号 top-K **∪ {current}** — current 必进名单。
+
+    为什么强制并入 current: §2.7 不回退保证的支点是「候选集必含
+    current」（select_policy 同款约束）— 短名单是**取样不是换候选集语义**,
+    把 current 排除在外 ⇒ 终评后可能选出比现状差的而无兜底 = 假保证。
+    """
+    if not v_search:
+        raise ReplayError("v_search 空 — 短名单没有来源")
+    if current not in v_search:
+        raise ReplayError(
+            "current=%r 不在 v_search %r 内 — 候选集必含 current"
+            "（§2.7 前提, 短名单不豁免）" % (current, sorted(v_search)))
+    if not isinstance(k, int) or k < 1:
+        raise ReplayError("K 须 ≥1 int, 实为 %r" % (k,))
+    ranked = sorted(v_search, key=lambda m: (-v_search[m], m))
+    top = ranked[:k]
+    return top if current in top else top + [current]
+
+
+def select_with_val_fallback(v_val: Dict[str, float],
+                             v_search: Dict[str, float], *,
+                             current: str) -> Dict[str, object]:
+    """★ 第③④步: 终评 argmax v_val + 平票/不可比分回落 v_search。
+
+    稿⑥§⑤ 字面: 「argmax v_val（只用从未参与搜索的信号）; 平键 ⇒ 字典序
+    （现行平键规则沿用）; v_val 平票/样本太小 ⇒ 回落 v_search 并标
+    val_tie_fallback（诚实字段, 不装终评有分辨力）」。
+    返回 {m_star, score, source: "val"|"val_tie_fallback"|"val_empty_fallback",
+          tie: bool, note}。
+    """
+    if not v_val:
+        # 空 v_val（2 任务 val 的真实可能）⇒ 回落, 不装终评有分辨力
+        m_star, score = select_policy(v_search, current=current)
+        return {"m_star": m_star, "score": score,
+                "source": "val_empty_fallback", "tie": False,
+                "note": "v_val 空（val 未出数）⇒ 回落搜索信号 — 不装数"}
+    # argmax 平键检测（确定性 tie-break 仍是字典序 — 现行规则）
+    top = max(v_val.values())
+    tied = sorted(m for m, v in v_val.items() if v == top)
+    if len(tied) > 1:
+        # ★ 平票 ⇒ 回落（稿字面: 平票=终评无分辨力, 诚实回落）
+        m_star, score = select_policy(v_search, current=current)
+        return {"m_star": m_star, "score": score,
+                "source": "val_tie_fallback", "tie": True,
+                "note": ("v_val 顶分平键 %r ⇒ 终评无分辨力, 回落"
+                         " v_search（诚实字段 val_tie_fallback）" % (tied,))}
+    m_star = tied[0]
+    return {"m_star": m_star, "score": v_val[m_star],
+            "source": "val", "tie": False,
+            "note": "终评 argmax v_val — 只用未参与搜索的信号（HCE §3.3）"}
+
+
 # ══════════════════════════════════════════════════════════
 # R80 · Dreaming 循环报告（设计稿 docs/proposal_replay_dreaming_design.html）
 # ══════════════════════════════════════════════════════════

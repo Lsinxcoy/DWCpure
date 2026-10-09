@@ -39,6 +39,7 @@ def _ok(**over):
                            "truth_sha8": "abcd1234",
                            "judge_frozen": True,
                            "judge_fingerprint": "beef0001",   # E1 新增
+                           "split_fingerprint": "5a5a1111",  # R117
                            "epoch_id": None,                   # E1 新增
                            "epoch_note": "epoch 合同 E2 生效"},
         acceptance_decision={"gate": "3x", "verdict": "accepted",
@@ -112,6 +113,7 @@ def test_dep_scan_buckets(tmp_path):
             "evaluation_config": {"truth_source": "s", "truth_sha8": "abcd1234",
                                   "judge_frozen": True,
                                   "judge_fingerprint": fp,
+                                  "split_fingerprint": "5a5a1111",
                                   "epoch_id": 1}}}))
     mk("knowledge3_a.json", cur)
     mk("knowledge3_b.json", "0ld00000")
@@ -140,12 +142,14 @@ def test_dep_scan_script_runs():
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")[-500:]
     rep = json.load(open(outp, encoding="utf-8"))
     assert set(rep["counts"]) == {"active", "deprecated_by_evaluator",
+                                  "deprecated_by_split_change",
                                   "pre_depz_legacy"}
     # ★ 计数与 rows 对账（不锁死 0 — 任何 judge 源改动（如 R115 加 ε kwarg）
     #   都会让旧档进 deprecated: 字节粒度的保守正确性; 行为等价由全量绿支撑,
     #   是否恢复 active=用户裁。R115 实测 deprecated=2(R113/R114 档) 即此机制)
     rows = rep["rows"]
-    for k in ("active", "deprecated_by_evaluator", "pre_depz_legacy"):
+    for k in ("active", "deprecated_by_evaluator",
+              "deprecated_by_split_change", "pre_depz_legacy"):
         n_rows = sum(1 for r in rows if r["status"] == k)
         assert rep["counts"][k] == n_rows, (k, rep["counts"][k], n_rows)
     assert "不装数" in rep["note"]

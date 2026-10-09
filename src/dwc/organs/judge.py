@@ -584,6 +584,15 @@ class Judge:
                  dw_version: Optional[str] = None):
         self.anchors = self._load(anchors_path
                                   or TRUTH_SOURCE[0][1], SPLIT_DEV)
+        # ★ HCE 拆分（稿⑥§③ · 裁决①"拆"）: dev 内 D_search/D_val 两子集
+        #   缺 "_split"（旧锚源）⇒ 两集为空 = 不屏蔽（诚实缺席, 零装数）
+        _raw_split = self.anchors.get("_split") if isinstance(
+            self.anchors, dict) else None
+        if isinstance(_raw_split, dict) and _raw_split.get("val"):
+            self.d_val = set(_raw_split.get("val") or ())
+            self.d_search = set(_raw_split.get("search") or ())
+        else:
+            self.d_val, self.d_search = set(), set()
         # ★★ test split 未落地 ⇒ 显式标记为 None，不假装有
         #   （2607.12790 §2.2 的 test 语义要求它与 dev 互不相交 ⇒
         #     拿 dev 顶替等于把"测试集"变成"训练可见集"）
@@ -693,7 +702,8 @@ class Judge:
     # ══════════════════════════════════════════════
     def evaluate(self, task_id: str, split: str = SPLIT_DEV,
                  observed: Optional[Dict[str, Any]] = None,
-                 predicted: Optional[Any] = None) -> Verdict:
+                 predicted: Optional[Any] = None, *,
+                 split_mode: str = "legacy") -> Verdict:
         """★ 判一次。★ 三个 split 互不相交，跨 split 用错要 raise。
 
         ★★ 判分口径（不许自评）:
@@ -725,6 +735,21 @@ class Judge:
                 "task %r 不在 %s split 里（真值源 %s）"
                 % (task_id, split, cat))
         golden = src[task_id]
+
+        # ★★★ HCE 标签隐藏（稿⑥§④ · 2603.26499 §3.3「D_search 标签对
+        #   agent 隐藏」）: search 模式下 D_val 任务不读反馈 —
+        #   success=None 复用「未评价不当 0/1」纪律（隐藏=未评价, 不是失败）
+        if split_mode not in ("legacy", "search", "select"):
+            raise JudgeError(
+                "split_mode=%r 非法（legacy/search/select）" % (split_mode,))
+        if split_mode == "search" and split == SPLIT_DEV \
+                and task_id in self.d_val:
+            v = Verdict(task_id, split, None,
+                        "未评价：D_val 标签隐藏 — 搜索期不可读"
+                        "（HCE 2603.26499 §3.3 / 稿⑥§④）",
+                        cat, "d_val_hidden")
+            self._log.append(v)
+            return v
 
         if observed is None:
             v = Verdict(task_id, split, None,

@@ -1,0 +1,52 @@
+{
+ "protocol": "HCE 拆分读数: 同批golden三口径(legacy/search/select), gap=mean(search集)−mean(val集); 只报方向(n=8/2无方差)",
+ "split": {
+  "search": 8,
+  "val": [
+   "code_fix_006",
+   "reasoning_004"
+  ]
+ },
+ "legacy": {
+  "code_fix_001": true,
+  "code_fix_002": true,
+  "code_fix_003": true,
+  "code_fix_004": true,
+  "code_fix_005": true,
+  "code_fix_006": true,
+  "reasoning_001": true,
+  "reasoning_002": true,
+  "reasoning_003": true,
+  "reasoning_004": true
+ },
+ "search_mode": {
+  "code_fix_001": true,
+  "code_fix_002": true,
+  "code_fix_003": true,
+  "code_fix_004": true,
+  "code_fix_005": true,
+  "code_fix_006": null,
+  "reasoning_001": true,
+  "reasoning_002": true,
+  "reasoning_003": true,
+  "reasoning_004": null
+ },
+ "select_val": {
+  "code_fix_006": true,
+  "reasoning_004": true
+ },
+ "means": {
+  "search_set_legacy": 1.0,
+  "val_set_legacy": 1.0
+ },
+ "gap_search_vs_val": 0.0,
+ "checks": {
+  "hidden_ok": true,
+  "val_judged_in_select": true
+ },
+ "caveats": [
+  "n=8/2 只报方向不谈显著（R67/R105c 同口径）",
+  "三口径同 executor golden ⇒ 语义等价是预期, gap≈0 不代表无过拟合风险 — 该读数在有真实搜索压力（LLM 臂）时才有分辨力",
+  "HCE 3.7–4.2pp 是它的 30 任务数, 不外推为 DWC 预期（稿⑥§⑧）"
+ ]
+}

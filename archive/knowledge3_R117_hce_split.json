@@ -1,0 +1,86 @@
+{
+ "round": "R117 · 裁决①HCE拆分执行轮 — dev 8+2/标签隐藏/D_val终评链/dep第二触发源激活/报表",
+ "date": "2026-10-09",
+ "★ 六件": [
+  "dev.json + _split: search 8 + val 2(code_fix_006+reasoning_004, 分层两类各有代表+层内字典序末位, 测试复算规则一致)",
+  "judge.evaluate 加 split_mode(legacy默认零破坏/search: D_val⇒success=None+d_val_hidden标签隐藏复用'未评价不当0/1'/select真判) + Judge.__init__读_d_val/_d_search(缺_split=空集不屏蔽诚实缺席)",
+  "replay 终评链: shortlist_candidates(top-K∪{current}强制,§2.7不回退前提短名单不豁免) + select_with_val_fallback(argmax v_val/平票⇒val_tie_fallback回落v_search/空⇒val_empty_fallback,三态不装数)",
+  "inheritance evaluation_config + split_fingerprint必填(dep split_change栏数据源, validate+fixture×4补齐)",
+  "dep_scan 四栏判定树: pre > 换代 > 拆分 > active + split_fingerprint()函数(缺_split⇒None栏全0如实); challenger_duel scan调用向后兼容(默认cur_split=None)",
+  "scripts/hce_split_report.py 三口径报表(legacy/search/select): 隐藏生效True + val终评真判True + gap出数(同golden executor gap=0预期语义等价, caveat: 真实搜索压力下才有分辨力)"
+ ],
+ "★ 教训": "测试临时档文件名须 knowledge3_前缀(scan 只认该形态, 首跑KeyError) — R88先看现状再断言",
+ "验收(稿§⑦)": "_split复算✓ · legacy零破坏✓ · search隐藏+reason标签隐藏✓ · select真判✓ · 短名单必含current+三分回落✓ · dep四栏+换代优先判定树✓ · gap报表hidden_ok/val_judged✓",
+ "验证": "pytest 837(830+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "next": "⑤ Eq.10验收执行轮(R118) → 选项3 dep字节粒度处理(R119)",
+ "inheritance": {
+  "gen": 117,
+  "at": "2026-10-09T18:00:00+08:00",
+  "parent_gen": 116,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 122,
+   "pytest": 830,
+   "inheritance_gen_prev": 116
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "dev._split 8+2 + judge.split_mode + replay终评链 + inheritance.split_fingerprint + dep四栏 + hce_split_report",
+   "files": [
+    "config/anchors/dev.json",
+    "src/dwc/organs/judge.py",
+    "src/dwc/organs/replay.py",
+    "src/dwc/foundation/inheritance.py",
+    "scripts/dep_scan.py",
+    "scripts/hce_split_report.py",
+    "tests/test_r117_hce_split.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r117_hce_split.py (7 tests)",
+     "claim": "复算/隐藏/终评/dep四栏/报表全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/hce_split_report.json",
+     "claim": "hidden_ok=True val_judged=True gap出数"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_hce_split.html §③④⑤⑥⑦",
+     "claim": "⑥执行=过审稿字面(HCE 2603.26499 §3.3)"
+    }
+   ],
+   "numbers": {
+    "pytest": 837,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 837 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r117.log",
+   "user_decision": "①=拆(用户拍板 R116) → 稿⑥过审(选1) → 本执行轮"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
