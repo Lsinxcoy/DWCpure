@@ -1,0 +1,611 @@
+{
+ "probe": "R132: β 校准探针 — V=max s_v−β₁N+β₂(N/max(1,k)) 中 β 非退化扫描。现配置 β₁=β₂=0(初始边界) ⇒ V≡max s_v ⇒ N/k项数学零因果 ⇒ 策略变体只改揭示路径 ⇒ 不可能分化。本探针扫 β 网格找『退化→分化』边界, 不改配置。",
+ "current_config": {
+  "beta1": 0.0,
+  "beta2": 0.0
+ },
+ "grid": {
+  "beta1": [
+   0.0,
+   0.02,
+   0.05,
+   0.1
+  ],
+  "beta2": [
+   0.0,
+   0.05,
+   0.1
+  ]
+ },
+ "n_results": 36,
+ "results": [
+  {
+   "tree": "all_ones",
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.0,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.02,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.05,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.1,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.1,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_ones",
+   "beta1": 0.1,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.0,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.02,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.05,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.1,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.1,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "mixed_001",
+   "beta1": 0.1,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    1.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 1.0,
+    "π(w=0,r=1)": 1.0,
+    "π(w=1,r=0)": 1.0,
+    "π(w=1,r=1,s=delta)": 1.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.0,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.0,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.0,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.02,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.02,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.02,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.05,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.05,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.05,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.1,
+   "beta2": 0.0,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.1,
+   "beta2": 0.05,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  },
+  {
+   "tree": "all_zeros",
+   "beta1": 0.1,
+   "beta2": 0.1,
+   "n_distinct_v": 1,
+   "v_values": [
+    0.0
+   ],
+   "degenerate": true,
+   "v_by": {
+    "π0": 0.0,
+    "π(w=0,r=1)": 0.0,
+    "π(w=1,r=0)": 0.0,
+    "π(w=1,r=1,s=delta)": 0.0
+   }
+  }
+ ],
+ "verdict": {
+  "beta0_always_degenerate": true,
+  "n_separating_combos": 0,
+  "separating_combos": [],
+  "reading": "β=0 全退化为真 ⇒ 恒等的**系数根因**坐实(与 R128的聚合根因互补); 本注入树族下无 β 组合分化 ⇒ 分化还受树形/观测面约束, 须换树族或接 judge 臂再扫"
+ },
+ "caveats": [
+  "注入观测(不走真端点) ⇒ 隔离 β 效应, 换不来 LLM 真差异",
+  "不改 config/replay.yaml — 注释明示非零须校准协议后才许写入, 协议裁决归用户/后续轮",
+  "分红依赖树形/s_v 分布/N/k 的可变性 — 单一树族结论不外推",
+  "M=4 变体(π0+三单键)同 ga_duel 起点; 未含交叉/组合个体"
+ ]
+}

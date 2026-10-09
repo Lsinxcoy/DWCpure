@@ -1,0 +1,85 @@
+{
+ "round": "R132 · β 校准探针 — 恒等的第二根因坐实(β=0 系数退化 + 起底耗尽揭示面, 两因独立)",
+ "date": "2026-10-10",
+ "★ 双根因(注入树实测, 36 组合)": [
+  "根因A 系数退化: β₁=β₂=0(当前 config 初始值=β≥0 边界) ⇒ V ≡ max s_v ⇒ N/k 项数学零因果 ⇒ 策略变体只改揭示路径不可能分化。36 组合里 β=0 的全退化为真",
+  "根因B 揭示面耗尽: 把 β₂ 提到 0.05/0.1 仍全退化(v_distinct=1) ⇒ N/k 对所有 spec 相同 ⇒ 起底(8 search 全揭示)后 dream 无可变揭示面; 即使系数非零也无项可变"
+ ],
+ "★ 纪律(校准协议的正规打开方式)": [
+  "不改 config/replay.yaml — 注释明示『非零值须经校准协议(R63-R67 实验纪律)后才许写入』⇒ 探针只给数据, 写配置的裁决归用户/后续轮",
+  "临时 yaml 走 dc.REPLAY_PATH 内存替换 + finally 恢复+删临时文件(5 测试里 2 条专锁这个: 配置不动/异常也不留垃圾)"
+ ],
+ "★ 整改路径(三条并列, 前两轮已走两条)": [
+  "路径② 已验证有效(R129): 换度量=judge 逐任务分均值(执行体轴)",
+  "路径① 观测面构成: 与根因B 同源 — 起底只揭示部分节点(留 valve/reasoning 未揭示) ⇒ N/k 可变 ⇒ β 校准才有实验对象",
+  "路径③ β 校准: 前提是先解决根因B(有可变 N/k), 否则单改系数无效(本轮已证)"
+ ],
+ "★ 六轮方法论链(完整)": "R127 接线 → R128 max 聚合饱和 → R129 judge 均值解除 → R130 执行体轴真对打 → R131 repeat 稳定+端点摆幅0.2 → R132 β=0 系数退化+揭示面耗尽 — 『恒等』从现象到全部根因(≥3 个)到整改路径全链打通",
+ "验证": "pytest 902(897+5) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 132,
+  "at": "2026-10-10T04:10:00+08:00",
+  "parent_gen": 131,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 140,
+   "pytest": 897,
+   "inheritance_gen_prev": 131
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_beta_calibration.py(β网格×3树族注入探针+不改配置纪律) + 5 测试",
+   "files": [
+    "scripts/probe_beta_calibration.py",
+    "tests/test_r132_beta_calibration.py",
+    "docs/beta_calibration.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r132_beta_calibration.py (5 tests)",
+     "claim": "β=0退化/β₂非零仍退化/配置不动/文档结构/finally清理"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/replay.py replay_score 公式",
+     "claim": "V=max s_v−β₁N+β₂(N/max(1,k)) 逐字(β=0⇒V≡max 的算术根源)"
+    },
+    {
+     "type": "test",
+     "ref": "config/replay.yaml 注释",
+     "claim": "非零须校准协议后才许写入 = 本轮的纪律依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 902,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 902 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/beta_calibration.json",
+   "user_decision": "『继续推进』→ R128/R129 路径①③的根因深挖"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
