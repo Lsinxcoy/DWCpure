@@ -116,7 +116,14 @@ def repair_layer(c: Optional[str], source: Optional[str]) -> str:
 
 
 def z_id_from_signature(sig: Optional[Mapping[str, str]]) -> str:
-    """失败签名 (c,q) → z_id（★ z 的操作化 —— R72 裁决, 见模块头）。"""
+    """失败签名 (c,q) → z_id（★ z 的操作化 — R72 裁决, 见模块头）。
+
+    ★ R137: sig=None ⇒ __unsigned_fail__（公开 API 与 _z_of 的口径
+      自洽 — 原先 None 直通 .get 会 AttributeError, 只有内部 _
+      z_of 的 if sig else 挡着; 公开函数必须自己守边界）。
+    """
+    if sig is None:
+        return Z_UNSIGNED
     return "c:%s|q:%s" % (sig.get("c") or "", sig.get("q") or "")
 
 

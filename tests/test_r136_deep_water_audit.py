@@ -49,7 +49,9 @@ def test_audit_statuses():
     by = {o["id"]: o["status"] for o in res["items"]}
     assert by["Z4"] == "live" and by["Z5"] == "live"
     assert by["coupling"] == "live"
-    assert by["delta_theta"] == "partial"
+    # ★ R137 修正: δ_θ partial→live（weakness.py 真实现 332 行 + 已接
+    #   step; R136 正则漏它 — 旧预期过期, 跟随新实测）
+    assert by["delta_theta"] == "live"
     assert by["routing"] == "partial"
     assert by["ECE"] == "absent" and by["AppendixD"] == "absent"
     # partial ⇒ code>0 且 wire=0; absent ⇒ 双 0; live ⇒ wire>0
@@ -68,17 +70,24 @@ def test_doc_has_next_rounds():
     assert os.path.exists(p), "先跑 scripts/deep_water_audit.py"
     d = json.load(open(p, encoding="utf-8"))
     assert d["n_items"] == 7
-    assert d["verdict"]["next_rounds"] == ["delta_theta", "ECE",
-                                           "AppendixD", "routing"]
-    assert d["summary"] == {"live": 3, "partial": 2, "absent": 2}
+    assert d["verdict"]["next_rounds"] == ["ECE", "AppendixD", "routing"]
+    assert d["summary"] == {"live": 4, "partial": 1, "absent": 2}
 
 
 def test_audit_readonly():
-    """★ 只读: 跑盘点不动任何源码（git status 仍干净）。"""
-    # 只查已跟踪源码的**内容修改**（untracked 新文件是本轮工作产物,
-    # 不算盘点污染）⇒ git diff --name-only（仅 tracked）
-    r = subprocess.run(["git", "diff", "--name-only"],
-                       capture_output=True, cwd=ROOT)
-    changed = [l for l in r.stdout.decode().splitlines()
-               if l.strip().endswith(".py")]
-    assert not changed, changed[:5]
+    """★ 只读真义: **跑盘点这个动作**不产生源码改动（不是"本提交不许
+    有改动" — R137 修 weakness.py None bug 是合法 tracked 修改）。"""
+    # 口径: 快照 diff → 跑盘点 → 再 diff ⇒ 两次相同（盘点零写入）
+    def _diff() -> set:
+        r = subprocess.run(["git", "diff", "--name-only"],
+                           capture_output=True, cwd=ROOT)
+        return {l for l in r.stdout.decode().splitlines()
+                if l.strip().endswith(".py")}
+
+    before = _diff()
+    import importlib
+    import deep_water_audit as dwa
+    importlib.reload(dwa)
+    dwa.audit()                       # ← 被测动作
+    after = _diff()
+    assert after == before, (after - before)   # 盘点零写入源码

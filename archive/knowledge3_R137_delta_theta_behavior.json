@@ -1,0 +1,78 @@
+{
+ "round": "R137 · δ_θ 盘点修正 — R136 误判 partial, 实为 live(weakness.py 332 行已接 step); 顺带修公开 API None bug",
+ "date": "2026-10-10",
+ "★★ 盘点纠错(声称 vs 实测第三次兑现)": "R136 判 δ_θ partial 的正则只扫 'delta_theta' 字样 ⇒ 漏掉真命名(task_delta_map/delta_group/Difficulty); R137 修正 code=41 wire=12 ⇒ live ⇒ 深水待办 4→3(ECE/AppendixD/routing)",
+ "★★ 行为级验证(不止 grep)": "8 测试跑通 δ_θ 全链: Difficulty 契约(semantics 枚举/n_obs X2) · z 三分类显式 · task_delta_map 公式手算对账(r=(n_z+1)/(n_group+1), δ=−log r; t2 唯一签名 δ 最大 −log(0.4)=0.9163; 全成功显式 0.0) · Laplace k=1(n=0⇒NaN 显式) · X3 world_knowledge raise(没有代理不假装) · R99 三级修复层 · TRUTH_SOURCE 声明",
+ "★★ 顺带修的真 bug(weakness.py)": "z_id_from_signature(None) 直通 .get ⇒ AttributeError; 公开 API 与内部 _z_of 的 if sig else 口径不一致 ⇒ R137 补 None ⇒ __unsigned_fail__ 自洽（生产路径原本不踩, 但公开函数必须自守边界）",
+ "★ 测试 stub 我的乌龙(记档)": "首版 stub 只给 failure_signature=None 判成功 ⇒ _z_of 看的是 ev['success'] is True ⇒ t3 被当 unsigned_fail ⇒ 2 红是我 stub 不合契约, 不是实现错 ⇒ 教训: 先读实现的判成功口径再写 stub",
+ "★ R136 测试级联更新(正常演化)": "R136 三条断言锁的是过期预期(δ_θ partial/live=3/待办4项) ⇒ R137 实测改变后跟随改预期; test_audit_readonly 语义修正为『盘点动作前后 diff 不变』（不是『本提交不许有 diff』——我修 bug 是合法 tracked 修改）",
+ "验证": "pytest 929(921+8, 含 R136 级联更新+None bug 修复) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 137,
+  "at": "2026-10-10T08:20:00+08:00",
+  "parent_gen": 136,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 145,
+   "pytest": 921,
+   "inheritance_gen_prev": 136
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "deep_water_audit.py δ_θ 正则加固 + 8 行为级测试 + weakness.py None 边界修复",
+   "files": [
+    "scripts/deep_water_audit.py",
+    "tests/test_r137_delta_theta_behavior.py",
+    "tests/test_r136_deep_water_audit.py",
+    "src/dwc/organs/weakness.py",
+    "docs/deep_water_audit.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r137_delta_theta_behavior.py (8 tests)",
+     "claim": "δ_θ 行为级验证(契约/公式手算对账/三级层/诚实边界)"
+    },
+    {
+     "type": "test",
+     "ref": "docs/deep_water_audit.json",
+     "claim": "δ_θ live, summary 4/1/2"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/weakness.py z_id_from_signature",
+     "claim": "None ⇒ __unsigned_fail__（公开 API 自洽修复）"
+    }
+   ],
+   "numbers": {
+    "pytest": 929,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 929 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/deep_water_audit.json",
+   "user_decision": "『继续推进』→ 待办①δ_θ（结论: 已 live, 本轮做验证+纠错）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

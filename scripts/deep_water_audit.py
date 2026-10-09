@@ -62,10 +62,17 @@ ITEMS: List[Dict[str, Any]] = [
      "code_rx": r"Z5|merge\.require_all|log_rate",
      "wire_rx": r"merge_occurs|log_rate|require_all",
      "doc_note": "dial_config.py L112-116 实现过"},
-    {"id": "delta_theta", "name": "δ_θ 论文锁值参数",
-     "code_rx": r"delta_theta",
-     "wire_rx": r"delta_theta\s*=|getattr\(.*theta",
-     "doc_note": "replay.py L301 只在 _LOCKED 名单(名字锁了, 功能?)"},
+    {"id": "delta_theta", "name": "δ_θ 残差难度（weakness 器官⑥）",
+     # ★ R137 修正: 首版正则只扫 "delta_theta" 字样 ⇒ 漏掉真实现
+     #   weakness.py 用 task_delta_map/delta_group/Difficulty 命名
+     #   （δ_θ 只在模块 docstring/锁名出现）⇒ partial 误判, 实为 live。
+     "code_rx": r"delta_theta|task_delta_map|delta_group|Difficulty"
+                r"|δ_θ|Laplace",
+     "wire_rx": r"task_delta_map|_task_deltas",
+     "doc_note": (" weakness.py 332 行(器官⑥探索, 路线丙组内基线: "
+                  "δⁱ=[−log r]₊, Laplace k=1) + core._task_deltas "
+                  "L331/356 已接进 step = LIVE(R136 误判 partial, "
+                  "R137 修正)")},
     {"id": "ECE", "name": "校准误差(Expected Calibration Error)",
      "code_rx": r"\bECE\b|expected_calibration|calibration_error",
      "wire_rx": r"ece\s*=|compute_ece|expected_calibration",
