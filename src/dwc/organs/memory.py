@@ -107,9 +107,20 @@ KIND_TO_ZONE = {
 #: ★ 归入 EXPERIENCE 的门槛（D6）—— 缺这些就不许进 EXPERIENCE
 EXPERIENCE_REQUIREMENTS = {
     MemoryKind.FAILURE_SIGNATURE: ("c", "q", "m"),
-    MemoryKind.SKILL: ("scene", "method", "boundary"),
+    # ★ R104 · 技能卡双字段（PRACTICE/2608.30760 明文: v=(pattern, usage_spec)
+    #   的 spec 含失效条件与恢复策略 — 报告 2 行「没有这两个字段」的落点）:
+    #   invalid_conditions = 什么情况下这技能不适用
+    #   recovery_strategies = 失效时怎么办（不带恢复策略的技能=只知道成功路径）
+    MemoryKind.SKILL: ("scene", "method", "boundary",
+                       "invalid_conditions", "recovery_strategies"),
     MemoryKind.PROPOSAL: ("consumer_declared",),
 }
+
+#: ★ R104 · 写入三步的第三步（PAHF salience→摘要→τ 近重复合并）——
+#:   DWC 落点 = **去重语义**（同经验域同 kind 近重复 ⇒ 不新增, 防膨胀;
+#:   PAHF 明文机制）。★ 内容级摘要重写无明文算法 ⇒ 列留位（不发明）。
+#:   ★ 数值: PAHF 有 τ 机制、值未核 ⇒ 初值 0.90 待校准（β 同款纪律）。
+MERGE_TAU = 0.90
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_node (
@@ -249,6 +260,14 @@ class MemoryKernel:
                     "D6 违反: %s 进 EXPERIENCE 需含 %r，缺 %r"
                     "（不能驱动进化 ⇒ 应留在 PROXY 或归档）"
                     % (kind.value, list(need), missing))
+
+        # ★ R104 · 近重复合并（PAHF 第三步; 仅**文档性经验**=SKILL）:
+        #   FAILURE_SIGNATURE 是事件流（同签名重复=真实独立失败, 聚簇要 N 条）——
+        #   合并它会破坏聚簇（test_signature_clustering 抓到的误伤）; TRACE 不参与。
+        if kind is MemoryKind.SKILL:
+            dup = self._near_duplicate(kind, payload)
+            if dup is not None:
+                return dup              # 去重: 返回现节点（调用方 str 语义不变）
 
         # ★ 明确不记的四类（§四）—— 由调用方保证，本层不猜
         nid = node_id or uuid.uuid4().hex
@@ -493,6 +512,60 @@ class MemoryKernel:
             "SELECT node_id FROM memory_node WHERE archived_at IS NULL"
         ).fetchall()
         return [self.get(r["node_id"]) for r in rows]
+
+    def _near_duplicate(self, kind: MemoryKind,
+                        payload: Dict[str, Any]) -> Optional[str]:
+        """★ R104 · 同 kind 经验的近重复节点（ratio ≥ MERGE_TAU ⇒ 合并去重）。
+
+        ★ 全表扫限经验域未归档行（小库量级 — 库大了要建索引, 现标边界）。
+        ★ payload 归一后比（sort_keys ⇒ 键序无关）。
+        """
+        import difflib
+        blob = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        rows = self._conn.execute(
+            "SELECT node_id, payload FROM memory_node"
+            " WHERE zone=? AND kind=? AND archived_at IS NULL",
+            (Zone.EXPERIENCE.value, kind.value)).fetchall()
+        for r in rows:
+            other = json.dumps(json.loads(r["payload"]),
+                               ensure_ascii=False, sort_keys=True)
+            if difflib.SequenceMatcher(None, blob, other).ratio() >= MERGE_TAU:
+                return r["node_id"]
+        return None
+
+    def contribution_report(self) -> Dict[str, Any]:
+        """★ R104 · 库治理观测层（Library Drift 四件套①的报表先行版）。
+
+        ★ 只报**事实**: 访问数/效果数/最近访问 + 「访问过但零效果」标记
+          （access>0 ∧ effect==0 是事实不是阈值 — 不发明退役判据）。
+        ★ 退役触发/活跃封顶/meta-skill 引导 = **行为级变更, 留裁决**
+          （Library Drift 自陈「退役过激比无引导更差」⇒ 行为须配对照, 不默认开）。
+        """
+        rows = self._conn.execute(
+            "SELECT node_id, kind, zone, access_count, effect_count,"
+            " last_access, archived_at FROM memory_node").fetchall()
+        items, flagged = [], 0
+        n_archived = 0
+        for r in rows:
+            arc = r["archived_at"] is not None
+            n_archived += 1 if arc else 0
+            hi = (not arc and int(r["access_count"]) > 0
+                  and int(r["effect_count"]) == 0)
+            if hi:
+                flagged += 1
+            items.append({"node_id": r["node_id"], "kind": r["kind"],
+                          "zone": r["zone"],
+                          "access": int(r["access_count"]),
+                          "effect": int(r["effect_count"]),
+                          "last_access": r["last_access"],
+                          "archived": arc, "no_effect_flag": hi})
+        return {"n_nodes": len(rows), "n_archived": n_archived,
+                "n_accessed_no_effect": flagged,
+                "items": items,
+                "behavioral_changes": "left_for_verdict",
+                "why_behavioral_left": (
+                    "退役/封顶/meta-skill 是行为级 — Library Drift 自陈退役"
+                    "过激更差 ⇒ 须配对照实验, 不默认开（SYNTHESIS T3 留位）")}
 
     def _signature_is_globally_unique(self, c: str, q: str, m: str) -> bool:
         """★ 该失败签名在**整个库**里是否只有这一处（R22.1）。

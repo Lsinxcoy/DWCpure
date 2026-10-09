@@ -61,7 +61,8 @@ def test_pipe_assignment(mem):
                       {"c": "x", "q": "y", "m": "z"})
     assert mem.get(s).tube is Tube.REFLECT
     sk = mem.remember(MemoryKind.SKILL,
-                      {"scene": "a", "method": "b", "boundary": "c"})
+                      {"scene": "a", "method": "b", "boundary": "c",
+                       "invalid_conditions": ["d"], "recovery_strategies": ["e"]})
     assert mem.get(sk).tube is Tube.LEARN
     p = mem.remember(MemoryKind.PROPOSAL,
                       {"consumer_declared": "gate7_accumulation"})
@@ -308,7 +309,8 @@ def test_node_is_frozen(mem):
 def test_chain_link_is_preserved(mem):
     """★★ 意图: 记忆记住自己属于哪条链（可反查"这次进化留下了什么"）。"""
     nid = mem.remember(MemoryKind.SKILL,
-                       {"scene": "x", "method": "y", "boundary": "z"},
+                       {"scene": "x", "method": "y", "boundary": "z",
+                        "invalid_conditions": ["u"], "recovery_strategies": ["v"]},
                        chain_id="CH42")
     assert mem.get(nid).chain_id == "CH42"
     assert [n.node_id for n in mem.by_chain("CH42")] == [nid]

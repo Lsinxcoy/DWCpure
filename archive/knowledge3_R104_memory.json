@@ -1,0 +1,14 @@
+{
+ "round": "R104 · 阶段2d — 技能卡双字段(PRACTICE) + τ近重复合并(PAHF) + 治理报表(Library Drift 观测层)",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "SKILL 必填加严: +invalid_conditions+recovery_strategies(D6 写入时判; PRACTICE 2608.30760 报告2行明文)",
+  "MERGE_TAU=0.90 近重复合并: 仅 SKILL(文档性经验) — ratio≥τ 返回现节点防膨胀; **失败签名是事件流不合并**(同签名重复=真实失败, 聚簇要N条); 内容级摘要重写无明文算法=留位; τ值未核=初值待校准(β同款)",
+  "contribution_report: access/effect/last_access 事实+『访问过零效果』标记(access>0∧effect==0=事实非阈值) + behavioral_changes=left_for_verdict(退役/封顶/meta-skill 行为级留裁决 — Library Drift 自陈退役过激更差须配对照)"
+ ],
+ "★ 误伤教训": "首版合并条件=整个 EXPERIENCE 域 ⇒ FAILURE_SIGNATURE 同签名重复被合并 ⇒ test_signature_clustering 红(聚簇要N条) — 收窄 kind is SKILL; 事件流≠文档, dedup 只管文档性经验",
+ "D6 测试自适配": "test_d6 payload 从 requirements 动态生成 ⇒ 加字段自动覆盖(仅两处直接 payload 需更新)",
+ "验证": "pytest 795(791+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "阶段2 进度": "2a C分层树(R101) ✓ 2b B段式回放(R102) ✓ 2c 成功侧+序列(R103) ✓ 2d 字段+合并+报表(R104) ✓ — 剩记忆带失败对照臂(R105 实验)",
+ "下一步": "R105: 记忆带失败对照臂(Evo-memory 表3 口径) → 阶段3 T4 归因批"
+}
