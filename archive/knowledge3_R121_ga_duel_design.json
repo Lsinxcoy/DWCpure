@@ -1,0 +1,81 @@
+{
+ "round": "R121 · 项2 M2对打方案稿 — 经典GA baseline对打(设计稿⑦, M2双前置的方案件)",
+ "date": "2026-10-09",
+ "稿": "docs/proposal_ga_duel.html (13.2KB)",
+ "★ 对打协议": [
+  "同预算: 两臂各16次V评估硬上限(管理口径) + CostLedger逐笔记账 + K倍账显式报 + 超额作废(M2验收③字面)",
+  "同底同任务集: 单次ℋ起底共享 + D_search 8任务(R117拆分语义: 搜索行为不碰D_val) + 同起点(π0+三单键变体)",
+  "A臂=现行单点忠实复刻(一次一键无交叉) · B臂=小种群GA(N=4/代≤4/tournament k=2/键域不相交才交叉/单键枚举变异)",
+  "裁决: Eq.10-accept提案数严格多者赢(零加权和); 平局⇒比bestV仍平⇒判A(在位者保守=E2平票同款); 纪律先于输赢(缺账/超预算=当次成绩作废)",
+  "消融账强制: B臂进池个体必须带attribution_plan(M1路径乙), 无账=构造期raise不是漏(G4同款)"
+ ],
+ "★ 区分度诚实": "一期golden臂大概率恒等⇒平局判A(结构必然, R114/R118先例) — 对打机制正确性由流程断言验收; 二期LLM臂才有真区分(R105c 0.60/0.70/0.80先例); 恒等下的平局≠'两臂一样好'是'该臂测不出差别'(caveat写进报告)",
+ "★ 双前置(M0§⑧原文)": "技术前置M1绿✓(R114) + 裁决前置=用户对搜索器开跑再拍一次 — 本稿过审+拍'开打'才进执行轮; 对打赢了也还要拍常态化",
+ "四证据处置": "①撞单点→M1路径乙升级在位 ②AgentNAS单种子→协议反着来(多种子+matched账) ③K倍成本→预算硬上限+显式账 ④经典GA baseline→本稿主体",
+ "验证": "pytest 848 · gate 8/8 · e2e RC=0 — 三层全绿(设计轮零代码变动)",
+ "状态": "项1(R120)+项2(本稿)完成 → 项3(Table 8缺口轮)",
+ "inheritance": {
+  "gen": 121,
+  "at": "2026-10-09T20:40:00+08:00",
+  "parent_gen": 120,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 126,
+   "pytest": 848,
+   "inheritance_gen_prev": 120
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+docs/proposal_ga_duel.html(M2对打方案) — 纯设计非代码",
+   "files": [
+    "docs/proposal_ga_duel.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_ga_duel.html §③④⑤",
+     "claim": "同预算两臂协议/Eq.10裁决/预算账(设计)"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_population_attribution.html §⑧ M2行",
+     "claim": "M2验收首条『经典GA对打方案先过』=本稿义务"
+    },
+    {
+     "type": "test",
+     "ref": "docs/proposal_ga_duel.html §⑧ 双前置",
+     "claim": "M1绿✓ + 用户再拍一次=开跑授权(稿写死)"
+    }
+   ],
+   "numbers": {
+    "pytest": 848,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 848 + gate 8/8 + e2e rc=0 (设计轮)",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r121.log",
+   "user_decision": "按1-2-3逐项推进: 项2=M2对打方案稿(本轮) — 过审+拍开打=执行"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

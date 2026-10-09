@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿⑦ 经典 GA 对打方案（R121 · M2 双前置的方案件）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:236px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.quote{border-left:3px solid var(--purple);background:#131820;padding:10px 16px;
+font-size:13.5px;color:#c9d1d9;font-style:italic;margin:10px 0}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿⑦ · 经典 GA 对打方案</h1>
+<div class="sub">M2 双前置的方案件（稿③ §⑧ M2 验收首条「经典 GA/baseline 对打
+方案先过」）· 2026-10-09 · 同预算对打 + Eq.10 裁决 + 消融账强制</div>
+</header>
+<nav>
+<a href="#q">① 对打要回答什么</a>
+<a href="#indiv">② 个体表示与合法交叉</a>
+<a href="#protocol">③ 对打协议（两臂）</a>
+<a href="#ga">④ GA 参数与预算账</a>
+<a href="#judge">⑤ 裁决规则</a>
+<a href="#risk">⑥ 区分度风险</a>
+<a href="#stages">⑦ 执行轮验收</a>
+<a href="#honest">⑧ 诚实条款与双前置</a>
+</nav>
+<main>
+
+<section id="q">
+<h2>① 对打要回答什么</h2>
+<div class="card gold">
+<b>问题（一句话）</b>: 同评估预算、同起点、同验收（Eq.10）下 —
+<b>现行单点纪律 vs 小种群 GA</b>，谁产出更多「可接受的改进」？<br><br>
+这是 R98 裁决④遗留之问（原四证据之④「经典 GA baseline 之问」）在
+M0④翻转后<b>原样保留到 M2</b> 的那一条 — 本稿就是把它写成可跑的对打。
+</div>
+<table>
+<tr><th>原四证据（R110 · 当时判不做的理由）</th><th>本对打中的处置</th></tr>
+<tr><td>① 撞 _assert_single_change 单点归因</td>
+<td>不废单点 — M1 路径乙已升级: 带 attribution_plan 的组合提案放行,
+无账仍拒（对打中 GA 个体<b>必须带账进池</b>）</td></tr>
+<tr><td>② AgentNAS 单种子消融不干净</td>
+<td>协议反着来: 多种子 + matched 账 + π̂ 安慰剂思想（稿②）— 我们的
+消融臂天然带这些</td></tr>
+<tr><td>③ K 倍评估成本撞预算纪律</td>
+<td>预算硬上限 B + CostLedger 逐笔记账 + K 倍账<b>显式报</b>（§④）</td></tr>
+<tr><td>④ 经典 GA baseline 缺</td>
+<td><b>本稿主体</b>: A 臂=经典单点, B 臂=经典 GA 要素齐（选择/交叉/变异）</td></tr>
+</table>
+</section>
+
+<section id="indiv">
+<h2>② 个体表示与合法交叉（复用 M0 §⑦ / M1 实测）</h2>
+<pre>个体 = PolicySpec 变体（可修订三键 — R85/86 锁值域实测）:
+  w_delta ∈ {当前值, …} · prefer_revealable ∈ {T,F} · seg_order ∈ {children, delta}
+  ⇒ 种群成员 = 三键的取值组合（有界可枚举 — M0 §⑦「有界(键数有限)、
+    可枚举、可消融」）
+
+★ 合法交叉（M0 §⑦ 字面）: 只发生在**键域不相交**的成员间 —
+  例: 成员甲改 seg_order / 成员乙改 prefer_revealable ⇒ 交叉 = 两键合
+  （M1 specAB 同款构造, 构造即断言不相交）
+  键域相同的成员 ⇒ 只能二选一（select_policy argmax V 路径）— 不发明第三种
+★ 变异 = 单键翻转（从键域取另一个合法值 — 枚举不采样）
+★ 每个组合个体**必须带 attribution_plan**（M1 路径乙契约）—
+  无账组合不进池（G4 生灭门同款: 不是失败, 是不存在）
+
+fitness 输入 = dream v_by（M1 ablation 同底同款）+ cost（CostLedger 逐笔）</pre>
+<div class="card purple">
+<b>与 R114 M1 的关系</b>: M1 四跑消融已实测「单次 dream 四 spec 出四 V」
+（s0/sA/sB/sAB 槽机制在位）— GA 的种群评估<b>直接复用该基建</b>,
+本对打是把「固定四 spec」换成「多代演化的一群」。
+</div>
+</section>
+
+<section id="protocol">
+<h2>③ 对打协议 — 两臂同预算</h2>
+<pre>公共（控变量 — 稿② matched 同款纪律）:
+  · 同任务集: **D_search 8 任务**（R117 拆分语义: 搜索信号不碰 D_val —
+    对打是搜索行为, 用 D_search; D_val 留给对打后的终评）
+  · 同ℋ回放底（单次起底, 两臂共享 — 消除起底方差）
+  · 同验收: Eq.10（R118: ∃k 改善 ∧ ∀j 不回退 — 两臂产出都过此门才算数）
+  · 同起点: 初始候选集 = π0 + 三单键变体（R85/86 四变体, 两臂同一份）
+  · 同预算: 评估次数硬上限 **B = 16 次 V 评估**（管理口径, 可调; 记入
+    CostLedger — §3.6.5 评估成本入预算字面）
+
+A 臂 · 现行单点纪律（baseline）:
+  循环: 取下一单键变体 → 评 V → Eq.10 判 → accept 则进候选
+  一次只动一个键, 无交叉无组合 — **现状行为的忠实复刻**
+
+B 臂 · 小种群 GA:
+  种群 N=4 · 代数 ≤4（直到预算耗尽）
+  每代: 评估全部个体 V → Eq.10 判 → tournament(k=2) 选父本
+        → 键域不相交交叉（合法才交叉, 不合法⇒复制父本）
+        → 单键变异 → 子代带 attribution_plan 进池
+  记录: 每代 best / 评估数 / 账本
+
+产出读数（对打报告 docs/ga_duel.json）:
+  ① 两臂 accept 提案数（Eq.10 过门数） ② 两臂 best V 序列（收敛曲线）
+  ③ 两臂评估成本（CostLedger K 倍账: B 臂总评估/A 臂总评估）
+  ④ 消融账覆盖率（B 臂进池个体带账比例 — 必须 100%）</pre>
+</section>
+
+<section id="ga">
+<h2>④ GA 参数与预算账（管理口径初值）</h2>
+<table>
+<tr><th>参数</th><th>初值</th><th>来源/理由</th></tr>
+<tr><td>种群 N</td><td>4</td><td>键域三键的可枚举组合量级（R85 四变体雏形同尺寸 —
+不是文献值, 是自家键空间的自然数）</td></tr>
+<tr><td>代数上限</td><td>4</td><td>预算 B=16 ÷ N=4 = 4 代（预算优先于代数 —
+预算硬上限是主约束）</td></tr>
+<tr><td>tournament k</td><td>2</td><td>经典 GA 常用值（管理口径）— k 小选择
+压力温和, 小种群防早收敛</td></tr>
+<tr><td>交叉</td><td>键域不相交才交叉</td><td>M0 §⑦ 合法域字面 — 非概率算子
+（合法性的确定性判据, 不掷骰）</td></tr>
+<tr><td>变异</td><td>单键枚举翻转</td><td>同上 — 从有限键域取另一值, 无连续扰动</td></tr>
+<tr><td>预算 B</td><td>16 次 V 评估（两臂各 16, 各自独立计数）</td>
+<td>对等的关键: 两臂花同样多的评估 — K 倍账显式报（M2 验收③）</td></tr>
+</table>
+<div class="card gold">
+<b>预算记账（硬约束 + 诚实报）</b>: 两臂各自 16 次评估上限, 每次 V 评估
+CostLedger 记一笔（kind=ga_duel / arm∈{single,ga}）; 报告必带
+「B 臂用了多少 / A 臂用了多少 / 比值」— 超预算的臂的超出部分成绩
+<b>不计</b>（硬上限不是软目标）。
+</div>
+</section>
+
+<section id="judge">
+<h2>⑤ 裁决规则 — 对打怎么算谁赢</h2>
+<pre>主判据（Eq.10 验收数, 不做加权和 — 与稿⑤决策层零权重一致）:
+  赢 ⟺ 臂在预算内产出的 **Eq.10-accept 提案数** 严格多于对臂
+  平局（数量相等）⇒ 比 best V; 仍平 ⇒ **判 A 臂（在位者保守 —
+  E2 平票判在位者同款哲学: 无净证据不开新搜索器）
+
+产出的裁决含义（开跑前写死, 防跑完看结果定规则）:
+  B 赢 ⇒ 「种群搜索可常态化」建议进呈报 — **仍须你再拍**（M0 §⑧
+         裁决前置: 搜索器开跑前再拍一次 — 对打赢只是证据不是授权）
+  A 赢或平 ⇒ 维持单点纪律（原裁决④默认正确）, GA 对打结果如实入档
+  无论谁赢: 消融账缺失/超预算 ⇒ 该臂当次成绩作废（纪律先于输赢）
+
+呈报: 对打报告 + Eq.10 读数 + 成本账 + 归因账覆盖 — 结果呈你过目。</pre>
+</section>
+
+<section id="risk">
+<h2>⑥ 区分度风险 — golden 臂恒等的结构必然</h2>
+<div class="card red">
+<b>先例链（不装看不见）</b>: R114 M1 四跑 V=1.0 恒等（golden 下键改动不改
+回放分）· R118 校准 5 连跑 V 恒等（确定性）· R107/R110 同源。
+<b>本对打在 golden 臂同样可能恒等</b> — 恒等 ⇒ 两臂 V 序列全平 ⇒ 裁决
+走平局规则 ⇒ 判 A 维持单点（保守规则兜底, 不出假赢家）。<br><br>
+<b>处置（如实预告, 不事后找补）</b>:
+</div>
+<pre>一期（协议验证）: golden 臂跑通全链（两臂/预算/账本/Eq.10/报告/纪律）
+  恒等 ⇒ 如实报「结构必然 — 键改动在 golden 回放底上不改 V」,
+  对打的**机制正确性**由流程断言验收（预算/账/裁决规则各就位）
+二期（真区分度）: LLM executor 臂（V 对策略键真敏感 — R105c 四臂
+  LLM 下 0.60/0.70/0.80 有区分的先例）⇒ 真对打出真输赢
+  ★ 一期不外推二期结论: 恒等下的"平局"不是"两臂一样好",
+    是"该臂上测不出差别"（读数语义写进报告 caveat）</pre>
+</section>
+
+<section id="stages">
+<h2>⑦ 执行轮验收（本稿过审 + 你再拍后写死）</h2>
+<pre>执行轮（R122 预定）内容:
+  ① scripts/ga_duel.py: 两臂引擎（A 单点循环 / B GA 代循环）+ 公共底
+  ② 预算器: 两臂 16 次硬上限 + CostLedger 记账 + 超额作废
+  ③ 个体合法性: 键域不相交断言 + attribution_plan 强制（无账不进池）
+  ④ Eq.10 裁决 + 平局规则 + docs/ga_duel.json 报告
+  ⑤ 测试 + 三层 + 一档一提交
+
+验收:
+  □ A 臂忠实复刻（单键序 = R85/86 四变体顺序, 不夹私货）
+  □ B 臂: N=4/代≤4/tournament k=2/合法交叉/单键变异 逐项断言
+  □ 预算硬上限: 两臂评估数 ≤16 断言; 超额部分不计入读数
+  □ 消融账覆盖 100%（B 臂进池个体全带 plan — 缺=构造期 raise 不是漏）
+  □ Eq.10 裁决+平局判 A（规则跑前锁 — 破坏测试: 改判据⇒红）
+  □ CostLedger 两臂账各记各（K 倍账读数出数）
+  □ 恒等风险: 如实报 caveat（一期协议验收口径）
+  □ 单点路径零破坏（A 臂是新增脚本, 不动 select_policy 现行为 — 848 全量兜底）</pre>
+</section>
+
+<section id="honest">
+<h2>⑧ 诚实条款与双前置</h2>
+<div class="card red">
+1. <b>本稿无实测</b> — 参数全是管理口径初值（N=4 来自家键空间非文献值;
+   tournament k=2 是经典常用值）; B=16 是预算量级选择, 不声称最优。<br>
+2. <b>对打不引真 src patch</b> — 个体=PolicySpec 策略键变体（M0 §⑦
+   基因型最小形式化）, 不是改源码的提案; 「种群改源码」离生产更远,
+   本稿不越级。<br>
+3. <b>恒等风险如实</b> — 一期 golden 臂大概率平局判 A（§⑥预告）;
+   这是<b>协议验证的成功</b>不是对打失败, 但二期 LLM 臂之前不得声称
+   「种群不输单点」。<br>
+4. <b>双前置（M0 §⑧ 原文）</b>: 技术前置 = M1 绿（✓ R114 已达）;
+   <b>裁决前置 = 你对「搜索器引入」再拍一次</b> — 本稿过审 + 你拍
+   「开打」才进执行轮; 对打赢了也还要你拍常态化。<br>
+5. <b>平局判 A 不是偏袒</b> — 在位者保守是 E2 平票规则的同款哲学
+   （无净证据不开新机制）; 若你认为应判 B 或加赛, 裁决归你。
+</div>
+<div class="sub" style="margin-top:30px">设计稿⑦ · M2 双前置方案件 ·
+稿③ §⑧ M2 验收首条字面 · 同预算 16 评估对打 + Eq.10 裁决 + 平局判 A +
+消融账 100% 强制 · 一期恒等如实二期 LLM 臂 · 待过审 + 你拍「开打」</div>
+</section>
+
+</main>
+</body>
+</html>
