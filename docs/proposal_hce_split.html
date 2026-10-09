@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿⑥ HCE 第三段 — dev 拆搜索/选择信号（R116 · 裁决①: 拆）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:236px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.quote{border-left:3px solid var(--purple);background:#131820;padding:10px 16px;
+font-size:13.5px;color:#c9d1d9;font-style:italic;margin:10px 0}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿⑥ · HCE 第三段 — dev 拆搜索/选择信号</h1>
+<div class="sub">裁决①（用户拍板: 拆）· Hidden Consistent Evaluation 的 DWC 落地 ·
+2026-10-09 · 标签隐藏 + D_val 专用终评 + split 指纹 dep 联动</div>
+</header>
+<nav>
+<a href="#anchor">① 文献锚 HCE §3.3</a>
+<a href="#gap">② DWC 现状与缺口</a>
+<a href="#design">③ 拆分设计（三分映射）</a>
+<a href="#hide">④ 标签隐藏机制</a>
+<a href="#select">⑤ 最终选择只用 D_val</a>
+<a href="#dep">⑥ dep(z) split 联动</a>
+<a href="#stages">⑦ 执行轮内容与验收</a>
+<a href="#honest">⑧ 诚实条款</a>
+</nav>
+<main>
+
+<section id="anchor">
+<h2>① 文献锚 — HCE（AIRA2, 2603.26499 §3.3 逐字）</h2>
+<div class="quote">
+"Hidden Consistent Evaluation（80/10/10 三分数据集、<b>D_search 标签对
+agent 隐藏</b>、评估外置到独立容器、<b>最终选择只用从未参与搜索的 D_val</b>）"
+</div>
+<div class="card">
+<b>两个实测数字（引用带口径）</b>:
+· D_search 选择与 D_val 选择的差距只 <b>3.7–4.2 pp</b> — 论文据此把此前的
+"过拟合"归因为<b>评估噪声而非记忆</b>（这个差距读数本身就是拆分的收益观测,
+DWC 要建同款读数 — §⑦）;
+· 同篇自陈: AIRS-Bench 20 任务"超 SOTA 11 项, 人工审计后只有 6 项方法学
+干净, 另 5 项靠直接抄测试标签/外部数据" — <b>标签泄漏的实害是它自己报的</b>。
+</div>
+</section>
+
+<section id="gap">
+<h2>② DWC 现状与缺口（精读映射判定: 半有）</h2>
+<table>
+<tr><th>HCE 件</th><th>DWC 现状</th><th>判定</th></tr>
+<tr><td>三分数据集 80/10/10</td>
+<td><code>SPLIT_DEV</code>（锚点集恒小, 每条 golden）+ <code>SPLIT_TEST</code>
+（锁定集「metric 演化不许读」, sealed 文件）</td>
+<td><span class="tag">半有</span> 有 dev/test 两段, <b>dev 内无 search/val 再分</b></td></tr>
+<tr><td>D_search 标签对 agent 隐藏</td>
+<td>judge 独立 + r_priv 不读 + anchors 文件 agent 不可写</td>
+<td><span class="tag">半有</span> 文件级保护在, <b>但搜索反馈循环对 dev 全量
+开放（含将来的"选择信号"用途）</b></td></tr>
+<tr><td>评估外置独立容器</td>
+<td>judge 器官独立于执行/进化链 + TRUTH_SOURCE 系统外文件</td>
+<td><span class="tag">有</span> 外置性由 G2 保证</td></tr>
+<tr><td>最终选择只用 D_val</td>
+<td><code>select_policy</code> argmax V — V 来自回放/判分, <b>未区分搜索信号
+与选择信号</b></td>
+<td><span class="tag t-red">缺</span> 本稿要补的核心</td></tr>
+<tr><td>D_test 不回传 orchestrator</td>
+<td>SPLIT_TEST 锁定 + sealed raise</td>
+<td><span class="tag">有</span></td></tr>
+</table>
+<div class="card red">
+<b>为什么 dev 一肩挑两职是问题</b>: 同一批任务既喂进化搜索又当验收标准 ⇒
+搜索可以对它过拟合（AIRA2 的动机）; DWC 的 judge 虽外置, 但<b>选择信号与
+搜索信号同源</b> ⇒ 「哪个改动更好」的判定能被搜索侧间接污染。拆 = 让
+<b>最终选择</b>只信从未参与搜索的子集。
+</div>
+</section>
+
+<section id="design">
+<h2>③ 拆分设计 — 三分映射（DWC 十任务的落法）</h2>
+<pre>映射（HCE 80/10/10 → DWC 实际数据）:
+  D_test   = SPLIT_TEST/sealed            ★ 已有（第三段不动）
+  D_search = dev 中 8 任务                搜索期判分/进化信号来源
+  D_val    = dev 中 2 任务                最终选择专用, 搜索期标签隐藏
+  ⇒ dev 10 = 8 + 2（HCE 的 10% val 按 10 任务取 2: 让 val 有最小统计意义
+    且**分层覆盖两类判分** — 不是 1 任务的抛硬币）
+
+D_val 挑选（确定性, 可复核 — 不随机不挑好挑坏）:
+  · 分层: behavior 类与 keyword_match 类**各有代表**
+  · 层内规则: 任务清单**字典序末位**进 val（机械规则, 任何人可复算）
+  · 划分落盘: config/anchors/dev.json 加顶层 "_split":
+      {"search": [8 ids], "val": [2 ids], "rule":
+       "分层+层内字典序末位（稿⑥§③）", "hce": "2603.26499 §3.3"}
+    （"_split" 以下划线开头 = 非任务条目, 与现有 "_" 约定一致）
+
+比例诚实: HCE 是 80/10/10 三分全集; DWC 的 test 已独立成 sealed ⇒
+dev 内拆 8/2 = 「search:val = 4:1」与 HCE 的 80/10 中 search:val=8:1
+不同 — **不硬凑比例**（任务数 10 太小, 硬凑 8:1 ⇒ val=1 抛硬币）;
+如实标注为「DWC 适配比例, 非 HCE 原比例」。</pre>
+</section>
+
+<section id="hide">
+<h2>④ 标签隐藏机制 — 搜索期不读 D_val 反馈</h2>
+<pre>judge.evaluate 加 split_mode 参数（向后兼容关键）:
+  mode="legacy"（**默认**）: 现行为一字不改 — 全部现有调用/测试零破坏
+  mode="search": D_val 任务 ⇒ 返回 not_evaluated（success=None,
+      reason="D_val 标签隐藏 — 搜索期不可读（HCE §3.3）"）
+      ★ None 语义复用 judge 既有纪律:「未评价不许当 0/1」—
+        隐藏 = 未评价, 不是失败（不污染分子分母）
+  mode="select": D_val 任务 ⇒ 真判（最终选择专用通道）
+
+谁用什么模式:
+  进化/迭代/回放判分链     → search（新链显式传; 旧链 legacy 不动）
+  select_policy 前的终评   → select（§⑤）
+  meta-eval/审计          → legacy（全集审计不受隐藏影响 — 审计不是搜索）
+
+隐藏的物理面: 只挡**反馈内容**（golden 不进 verdict）, 不挡任务存在 —
+与 HCE「标签隐藏」语义一致（agent 知道有这个任务, 看不到对错反馈）。</pre>
+</section>
+
+<section id="select">
+<h2>⑤ 最终选择只用 D_val — select_policy 的信号拆分</h2>
+<pre>现状: select_policy(v_by) argmax V — V 混合了搜索信号。
+新链（M>1 变体选择/提案验收时启用）:
+  ① 搜索期: 各变体在 D_search 上出 v_search（现行链不动, legacy 兼容）
+  ② 短名单: v_search top-K（K=2 初值, 标注管理口径）
+  ③ 终评:   短名单变体在 D_val 上跑 mode="select" ⇒ v_val
+  ④ 裁决:   argmax v_val（**只用从未参与搜索的信号** — HCE 字面）
+      平键 ⇒ 字典序（现行平键规则沿用）
+      ★ v_val 平票/样本太小(2 任务) ⇒ 回落 v_search 并标
+        "val_tie_fallback"（诚实字段, 不装终评有分辨力）
+
+读数（HCE 3.7–4.2pp 同款监测）: 报表出
+  gap_search_vs_val = mean(v_search over D_search) − mean(v over D_val)
+  ⇒ 该差距 = 搜索过拟合的早期信号（DWC 版"选择差距读数"）</pre>
+<div class="card gold">
+<b>2 任务 val 的分辨力是真约束</b> — §⑧ 如实; 终评靠 K=2 短名单 +
+平票回落兜底, 不假装 2 任务有强统计力（HCE 30 任务的 val=3, 我们 10 任务
+val=2 已是比例上限内最稳取法）。
+</div>
+</section>
+
+<section id="dep">
+<h2>⑥ dep(z) split 联动 — 与裁决②共用的那份记录</h2>
+<pre>evaluate_config 加 split_fingerprint（sha8(_split 分组)）:
+  拆分动作 = split 指纹变 ⇒ dep(z) 第二触发源激活:
+    docs/dep_scan.json 增栏 deprecated_by_split_change
+    （E1 已留位: "split_change 栏随裁决①拍定后启用" — 本次拍"拆" ⇒ 激活）
+  拆分前历史分数: 状态 deprecated_by_split_change（可比性断 — 分栏不混算）
+  ★ 不物理删（版本化 — 稿④ §⑦ 同款）
+
+与稿⑤(Pareto)的合流: 审计B（提案不见验收数据）依赖本拆分 —
+执行序: 本稿(E1 级记录 + 判分模式) 先行, 稿⑤ Eq.10 验收接在其上。</pre>
+</section>
+
+<section id="stages">
+<h2>⑦ 执行轮内容与验收</h2>
+<pre>执行轮（本稿过审后一轮内完成）:
+  ① dev.json 加 _split（分层规则, 机械可复算）
+  ② judge.evaluate 加 split_mode（legacy 默认 — 零破坏）+ search/select 分支
+  ③ select_policy 的 D_val 终评链（短名单 K=2 + 平票回落 + gap 读数报表）
+  ④ split_fingerprint 进六段档 evaluation_config + dep_scan 增
+    deprecated_by_split_change 栏（激活 E1 留位）
+  ⑤ 报表: search/val 双分 + gap_search_vs_val
+
+验收（写死）:
+  □ _split 分层规则复算测试: 重跑划分 = 落盘一致（机械规则可复核）
+  □ legacy 模式零破坏: 全量 pytest 原样绿（默认不改任何现行为）
+  □ search 模式: D_val 任务 success=None 且 reason 带"标签隐藏";
+    None 不进分子分母（judge 既有纪律断言）
+  □ select 模式: D_val 真判; 终评只用 v_val; 平票回落标 val_tie_fallback
+  □ dep_scan: 拆分后旧档进 deprecated_by_split_change 栏, 新档 active;
+    对账断言（count==rows）
+  □ gap_search_vs_val 出数（两集分数 + 差距）
+  □ 三层验证 + 同批自洽 + 一档一知识档</pre>
+</section>
+
+<section id="honest">
+<h2>⑧ 诚实条款</h2>
+<div class="card red">
+1. <b>比例非 HCE 原比例</b> — 10 任务 dev 拆 8/2 是 DWC 适配（val=1 抛硬币
+   不可取）, 不硬凑 80/10/10; 如实标注。<br>
+2. <b>D_val=2 任务分辨力有限</b> — 终评的统计力弱, 靠 K=2 短名单 +
+   平票回落兜底; gap 读数在 n=2 上只报方向（R67/R105c 同口径）。<br>
+3. <b>legacy 默认是兼容承诺也是渐进约束</b> — 新链逐点切换, 不一次性全局
+   屏蔽（那会破 830 测试与既有判分语义）; 切换进度由调用点 grep 报表跟踪
+   （执行轮给计数, 不装"已全切"）。<br>
+4. <b>本稿不给实测</b> — 拆分/隐藏/终评的数字在执行轮; 3.7–4.2pp 是 HCE 的
+   数, 不外推为 DWC 预期值。<br>
+5. <b>隐藏 ≠ 防住一切过拟合</b> — HCE 只降低选择信号被搜索污染的面;
+   agent 仍可能从 D_search 泛化作弊路径（S3Gym 抽题行为的反面教材在位）—
+   盲审计(稿⑤审计B)是第二道。
+</div>
+<div class="sub" style="margin-top:30px">设计稿⑥ · 裁决①（用户: 拆）·
+HCE 2603.26499 §3.3 · dev 10→8+2 分层机械规则 · legacy 默认零破坏 ·
+split_fingerprint 激活 dep 第二触发源 · 执行排在稿⑤(Pareto)之前 ·
+待过审 → 执行轮</div>
+</section>
+
+</main>
+</body>
+</html>

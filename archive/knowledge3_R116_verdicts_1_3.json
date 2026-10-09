@@ -1,0 +1,89 @@
+{
+ "round": "R116 · 裁决①③拍板轮 — ①HCE拆分设计稿(拆) + ③Pareto权重决定稿(用户授权自行决定)",
+ "date": "2026-10-09",
+ "裁决①(用户: 拆)": {
+  "稿": "docs/proposal_hce_split.html (12.4KB)",
+  "设计": "dev 10→D_search 8+D_val 2(分层:两类判分各有代表+层内字典序末位, 机械可复算) · judge.evaluate 加 split_mode(legacy默认零破坏/search返回None标签隐藏/select真判) · select_policy 短名单K=2终评只用v_val+平票回落val_tie_fallback · gap_search_vs_val读数(HCE 3.7-4.2pp同款监测)",
+  "dep联动": "split_fingerprint 进 evaluation_config ⇒ 激活 E1 留位的 deprecated_by_split_change 栏(拆前历史分分栏不混算, 不物理删)",
+  "比例诚实": "8/2=DWC适配非HCE原80/10/10(val=1抛硬币不可取), 如实标注"
+ },
+ "裁决③(用户授权我决定)": {
+  "稿": "docs/proposal_pareto_weights.html (14.7KB)",
+  "★ 我的权重决定": [
+   "决策层零权重: DecoEvo Eq.10 支配式验收 accept⟺∃k:Δ_k>δ ∧ ∀j:Δ_j≥−η — 原文明文 'No weighted cross-objective aggregation'(不做跨目标加权) ⇒ '谁定权重'被结构性消解(加权和正是13/15反向的机制温床)",
+   "三目标 {gain, cost, retention}: Table 8 六维中DWC已测前三, 真实权衡轴; 排除 novelty/liquidity(过程指标非验收目标)·stability(与gain同域高耦合=伪目标→进审计面)·transfer等(无测量不进K)",
+   "门参数(真要定值的): δ_gain=待校准(V抖动未测,执行轮重复采样回填) · δ_cost=10%(管理口径) · η_gain=0(=现行no_worse原样零放松) · η_cost=20% · η_ret=0(Recuris锚点判据=铁律非偏好)",
+   "展示层等权摘要: 明标'展示专用不参与任何裁决'(代码级断言:改展示权重不影响accept判定) ⇒ 等权虽是聚合但无裁决效力 ⇒ 谁定都不影响系统行为",
+   "多候选accept⇒非支配集按cost升序取首(cost无抖动最客观—R105c教训); 平票⇒在位者续任(E2同款保守)"
+  ],
+  "双审计": "审计A耦合(维间ρ, |ρ|>0.8标coupled警示伪多目标, n<8不装) + 审计B冻结/盲(提案不见验收数据—**依赖裁决①拆分**, ①先行③接上)",
+  "执行序": "①拆分先行 → ③Eq.10验收接在其上(稿⑥§⑥合流声明)"
+ },
+ "验证": "pytest 830 · gate 8/8 · e2e RC=0 — 三层全绿(设计轮零代码变动)",
+ "裁决板": "①拍拆(稿⑥出) · ②全链E0-E2完成 · ③我已决定(稿⑤出) · ④归因M0/M1完成(M2双前置待GA方案+再拍)",
+ "下一步": "两稿过审 → 执行轮: ⑥HCE拆分执行(一轮) → ⑤Eq.10验收执行(一轮); 或先过审再排队",
+ "inheritance": {
+  "gen": 116,
+  "at": "2026-10-09T17:00:00+08:00",
+  "parent_gen": 115,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 121,
+   "pytest": 830,
+   "inheritance_gen_prev": 115
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+docs/proposal_hce_split.html(裁决①设计稿) + docs/proposal_pareto_weights.html(裁决③权重决定稿) — 纯设计非代码",
+   "files": [
+    "docs/proposal_hce_split.html",
+    "docs/proposal_pareto_weights.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_hce_split.html §①③④⑤",
+     "claim": "HCE 2603.26499 §3.3 原文三分/标签隐藏/D_val终评"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_pareto_weights.html §②④",
+     "claim": "DecoEvo 2607.25675 Eq.10 + 'No weighted aggregation'明文"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2603.26499.md + 2607.25675.md (精读)",
+     "claim": "两篇基石(逐行精读档)"
+    }
+   ],
+   "numbers": {
+    "pytest": 830,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true,
+   "judge_fingerprint": "1cc940df",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 830 + gate 8/8 + e2e rc=0 (设计轮)",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r116.log",
+   "user_decision": "①=拆(用户拍) · ③=权重由我决定(用户授权) — 两稿出待过审"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

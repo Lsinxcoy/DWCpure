@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿⑤ Pareto 多目标验收与「权重」决定（R116 · 裁决③）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:236px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.formula{background:#1c2128;border:1px dashed var(--gold);border-radius:8px;
+padding:10px 16px;font-size:15px;text-align:center;margin:12px 0;
+font-family:Consolas,monospace;color:#e3b341}
+.quote{border-left:3px solid var(--purple);background:#131820;padding:10px 16px;
+font-size:13.5px;color:#c9d1d9;font-style:italic;margin:10px 0}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿⑤ · Pareto 多目标验收与「权重」决定</h1>
+<div class="sub">裁决③（用户授权: 深度分析后自行决定权重设计）· 2026-10-09 ·
+DecoEvo Eq.10 为锚 · 三目标 + 双审计 + 零决策权重</div>
+</header>
+<nav>
+<a href="#q">① 问题重述与我的决定</a>
+<a href="#anchor">② 文献锚: DecoEvo Eq.10</a>
+<a href="#obj">③ 哪几个目标（三目标 + 排除清单）</a>
+<a href="#weight">④ 权重设计（三层结构）</a>
+<a href="#gate">⑤ δ/η 门与校准</a>
+<a href="#audit">⑥ 双审计落地</a>
+<a href="#compat">⑦ 向后兼容与验收</a>
+<a href="#honest">⑧ 诚实条款</a>
+</nav>
+<main>
+
+<section id="q">
+<h2>① 问题重述与我的决定</h2>
+<div class="card gold">
+<b>裁决③原文义务</b>:「Pareto 验收 = 单目标 no_worse 的升级 —
+<b>需先答『哪几个目标、谁定权重』</b>」（用户授权: 我深度分析后决定）。<br><br>
+<b>我的决定（三句话版）</b>:
+</div>
+<div class="card purple">
+<b>1. 哪几个目标 → {gain, cost, retention} 三目标</b>（全部已有测量,
+不为 Pareto 造新测量; 频域不进验收的排除清单见 §③）。<br>
+<b>2. 谁定权重 → <u>决策层零权重</u></b>: 验收走 DecoEvo Eq.10 支配式判定
+（一维非平凡改善 + 全维不回退), <b>文献明文不做跨目标加权</b>; 权重问题
+被结构性消解。<br>
+<b>3. 权重还剩两个真参数 → δ（改善门）与 η（回退门）</b> — 这才是要定值的
+东西, 逐维给初值与校准来源（§⑤）。展示层的等权摘要 <b>明标无裁决效力</b>
+（§④）。
+</div>
+</section>
+
+<section id="anchor">
+<h2>② 文献锚 — DecoEvo Eq.10（逐字）</h2>
+<div class="formula">
+accept ⟺ ∃k∈K : Δ_k &gt; δ　且　∀j∈K : Δ_j ≥ −η　（Eq.10, DecoEvo 2607.25675）
+</div>
+<div class="quote">
+"at least one usable audit objective must show non-trivial improvement, and
+no objective may regress beyond η" — 原文同时明文:
+<b>"No weighted cross-objective aggregation"</b>（不做跨目标加权求和）。
+</div>
+<div class="card">
+<b>DecoEvo 教训链（精读 2607.25675）</b>: SC-CoEvo 未配四件套 ⇒ 分数耦合
+对照 <b>13/15 反向</b>; DecoEvo 自身靠 <b>分数解耦 + 盲审计 + Pareto 验收 +
+冻结审计集</b> 四件套避免该结局; 提案与验收<b>用不同数据</b>（rewriter 只见
+探针记录, 候选在隐藏集上评, 验收 rollouts/配对<b>冻结</b>）。<br>
+<b>⇒ 对裁决③的直接含义</b>: 「谁定权重」在正解里<b>不存在</b> — 加权求和
+正是 13/15 反向的机制温床（耦合分数被权重放大）; 答案是支配式验收 +
+两个门参数。
+</div>
+</section>
+
+<section id="obj">
+<h2>③ 哪几个目标 — 三目标 + 排除清单</h2>
+<table>
+<tr><th>目标</th><th>语义</th><th>测量（已有 — 不发明）</th><th>在 Eq.10 的角色</th></tr>
+<tr><td><b>gain</b></td><td>改进质量</td>
+<td>dream <code>v_by_version</code> / judge success_rate（R85/R100 已跑）</td>
+<td>主改善门对象（∃k Δ_k&gt;δ 可来自它）</td></tr>
+<tr><td><b>cost</b></td><td>效率（越低越好）</td>
+<td><code>CostLedger</code> 逐 term 账（R99 已落, 含评估成本 — §3.6.5 字面）</td>
+<td>改善门对象（变便宜=改善）+ 回退门（变贵超 η 拒）</td></tr>
+<tr><td><b>retention</b></td><td>旧能力保持</td>
+<td><code>regression_check</code> 保护组（终止条件③; R115 ε 策略键同源）</td>
+<td><b>纯约束</b>（∀j 门）: 有回退即 −η_ret 不满足 ⇒ 拒; 不作改善门</td></tr>
+</table>
+<div class="card red">
+<b>为什么是这三个（判据, 不是口味）</b>: 它们是综述 Table 8 六维中
+<b>DWC 已有测量</b>的前三个（gain/efficiency/retention）— 对应 RSI 的
+「更好 + 更省 + 不弄坏」三轴, 彼此有真实权衡（多探索 ⇒ gain↑cost↑;
+保守 ⇒ retention↑gain↓）。<br><br>
+<b>排除清单（诚实写明为什么不是目标）</b>:
+</div>
+<pre>novelty / liquidity      — 过程机制指标（服务 gain 的中间量）, 非验收目标;
+                           混入验收会稀释语义（机制与结果分层）
+stability (pass^k)       — 与 gain 同域高相关 ⇒ 加进去=伪多目标
+                           （DecoEvo 耦合教训的正面防范）→ 进审计面不进验收
+transfer / meta-recursion— Table 8 缺口清单, DWC 无测量 ⇒ 不进 K
+                           （无可测不进验收 — 不装）
+δ 覆盖 / 任务数          — 世界树状态量, 属 gain 的解释变量</pre>
+</section>
+
+<section id="weight">
+<h2>④ 权重设计 — 三层结构（决策零权重 / 门参数 / 展示等权）</h2>
+<div class="card green">
+<b>层1 · 决策层 = 零权重（唯一有裁决效力的层）</b>
+</div>
+<pre>Eq.10 支配式验收（对 M>1 select_policy / 提案 gating 通用）:
+  对候选 c 与在位者 0, 逐维算 Δ（归一化后）:
+    Δ_gain     = V(c) − V(0)                          （越大越好）
+    Δ_cost     = cost(0) − cost(c)                    （变便宜为正 — 方向翻转）
+    Δ_ret      = 1[无回归] − 1[无回归] 的退化量        （0 或负）
+  accept ⟺ (Δ_gain &gt; δ_gain  ∨  Δ_cost &gt; δ_cost)
+            ∧  Δ_gain ≥ −η_gain
+            ∧  Δ_cost ≥ −η_cost
+            ∧  Δ_ret  ≥ −η_ret
+  ⇒ **没有任何一处出现加权和** — 维度不可互换（gain 换不来 cost 回退）,
+    耦合维无法通过权重放大自己（13/15 反向的机制被结构性掐断）
+
+  平票规则（与 E2 一致的保守传统）:
+    不满足 accept ⇒ 在位者续任（challenger 归档不静默）
+    多个候选同时 accept ⇒ 全进非支配集, 按 cost 升序取首
+    （cost 是最客观破局轴: 确定性记账无抖动 — R105c 教训: V 有跑间抖动）</pre>
+<div class="card green">
+<b>层2 · 门参数层 = δ 与 η（真正要定值的"权重等价物"）→ §⑤</b>
+</div>
+<div class="card green">
+<b>层3 · 展示层 = 等权摘要（明标无裁决效力）</b>
+</div>
+<pre>score_display = mean( norm_gain, norm_cost, norm_retention )   # 归一到 [0,1]
+用途: 报告/趋势图的单值可读性
+硬标注（进代码注释与每次输出）:
+  "展示专用 — 不参与任何 accept/reject 判定; 判定只认层1 支配门;
+   等权 = 不引入先验独裁, 但仍是聚合 ⇒ 故无裁决权"
+⇒ 「谁定权重」的最终答案: 层1 没有权重可定; 层3 的等权不值得定
+   （无裁决效力 ⇒ 谁定都不影响系统行为）; 需要工程定值的只有层2 两门</pre>
+</section>
+
+<section id="gate">
+<h2>⑤ δ / η 门 — 逐维初值与校准来源</h2>
+<table>
+<tr><th>门</th><th>维</th><th>初值</th><th>来源/理由</th></tr>
+<tr><td rowspan="2">δ（改善门）</td><td>δ_gain</td>
+<td><b>待校准</b>（执行轮用 0, 同时跑重复采样测 V 抖动后回填）</td>
+<td>★ 改善必须 &gt; 跑间噪声才算真（R105c: 同配置跨跑 success 抖动 0.20 —
+V 的抖动**未测** ⇒ 不拍脑袋给数, 执行轮首跑补测（β/τ 同款纪律）</td></tr>
+<tr><td>δ_cost</td><td><b>10%</b>（相对基线成本下降 ≥10% 才算成本改善）</td>
+<td>CostLedger 确定性记账无抖动 ⇒ 门来自管理口径不是噪声; 10% 初值标注
+「管理口径, 可调」— 小于此的省钱不值得换代（换代有切换成本）</td></tr>
+<tr><td rowspan="3">η（回退门）</td><td>η_gain</td><td><b>0</b></td>
+<td>= 现行 <code>no_worse_than_current</code> 语义原样（best ≥ current）—
+单目标升级不放松既有底线, 零回退破坏</td></tr>
+<tr><td>η_cost</td><td><b>20%</b></td>
+<td>质量换成本是合法交易（gain 改善门通过时可容许变贵 ≤20%）; 超 20% =
+不可控膨胀, 拒（初值管理口径, 可调）</td></tr>
+<tr><td>η_ret</td><td><b>0</b>（硬）</td>
+<td>Recuris 锚点任务判据 + DWC「不破坏已会做」铁律 — 旧能力零回退是
+<b>判据不是偏好</b>（R115 ε 策略键只容忍 delta 数值口径, 不改此门）</td></tr>
+</table>
+<div class="card gold">
+<b>校准义务（进执行轮验收）</b>: 任一"待校准"门在报告里必带
+<code>calibration_note</code>（值从哪来/还缺什么）; δ_gain 回填后老档带
+supersedes 版本链（六段档 Humanlaya 属性）。
+</div>
+</section>
+
+<section id="audit">
+<h2>⑥ 双审计落地（DecoEvo 两类审计的 DWC 映射）</h2>
+<pre>审计A · 耦合审计（防 13/15 反向 — 分数耦合的正面探针）
+  每次多目标评估附维间 Pearson ρ 矩阵（gain/cost/retention, n≥8 样本）
+  |ρ| &gt; 0.8 ⇒ 该对维标 "coupled" 进审计报告 — 警示伪多目标
+  （耦合时 Eq.10 的 ∃k 门会被耦合维主导 — 报告必须显式带此警示, 不静默）
+  ρ 不足样本（n&lt;8）⇒ status=insufficient_samples（X2 不装数同族）
+
+审计B · 冻结/盲审计（提案与验收用不同数据 — DecoEvo 原文）
+  · 验收集 = 冻结 anchors（G2 truth_sha8 断言已有 — 文件 agent 不可写）
+  · 提案者不可见验收反馈 = DWC judge 独立 + r_priv 不读（既有判据）
+  · ★ 与裁决①(拆)的合流: D_val 拆出即「最终选择专用、搜索不可见」子集
+    —— 裁决① 的标签隐藏正是审计B 的 DWC 缺件, ①执行轮补上后
+    「提案不见验收数据」才完整（现: 部分满足）</pre>
+<div class="card purple">
+<b>合流关系</b>: 裁决③的审计B 依赖裁决①的 D_val 拆分 ⇒ 执行序:
+① 拆分先行 → ③ Eq.10 验收接在其上（本稿即 ③ 的设计, 执行排 ① 后）。
+</div>
+</section>
+
+<section id="compat">
+<h2>⑦ 向后兼容与验收清单（执行轮写死）</h2>
+<pre>兼容:
+  · 单维退化: 只有 gain 可比时（cost/ret 无基线）Eq.10 退化为
+    「Δ_gain&gt;δ_gain ∧ Δ_gain≥−0」= 现行 no_worse 的超集 — 现有
+    select_policy/no_worse 测试零破坏（argmax V 是 gain-only 特例）
+  · 不动锁值: δ/η 不进 PolicySpec 修订域（校准参数=外生, _LOCKED 同族）
+
+验收:
+  □ eq10_accept() 纯函数: 六种(Δ组合)边界用例全绿（改善∨改善 / 双门拒 /
+    η_ret 硬拒 / 平票拒 / cost 改善路径 / 非平凡门挡小改善）
+  □ 耦合审计: n≥8 出 ρ 矩阵 + |ρ|>0.8 标 coupled; n<8 insufficient
+  □ 展示层断言: score_display **不进入** accept 路径（源码级断言/破坏测试:
+    改展示权重不影响任何 accept 判定 ⇒ 红不红都无行为差（反向锁））
+  □ 向后兼容: 现有 select_policy/no_worse 测试原样绿（全量兜底）
+  □ 门参数校准注记在位; δ_gain 标 待校准 并跑重复采样补测方案
+  □ 三层验证 + 一档一提交 + 同批自洽</pre>
+</section>
+
+<section id="honest">
+<h2>⑧ 诚实条款</h2>
+<div class="card red">
+1. <b>本稿无实测</b> — δ_gain 的 V 抖动未测（执行轮首跑补）; δ_cost/η_cost
+   是<b>管理口径初值</b>非文献值（DecoEvo 未给跨域通用数值, 其 Eq.10 只给
+   形式）; η_gain/η_ret=0 来自既有判据不是新发明。<br>
+2. <b>三目标不声称完备</b> — Table 8 六维中 transfer/stability(已降审计面)/
+   meta-recursion 不在 K, 因为 DWC 无测量（缺口如实, 不造尺子凑维数）。<br>
+3. <b>ρ 耦合审计是探针不是证明</b> — n 小的 ρ 不稳定, 只作警示不做裁决。<br>
+4. <b>展示层等权仍是一种聚合</b> — 它无裁决效力是<b>设计约束</b>（代码级
+   断言保证）, 不是语义上"不算加权"; 有人将来把展示值接进裁决 = 违约,
+   破坏测试负责抓。<br>
+5. <b>与裁决②的边界</b>: Eq.10 管「验收什么」, epoch 对拍管「评估器怎么换」
+   — 两机制正交, 不复用对方的门。
+</div>
+<div class="sub" style="margin-top:30px">设计稿⑤ · 裁决③（用户授权自行决定）·
+DecoEvo 2607.25675 Eq.10 + "No weighted aggregation" 明文 · 三目标
+{gain, cost, retention} · 决策零权重/门参数两值/展示等权无裁决 ·
+依赖裁决①拆分先行 · 待过审 → 执行轮</div>
+</section>
+
+</main>
+</body>
+</html>
