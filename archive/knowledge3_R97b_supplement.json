@@ -1,0 +1,14 @@
+{
+ "round": "R97b · 用户追问『完全吃透没』→ 诚实盘点三缺口(50K) → 逐行补读 → 覆盖率 100%",
+ "date": "2026-10-09",
+ "盘点(诚实)": "我逐行 ~100K + 子代理 ~97K + 缺口 50K(§2.1 11K/L3 18K/L4 21K 仅 Finding)",
+ "补读": "§2.1 HCI 三观察 · L3 三不构成+Table5 九行+Evaluating L3 四对照+experience corruption · L4 Table6 24 行+蒸馏四类+Harness Benefit 分离+Library Drift+DecoEvo 循环性+HDSO 成对+persistent update failure 四模式 — NOTE_supplement.md",
+ "★ 新硬发现": [
+  "**Harness Updating Is Not Harness Benefit**: 更新能力独立于底模, 受益能力两失败模式(未激活/未忠实遵循) ⇒ 能力投资在解任务 agent 非 evolver — DWC 应可观测 Proposal 遵循率",
+  "Library Drift: 无界累积劣化**先于任务分数可见**; 退役过激比无引导更差(治理非单调)",
+  "L3 三不构成 + held-samples-identical 会移除分布适应(对照设计边界)",
+  "HCI first-party ×0.75 压自报(与 DWC 声称打折同向); 工具 agent 39.9 最低=RSI 主战场",
+  "persistent update failure 四模式: 最终分数无法分离机制, 须连证据链(DWC 知识档形态)"
+ ],
+ "声明": "综述正文 228,927 字符现在 100% 逐行(我+子代理抽验); 深度分层: 本体逐行/23篇逐行/9篇摘要级/~105 书目级 — 与 SYNTHESIS.md 诚实条款一致"
+}
