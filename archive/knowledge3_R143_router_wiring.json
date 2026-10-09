@@ -1,0 +1,79 @@
+{
+ "round": "R143 · Table 8 七桶路由接线 — TermReport.router + judge 三数口径投影 + 不猜桶降级",
+ "date": "2026-10-10",
+ "★ 接线设计(数据源全已判事实, router 不判分 — G2)": [
+  "n_pass/n_fail ← judge.score 三数口径（R14: not_evaluated 不混入 pass_rate ⇒ 同样不进桶判据）",
+  "cost ← CostLedger.term_cost（T4 台账真值; 冒烟实测 cost=1.0/budget=10.0 入观测）",
+  "budget_ceiling ← self.budget（C_{≤t+1} ≥ B 可预算面）",
+  "judge 未注入或无 verdict ⇒ routed=False + why『不猜桶』（★ 硬规则: 0 事实≠infra 失败 — 硬塞 n_pass=0/n_fail=0 会误落 infra_only!）"
+ ],
+ "★ 口径纪律(未评价≠环境失败)": "初版写了 infra_fail=not_evaluated*0（恒定混零的坏味道）⇒ 删: not_evaluated 是 R14 的『未判』口径, infra_fail 是『环境层失败』口径, 两者不同源 ⇒ infra 缺省不映射（未接线杜绝对值混淆）",
+ "★★ 诚实边界(同 R127 V 恒等家族)": "R25 自造观测 success 全 True ⇒ 注入 judge 后 verdict 全过 ⇒ bucket 恒 all_pass_efficient/wasteful ⇒ router 在自造路径下区分度冻结; 真区分须等 R126 真执行体（executor 注入）⇒ 本条已入 caveats + 测试锁边界（不假装区分度存在）",
+ "★ 坑(记档)": "TermReport 字段 patch 被我写成 patch(...) if False else None 短路（self-inflicted）⇒ AttributeError 抓到; 教训: patch 结果必须检查/回读（assert 落地的原则对 patch 本身也适用）",
+ "验证": "pytest 975(968+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 143,
+  "at": "2026-10-10T13:20:00+08:00",
+  "parent_gen": 142,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 151,
+   "pytest": 968,
+   "inheritance_gen_prev": 142
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "run_term.py TermReport.router 字段 + run_term() quintet 后接 Table 8 路由（judge 三数+cost+ceiling）",
+   "files": [
+    "src/dwc/harness/run_term.py",
+    "tests/test_r143_router_wiring.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r143_router_wiring.py (7 tests)",
+     "claim": "字段/三形态/cost 投影/口径纪律/诚实边界/不回归"
+    },
+    {
+     "type": "test",
+     "ref": "冒烟（已删脚本, 结果入档）",
+     "claim": "无 judge not_routed / 有 judge all_pass_efficient / cost=1.0 投影真"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/judge.py score L985",
+     "claim": "三数口径（pass/fail/not_evaluated）= 接线输入契约"
+    }
+   ],
+   "numbers": {
+    "pytest": 975,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 975 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ 队列①router 接线"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

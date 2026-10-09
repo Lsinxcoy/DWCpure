@@ -217,6 +217,9 @@ class TermReport:
     cost_after: Dict[str, Any] = field(default_factory=dict)
     #: 环节⑦
     quintet: Optional[Dict[str, Any]] = None
+    #: ★ R143 · 七桶路由结果（2609.14857 Table 8; judge 未注入时
+    #:   {"routed": False, "why": ...} — 不猜桶）
+    router: Dict[str, Any] = field(default_factory=dict)
     #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
     judgement: Optional[Dict[str, Any]] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
@@ -461,6 +464,38 @@ class TermRunner:
             U=("dwc.organs.evolver.select_winner · 已实现但未接本盘点"
                "（R141 如实标 partial）"))
         rep.quintet = q.to_dict()
+
+        # ── 4.5 ★ 七桶路由（R143 · 2609.14857 Table 8 接线）──
+        #   ★ 数据源（全部已判事实, router 不判分 — G2）:
+        #     · n_pass/n_fail ← judge.score 的三数口径（R14: not_evaluated
+        #       不混入 pass_rate ⇒ 同样不进桶判据）
+        #     · cost ← CostLedger term_cost（T4 台账真值）
+        #     · budget_ceiling ← self.budget（C_{≤t+1} ≥ B 的可预算面）
+        #   ★★ judge 未注入 ⇒ 无法判分 ⇒ router 显式降级（不是猜桶）:
+        #      "no_judge ⇒ 无已判事实可分桶"（若硬塞 n_pass=0/n_fail=0
+        #      会落 infra_only — 那是**误分类**! 0 事实 ≠ infra 失败）
+        router_info: Dict[str, Any] = {"routed": False}
+        if self.judge is not None and rep.judgement is not None:
+            v = rep.judgement
+            try:
+                from dwc.organs.router import TermObservation, route
+                # ★ infra_fail 不映射 not_evaluated: 未评价（R14 口径）
+                #   ≠ 环境层失败 ⇒ 缺省 0（杜绝对值混淆 — 未接线不等于 0）
+                obs = TermObservation(
+                    n_pass=int(v.get("pass", 0) or 0),
+                    n_fail=int(v.get("fail", 0) or 0),
+                    cost=float(self.cost.to_dict().get("term_cost", 0.0)),
+                    budget_ceiling=float(self.budget))
+                rr = route(obs)
+                router_info = {"routed": True, **rr}
+            except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7）
+                router_info = {"routed": False,
+                               "error": "%s: %s" % (type(exc).__name__, exc)}
+        else:
+            router_info = {"routed": False,
+                           "why": "judge 未注入或无 verdict ⇒ 无已判事实"
+                                  "可分桶（不猜桶 — 0 事实≠infra 失败）"}
+        rep.router = router_info
 
         # ── 5. ★ 生成下一轮任务源（不是"结算"）──
         # ★★ 依据 §9 缺口 (bz): "Measurement thereby becomes the trigger
