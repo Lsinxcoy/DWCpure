@@ -1,10 +1,10 @@
 {
  "protocol": "4a Transfer LLM 臂: R107 三维解耦+等预算+盲安慰剂原样, 只把 golden executor 换 LLM（prompt 带工件内容 ⇒ 记忆→执行内容通道打通）; 增益须超安慰剂(Verma 同款)",
  "seed": 42,
- "repeat": 1,
+ "repeat": 2,
  "budget": {
-  "n_author": 2,
-  "n_user": 3
+  "n_author": 4,
+  "n_user": 8
  },
  "author_tasks": [
   "code_fix_001"
@@ -14,76 +14,150 @@
  "arms_summary": {
   "transplant": {
    "rates": [
+    0.8571428571428571,
     0.6666666666666666
    ],
-   "mean_rate": 0.6666666666666666,
-   "n_parsed": 3,
-   "n_calls": 3
+   "mean_rate": 0.7619047619047619,
+   "n_parsed": 13,
+   "n_calls": 16
   },
   "blind_placebo": {
    "rates": [
-    1.0
+    0.75,
+    0.8
    ],
-   "mean_rate": 1.0,
-   "n_parsed": 2,
-   "n_calls": 3
+   "mean_rate": 0.775,
+   "n_parsed": 13,
+   "n_calls": 16
   },
   "baseline": {
    "rates": [
-    0.6666666666666666
+    0.8571428571428571,
+    0.75
    ],
-   "mean_rate": 0.6666666666666666,
-   "n_parsed": 3,
-   "n_calls": 3
+   "mean_rate": 0.8035714285714286,
+   "n_parsed": 15,
+   "n_calls": 16
   }
  },
  "attribution": {
-  "transplant_minus_placebo": -0.333333,
+  "transplant_minus_placebo": -0.013095,
   "content_effect_verdict": "negative"
  },
  "runs": [
   {
    "transplant": {
-    "n_steps": 3,
-    "success_rate": 0.6666666666666666,
+    "n_steps": 7,
+    "success_rate": 0.8571428571428571,
     "n_artifacts": 0,
     "outcomes": [
+     true,
+     true,
+     true,
+     true,
      false,
      true,
      true
     ],
     "llm": {
-     "n_calls": 3,
-     "n_parsed": 3,
-     "n_errors": 0
-    }
-   },
-   "blind_placebo": {
-    "n_steps": 2,
-    "success_rate": 1.0,
-    "n_artifacts": 1,
-    "outcomes": [
-     true,
-     true
-    ],
-    "llm": {
-     "n_calls": 3,
-     "n_parsed": 2,
+     "n_calls": 8,
+     "n_parsed": 7,
      "n_errors": 1
     }
    },
-   "baseline": {
-    "n_steps": 3,
-    "success_rate": 0.6666666666666666,
-    "n_artifacts": 0,
+   "blind_placebo": {
+    "n_steps": 8,
+    "success_rate": 0.75,
+    "n_artifacts": 1,
     "outcomes": [
+     false,
+     true,
+     true,
+     true,
+     true,
      false,
      true,
      true
     ],
     "llm": {
-     "n_calls": 3,
-     "n_parsed": 3,
+     "n_calls": 8,
+     "n_parsed": 8,
+     "n_errors": 0
+    }
+   },
+   "baseline": {
+    "n_steps": 7,
+    "success_rate": 0.8571428571428571,
+    "n_artifacts": 0,
+    "outcomes": [
+     true,
+     true,
+     true,
+     true,
+     false,
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 8,
+     "n_parsed": 7,
+     "n_errors": 1
+    }
+   }
+  },
+  {
+   "transplant": {
+    "n_steps": 6,
+    "success_rate": 0.6666666666666666,
+    "n_artifacts": 0,
+    "outcomes": [
+     false,
+     true,
+     true,
+     true,
+     true,
+     false
+    ],
+    "llm": {
+     "n_calls": 8,
+     "n_parsed": 6,
+     "n_errors": 2
+    }
+   },
+   "blind_placebo": {
+    "n_steps": 5,
+    "success_rate": 0.8,
+    "n_artifacts": 1,
+    "outcomes": [
+     true,
+     true,
+     false,
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 8,
+     "n_parsed": 5,
+     "n_errors": 3
+    }
+   },
+   "baseline": {
+    "n_steps": 8,
+    "success_rate": 0.75,
+    "n_artifacts": 0,
+    "outcomes": [
+     false,
+     true,
+     true,
+     true,
+     true,
+     false,
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 8,
+     "n_parsed": 8,
      "n_errors": 0
     }
    }

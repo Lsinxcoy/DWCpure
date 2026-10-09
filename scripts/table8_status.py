@@ -83,7 +83,8 @@ def main() -> int:
     args = ap.parse_args()
 
     pk = load("docs/pass_k_report.json")
-    tr = load("docs/transfer_attribution.json")
+    tr = load("docs/transfer_attribution.json")          # R107 golden 三臂
+    tr_llm = load("docs/transfer_llm_arm.json")          # R124 LLM 臂（真区分）
     ab = load("docs/ablation_attribution.json")
 
     rows = [
@@ -113,24 +114,34 @@ def main() -> int:
              len(pk.get("reports", [])) if pk else 0)),
          "cmd": "python scripts/pass_k_report.py",
          "since": "R100 pass_k + R118 5连跑校准 (R98 判'无'已过时)"},
-        {"dim": "Transfer", "status": "雏形",
-         "measure": "三臂 transplant/盲安慰剂/baseline (held-out 解耦)",
-         "reading": ("三臂 success=%s 内容效应=%s(%s) — golden 恒等="
-                     "结构必然 (R107 效度边界; 真区分须 LLM 臂)" % (
-                         ({k: v.get("success_rate")
-                           for k, v in tr["experiment"]["arms"].items()}
-                          if tr else "?"),
-                         (tr.get("attribution") or {})
-                         .get("transplant_minus_placebo") if tr else "?",
-                         (tr.get("attribution") or {})
-                         .get("content_effect_verdict") if tr else "?")),
-         "cmd": "python scripts/transfer_and_attribution.py",
-         "since": "R107 (真区分度缺 LLM 臂 ⇒ 雏形不 live)"},
-        {"dim": "Meta-recursion", "status": "雏形",
-         "measure": "六段链档案统计(链深/验收分布/复用状态) + 换代账本(停止决策)",
+        {"dim": "Transfer",
+         "status": "live" if tr_llm and tr_llm.get("status") !=
+         "not_computable" else "雏形",
+         "measure": "三臂 transplant/盲安慰剂/baseline（R107 协议）+ LLM "
+                    "executor 臂（R124 — 真内容通道）",
+         "reading": ("★ R124 LLM臂真区分: transplant=%s placebo=%s "
+                     "内容效应=%s(%s) — golden 恒等已解除; "
+                     "R107 golden 三臂 %s 为协议对照留档" % (
+                         tr_llm["arms_summary"]["transplant"]["mean_rate"],
+                         tr_llm["arms_summary"]["blind_placebo"]["mean_rate"],
+                         tr_llm["attribution"]["transplant_minus_placebo"],
+                         tr_llm["attribution"]["content_effect_verdict"],
+                         (tr or {}).get("attribution", {})
+                         .get("content_effect_verdict"))
+                     if tr_llm and tr_llm.get("status") != "not_computable"
+                     else "R124 LLM 未跑/不可用 ⇒ 见 R107 梯队"),
+         "cmd": "python scripts/transfer_llm_arm.py",
+         "since": "R107 协议 → R124 LLM 臂出真区分"},
+        {"dim": "Meta-recursion",
+         "status": "live" if os.path.exists(
+             os.path.join(ROOT, "src", "dwc", "foundation",
+                          "stop_criteria.py")) else "雏形",
+         "measure": ("六段链档案统计(链深/验收/复用) + 换代账本(stop 决策) "
+                    "★ R125 move_on 五判据判决表（continue/move_on/"
+                    "insufficient + decision_record 留痕）"),
          "reading": "",
          "cmd": "python scripts/table8_status.py",
-         "since": "R109 六段 + R120 换代账本 (goal停止决策完整形态未建)"},
+         "since": "R109 六段 + R120 账本 + R125 move-on 五判据"},
     ]
     mr = meta_recursion_stats()
     for r in rows:

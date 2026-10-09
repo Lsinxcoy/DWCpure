@@ -1,8 +1,8 @@
 {
  "protocol": "Table 8 六维现状盘点(综述§3.6.5): status+实测+取数命令 三联; R98 '四无'判定按现状重判",
  "summary": {
-  "live": 4,
-  "雏形": 2,
+  "live": 6,
+  "雏形": 0,
   "缺": 0
  },
  "dims": [
@@ -40,19 +40,19 @@
   },
   {
    "dim": "Transfer",
-   "status": "雏形",
-   "measure": "三臂 transplant/盲安慰剂/baseline (held-out 解耦)",
-   "reading": "三臂 success={'transplant': 1.0, 'blind_placebo': 1.0, 'baseline': 1.0} 内容效应=0.0(placebo_equal) — golden 恒等=结构必然 (R107 效度边界; 真区分须 LLM 臂)",
-   "cmd": "python scripts/transfer_and_attribution.py",
-   "since": "R107 (真区分度缺 LLM 臂 ⇒ 雏形不 live)"
+   "status": "live",
+   "measure": "三臂 transplant/盲安慰剂/baseline（R107 协议）+ LLM executor 臂（R124 — 真内容通道）",
+   "reading": "★ R124 LLM臂真区分: transplant=0.7619047619047619 placebo=0.775 内容效应=-0.013095(negative) — golden 恒等已解除; R107 golden 三臂 placebo_equal 为协议对照留档",
+   "cmd": "python scripts/transfer_llm_arm.py",
+   "since": "R107 协议 → R124 LLM 臂出真区分"
   },
   {
    "dim": "Meta-recursion",
-   "status": "雏形",
-   "measure": "六段链档案统计(链深/验收分布/复用状态) + 换代账本(停止决策)",
-   "reading": "链深=17 gen[109, 125] 验收={'accepted': 17} 复用状态={'pending': 17} 换代决策=16条 — 最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标",
+   "status": "live",
+   "measure": "六段链档案统计(链深/验收/复用) + 换代账本(stop 决策) ★ R125 move_on 五判据判决表（continue/move_on/insufficient + decision_record 留痕）",
+   "reading": "链深=17 gen[109, 125] 验收={'accepted': 17} 复用状态={'pending': 17} 换代决策=20条 — 最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标",
    "cmd": "python scripts/table8_status.py",
-   "since": "R109 六段 + R120 换代账本 (goal停止决策完整形态未建)"
+   "since": "R109 六段 + R120 账本 + R125 move-on 五判据"
   }
  ],
  "meta_recursion_detail": {
@@ -68,7 +68,7 @@
   "subsequent_use_statuses": {
    "pending": 17
   },
-  "duel_regime_decisions": 16,
+  "duel_regime_decisions": 20,
   "caveat": "最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标"
  },
  "caveats": [

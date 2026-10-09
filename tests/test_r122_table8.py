@@ -29,8 +29,12 @@ def test_table8_status_runs_and_six_dims_complete():
     dims = {x["dim"].split("(")[0]: x for x in d["dims"]}
     assert set(dims) == {"Adaptivity", "Efficiency", "Retention",
                          "Stability", "Transfer", "Meta-recursion"}
-    # 按现状重判的分布（R98 '四无'过时）
-    assert d["summary"] == {"live": 4, "雏形": 2, "缺": 0}
+    # ★ 分布断言弹性化（R124/R125 后 6 live — 不锁死数）:
+    #   硬断言两条: ① 无「缺」（六维全有测量）② live≥4（R122 基线之上的
+    #   演进只增不减 — 若掉回<4 = 有维度回退, 要查）
+    assert d["summary"]["缺"] == 0
+    assert d["summary"]["live"] >= 4
+    assert d["summary"]["live"] + d["summary"]["雏形"] == 6
     # 每维三联: status + measure + cmd（取数命令在位 — 声称/实测/取数）
     for x in d["dims"]:
         assert x["status"] in ("live", "雏形", "缺"), x
@@ -62,6 +66,7 @@ def test_stability_and_transfer_readings_real_keys():
     assert "mean_pass_k" in st and "pass^2" in st
     tr = dims["Transfer"]["reading"]
     assert "transplant" in tr and "placebo" in tr
-    assert "结构必然" in tr      # golden 恒等的效度边界如实
+    # R124 LLM 臂后 Transfer=live: 读数为 LLM 三臂（真区分）或 R107 留档
+    assert "内容效应" in tr
     ab = dims["Adaptivity"]["reading"]
     assert "1.0" in ab          # ablation 四 V 真值
