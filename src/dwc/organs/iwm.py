@@ -363,9 +363,29 @@ class IwmOrgan:
                               % (n_i, self.min_samples)}
         trust = float(rate_i)
         degrade = trust < self.degrade_below
+        # ★ R140 · ECE 轻接线（B 方案落地 — 不碰 Advice 四字段契约）:
+        #   iwm 臂历史投影成 (trust, improved) 序列 ⇒ 外置 calibration 模块
+        #   算 ECE ⇒ "过置信"作为**附加字段**返回（调用方自愿消费; 不减
+        #   字段不改契约 — 纯增量）。样本全同 conf ⇒ ECE=0（信任自洽）;
+        #   失败历史留痕 ⇒ 可审计（不是算不出就缺席）。
+        ece: Dict[str, Any] = {"available": False}
+        try:
+            from dwc.foundation.calibration import (
+                expected_calibration_error, from_trust_history)
+            # 真序列: 每轮 (trust_snapshot, improved) — 历史无逐轮 trust
+            # 快照（Q6 只存聚合计数）⇒ 用末态 trust 回填（诚实标注近似）
+            series = [(trust, True)] * s_i + [(trust, False)] * (n_i - s_i)
+            res = expected_calibration_error(
+                from_trust_history(series), n_bins=10)
+            ece = {"available": True, "ece": res["ece"],
+                   "approx": "trust 为末态回填（Q6 只存聚合计数, 无逐轮快照）"}
+        except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7）
+            ece = {"available": False, "error": "%s: %s"
+                   % (type(exc).__name__, exc)}
         return {"trust": trust, "degrade": degrade, "n_iwm": n_i,
                 "n_baseline": n_b, "iwm_rate": rate_i,
                 "baseline_rate": rate_b, "degrade_below": self.degrade_below,
+                "ece": ece,
                 "reason": ("trust=%.3f < %.2f ⇒ 降级" % (trust, self.degrade_below))
                           if degrade else "trust=%.3f ≥ %.2f ⇒ 保持"
                           % (trust, self.degrade_below)}

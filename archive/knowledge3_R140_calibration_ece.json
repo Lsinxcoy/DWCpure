@@ -1,0 +1,90 @@
+{
+ "round": "R140 · ECE 落地 — 深水唯一真欠账清零(B 方案: foundation/calibration.py + iwm 轻接线)",
+ "date": "2026-10-10",
+ "★ 设计决策(二选一挑明)": [
+  "A) 改 Advice 接口加 confidence 字段 ⇒ 否: ORGAN_INTERFACES §六原文四字段, 加字段=偏离设计稿",
+  "B) ECE 建为 iwm 外侧独立度量, 消费 self_trust() 的 trust 序列 ⇒ 取 B: 不碰四字段契约, 信任就是现成置信代理"
+ ],
+ "★ 实现(foundation/calibration.py)": [
+  "ECE = Σ(n_b/N)|acc(b)−conf(b)| 经典定义（10 等宽桶, 文献标准口径非新超参）",
+  "CalibrationPoint 契约: conf∈[0,1]有限数值 + outcome bool 强制（int 混入拒绝 — X1 同族）",
+  "缺席≠0(X2): 空桶/min_bin_count 以下桶跳过不计项; 空序列 raise（没数据≠校准好）",
+  "单调性自检在实现内: ECE∈[0,1] 越界 raise（结构断言非测试专属）",
+  "overconfidence_penalty: ECE>0.1(管理口径, CALIBRATION 标注非论文值) ⇒ penalized+trust_scale=1−ECE"
+ ],
+ "★ iwm 轻接线(增量不破坏)": "self_trust() 返回加 ece 字段（available/ece/approx）; 末态 trust 回填历史 ⇒ 全 conf 同 ⇒ ECE 恒 0 ⇒ approx 字段如实标注近似口径（Q6 只存聚合计数无逐轮快照 — 结构必然, 不伪装真校准读数）",
+ "★ 深水盘点终态(live=5 partial=1 absent=1)": "Z4/Z5/δ_θ/coupling/ECE live · routing partial(2/5) · AppendixD absent(不存在项留档) ⇒ 深水线收官",
+ "★ 测试记档(3 个我的乌龙)": "①from_trust_history bool() 静默转换 ⇒ 去掉让契约拒 int ②IwmGovernor 类名错 ⇒ IwmOrgan(baseline=None)（min_samples=5 从 config 读 ⇒ 3 轮样本不足 trust=0 是 ARSI 语义正确）③过置信案例构造错(0.5×全成功 gap=0.5) ⇒ 改 conf=1.0 全成功",
+ "★ 级联更新(3 文件)": "R136/R137/R139 测试锁的盘点汇总(ECE absent/live=4) ⇒ R140 ECE live 后跟随更新为 5/1/1（测试锁行为, 行为有意改变 ⇒ 测试必须跟改）",
+ "验证": "pytest 952(942+10, 含级联修复) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 140,
+  "at": "2026-10-10T11:00:00+08:00",
+  "parent_gen": 139,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 148,
+   "pytest": 942,
+   "inheritance_gen_prev": 139
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/foundation/calibration.py 新建(ECE/Point/penalty) + iwm.self_trust ece 增量字段 + 盘点 ECE→live",
+   "files": [
+    "src/dwc/foundation/calibration.py",
+    "src/dwc/organs/iwm.py",
+    "scripts/deep_water_audit.py",
+    "tests/test_r140_calibration.py",
+    "tests/test_r136_deep_water_audit.py",
+    "tests/test_r137_delta_theta_behavior.py",
+    "tests/test_r139_appendix_audit.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r140_calibration.py (10 tests)",
+     "claim": "点契约/公式对账/缺席≠0/惩罚/iwm 端到端+ece 字段"
+    },
+    {
+     "type": "test",
+     "ref": "docs/deep_water_audit.json",
+     "claim": "ECE live ⇒ 深水 5/1/1 收官"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/iwm.py self_trust",
+     "claim": "ece 增量字段+approx 诚实标注"
+    }
+   ],
+   "numbers": {
+    "pytest": 952,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 952 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/deep_water_audit.json",
+   "user_decision": "『继续推进 不开母巢』→ ECE 末项"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

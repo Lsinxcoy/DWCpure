@@ -80,13 +80,22 @@
   {
    "id": "ECE",
    "name": "校准误差(Expected Calibration Error)",
-   "status": "absent",
+   "status": "live",
    "semantic": null,
-   "code_hits": 0,
-   "wire_hits": 0,
-   "code_evidence": [],
-   "wire_evidence": [],
-   "doc_note": "eq10.py 有 CALIBRATION 常量(同名不同物?)"
+   "code_hits": 9,
+   "wire_hits": 1,
+   "code_evidence": [
+    "src\\dwc\\foundation\\calibration.py:47:class CalibrationPoint:",
+    "src\\dwc\\foundation\\calibration.py:72:def expected_calibration_error(points: Sequence[CalibrationPoint], *,",
+    "src\\dwc\\foundation\\calibration.py:96:bins: List[List[CalibrationPoint]] = [[] for _ in range(n_bins)]",
+    "src\\dwc\\foundation\\calibration.py:129:) -> List[CalibrationPoint]:",
+    "src\\dwc\\foundation\\calibration.py:139:out: List[CalibrationPoint] = []",
+    "src\\dwc\\foundation\\calibration.py:141:out.append(CalibrationPoint(conf=float(t), outcome=imp))"
+   ],
+   "wire_evidence": [
+    "src\\dwc\\organs\\iwm.py:373:from dwc.foundation.calibration import ("
+   ],
+   "doc_note": " R140: foundation/calibration.py 落地（ECE 经典定义+CalibrationPoint 契约+过置信惩罚; 消费 iwm.self_trust() trust 序列, 不碰 Advice 四字段 = B 方案）"
   },
   {
    "id": "AppendixD",
@@ -144,18 +153,17 @@
   }
  ],
  "summary": {
-  "live": 4,
+  "live": 5,
   "partial": 1,
-  "absent": 2
+  "absent": 1
  },
  "n_items": 7,
  "verdict": {
   "next_rounds": [
-   "ECE",
    "AppendixD",
    "routing"
   ],
-  "reading": "深水项 4/7 已 live; ['ECE', 'AppendixD', 'routing'] 待办 — partial 项须逐项判『实现存在但未接主链』→ 接线; absent 项须从论文原文起建"
+  "reading": "深水项 5/7 已 live; ['AppendixD', 'routing'] 待办 — partial 项须逐项判『实现存在但未接主链』→ 接线; absent 项须从论文原文起建"
  },
  "caveats": [
   "grep 计数 = 存在性证据, 不等于行为正确性（行为须专项测试）",

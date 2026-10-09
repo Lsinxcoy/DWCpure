@@ -61,9 +61,10 @@ def test_routing_partial_not_fooled_by_wording():
 def test_audit_summary_4_1_2():
     """汇总 4/1/2；待办三项（ECE/AppendixD/routing）。"""
     res = audit()
-    assert res["summary"] == {"live": 4, "partial": 1, "absent": 2}
+    # ★ R140: ECE 落地（calibration.py + iwm 轻接线）⇒ 5/1/1
+    assert res["summary"] == {"live": 5, "partial": 1, "absent": 1}
     by = {o["id"]: o["status"] for o in res["items"]}
-    assert by["ECE"] == "absent"
+    assert by["ECE"] == "live"
     assert by["AppendixD"] == "absent"
     assert by["routing"] == "partial"
 

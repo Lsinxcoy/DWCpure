@@ -53,7 +53,8 @@ def test_audit_statuses():
     #   step; R136 正则漏它 — 旧预期过期, 跟随新实测）
     assert by["delta_theta"] == "live"
     assert by["routing"] == "partial"
-    assert by["ECE"] == "absent" and by["AppendixD"] == "absent"
+    # ★ R140: ECE absent→live（calibration.py 落地 + iwm 轻接线）
+    assert by["ECE"] == "live" and by["AppendixD"] == "absent"
     # partial ⇒ code>0 且 wire=0; absent ⇒ 双 0; live ⇒ wire>0
     for o in res["items"]:
         if o["status"] == "partial":
@@ -70,8 +71,8 @@ def test_doc_has_next_rounds():
     assert os.path.exists(p), "先跑 scripts/deep_water_audit.py"
     d = json.load(open(p, encoding="utf-8"))
     assert d["n_items"] == 7
-    assert d["verdict"]["next_rounds"] == ["ECE", "AppendixD", "routing"]
-    assert d["summary"] == {"live": 4, "partial": 1, "absent": 2}
+    assert d["verdict"]["next_rounds"] == ["AppendixD", "routing"]
+    assert d["summary"] == {"live": 5, "partial": 1, "absent": 1}
 
 
 def test_audit_readonly():

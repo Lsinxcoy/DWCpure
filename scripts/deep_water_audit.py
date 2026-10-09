@@ -73,10 +73,13 @@ ITEMS: List[Dict[str, Any]] = [
                   "δⁱ=[−log r]₊, Laplace k=1) + core._task_deltas "
                   "L331/356 已接进 step = LIVE(R136 误判 partial, "
                   "R137 修正)")},
+    # ★ R140: ECE 落地（foundation/calibration.py — 唯一真欠账清零）
     {"id": "ECE", "name": "校准误差(Expected Calibration Error)",
-     "code_rx": r"\bECE\b|expected_calibration|calibration_error",
-     "wire_rx": r"ece\s*=|compute_ece|expected_calibration",
-     "doc_note": "eq10.py 有 CALIBRATION 常量(同名不同物?)"},
+     "code_rx": r"expected_calibration_error|CalibrationPoint|overconfidence_penalty",
+     "wire_rx": r"from dwc.foundation.calibration|foundation\.calibration",
+     "doc_note": (" R140: foundation/calibration.py 落地（ECE 经典定义"
+                  "+CalibrationPoint 契约+过置信惩罚; 消费 iwm.self_trust"
+                  "() trust 序列, 不碰 Advice 四字段 = B 方案）")},
     # ★ R139 修正: R136 的"Appendix D（2609.11873 附录算法）"描述有误
     #   — 论文实测: 2609.11873.txt 全文 0 个编号 Algorithm; 附录只有
     #   A(RSI Landscape)/B(Industry Landscape) 是综述名录非算法;

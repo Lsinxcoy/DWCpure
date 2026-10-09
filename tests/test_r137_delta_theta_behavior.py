@@ -148,4 +148,4 @@ def test_deep_water_audit_delta_theta_now_live():
                        encoding="utf-8"))
     by = {o["id"]: o["status"] for o in d["items"]}
     assert by["delta_theta"] == "live"
-    assert d["summary"] == {"live": 4, "partial": 1, "absent": 2}
+    assert d["summary"] == {"live": 5, "partial": 1, "absent": 1}
