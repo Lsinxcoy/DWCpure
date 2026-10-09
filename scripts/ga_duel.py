@@ -303,6 +303,10 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--executor", choices=["golden", "llm"], default="golden",
                     help="R127: llm=真执行臂（二期真区分; 默认 golden 恒等协议留档）")
+    ap.add_argument("--metric", choices=["dream_v", "judge_mean"],
+                    default="dream_v",
+                    help=("R130: judge_mean=R129 口径 — 对打目标判定改用" 
+                          "judge 逐任务分均值(max 饱和的整改路径②)"))
     ap.add_argument("--out", default=os.path.join(ROOT, "docs",
                                                   "ga_duel.json"))
     args = ap.parse_args()
@@ -326,7 +330,15 @@ def main() -> int:
 
     def eval_v(spec: PolicySpec, core: DWC = shared) -> float:
         """★ 一次 V 评估 = 同底单次 dream(policy_variants=[spec]) 的 v_by
-        （M1 ablation 基建的单跑取读; 两臂共享 core/ℋ ⇒ 起底方差受控）。"""
+        （M1 ablation 基建的单跑取读; 两臂共享 core/ℋ ⇒ 起底方差受控）。
+        ★ R130 metric=judge_mean: judge 逐任务分均值（R129 口径） —
+          注意 R129 已证该度量在**策略轴**恒等（判分由任务×执行体
+          定, spec 无因果）⇒ judge_mean 下 eval_v 对 spec 不敏感是真
+          理而非 bug; 真区分在**执行体轴**（--executor golden vs llm）。
+        """
+        if args.metric == "judge_mean":
+            pts = core.judge.task_scores(split="dev")
+            return (sum(p.score for p in pts) / len(pts)) if pts else 0.0
         rep = core.dream(k2_max=4, policy_variants=[spec])
         return float(rep.v_by_version.get(spec.pid, 0.0))
 
@@ -347,9 +359,32 @@ def main() -> int:
                 "fork_rule": "|I|<τ 可加拆分 / ≥τ 整体归档（稿③§④）"}
 
     # ② 两臂（各自独立预算与种群）
+    # ★★ R130 metric=judge_mean 的轴切换（R129 两轴纪律的直接落地）:
+    #   dream_v 口径 ⇒ 两臂共享 shared core（策略轴对打, 已知 max 饱和）
+    #   judge_mean 口径 ⇒ **两臂各自起底**（执行体轴对打）:
+    #     A 臂起底用 --executor 的值, B 臂起底用**另一**执行体
+    #     （golden↔llm 互补）⇒ judge 均值有真差异, Eq.10 才有裁决对象
+    #   ⇒ 这不是偷偷换比赛, 是稿⑦同款纪律的显式参数化: 度量决定轴,
+    #     轴决定共享什么（协议写进 out.protocol, 不隐式）
     bA, bB = Budgeter("single"), Budgeter("ga")
-    armA = run_arm_single(eval_v, judge10, bA, CURRENT)
-    armB = run_arm_ga(eval_v, judge10, bB, CURRENT, plan_for=plan_for)
+    if args.metric == "judge_mean":
+        other = "llm" if args.executor == "golden" else "golden"
+        coreB = DWC(3, 50, executor=None, db_path=":memory:")
+        coreB.judge.store = TaskScoreStore(dw_version="ga_duel_r130_b")
+        coreB.executor = make_executor(anchors, mode=other,
+                                       memory=coreB.memory)
+        for _ in range(2):
+            for tid in search_ids:
+                coreB.step({"task_id": tid, "kind": "dev"})
+        _evalA = lambda spec: eval_v(spec, shared)        # noqa: E731
+        _evalB = lambda spec: eval_v(spec, coreB)         # noqa: E731
+        armA = run_arm_single(_evalA, judge10, bA, CURRENT)
+        armB = run_arm_ga(_evalB, judge10, bB, CURRENT,
+                          plan_for=plan_for)
+    else:
+        armA = run_arm_single(eval_v, judge10, bA, CURRENT)
+        armB = run_arm_ga(eval_v, judge10, bB, CURRENT,
+                          plan_for=plan_for)
 
     # ③ 裁决（跑前锁死 — 稿⑦ §⑤）
     na, nb = armA["accepted_eq10"], armB["accepted_eq10"]
@@ -369,9 +404,18 @@ def main() -> int:
                   "note": "超额部分不计入读数（硬上限非软目标）"}
 
     out = {
-        "protocol": ("M2 对打(稿⑦): 同底同任务D_search同起点; 两臂各16次V"
+        "protocol": ("M2 对打(稿⑦): 同任务D_search同起点; 两臂各16次V"
                      "硬上限+逐笔记账; Eq.10裁决 accept>bestV>判A; 纪律"
-                     "先于输赢"),
+                     "先于输赢"
+                     + ("" if args.metric == "dream_v" else
+                        " | R130 metric=judge_mean ⇒ 执行体轴对打: "
+                        "A臂=%s起底, B臂=%s起底(互补执行体), 各带策略"
+                        "搜索; judge 逐任务分均值裁决(R129 口径解除 "
+                        "max 饱和)" % (args.executor,
+                                       ("llm" if args.executor == "golden"
+                                        else "golden")))),
+        "axis": ("strategy" if args.metric == "dream_v" else "executor"),
+        "metric": args.metric,
         "seed": args.seed,
         "params": {"B_arms": B_ARMS, "pop_n": POP_N, "max_gen": MAX_GEN,
                    "tournament_k": TOURNAMENT_K, "current": CURRENT,
@@ -390,10 +434,15 @@ def main() -> int:
         "discipline": discipline,
         "executor_mode": args.executor,
         "caveats": [
-            (("★ golden 确定性臂: 键改动在回放底不改 V ⇒ 两臂 best 恒等"
+            ((("★ 执行体轴: A 臂 golden(expected 全灌=结构必然 1.0) vs "
+               "B 臂 llm(真判分 0.9) ⇒ winner=A 是**度量假象** — "
+               "不可解读为『单点胜 GA 』或『GA 无益』: 两臂执行体不同"
+               "(R129 轴纪律), 比的是执行体×策略组合, 不是纯策略优劣")
+             if args.metric == "judge_mean" else
+             ("★ golden 确定性臂: 键改动在回放底不改 V ⇒ 两臂 best 恒等"
               " ⇒ 平局规则判 A — 结构必然(R114/R118 同源), 非对打失败"
               if identical else
-              "V 有区分度 — 记录方向(单次跑无方差)")
+              "V 有区分度 — 记录方向(单次跑无方差)"))
              if args.executor == "golden" else
              ("★ R127 LLM 臂: 真执行通道接在**起底 step**, 但 V 由 dream 的 "
               "ReplaySimulator 从世界树内已存观测算出 — 零 LLM 调用 ⇒ "

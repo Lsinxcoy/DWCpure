@@ -1,0 +1,80 @@
+{
+ "round": "R130 · M2 对打 judge_mean 口径 — 执行体轴真对打(A=golden/B=llm), M2 首次出非平局裁决",
+ "date": "2026-10-10",
+ "★ 真对打读数(两跑, 端点波动如实)": [
+  "跑1: A(golden)=1.0 vs B(LLM)=0.9",
+  "跑2: A(golden)=1.0 vs B(LLM)=0.875",
+  "裁决: winner=single basis=best_v — ★ R121 以来 M2 第一次非平局(此前全部 tie→incumbent)"
+ ],
+ "★★ 度量假象的诚实(本轮最重要)": "A 臂 golden=1.0 是 expected 全灌的结构必然, B 臂 LLM=0.9/0.875 是真判分 ⇒ winner=A 不可解读为【单点胜 GA】或【GA 无益】; caveats[0] 已写死此口径: 比的是执行体×策略组合, 不是纯策略优劣",
+ "★ 轴切换设计(R129 两轴纪律的直接落地)": "dream_v 口径⇒两臂共享 core(策略轴, max 饱和已知); judge_mean 口径⇒两臂各自起底互补执行体(A=golden/B=llm, 执行体轴) ⇒ 度量决定轴, 轴决定共享什么(协议显式写进 out.protocol 不隐式)",
+ "★ 端点波动的顺带证据": "同参数两跑 B=0.9 vs 0.875 ⇒ R124 repeat 纪律再次被实证: 单跑无方差, 方向结论须 repeat",
+ "★ 方法论闭环(四轮)": "R127 接线 ⇒ R128 max 饱和根因 ⇒ R129 judge 均值解除饱和 ⇒ R130 执行体轴真对打出非平局 — 恒等问题从现象到根因到补救到落地全链打通",
+ "验证": "pytest 893(889+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 130,
+  "at": "2026-10-10T02:20:00+08:00",
+  "parent_gen": 129,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 138,
+   "pytest": 889,
+   "inheritance_gen_prev": 129
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "ga_duel.py --metric judge_mean(执行体轴两臂各自起底+度量假象caveat+protocol/axis/metric字段) + 4 测试",
+   "files": [
+    "scripts/ga_duel.py",
+    "tests/test_r130_ga_duel_judge_mean.py",
+    "docs/ga_duel_r130.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r130_ga_duel_judge_mean.py (4 tests)",
+     "claim": "CLI/字段/度量假象/真区分/默认零破坏"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/ga_duel_r130.json#verdict",
+     "claim": "A=1.0 vs B=0.875/0.9, winner=single basis=best_v(非平局)"
+    },
+    {
+     "type": "test",
+     "ref": "archive/knowledge3_R129_judge_score_metric.json",
+     "claim": "R129 两轴纪律 = 本轮的协议依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 893,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 893 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/ga_duel_r130.json",
+   "user_decision": "『继续推进』→ R129 的直接落地"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

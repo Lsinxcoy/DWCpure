@@ -1,5 +1,7 @@
 {
- "protocol": "M2 对打(稿⑦): 同底同任务D_search同起点; 两臂各16次V硬上限+逐笔记账; Eq.10裁决 accept>bestV>判A; 纪律先于输赢",
+ "protocol": "M2 对打(稿⑦): 同任务D_search同起点; 两臂各16次V硬上限+逐笔记账; Eq.10裁决 accept>bestV>判A; 纪律先于输赢",
+ "axis": "strategy",
+ "metric": "dream_v",
  "seed": 42,
  "params": {
   "B_arms": 16,
