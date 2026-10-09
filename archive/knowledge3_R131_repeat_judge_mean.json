@@ -1,0 +1,85 @@
+{
+ "round": "R131 · judge_mean repeat 序列 — 方向稳定性证据(A 恒1.0 / B 恒定<1.0, 端点波动 0.75-0.95 摆幅0.2)",
+ "date": "2026-10-10",
+ "★ 三跑序列(seed 42/43/44, 其余不动)": [
+  "A(golden): 1.0 / 1.0 / 1.0 — median=1.0 min=max=1.0 恒等(结构必然: expected 全灌)",
+  "B(LLM): 0.944 / 0.75 / 0.95 — median=0.944, 全 <1.0, 摆幅 0.75-0.95 = **0.2**"
+ ],
+ "★★ 端点波动的如实量化": "B 摆幅 0.2 远大于 A 的 0 ⇒ R124 repeat 纪律再次被实证且这次量到了幅度: 单跑(0.875/0.9)会低估波动 ~2-4 倍 ⇒ 以后 LLM 臂读数必须 repeat≥3 才能谈方向",
+ "★ 方向结论(执行体轴, 度量假象同 R130)": "A>B 稳定 = golden expected 全灌(1.0) vs LLM 真判分(<1.0) ⇒ 执行体轴方向稳定; **不是策略优劣方向** — 单点 vs GA 谁好仍未被本口径测出(两臂内部的策略轴差异被执行体差淹没)",
+ "★ 脚本与纪律": "scripts/repeat_judge_mean.py 外部包装(不改 ga_duel 协议, R121-R130 冻结) + n<3 硬拒绝(单跑无方向) + _stats 手写 median/min/max/双旗(零依赖纪律)",
+ "★ 坑(记档)": [
+  "terminal 后台长任务(>5min)在 gateway 侧不稳(R124/R127/R131 三次同款被杀) ⇒ 长 LLM 跑必须前台分批(each ≤280s) 或 detach+错峰轮询",
+  "execute_code cell 300s 上限 — ga_duel llm 单跑 170-240s 每次恰能跑完一次, 不可并跑"
+ ],
+ "验证": "pytest 897(893+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 131,
+  "at": "2026-10-10T03:30:00+08:00",
+  "parent_gen": 130,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 139,
+   "pytest": 893,
+   "inheritance_gen_prev": 130
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/repeat_judge_mean.py(外部repeat包装+n<3硬拒绝+手写stats) + 4 测试 + docs/repeat_judge_mean.json",
+   "files": [
+    "scripts/repeat_judge_mean.py",
+    "tests/test_r131_repeat_judge_mean.py",
+    "docs/repeat_judge_mean.json",
+    "docs/ga_duel_repeat_0.json",
+    "docs/ga_duel_repeat_1.json",
+    "docs/ga_duel_repeat_2.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r131_repeat_judge_mean.py (4 tests)",
+     "claim": "stats/n<3拒绝/文档结构/方向纪律"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/repeat_judge_mean.json#stats",
+     "claim": "A 恒1.0, B median 0.944 min 0.75 max 0.95 全<1"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/ga_duel_r130.json",
+     "claim": "R130 两跑 B=0.9/0.875 ⇒ 本 repeat 的起因"
+    }
+   ],
+   "numbers": {
+    "pytest": 897,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 897 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/repeat_judge_mean.json",
+   "user_decision": "『继续』→ R130 留下的 repeat≥3"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

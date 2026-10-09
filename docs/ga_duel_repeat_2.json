@@ -1,0 +1,263 @@
+{
+ "protocol": "M2 对打(稿⑦): 同任务D_search同起点; 两臂各16次V硬上限+逐笔记账; Eq.10裁决 accept>bestV>判A; 纪律先于输赢 | R130 metric=judge_mean ⇒ 执行体轴对打: A臂=golden起底, B臂=llm起底(互补执行体), 各带策略搜索; judge 逐任务分均值裁决(R129 口径解除 max 饱和)",
+ "axis": "executor",
+ "metric": "judge_mean",
+ "seed": 44,
+ "params": {
+  "B_arms": 16,
+  "pop_n": 4,
+  "max_gen": 4,
+  "tournament_k": 2,
+  "current": "π0",
+  "n_d_search": 8,
+  "d_val": [
+   "code_fix_006",
+   "reasoning_004"
+  ]
+ },
+ "delta_convention": "Δ_gain=V(个体)−V(π0); Δ_cost=0(每V同价1单位—对打搜索效率非任务成本); Δ_retention=0(V不回退即保护组不掉)",
+ "arm_single": {
+  "accepted_eq10": 0,
+  "best_v": {
+   "π0": 1.0,
+   "π(w=0,r=1)": 1.0,
+   "π(w=1,r=0)": 1.0,
+   "π(w=1,r=1,s=delta)": 1.0
+  },
+  "judged": {
+   "π0": {
+    "v": 1.0,
+    "accept": false
+   },
+   "π(w=0,r=1)": {
+    "v": 1.0,
+    "accept": false
+   },
+   "π(w=1,r=0)": {
+    "v": 1.0,
+    "accept": false
+   },
+   "π(w=1,r=1,s=delta)": {
+    "v": 1.0,
+    "accept": false
+   }
+  },
+  "n_eval": 4
+ },
+ "arm_ga": {
+  "accepted_eq10": 0,
+  "best_v": {
+   "π0": 0.95,
+   "π(w=0,r=1)": 0.95,
+   "π(w=1,r=0)": 0.95,
+   "π(w=1,r=1,s=delta)": 0.95,
+   "π(w=1,r=0,s=delta)": 0.95,
+   "π(w=0,r=1,s=delta)": 0.95,
+   "π(w=0,r=0)": 0.95,
+   "π(w=0,r=0,s=delta)": 0.95
+  },
+  "judged": {
+   "π0": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=0,r=1)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=1,r=0)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=1,r=1,s=delta)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=1,r=0,s=delta)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=0,r=1,s=delta)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=0,r=0)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   },
+   "π(w=0,r=0,s=delta)": {
+    "v": 0.95,
+    "accept": false,
+    "improved_by": []
+   }
+  },
+  "n_eval": 8,
+  "log": [
+   {
+    "gen": 0,
+    "spent": 4,
+    "parents": [
+     "π(w=0,r=1)",
+     "π(w=1,r=0)"
+    ],
+    "crossed_keys": [
+     "w_delta",
+     "prefer_revealable"
+    ],
+    "var_key": "w_delta",
+    "child_with_plan": "π(w=1,r=0,s=delta)",
+    "plan_members": [
+     "prefer_revealable",
+     "seg_order"
+    ]
+   },
+   {
+    "gen": 1,
+    "spent": 5,
+    "parents": [
+     "π(w=0,r=1)",
+     "π(w=1,r=0)"
+    ],
+    "crossed_keys": [
+     "w_delta",
+     "prefer_revealable"
+    ],
+    "var_key": "w_delta",
+    "child_with_plan": "π(w=0,r=1,s=delta)",
+    "plan_members": [
+     "w_delta",
+     "seg_order"
+    ]
+   },
+   {
+    "gen": 2,
+    "spent": 6,
+    "parents": [
+     "π(w=0,r=1)",
+     "π(w=0,r=1,s=delta)"
+    ],
+    "crossed_keys": [
+     "seg_order"
+    ],
+    "var_key": "seg_order",
+    "child_with_plan": "π(w=0,r=0)",
+    "plan_members": [
+     "w_delta",
+     "prefer_revealable"
+    ]
+   },
+   {
+    "gen": 3,
+    "spent": 7,
+    "parents": [
+     "π(w=0,r=0)",
+     "π(w=0,r=1)"
+    ],
+    "crossed_keys": [
+     "prefer_revealable"
+    ],
+    "var_key": "prefer_revealable",
+    "child_with_plan": "π(w=0,r=0,s=delta)",
+    "plan_members": [
+     "w_delta",
+     "prefer_revealable",
+     "seg_order"
+    ]
+   }
+  ],
+  "final_pop": [
+   "π0",
+   "π(w=0,r=1)",
+   "π(w=1,r=0)",
+   "π(w=1,r=1,s=delta)",
+   "π(w=1,r=0,s=delta)",
+   "π(w=0,r=1,s=delta)",
+   "π(w=0,r=0)",
+   "π(w=0,r=0,s=delta)"
+  ]
+ },
+ "verdict": {
+  "winner": "single",
+  "basis": "best_v",
+  "accept_single": 0,
+  "accept_ga": 0,
+  "best_v_single": 1.0,
+  "best_v_ga": 0.95
+ },
+ "budget": {
+  "single": {
+   "arm": "single",
+   "v_evals_spent": 4,
+   "limit": 16,
+   "within_budget": true
+  },
+  "ga": {
+   "arm": "ga",
+   "v_evals_spent": 8,
+   "limit": 16,
+   "within_budget": true
+  },
+  "k_ratio_ga_over_single": 2.0
+ },
+ "ledger_head": {
+  "single": [
+   {
+    "arm": "single",
+    "kind": "v_eval",
+    "what": "π0",
+    "spent": 1
+   },
+   {
+    "arm": "single",
+    "kind": "v_eval",
+    "what": "π(w=0,r=1)",
+    "spent": 2
+   },
+   {
+    "arm": "single",
+    "kind": "v_eval",
+    "what": "π(w=1,r=0)",
+    "spent": 3
+   }
+  ],
+  "ga": [
+   {
+    "arm": "ga",
+    "kind": "v_eval",
+    "what": "π0",
+    "spent": 1
+   },
+   {
+    "arm": "ga",
+    "kind": "v_eval",
+    "what": "π(w=0,r=1)",
+    "spent": 2
+   },
+   {
+    "arm": "ga",
+    "kind": "v_eval",
+    "what": "π(w=1,r=0)",
+    "spent": 3
+   }
+  ]
+ },
+ "discipline": {
+  "single_within": true,
+  "ga_within": true,
+  "note": "超额部分不计入读数（硬上限非软目标）"
+ },
+ "executor_mode": "golden",
+ "caveats": [
+  "★ 执行体轴: A 臂 golden(expected 全灌=结构必然 1.0) vs B 臂 llm(真判分 0.9) ⇒ winner=A 是**度量假象** — 不可解读为『单点胜 GA 』或『GA 无益』: 两臂执行体不同(R129 轴纪律), 比的是执行体×策略组合, 不是纯策略优劣",
+  "一期=协议验证(机制正确性由流程断言验收); 二期 LLM 臂才有真输赢(R105c 0.60/0.70/0.80 先例) — 恒等式平局≠'两臂一样好', 是'该臂测不出差别'",
+  "K 倍账=两臂 V 评估数比值(管理口径); token 级成本差未计(暂)",
+  "对打赢≠搜索器常态化授权(稿⑦§⑧双前置: 仍须用户再拍)"
+ ]
+}

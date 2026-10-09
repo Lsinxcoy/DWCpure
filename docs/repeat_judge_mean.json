@@ -1,0 +1,68 @@
+{
+ "protocol": "R131: ga_duel --metric judge_mean 跑 3 次(seed 递增 42/43/44, 其余不动) ⇒ 序列 median/min/max + 方向稳定性; 单跑无方向结论(R124/R130 纪律)",
+ "n": 3,
+ "executor": "golden",
+ "seed0": 42,
+ "runs": [
+  {
+   "seed": 42,
+   "rc": 0,
+   "best_v_single": 1.0,
+   "best_v_ga": 0.9444444444444444,
+   "winner": "single",
+   "basis": "best_v",
+   "accept_single": 0,
+   "accept_ga": 0
+  },
+  {
+   "seed": 43,
+   "rc": 0,
+   "best_v_single": 1.0,
+   "best_v_ga": 0.75,
+   "winner": "single",
+   "basis": "best_v",
+   "accept_single": 0,
+   "accept_ga": 0
+  },
+  {
+   "seed": 44,
+   "rc": 0,
+   "best_v_single": 1.0,
+   "best_v_ga": 0.95,
+   "winner": "single",
+   "basis": "best_v",
+   "accept_single": 0,
+   "accept_ga": 0
+  }
+ ],
+ "stats": {
+  "A_golden": {
+   "n": 3,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "all_equal_1.0": true,
+   "all_below_1.0": false
+  },
+  "B_llm": {
+   "n": 3,
+   "median": 0.9444444444444444,
+   "min": 0.75,
+   "max": 0.95,
+   "all_equal_1.0": false,
+   "all_below_1.0": true
+  },
+  "n_failed_runs": 0
+ },
+ "verdict": {
+  "A_saturated_always": true,
+  "B_below_1_always": true,
+  "direction": "A>B 稳定（golden 结构必然 1.0 vs LLM 真判分恒定 <1） — 但这是执行体轴的方向, 不是策略优劣方向（度量假象同 R130）"
+ },
+ "caveats": [
+  "winner=A 是度量假象（golden expected 全灌=1.0）— R130 同款, 不解读为策略优劣",
+  "median/min/max 不做显著性检验（n=3 端点右尾未核）",
+  "seed 只变 GA 搜索起点 — 执行体差异不因 seed 变; 端点波动是真随机源",
+  "重复跑是外部包装 ⇒ 不改 ga_duel 协议（R121-R130 冻结不动）"
+ ]
+}
