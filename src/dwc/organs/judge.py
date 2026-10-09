@@ -1005,7 +1005,8 @@ class Judge:
         }
 
     def regression_check(self, baseline: Dict[str, Any],
-                         current: Dict[str, Any]) -> Dict[str, Any]:
+                         current: Dict[str, Any], *,
+                         epsilon: float = 0.0) -> Dict[str, Any]:
         """★ 保护组回归检测（终止条件③ 的实现基础）。
 
         ★★★★ R24 实测修正: 初版用「两侧 not_evaluated 都为 0」当可比条件
@@ -1017,7 +1018,13 @@ class Judge:
             （相同 ⇒ 可比，哪怕只覆盖了 20%）
 
         ★★ 口径（ERROR_AND_TERM §2.3 条件③: r̂ ≤ ε 不满足即触发）:
-          ⇒ delta < 0 ⇒ regression；delta ≥ 0 ⇒ ok
+          ⇒ delta < -ε ⇒ regression；delta ≥ -ε ⇒ ok
+          ★ E2（设计稿④ §④ 评估策略层:「回归判据的参数」明列可演化）:
+            ε = regression_check 的**策略键** — 默认 0.0 = 现行行为
+            （delta<0 同式, 向后兼容零破坏）; ε>0 = 容忍小回退的
+            challenger 提案, 走 epoch 点界对拍（challenger_duel）。
+          ★ 分层归属: ε 是**策略参数**不是判分执行 — diff 对值比对不受 ε
+            影响（锚层不动, 分层表 L-inner/L-mid 之别在这一行实现）。
         """
         def graded_set(d):
             return {x["task_id"] for x in d.get("details", [])
@@ -1039,14 +1046,21 @@ class Judge:
                      if x.get("success") is True and x["task_id"] in b_ids)
         c_pass = sum(1 for x in current["details"]
                      if x.get("success") is True and x["task_id"] in c_ids)
+        if not (isinstance(epsilon, (int, float))
+                and not isinstance(epsilon, bool) and epsilon >= 0):
+            raise JudgeError(
+                "★ epsilon 须 ≥0 数值（r̂≤ε 口径 — 负容忍=反向放水非法）, "
+                "实为 %r" % (epsilon,))
         eps = b_pass / len(b_ids)
         cur = c_pass / len(c_ids)
         delta = cur - eps
         return {
-            "verdict": "ok" if delta >= 0 else "regression",
+            # ★ E2 策略键: delta ≥ -ε ⇒ ok（ε=0 ⇒ delta≥0 现行同式零破坏）
+            "verdict": "ok" if delta >= -float(epsilon) else "regression",
             "baseline_pass_rate": eps,
             "current_pass_rate": cur,
             "delta": delta,
+            "epsilon": float(epsilon),   # ★ 判定所用容忍度（可审计）
             "n_compared": len(b_ids),
             "★": ("只在这批判过的任务上比；未判的不进比较"
                   "（未评价不许当 False 也不许当 True）"),

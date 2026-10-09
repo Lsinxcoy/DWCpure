@@ -1,0 +1,84 @@
+{
+ "round": "R115 · E2执行轮 — challenger首次对拍(平票在位者) + regression ε策略键 + dep(z)真实联动",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "judge.regression_check 加 epsilon kwarg(默认0=现行同式零破坏; r̂≤ε原文口径; 负ε拒JudgeError; 返回含epsilon可审计; L-inner diff判分不受ε影响=分层表两层在代码之别)",
+  "scripts/challenger_duel.py: challenger=ε 0→0.02(稿§④『回归判据的参数』明列策略键) · 准入=meta-F1同锚对拍 · 裁决=平票判在位者(RQGM字面) · 赢⇒EpochGuard.close_epoch+dep弃置, 输⇒在位者续任+challenger归档不静默(G7)"
+ ],
+ "★ 首次对拍结果(呈用户过目 — 稿§⑧承诺)": {
+  "对拍": "incumbent F1=1.0 vs challenger F1=1.0 ⇒ tie=True ⇒ incumbent_holds(在位者续任, 未换代)",
+  "行为差异证据": "同回归样本(delta=-0.005): 在位者判regression / challenger(ε=.02)判ok — 策略键真有效; **描述性证据不裁决**(稿只认F1, 不发明裁决项)",
+  "结构性平票诚实注记": "ε是策略参数不进diff判分 ⇒ meta-F1对ε不敏感 = 分层设计(L-inner不动)的正确表现, 非对拍失败; 要换代证据须challenger在锚上净胜(meta锚扩展/更强策略键)",
+  "可比性": "无换代 ⇒ broken_since=None 连续; challenger归档archived_not_adopted"
+ },
+ "★ dep(z)真实联动(字节粒度观察)": "本轮加ε kwarg改judge源字节 ⇒ fp变 ⇒ R113/R114档进deprecated(2), R115档(新fp)active — dep按字节指纹的**保守正确**: 兼容性扩展也触发; 行为等价由830全绿支撑; 是否恢复=用户裁; 测试改对账断言(count==rows)不锁死0(时点假设被本轮打破的教训)",
+ "验证": "pytest 830(828+2) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "E2验收(稿§⑧)": "对拍可复跑✓ · 平票判在位者断言✓ · 归档不静默✓ · 可比性字段✓ · ε默认零破坏+负拒探针✓",
+ "裁决②状态": "E0稿→E1记录约束层(R113)→E2首次对拍(R115) 三段全过; 换代常态化待用户过目本次结果后(稿承诺)",
+ "下一步": "① HCE拍定(拆/不拆dev, dep的split_change栏等它) → ③ Pareto(目标+权重或等权)",
+ "inheritance": {
+  "gen": 115,
+  "at": "2026-10-09T16:00:00+08:00",
+  "parent_gen": 114,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 120,
+   "pytest": 828,
+   "inheritance_gen_prev": 114
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "judge.regression_check epsilon kwarg(默认0零破坏) + scripts/challenger_duel.py(对拍/平票/归档/dep联动)",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "scripts/challenger_duel.py",
+    "tests/test_r115_e2_duel.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r115_e2_duel.py (2 tests)",
+     "claim": "ε默认零破坏/负拒 + 对拍平票归档可比连续全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/challenger_duel.json#duel",
+     "claim": "首次对拍 F1 1.0/1.0 tie→incumbent_holds + 行为差异证据"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_evaluator_coevolution.html §⑤⑧",
+     "claim": "E2=过审稿字面(平票在位者RQGM)"
+    }
+   ],
+   "numbers": {
+    "pytest": 830,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true,
+   "judge_fingerprint": "1cc940df",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 830 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r115b.log",
+   "user_decision": "E2 首次对拍结果已呈报(平票未换代) — 换代常态化待用户过目(稿§⑧承诺)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
