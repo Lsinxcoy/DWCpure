@@ -1,0 +1,34 @@
+{
+ "probe": "R129 整改路径②实证: 同起底下 A=论文式V(max聚合) vs B=judge逐任务分均值(TS3) — 若 A 恒等而 B 有区分 ⇒ 区分度来自度量选择; 都恒等 ⇒ 任务集对当前执行体过易（难度不足, 非度量问题）",
+ "executor": "llm",
+ "n_search": 8,
+ "judged_points_before": 0,
+ "judged_points_after": 5,
+ "per_task_score": {
+  "code_fix_001": 1.0,
+  "code_fix_002": 0.5,
+  "code_fix_003": 1.0,
+  "code_fix_004": 1.0,
+  "code_fix_005": 1.0
+ },
+ "group_scores": {
+  "code_repair": 0.9
+ },
+ "metrics": {
+  "A_dream_v_pi0": 1.0,
+  "B_judge_mean": 0.9,
+  "n_full_marks": 4,
+  "n_zero_marks": 0,
+  "n_mixed": false
+ },
+ "verdict": {
+  "A_saturated": true,
+  "B_separates": true,
+  "reading": "B 有区分（均值 0.9000) — max 饱和被均值解除; 但注意: judge 均值在**策略轴**上不变（判分由任务×执行体定, 与 spec 无因果）⇒ 真区分须在**执行体轴**上比（换 executor 才有区分）"
+ },
+ "caveats": [
+  "judge 均值对策略变体无因果 — 探针如实分两轴: 策略轴(恒等)/执行体轴(才可能有区分)",
+  "本脚本一次跑无方差; 端点波动须 repeat 才有方向结论(R124 同)",
+  "golden 替身下 expected 全灌 ⇒ B 必 1.0（结构必然, 预期内）"
+ ]
+}

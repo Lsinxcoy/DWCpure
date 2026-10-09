@@ -1,0 +1,79 @@
+{
+ "round": "R129 · judge 逐任务分度量 — R128 整改路径②实证成功: max 饱和被均值解除(LLM 臂 A=1.0 vs B=0.9)",
+ "date": "2026-10-10",
+ "★ 核心实证(R128 整改路径②被证实)": [
+  "LLM 臂同起底: A(论文式 dream V, max聚合)=1.0 | B(judge 逐任务分均值)=0.9",
+  "逐任务明细: 001=1.0 · 002=0.5 · 003=1.0 · 004=1.0 · 005=1.0 — 002 拿 0.5 被均值诚实反映, 被 max 完全吃掉",
+  "golden 臂: A/B 双 1.0(expected 全灌=结构必然, 预期内非失败)"
+ ],
+ "★ 结构性结论(两轴纪律, 如实)": "B 均值在**策略轴**上恒等(判分由任务×执行体定, spec 无因果); 真区分在**执行体轴** — 换 executor 才有区分 ⇒ 度量修好了, 区分度来源也定位了",
+ "★ 方法论价值": "把『V 恒等』问题拆开: ① R128 证明=max 聚合饱和 ② R129 证明=judge 均值能解除饱和 ⇒ 后续 M1/M2 比较可以用 judge 均值口径(TS3 官方口①, 不发明新度量)",
+ "★ 边界(如实)": "单次跑无方差; 002=0.5 是部分分(judge 给 half-credit 的形态) — 端点波动仍须 repeat 才有方向结论(R124 同款纪律)",
+ "验证": "pytest 889(885+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 129,
+  "at": "2026-10-10T01:30:00+08:00",
+  "parent_gen": 128,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 137,
+   "pytest": 885,
+   "inheritance_gen_prev": 128
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_judge_score_metric.py(A/B双口径探针) + 4 测试",
+   "files": [
+    "scripts/probe_judge_score_metric.py",
+    "tests/test_r129_judge_score_metric.py",
+    "docs/judge_score_metric.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r129_judge_score_metric.py (4 tests)",
+     "claim": "golden 双1.0构造必然/LLM真区分/两轴如实/边界标注"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/judge_score_metric.json#metrics",
+     "claim": "LLM臂 A=1.0 B=0.9, per_task 002=0.5"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/judge.py task_scores/group_scores",
+     "claim": "TS3 口①/②为度量源(零发明)"
+    }
+   ],
+   "numbers": {
+    "pytest": 889,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 889 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/judge_score_metric.json",
+   "user_decision": "『继续』→ R128 整改路径②"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
