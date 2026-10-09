@@ -49,6 +49,22 @@ def split_fingerprint(root: str) -> str | None:
     return hashlib.sha256(blob).hexdigest()[:8]
 
 
+def read_last_regime(ledger_path: str) -> bool:
+    """★ R120 常态化: 换代账本末条判决（jsonl 多次对拍历史, 末行=最新;
+    无账本/空账本/坏行 ⇒ 从未换代 False — 大声不静默: 坏行 raise）。"""
+    if not os.path.exists(ledger_path):
+        return False
+    lines = [x for x in open(ledger_path, encoding="utf-8")
+             .read().splitlines() if x.strip()]
+    if not lines:
+        return False
+    last = json.loads(lines[-1])          # 坏 JSON ⇒ raise（不静默吞）
+    if not isinstance(last, dict) or "regime_change" not in last:
+        raise ValueError(
+            "★ 换代账本末条缺 regime_change 字段: %r" % (last,))
+    return bool(last["regime_change"])
+
+
 def scan(archive_dir: str, current_fp: str,
          cur_split: str | None = None,
          regime_change: bool = False) -> Dict[str, Any]:
@@ -122,12 +138,8 @@ def main() -> int:
                                                   "dep_scan.json"))
     args = ap.parse_args()
     fp = judge_fingerprint(JUDGE_PATH)
-    # ★ 换代判决 = E2 对拍的 regime_change 记录（不存在/未换代 ⇒ False）
-    duel_path = os.path.join(ROOT, "docs", "challenger_duel.json")
-    regime = False
-    if os.path.exists(duel_path):
-        regime = bool(json.load(open(duel_path, encoding="utf-8"))
-                      .get("regime_change_happened"))
+    regime = read_last_regime(os.path.join(ROOT, "archive",
+                                           "epoch_ledger.jsonl"))
     rep = scan(args.archive, fp, split_fingerprint(ROOT),
                regime_change=regime)
     with open(args.out, "w", encoding="utf-8") as f:

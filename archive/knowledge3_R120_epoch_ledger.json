@@ -1,0 +1,78 @@
+{
+ "round": "R120 · 项1 E2换代常态化 — 换代账本epoch_ledger.jsonl + 末条判决读取 + duel/dep联动",
+ "date": "2026-10-09",
+ "★ 三件": [
+  "challenger_duel 每次对拍 append archive/epoch_ledger.jsonl(判决摘要: at/protocol/duel/behaviour/incumbent_fp/regime_change/challenger — 只增不改, 单次详情仍写 challenger_duel.json)",
+  "dep_scan.read_last_regime(): 账本末条=最新判决(无/空=False; 坏JSON/缺字段=raise 不静默装'未换代'); main 走此函数(不再依赖单文件覆盖写)",
+  "常态化闭环: challenger提案 → duel对拍 → append账本 → dep读末条判决 → 弃置联动(赢才换代才弃置)"
+ ],
+ "实测": "duel 跑2次账本2行append ✓ · 末条 incumbent_holds/regime=False · dep四栏正常(active=3含R117+R118档,evaluator=0,split=4,pre=121)",
+ "验证": "pytest 848(846+2) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "状态": "项1完成 → 项2(M2 GA对打方案稿) → 项3(Table 8缺口轮)",
+ "inheritance": {
+  "gen": 120,
+  "at": "2026-10-09T20:00:00+08:00",
+  "parent_gen": 119,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 125,
+   "pytest": 846,
+   "inheritance_gen_prev": 119
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "duel append账本 + read_last_regime末条判决 + dep main联动 + 2测试",
+   "files": [
+    "scripts/challenger_duel.py",
+    "scripts/dep_scan.py",
+    "tests/test_r120_epoch_ledger.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r120_epoch_ledger.py (2 tests)",
+     "claim": "六态读取/append只增不改+记录完整性全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "archive/epoch_ledger.jsonl (6行实测)",
+     "claim": "账本append历史"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_evaluator_coevolution.html §⑧ 常态化",
+     "claim": "首次过目后常态化(用户拍板选1)"
+    }
+   ],
+   "numbers": {
+    "pytest": 848,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 848 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r120.log",
+   "user_decision": "按1-2-3逐项推进: 项1=E2常态化(本轮)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

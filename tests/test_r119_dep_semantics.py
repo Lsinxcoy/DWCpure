@@ -74,12 +74,12 @@ def test_real_archive_no_regime_no_evaluator_deprecation():
 
 
 def test_main_reads_duel_regime():
-    """dep_scan.main 从 challenger_duel.json 读换代判决（现判决=未换代）。"""
-    import dep_scan
-    duel = json.load(open(os.path.join(ROOT, "docs",
-                                       "challenger_duel.json"),
-                          encoding="utf-8"))
-    assert duel["regime_change_happened"] is False
+    """dep_scan.main 从换代账本末条读判决（R120 后: ledger 非 duel.json）。"""
+    from dep_scan import read_last_regime
+    ledger = os.path.join(ROOT, "archive", "epoch_ledger.jsonl")
+    # 账本存在且末条为 incumbent_holds ⇒ False（现判决=从未换代）
+    assert os.path.exists(ledger), "R120 常态化账本应在位"
+    assert read_last_regime(ledger) is False
     # main 端到端跑
     outp = os.path.join(ROOT, "docs", "dep_scan.json")
     r = subprocess.run([sys.executable,

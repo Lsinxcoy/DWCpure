@@ -142,6 +142,20 @@ def main() -> int:
             "已留联动口）; epsilon kwarg 本身已进 judge 源, fp 已含之",
         ],
     }
+    # ★ E2 常态化（R120 · 用户过目首次结果后拍板"常态化"）:
+    #   每次对拍 append 换代账本（jsonl 历史可审计, 只增不改 —
+    #   单次详情仍写 challenger_duel.json, 账本只记判决摘要）
+    ledger_path = os.path.join(ROOT, "archive", "epoch_ledger.jsonl")
+    entry = {"at": out["at"], "protocol": out["protocol"],
+             "duel": out["duel"],
+             "behaviour_differs": behaviour["behaviour_differs"],
+             "incumbent_fp": fp_now,
+             "regime_change": decision == "regime_change",
+             "decision": decision, "challenger": "regression_epsilon:%s"
+             % CHALLENGER_EPSILON}
+    with open(ledger_path, "a", encoding="utf-8") as lf:
+        lf.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
     print("对拍: incumbent F1=%s vs challenger F1=%s ⇒ tie=%s → %s"
