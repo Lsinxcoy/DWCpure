@@ -205,6 +205,10 @@ def load_latest_gen(archive_dir: str) -> Optional[int]:
                 rec = json.load(f)
         except (OSError, ValueError):        # 档损坏不静默 — 留给上层报
             raise InheritanceError("档损坏不可读: %s（G7 不静默）" % fn)
+        if not isinstance(rec, dict):
+            # ★ archive 存在历史 list 形态档（json 合法, 只是主体非 dict ⇒
+            #   不可能带 inheritance/gen）—— 跳过不装数, 不是损坏不 raise
+            continue
         inh = rec.get("inheritance")
         if isinstance(inh, dict) and isinstance(inh.get("gen"), int):
             best = inh["gen"] if best is None else max(best, inh["gen"])

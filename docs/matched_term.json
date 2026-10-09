@@ -1,0 +1,79 @@
+{
+ "protocol": "稿② §⑤: 三臂同底同预算同判分器; π 载体=任务选择序(pi0字典序/pi_star组序/placebo盲随机); matched三计数断言;独立锚 truth_sha8 前后一致",
+ "seed": 42,
+ "n_terms": 3,
+ "arms": {
+  "pi0": {
+   "arm": "pi0",
+   "order_first3": [
+    "code_fix_001",
+    "code_fix_002",
+    "code_fix_003"
+   ],
+   "n_terms": 3,
+   "n_tasks": 10,
+   "n_scores": 30,
+   "n_decisions": 30,
+   "success_rate": 1.0,
+   "n_injected_artifacts": 3
+  },
+  "pi_star": {
+   "arm": "pi_star",
+   "order_first3": [
+    "code_fix_001",
+    "code_fix_002",
+    "code_fix_003"
+   ],
+   "n_terms": 3,
+   "n_tasks": 10,
+   "n_scores": 30,
+   "n_decisions": 30,
+   "success_rate": 1.0,
+   "n_injected_artifacts": 3
+  },
+  "placebo": {
+   "arm": "placebo",
+   "order_first3": [
+    "reasoning_002",
+    "code_fix_004",
+    "code_fix_003"
+   ],
+   "n_terms": 3,
+   "n_tasks": 10,
+   "n_scores": 30,
+   "n_decisions": 30,
+   "success_rate": 1.0,
+   "n_injected_artifacts": 3
+  }
+ },
+ "anchor": {
+  "truth_source": "config/anchors/dev.json",
+  "truth_sha8_before": "c007b42e",
+  "truth_sha8_after": "c007b42e",
+  "consistent": true,
+  "judge_frozen": true
+ },
+ "verdicts": {
+  "vs_baseline": 0.0,
+  "vs_placebo": 0.0,
+  "content_effect": 0.0
+ },
+ "claims_allowed": [
+  "matched-term 对照: π*−π0=0.0, π*−π̂=0.0（方向性, 单轮, 样本小）"
+ ],
+ "forbidden_scanned": [
+  "effective L5",
+  "effective recursion",
+  "L5e 通过",
+  "有效递归已验证",
+  "显著优于",
+  "显著提高",
+  "显著改善"
+ ],
+ "caveats": [
+  "★ golden executor 不读记忆/序 ⇒ 三臂恒等是**结构必然**（R107 已证同型旁路）—— 恒等报『结构必然』, 不当策略无效证据（稿② 诚实条款4 字面）",
+  "n 小单轮只报方向, 无显著性检验",
+  "LLM executor 形态(endpoint=llm)留位未跑 — 本跑=确定性协议验收",
+  "change_scope=策略序三态(pi0/pi_star/placebo), 非 git_diff — π载体按稿②§②整快照语义的最小可执行面"
+ ]
+}

@@ -1,0 +1,75 @@
+{
+ "round": "R110 · 4a执行② — matched-term 三臂协议(稿②执行) — 阶段4a 完全收官",
+ "date": "2026-10-09",
+ "★ 实现": "scripts/matched_term.py: 三臂(pi0字典序/pi_star运行时弱组序/placebo盲随机) + 同memory底(3工件注入) + matched三计数断言(不等拒报) + 独立锚truth_sha8前后断言(污染拒报) + 禁措辞白名单claim + 稿②§⑤协议字段全",
+ "★ 三个实验bug(测试抓正)": [
+  "编造 load_groups 被 except Exception 兜成字典序 ⇒ pi_star 臂实为 pi0 — 修: 真API core._load_capability_groups 去兜底(坏/缺大声raise)",
+  "任务集只取 behavior 6 任务全在 code_repair 组 ⇒ 组间序数据巧合同序 — 修: 全集10任务(behavior+keyword_match)跨两组 + keyword golden分支(answer=全kw串)",
+  "pi_star 静态排序丢运行时语义 — 修: per-term 重读 world_model.group_rates()(缺席组当1.0强组排后, run_term L690-695 同款)"
+ ],
+ "★ 收官两坑": [
+  "load_latest_gen 撞 archive 历史 list 形态档 — 修: 非dict跳过不装数(带注释, 非损坏不raise) — R109 回归 7/7, 链源=gen109 ✓",
+  "★ 同kernel sys.modules 残留旧模块(MEMORY 坑②) — 改源后重 import 不重读磁盘 ⇒ AttributeError 行号错位 — 必须 importlib.reload 或 subprocess"
+ ],
+ "★ 测试自撞": "禁词断言撞 forbidden_scanned 字段(清单本就列词表) — 断言改精度: 禁词只许在清单, 正文含=违规",
+ "★ 实测": "三臂 1.0 恒等 — 稿②诚实条款4 预告的结构必然(golden全对组率恒1+executor不读序)如实入caveats不当无效证据; claim白名单过, 无L5e/显著措辞",
+ "验证": "pytest 816 · gate 8/8 · e2e RC=0 — 三层全绿; 稿②§⑦验收清单全过",
+ "阶段4a 完成": "稿①六段(R109) + 稿②matched-term(R110) 两稿执行轮完毕; 六段链 gen109→110 连通",
+ "下一步": "4b 四项裁决(需用户拍板): ①HCE ②评估器dep(z)(推荐不开) ③Pareto ④种群(推荐不引) — 逐项独立轮",
+ "inheritance": {
+  "gen": 110,
+  "at": "2026-10-09T11:50:00+08:00",
+  "parent_gen": 109,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 115,
+   "pytest": 813,
+   "inheritance_gen_prev": 109
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+scripts/matched_term.py 三臂协议 + tests/test_r110_matched_term.py(教训锁×2) + inheritance.list档跳过修复",
+   "files": [
+    "scripts/matched_term.py",
+    "tests/test_r110_matched_term.py",
+    "src/dwc/foundation/inheritance.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r110_matched_term.py (3 tests)",
+     "claim": "协议字段/锚断言/matched账/禁措辞全过"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_matched_term_design.html §⑦",
+     "claim": "验收清单逐条"
+    }
+   ],
+   "numbers": {
+    "pytest": 816,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true
+  },
+  "acceptance_decision": {
+   "gate": "pytest 816 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r110.log"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
