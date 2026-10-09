@@ -195,8 +195,13 @@ def test_step_llm_layer_selects_action():
     out = d.step({"task_id": "t1", "kind": "demo"})
     assert out["decision"]["source"] == "llm"
     assert out["decision"]["action"] == "evolve"
-    assert out["action_dispatched"].startswith("not_dispatched"), \
-        "非 remember 动作只记录不路由（诚实边界, 不假装分发）"
+    # ★ R138: action_dispatched 从 str 改 dict（kind/dispatched/why）—
+    #   语义不变: evolve 不假装分发（dispatched=False + 理由在位）
+    disp = out["action_dispatched"]
+    assert isinstance(disp, dict), "R138 后是结构化分发记录"
+    assert disp["kind"] == "evolve" and disp["dispatched"] is False, \
+        "非 remember/dream 动作不假装分发（诚实边界）"
+    assert "not_dispatched" in disp["why"]
 
 
 def test_step_llm_bad_reply_degrades_with_trace():

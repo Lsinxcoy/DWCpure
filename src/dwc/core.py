@@ -21,8 +21,11 @@
     ⇒ 层标记 available=False 显式缺席，决策直接落 LLM/heuristic —— 不冒充。
     （iwm.governor_advice 的 downweight_pre_enactment 是同位概念, 但其 State
       依赖尚未进 step 流程 —— 见 R61 知识档边界）
-  ★ 动作集选择已记录（decision.action），但**分发只实现 remember**（=ingest）；
-    learn/dream/evolve 需要前置参数（签名/语料），本轮不路由 —— 显式 not_dispatched。
+  ★ 动作分发（R138 起部分路由）: remember=ingest（原路径）·
+    dream=self.dream(k2_max=4) 真路由（R134 实证只读零写树 ⇒ step 内
+    安全）; learn/evolve（方法不存在, run_term L164 π/U 占位）·
+    maintain（前置=巩固调度未接）⇒ 显式 not_dispatched + 逐动作理由
+    （decision.action 之外的未知值也不猜 — 全分支可审计）。
   ★ iron_laws 字段 = 配置面加载（id/severity 清单）—— 逐条 check_fn 的运行时
     执行在 gate 与各器官（散落），调用点>0 的 I8 核验是 PROGRESS 老债未销。
 """
@@ -60,6 +63,10 @@ TRUTH_SOURCE = {
 
 #: §3.2: 候选动作是**显式动作集**（不是「由任务类型决定」—— v2 那句是退步）
 ACTIONS: tuple = ("remember", "learn", "dream", "maintain", "evolve")
+
+#: R138 · step() 内 dream 真路由的 k2_max 默认（= ga_duel/R128 同值 4,
+#   单一真源不另立 — 改它只改这一处）
+_DREAM_K2: int = 4
 
 _IRON_LAWS_PATH = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), "config", "iron_laws.yaml")
@@ -284,14 +291,41 @@ class DWC:
         #   ★ 条件不满足 ⇒ **不判不填**（无判据不冒充 — success_source=
         #     NOT_EVALUATED 口径; detail 无 observed 的 executor 行为不变）
         judgement = self._judge_and_backfill(task, trace)
+        # ★ R138 · 动作分发路由（partial → remember+dream 真路由）:
+        #   remember ⇒ ingest 已在上方执行（唯一原真路径, 不动）
+        #   dream    ⇒ 真调 self.dream（R134 实证零写树只读安全 ⇒ step 内
+        #              调用无副作用; k2_max 用 self._DREAM_K2 默认, 超时
+        #              预算由调用方在 GovPolicy 侧控 — 见 caveats）
+        #   learn/evolve/maintain ⇒ 显式 not_dispatched + **逐动作理由**
+        #              （learn/evolve 方法不存在; maintain 属记忆维护面,
+        #               前置=巩固调度, 不冒充已实现 — 逐项可审计）
+        action = decision.get("action")
+        dispatch: Dict[str, Any]
+        if action == "remember":
+            dispatch = {"kind": "remember", "dispatched": True,
+                        "how": "ingest 已执行（原路径不动）"}
+        elif action == "dream":
+            rep = self.dream(k2_max=self._DREAM_K2)
+            dispatch = {"kind": "dream", "dispatched": True,
+                        "how": "R138 真路由: self.dream(k2_max=%d)"
+                               % self._DREAM_K2,
+                        "v_star": rep.v_star, "n_worlds": rep.n_worlds}
+        elif action in ("learn", "evolve"):
+            dispatch = {"kind": action, "dispatched": False,
+                        "why": "not_dispatched: 方法不存在（DWC 未实现 "
+                               "%s 器 — run_term L164 自陈 π/U 占位）"
+                               % action}
+        elif action == "maintain":
+            dispatch = {"kind": "maintain", "dispatched": False,
+                        "why": "not_dispatched: maintain 属记忆维护面, "
+                               "前置=巩固调度触发器（尚未接线）"}
+        else:
+            dispatch = {"kind": str(action), "dispatched": False,
+                        "why": "not_dispatched: 未知动作（值枚举外, 不猜）"}
         return {"decision": decision, "trace": trace, "memory_id": mem_id,
                 "chain_id": chain_id,
                 "judgement": judgement,
-                "action_dispatched": ("remember" if decision.get("action")
-                                      == "remember" else
-                                      "not_dispatched: %s 只记录不路由"
-                                      "(见模块诚实边界)"
-                                      % decision.get("action"))}
+                "action_dispatched": dispatch}
 
     def _judge_and_backfill(self, task: Dict[str, Any],
                             trace: Trace) -> Optional[Dict[str, Any]]:

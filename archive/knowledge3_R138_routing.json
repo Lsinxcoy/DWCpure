@@ -1,0 +1,81 @@
+{
+ "round": "R138 · routing 路由补全 — remember+dream 真路由(其余显式 not_dispatched+逐动作理由); action_dispatched str→dict",
+ "date": "2026-10-10",
+ "★ 路由现状(partial 的进取式收窄)": [
+  "remember ⇒ dispatched=True（ingest 原路径不动）",
+  "dream ⇒ dispatched=True 真调 self.dream(k2_max=4) — R134 实证零写树只读 ⇒ step 内安全; dispatch 带 v_star/n_worlds",
+  "learn/evolve ⇒ dispatched=False + why『方法不存在』（run_term L164 π/U 占位自陈, 与事实一致）",
+  "maintain ⇒ dispatched=False + why『前置=巩固调度未接』",
+  "未知动作 ⇒ dispatched=False + 『值枚举外不猜』（全分支可审计, 无默认猜测）"
+ ],
+ "★ 影响面审计的教训(差点漏)": "action_dispatched str→dict 初判零破坏（裸 grep -r 被 __pycache__ .pyc 干扰漏检）⇒ 用 --include=*.py 重扫发现 tests/test_core.py:198 断言 startswith('not_dispatched') ⇒ 修测试保持原意图（evolve 不假装分发）; 教训: 类型/契约变更的影响面扫描必须 --include=*.py 且排除测试自身",
+ "★ 模块头自陈同步(防文档说谎)": "core.py L24 原『分发只实现 remember』已更新为 R138 路由实况（remember+dream 真路由, 其余显式 not_dispatched）; 测试锁 docstring 不含旧句",
+ "★ 验证纪律(正面)": "e2e 重跑 6.4s（首轮 136s 含 LLM 抖动）⇒ dream 分支在确定性 e2e 未触发（无性能回归）, LLM 段仅候选未过判分",
+ "验证": "pytest 936(929+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 138,
+  "at": "2026-10-10T09:10:00+08:00",
+  "parent_gen": 137,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 146,
+   "pytest": 929,
+   "inheritance_gen_prev": 137
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "core.py step() 动作分发路由(dream 真路由+逐动作理由+dict 契约) + _DREAM_K2 常量 + 模块头自陈同步",
+   "files": [
+    "src/dwc/core.py",
+    "tests/test_r138_routing.py",
+    "tests/test_core.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r138_routing.py (7 tests)",
+     "claim": "remember/dream 真路由+三分支 not_dispatched+未知不猜+docstring 同步+零消费方"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_core.py L198 契约更新",
+     "claim": "evolve 不假装分发（dict 新契约, 原意图保持）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/core.py dream L437-647",
+     "claim": "零 record_observation ⇒ 只读安全（step 内调用的前提）"
+    }
+   ],
+   "numbers": {
+    "pytest": 936,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 936 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续执行』→ 待办②routing"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
