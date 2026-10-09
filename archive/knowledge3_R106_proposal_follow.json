@@ -1,0 +1,17 @@
+{
+ "round": "R106 · 阶段3a — Proposal 遵循率报表（T4 两读数+四模式+三列连接）",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "scripts/proposal_follow.py: 两读数(激活率=access>0/总, 忠实遵循率=effect>0/已激活) + 四模式纯判 classify(not_invoked/invoked_not_followed/followed_beneficial/sacrificed需对照臂) + 三列连接(evidence→subsequent_use→old_vs_new_effect, 缺=not_assessable 显式)",
+  "源A=memory PROPOSAL(主源, 可跑) · 源B=evolver(进程态, rules.json 不存在⇒not_instrumented 不装数)",
+  "★ 知识档字段扩展示范: 本档即三列连接形态(方案 §⑥T4『知识档形态是骨架,补连接字段』)"
+ ],
+ "★ 双缺口(诚实发现, T4『改完没被算数』的实测证据)": [
+  "① recall()/record_effect() 生产路径零调用方(仅 demo 自调) ⇒ 激活/遵循记账断供",
+  "② DWC 默认 db_path=':memory:' ⇒ 记忆节点跨进程不存 ⇒ 后续使用无从谈起",
+  "处置: 报表可视化缺口 + 接线/落盘=候选硬规则不默认动(符合阶段3『报表化为主』)"
+ ],
+ "验收(方案字面)": "每个已采纳 Proposal 三列连接齐全 ✓(测试断言) · 遵循率报表可复跑 ✓(同库两跑字节一致) · 四模式全触发 ✓",
+ "验证": "pytest 803(799+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "下一步": "3b: author≠user≠task 三维解耦实验 + 等预算归因臂(盲重采样安慰剂) + 复现硬规则"
+}
