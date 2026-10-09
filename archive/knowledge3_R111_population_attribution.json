@@ -1,0 +1,76 @@
+{
+ "round": "R111 · M0 设计稿 — 种群归因模型(裁决④翻转: 归因先立为能力, 种群=验收场景)",
+ "date": "2026-10-09",
+ "★ 稿": "docs/proposal_population_attribution.html (16.8KB)",
+ "综述原文锚(§5.6邻段 Cross-Component Diagnosis)": [
+  "『an observed failure rarely identifies the component that should change』(归因动机句)",
+  "『controlled comparisons to estimate individual effects and interactions』+『targeted ablations』+『explicit records of dependencies』= 综述点名的 Future systems 待建方向 — 四要素逐一对映本稿四件",
+  "『distinguish a useful repair from compensation for an upstream defect』= 交互项显著为负的补偿候选判定入口"
+ ],
+ "★ 核心设计": [
+  "可分性: I_AB = s(A⊕B)−s(A)−s(B)+s(0); τ分流(|I|<τ可加⇒拆分归因单点续用 / ≥τ交互⇒整体归档不拆功)",
+  "τ₀=0.2 = 自家实测量级(R105c 跨跑抖动) 非文献值 — calibration_note 必填, 校准走 supersedes",
+  "消融回路: 常规+2跑(选择性冻结, 非K倍种群账) 每跑=稿②matched协议; 成本入CostLedger(§3.6.5字面)",
+  "_assert_single_change 升级: 路径甲单点原样(现有测试零破坏) + 路径乙多改必带 attribution_plan(members键域/budget/τ/fork_rule), 缺=raise 同款严厉",
+  "基因型最小形式化: 位点=PolicySpec锁值键, 合法组合 keys(A)∩keys(B)=∅(同键冲突构造期拒), 交叉只在键域不相交成员间"
+ ],
+ "渐进(防跳级)": "M0本稿(过审) → M1双变体消融(四跑三读数+拆τ分流破坏红+单点零破坏) → M2小种群(M1绿 + 经典GA对打方案 + 用户对搜索器再拍一次 = 双前置)",
+ "文献定位(不装空白)": "32refs快搜: ablation 20/32常用 / shapley|credit 仅1篇 / interaction短语0 — 消融是手段但交互协议在本语料未成型; 组合归因经典理论他域成熟 ⇒ 不声称发明, 不声称空白(横搜未专测此题)",
+ "原四证据处置": "①单点升级不废 ②AgentNAS单种子用稿②协议解决(多种子+π̂) ③k=2三四跑受控 ④经典GA对打留M2 — 逐条在稿①表",
+ "验证": "pytest 816 · gate 8/8 · e2e RC=0 — 三层全绿(设计轮零代码变动)",
+ "下一步": "M0 过审 → M1 执行轮(attribution_plan契约+四跑消融+τ分流+六段attribution段); M2 需再拍裁决④",
+ "inheritance": {
+  "gen": 111,
+  "at": "2026-10-09T12:20:00+08:00",
+  "parent_gen": 110,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 116,
+   "pytest": 816,
+   "inheritance_gen_prev": 110
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+docs/proposal_population_attribution.html (M0 设计稿, 待过审 — 纯文档非代码)",
+   "files": [
+    "docs/proposal_population_attribution.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_population_attribution.html §②§③",
+     "claim": "综述§5.6邻段原文锚 + 32refs快搜文献定位"
+    },
+    {
+     "type": "commit",
+     "ref": "git HEAD~1 (R110)",
+     "claim": "matched-term 协议为消融回路底座"
+    }
+   ],
+   "numbers": {
+    "pytest": 816,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true
+  },
+  "acceptance_decision": {
+   "gate": "pytest 816 + gate 8/8 + e2e rc=0 (设计轮三层原样)",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r111.log"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

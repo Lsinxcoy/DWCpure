@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC · 设计稿③ M0 种群归因模型（R111 · 裁决④翻转）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--fg:#e6edf3;--dim:#9da7b3;
+--acc:#58a6ff;--gold:#d29922;--green:#3fb950;--red:#f85149;--purple:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+header{padding:28px 40px 18px;border-bottom:1px solid var(--edge);
+background:linear-gradient(180deg,#11161d,#0d1117)}
+h1{margin:0 0 6px;font-size:24px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:fixed;top:0;right:0;width:236px;height:100vh;overflow:auto;
+padding:80px 14px 30px;border-left:1px solid var(--edge);background:#0b0f14}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:12.5px;
+padding:5px 8px;border-radius:6px;margin:2px 0}
+nav a:hover{color:var(--acc);background:#161b22}
+main{max-width:920px;margin:0 auto;padding:26px 40px 80px}
+section{margin:34px 0}
+h2{font-size:19px;border-left:4px solid var(--acc);padding-left:10px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:10px;
+padding:16px 20px;margin:14px 0}
+.gold{border-left:4px solid var(--gold)}
+.green{border-left:4px solid var(--green)}
+.red{border-left:4px solid var(--red)}
+.purple{border-left:4px solid var(--purple)}
+code{background:#1c2128;padding:1.5px 6px;border-radius:5px;
+font-size:13px;color:#79c0ff}
+pre{background:#1c2128;border:1px solid var(--edge);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:13px;line-height:1.55}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:12px 0}
+th,td{border:1px solid var(--edge);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--dim)}
+.tag{display:inline-block;font-size:11.5px;padding:1.5px 8px;border-radius:10px;
+border:1px solid var(--edge);color:var(--dim);margin-right:6px}
+.t-green{color:var(--green);border-color:var(--green)}
+.t-gold{color:var(--gold);border-color:var(--gold)}
+.t-red{color:var(--red);border-color:var(--red)}
+.t-acc{color:var(--acc);border-color:var(--acc)}
+.formula{background:#1c2128;border:1px dashed var(--gold);border-radius:8px;
+padding:10px 16px;font-size:15px;text-align:center;margin:12px 0;
+font-family:Consolas,monospace;color:#e3b341}
+.quote{border-left:3px solid var(--purple);background:#131820;padding:10px 16px;
+font-size:13.5px;color:#c9d1d9;font-style:italic;margin:10px 0}
+@media(max-width:1100px){nav{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>设计稿③ · M0 种群归因模型</h1>
+<div class="sub">裁决④翻转 — 归因先立为能力, 种群是它的验收场景 ·
+可分性判据 + 消融回路 + 渐进 M0→M2 · 2026-10-09 · 设计先行不默认动</div>
+</header>
+<nav>
+<a href="#why">① 裁决④翻转的逻辑</a>
+<a href="#anchor">② 综述原文锚（§5.6 邻段）</a>
+<a href="#lit">③ 文献定位（不装空白）</a>
+<a href="#math">④ 可分性数学与 τ 分流</a>
+<a href="#loop">⑤ 消融回路执行流</a>
+<a href="#upgrade">⑥ 单点纪律升级设计</a>
+<a href="#geno">⑦ 组合表示（基因型最小形式化）</a>
+<a href="#stages">⑧ 渐进 M0→M2 与验收</a>
+<a href="#honest">⑨ 诚实条款</a>
+</nav>
+<main>
+
+<section id="why">
+<h2>① 裁决④翻转的逻辑 — 从「不引种群」到「归因先行」</h2>
+<div class="card gold">
+<b>原裁决（R98 §⑨④）</b>: 种群/交叉撞 <code>_assert_single_change</code>
+单点归因 ⇒ 推荐不引。<br>
+<b>翻转（本轮用户判断）</b>: 真瓶颈是<b>归因模型缺失</b>不是种群邪恶 —
+把归因做成 DWC 的能力, 种群从障碍变成该能力的<b>验收场景</b>。
+</div>
+<div class="card">
+<b>原四条证据的处置</b>（逐条, 不回避）:
+</div>
+<table>
+<tr><th>原证据</th><th>翻转后的处置</th></tr>
+<tr><td>① 撞单点归因（破坏验证地基）</td>
+<td><b>不废单点, 升级</b>: 多改当且仅当带消融账（§⑥）— 破坏验证地基
+（拆判据⇒红）原样保留并扩到归因判据</td></tr>
+<tr><td>② AgentNAS 单种子消融不干净</td>
+<td><b>用稿②协议解决</b>: 多种子 + π̂ 安慰剂臂 + matched 账 — 我们的消融
+臂天然带这些（它缺我们有）; 其 Table 3 不一致实录作为「协议要比它严」的反面参照</td></tr>
+<tr><td>③ K 倍评估成本撞预算纪律</td>
+<td><b>k=2 交叉 ⇒ 3–4 次 matched 跑</b>（受控, 非 K 倍种群账）, 成本计入
+CostLedger = §3.6.5「评估成本入预算」字面</td></tr>
+<tr><td>④ 经典 GA baseline 之问</td>
+<td><b>保留到 M2</b>（种群级）: 小种群开跑前必须带经典 baseline 对打方案;
+M0/M1 是归因能力不碰搜索器</td></tr>
+</table>
+</section>
+
+<section id="anchor">
+<h2>② 综述原文锚 — 这不是我发明的, 是综述点名的待建方向</h2>
+<div class="quote">
+"Future systems should turn diagnoses into testable intervention hypotheses
+and use <b>controlled comparisons to estimate individual effects and
+interactions</b>. Selective component freezing, <b>targeted ablations</b>, and
+<b>explicit records of dependencies</b> could help distinguish a useful repair
+from compensation for an upstream defect. Coordinated search should then
+allocate effort across data, models, harnesses, and environments as
+constraints shift."
+</div>
+<div class="card purple">
+<b>出处</b>: 2609.11873 · "Cross-Component Diagnosis and Coordinated
+Improvement" 段（最近节号 5.6 — 字符偏移核得, 段名逐字）。<br>
+<b>动机句（同段）</b>: "an observed failure rarely identifies the component
+that should change" — 失败不指明该改哪组件 = 归因问题的原文表述;
+Humanlaya 案例: 失败抽取被判为文档质量问题, 实际该改的是质检器决策规则
+（<b>改错组件</b>正是无归因的代价）。<br><br>
+<b>四要素对映（原文 → 本稿）</b>:
+</div>
+<table>
+<tr><th>综述原文要素</th><th>本稿落点</th></tr>
+<tr><td>controlled comparisons 估 individual effects <b>and interactions</b></td>
+<td>四跑消融 + 三读数（主效应A/B + 交互项）— §④</td></tr>
+<tr><td>selective component freezing（选择性冻结）</td>
+<td>消融臂 = 冻结其余只回退一成员（臂间只差一个键域）— §⑤</td></tr>
+<tr><td>targeted ablations（定向消融）</td>
+<td>AB → A → B 回路（受控定向, 非全量 2ⁿ 枚举）— §⑤</td></tr>
+<tr><td>explicit records of dependencies（依赖记录）</td>
+<td>六段档加 <code>attribution</code> 段（成员/交互/分流判定/键域冲突）— §⑥</td></tr>
+<tr><td>distinguish useful repair vs compensation for upstream defect</td>
+<td>交互项 ≥ τ ⇒ 「补偿式修复」候选, 不拆功不计单点功劳 — §④ 分流</td></tr>
+</table>
+</section>
+
+<section id="lit">
+<h2>③ 文献定位 — 不装空白（快搜实测）</h2>
+<div class="card">
+<b>32 refs 快搜（ablation / shapley|credit / interaction effect）</b>:
+</div>
+<pre>ablation 命中 20/32 篇 — RQGM 14 次 · 2603.26499 11 · AgentNAS 9 · …
+shapley|credit assignment 仅 1 篇（2606.06350, 5 次）+ 综述本体 3 次
+interaction effect 短语 refs 0 命中（综述本体 1 次 = §② 原文段）
+结论: 消融是常用<b>手段</b>, 但「交互项估计协议」在本语料未成型 —
+     且综述把 controlled comparisons + interactions 列为 <b>Future systems</b>（待建）</pre>
+<div class="card gold">
+<b>诚实定位</b>: 组合归因的经典理论（Shapley 值 / 因果中介）在他域成熟 —
+<b>本稿不声称发明归因理论</b>, 是把「经典最小消融版」装进 DWC 已立的
+matched-term 协议（稿②的账/锚/安慰剂直接复用）。<b>不声称文献空白</b>
+（横搜探针未专门测「组合归因协议」— 要声称须再横搜, 本稿不做该声称）。
+</div>
+</section>
+
+<section id="math">
+<h2>④ 可分性数学与 τ 分流（核心判据）</h2>
+<div class="card purple">
+<b>效应分解</b>（组合 A⊕B 对基线 0 的得分）:
+</div>
+<div class="formula">
+s(A⊕B) = f(A) + f(B) + I_AB<br>
+I_AB = s(A⊕B) − s(A) − s(B) + s(0)　　（交互项）
+</div>
+<div class="card">
+<b>三读数</b>（全部由四跑直接算, 无模型拟合）:
+</div>
+<pre>主效应 A  = s(A)   − s(0)      单独加 A 的增益
+主效应 B  = s(B)   − s(0)      单独加 B 的增益
+交互 I_AB = s(A⊕B) − s(A) − s(B) + s(0)   合作/拮抗的额外量</pre>
+<div class="card gold">
+<b>τ 分流判据</b>（归因去向的二岔）:
+</div>
+<pre>|I_AB| < τ   ⇒ **可加** : 拆分归因 — A/B 各记各的主效应, 单点纪律原样继续,
+                        组合解散（单点已足够解释 ⇒ 交叉无净信息）
+|I_AB| ≥ τ   ⇒ **交互** : 组合是整体 — 整体归档(六段档 attribution 记
+                        interaction), 不拆功不冒领单点功劳;
+                        进一步: I_AB 显著为负 ⇒ 「补偿式修复」候选
+                        （综述原话: useful repair vs compensation for
+                        upstream defect 的二分入口）
+
+★ τ 初值（无明文 ⇒ 初值纪律 = β 同款, 且用 DWC 自己的实测定标）:
+  τ₀ = 跑间噪声量级 = 0.2 —— 来源: R105c 同配置跨跑 guidance 0.60→0.80
+  （单跑 n=10 臂间差 ≤ 跑间抖动的实测）· 标注「初值待校准」,
+  不是文献数字（文献无此协议 — §③）。
+  判据实现成带版本常量 + 校准记录位（calibration_note 必填）。
+</pre>
+<div class="card red">
+<b>为什么交互项是关键</b>: 没有它, 组合增益只能整笔糊涂账（AgentNAS
+单种子问题的根）; 有了它, 每次多改都<b>必须</b>回答「合作还是各自为政」—
+这才是「种群归因」四字的完整逻辑: <b>归因粒度从单点升级到效应分解</b>。
+</div>
+</section>
+
+<section id="loop">
+<h2>⑤ 消融回路执行流（受控定向 — 综述 targeted ablations）</h2>
+<pre>触发:  组合 A⊕B 通过 no_worse_than_current（有资格进归因, 不是所有改动都跑）
+
+跑序（每跑 = 稿② matched-term 协议: 同底/同锚 sha8 断言/同预算/π̂ 可选）:
+  s(0)   基线        — 通常已有(本轮 π0 账), 缺则补 1 跑
+  s(A⊕B) 组合        — 触发时已跑(否则不叫有资格)
+  s(A)   冻结 B 只回 A — 新跑 ①（选择性冻结: 臂间只差 B 的键域）
+  s(B)   冻结 A 只回 B — 新跑 ②
+  ⇒ 常规成本 = +2 跑 (不是 K 倍种群账); 交互接近 τ 时加跑 ③④ = 重复采样
+    定噪声（pass^k 同族, 方差口径接 R100 报告）
+
+输出:  {主效应A, 主效应B, I_AB, τ, 分流: additive|interactive,
+       compensation_flag: I_AB 显著为负}
+  → 六段档 attribution 段（§⑥）· 成本入 CostLedger（§3.6.5 字面）
+
+终止:  分流=interactive 且 I_AB<0 ⇒ A⊕B 标「补偿候选」— 不进继承链主干,
+       走六段档 rejected/或 accepted_with_caveat（接受但记录缺陷型）</pre>
+<div class="card">
+<b>确定性</b>: 四跑臂同 seed 同任务集同 executor ⇒ 可复跑（R110 协议原样）;
+<b>区分度边界</b>: golden 替身下四跑可能恒等（R107/R110 结构必然的延伸）—
+消融的<b>效度</b>依赖区分度任务集或 LLM executor 臂, 见 §⑨。
+</div>
+</section>
+
+<section id="upgrade">
+<h2>⑥ 单点纪律升级设计 — <code>_assert_single_change</code> 不废, 升格</h2>
+<div class="card purple">
+<b>现状</b>（evolver.py:1168, 构造时拦）: 一次改动只许一处, 否则归因失效。<br>
+<b>M1 升级（本稿设计, 执行在 M1 轮）</b>:
+</div>
+<pre>新契约（二选一, 构造期判定）:
+  路径甲（现状不变）: 改动只有一处 ⇒ 直接过（单点, 全部现有测试零破坏）
+  路径乙（新增）    : 改动多处 ⇒ 必须带 attribution_plan 字段:
+      {
+        "members": ["A键域", "B键域"],      # 成员=键域, 不是自由文本
+        "ablation_budget": {"n_runs": 2, "cost_ledger_肩注": true},
+        "tau": 0.2, "calibration_note": "初值=R105c 抖动量级, 待校准",
+        "fork_rule": "A∩B键域=∅ (同键冲突构造期拒 — §⑦)"
+      }
+      缺字段/缺键域冲突/预算为 0 ⇒ raise（与现单点 raise 同款严厉）
+
+★ 向后兼容判据（M1 验收字面）:
+  · 现有单点测试全绿零改动（路径甲不回头）
+  · 新增破坏测试: 拿掉 τ 分流 ⇒ 红 / 拿掉 attribution_plan 校验 ⇒ 红
+  · gate 8/8 原样（G1-G8 判据不动 — 升级的是 evolver 内部断言不是门）
+</pre>
+</section>
+
+<section id="geno">
+<h2>⑦ 组合表示 — 基因型的最小形式化（交叉的合法域）</h2>
+<div class="card">
+<b>基因位点 = PolicySpec 锁值键</b>（R86: from_mapping 锁值拒未知键 —
+键域已有强类型约束, 天然是位点表）:
+</div>
+<pre>组合 A⊕B := PolicySpec.from_mapping( merge(A.map, B.map) )
+合法条件: keys(A) ∩ keys(B) = ∅        # 同键冲突 = 交叉非法, 构造期 raise
+         （两变体改同一键 ⇒ 无法分解主效应 — 「谁改的」不可答 ⇒ 拒）
+
+⇒ 这就是「种群」在 DWC 的最小形态: 不是自由文本 prompt 的种群,
+   是**锁值键域不相交的变体组合** — 有界(键数有限)、可枚举、可消融。
+★ 交叉 ≠ 随机拼接: 合法交叉只发生在键域不相交的成员间;
+  键域相同只能二选一（select_policy 已有 argmax V 路径）— 不发明第三种。</pre>
+<div class="card gold">
+<b>与 M>1 现状的关系</b>: R85/86 的四变体（单键域各自修订）已是「种群成员
+的雏形」; 本稿补的是<b>成员间组合 + 组合的归因</b>（缺的正是交互项那一块）。
+</div>
+</section>
+
+<section id="stages">
+<h2>⑧ 渐进 M0→M2 — 每级带判据, 防跳级</h2>
+<table>
+<tr><th>级</th><th>内容</th><th>验收（进执行轮时写死）</th><th>前置</th></tr>
+<tr><td><b>M0</b> 本稿</td><td>设计: 可分性判据 + 消融回路 + 升级契约 + 键域规则</td>
+<td>过审（用户）</td><td>—</td></tr>
+<tr><td><b>M1</b> 双变体消融</td>
+<td>attribution_plan 契约进 evolver（路径乙）+ 四跑消融脚本 + τ 分流 + 六段档
+attribution 段</td>
+<td>□ 四跑三读数出数（区分度任务集或 LLM 臂上非恒等, 恒等则如实报结构必然）<br>
+□ 破坏: 拆 τ 分流⇒红 · 拆 plan 校验⇒红<br>
+□ 单点路径零破坏（现有测试原样绿）<br>
+□ 成本入 CostLedger 断言 · 同批自洽</td>
+<td>M0 过审</td></tr>
+<tr><td><b>M2</b> 小种群消费者</td>
+<td>键域不相交成员的枚举组合 + tournament/select 接 select_policy + 归因账汇总</td>
+<td>□ 经典 GA/baseline 对打方案先过（RUMINATE 冲突 C 之问）<br>
+□ 每组合带消融账（无账组合不进池 — G4 生灭门同款）<br>
+□ 评估预算硬上限 + K 倍账显式报</td>
+<td>M1 绿 + 用户对「搜索器引入」再拍一次</td></tr>
+</table>
+<div class="card green">
+<b>M2 的双重前置</b>: 技术前置（M1 绿）+ 裁决前置（搜索器属裁决④原域,
+种群搜索开跑前<b>再拍一次</b>）— 归因能力（M0/M1）不等裁决, 种群（M2）等。
+</div>
+</section>
+
+<section id="honest">
+<h2>⑨ 诚实条款</h2>
+<div class="card red">
+1. <b>本稿不给实测</b> — 无四跑数字（M0 纯设计）; 执行轮的恒等风险已预告:
+   golden 替身下消融四跑可能全等（R107/R110 结构必然的同源延伸）—
+   M1 验收明确要求区分度任务集或 LLM executor 臂, 恒等则如实报结构必然。<br>
+2. <b>τ₀=0.2 是自家实测量级不是文献值</b>（R105c 跨跑抖动）— 文献无此协议
+   （§③）; calibration_note 必填, 校准后改值须走六段档 supersedes。<br>
+3. <b>不声称文献空白</b> — 组合归因经典理论他域成熟; 本稿=最小消融版装进
+   已立协议; 横搜探针未专测此题, 要声称须另做横搜（本稿不做该声称）。<br>
+4. <b>补偿式修复的判定是候选不是判决</b> — I_AB 显著为负触发 flag,
+   人工/后续轮裁, 不自动拒（W5 不覆盖 + 生产门裁决归用户）。<br>
+5. <b>AgentNAS/经典 GA 的对打义务留 M2</b> — M0/M1 不引入搜索器,
+   原裁决④的「搜索器须先过经典 baseline」之问原样保留。
+</div>
+<div class="sub" style="margin-top:30px">设计稿③ · M0 种群归因模型 ·
+综述 §5.6 邻段原文锚（controlled comparisons + targeted ablations +
+dependency records）· 渐进 M0→M2 · M2 双前置（技术+裁决）· 待过审 ·
+上一档: R110（git 116, 六段链 gen=110）</div>
+</section>
+
+</main>
+</body>
+</html>
