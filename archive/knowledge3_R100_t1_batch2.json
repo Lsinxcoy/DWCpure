@@ -1,0 +1,12 @@
+{
+ "round": "R100 · 阶段1b — judge meta-eval + pass^k/方差 + 锚定探针（T1 可观测批第二轮）",
+ "date": "2026-10-09",
+ "★ meta-eval 实测": "6 behavior 锚点 × (对值/错值) 观测对: accuracy=1.0 · macro_f1=1.0 > 随机 0.50 · 系统性误判 0 条 — judge 可信度首份量化读数; 人类分位=not_applicable(无医生分布,显式)",
+ "★ 首跑踩坑(教训入档)": "obs 契约 = {fn:[[args,val]]} 对列表 — 我造裸 [val] 致 6/6 全判 fail, **不是 judge 误判**; 已修+教训回归锁测试(test_obs_pass_contract); 先读再写再次验证",
+ "★ pass^k 实测": "5 报告出数: mean pass² 0.67–1.0 · 跨任务 std 0–0.52(方差纪律读数) · approx_iid=false 口径显式(跨 term 非严格 iid, 不冒充)",
+ "★ 锚定探针": "liquidity.jsonl 不存在 ⇒ no_data 显式(生产从未落 edit 流) — 探针逻辑+合成测试就位, 有数据即出数; Verma 0.95 阈值仅作参照报警(对象口径差已声明)",
+ "缺口声明": "长度审计=no_source: evidence 存 Verdict.to_dict() 不含观测原文, 接线需动判分序列化=判据层 ⇒ 列缺口不默认动(在 meta_eval 输出显式字段)",
+ "验证": "pytest 773(768+5) · gate 8/8 · e2e RC=0(LLM段 no_candidates=已知三态) — 三层全绿",
+ "T1 进度": "1a(A/T序列/repair_layer) + 1b(meta-eval/pass^k/锚定) 完 = 阶段1 收官; 长度审计原料缺口入档",
+ "下一步": "阶段2 T2+T3: B 段式回放优先(死锁硬伤) → C 分层任务树(A 判 C_cost_upgrade) → 成功侧归纳/库治理"
+}

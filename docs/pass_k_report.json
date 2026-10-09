@@ -1,0 +1,296 @@
+{
+ "reports": [
+  {
+   "source": "trial_report_r82.json",
+   "approx_iid": false,
+   "iid_note": "同任务跨 term 序列非严格独立同分布（上下文不同 + judge 确定性）⇒ 读作稳定性, 不冒充严格 pass^k 实验",
+   "per_task": {
+    "code_fix_001": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_002": {
+     "n": 3,
+     "c": 0,
+     "rate": 0.0,
+     "pass^2": 0.0,
+     "pass^3": 0.0
+    },
+    "code_fix_003": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_004": {
+     "n": 3,
+     "c": 0,
+     "rate": 0.0,
+     "pass^2": 0.0,
+     "pass^3": 0.0
+    },
+    "code_fix_005": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_006": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    }
+   },
+   "mean_pass_k": {
+    "pass^2": 0.6666666666666666,
+    "pass^3": 0.6666666666666666,
+    "pass^4": null
+   },
+   "rate_std_across_tasks": 0.5163977794943223,
+   "n_tasks": 6
+  },
+  {
+   "source": "trial_report_r83_clean.json",
+   "approx_iid": false,
+   "iid_note": "同任务跨 term 序列非严格独立同分布（上下文不同 + judge 确定性）⇒ 读作稳定性, 不冒充严格 pass^k 实验",
+   "per_task": {
+    "code_fix_001": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_002": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_003": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_004": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_005": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_006": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    }
+   },
+   "mean_pass_k": {
+    "pass^2": 1.0,
+    "pass^3": 1.0,
+    "pass^4": null
+   },
+   "rate_std_across_tasks": 0.0,
+   "n_tasks": 6
+  },
+  {
+   "source": "trial_report_r83_noise-code_fix_004.json",
+   "approx_iid": false,
+   "iid_note": "同任务跨 term 序列非严格独立同分布（上下文不同 + judge 确定性）⇒ 读作稳定性, 不冒充严格 pass^k 实验",
+   "per_task": {
+    "code_fix_001": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_002": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_003": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_004": {
+     "n": 3,
+     "c": 0,
+     "rate": 0.0,
+     "pass^2": 0.0,
+     "pass^3": 0.0
+    },
+    "code_fix_005": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_006": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    }
+   },
+   "mean_pass_k": {
+    "pass^2": 0.8333333333333334,
+    "pass^3": 0.8333333333333334,
+    "pass^4": null
+   },
+   "rate_std_across_tasks": 0.408248290463863,
+   "n_tasks": 6
+  },
+  {
+   "source": "trial_report_r88_noise-code_fix_004_t20_m1.json",
+   "approx_iid": false,
+   "iid_note": "同任务跨 term 序列非严格独立同分布（上下文不同 + judge 确定性）⇒ 读作稳定性, 不冒充严格 pass^k 实验",
+   "per_task": {
+    "code_fix_001": {
+     "n": 10,
+     "c": 10,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0,
+     "pass^4": 1.0
+    },
+    "code_fix_002": {
+     "n": 10,
+     "c": 10,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0,
+     "pass^4": 1.0
+    },
+    "code_fix_003": {
+     "n": 10,
+     "c": 10,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0,
+     "pass^4": 1.0
+    },
+    "code_fix_004": {
+     "n": 10,
+     "c": 0,
+     "rate": 0.0,
+     "pass^2": 0.0,
+     "pass^3": 0.0,
+     "pass^4": 0.0
+    },
+    "code_fix_005": {
+     "n": 10,
+     "c": 10,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0,
+     "pass^4": 1.0
+    },
+    "code_fix_006": {
+     "n": 10,
+     "c": 10,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0,
+     "pass^4": 1.0
+    }
+   },
+   "mean_pass_k": {
+    "pass^2": 0.8333333333333334,
+    "pass^3": 0.8333333333333334,
+    "pass^4": 0.8333333333333334
+   },
+   "rate_std_across_tasks": 0.408248290463863,
+   "n_tasks": 6
+  },
+  {
+   "source": "trial_report_r88_noise-code_fix_004_t6_m1.json",
+   "approx_iid": false,
+   "iid_note": "同任务跨 term 序列非严格独立同分布（上下文不同 + judge 确定性）⇒ 读作稳定性, 不冒充严格 pass^k 实验",
+   "per_task": {
+    "code_fix_001": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_002": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_003": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_004": {
+     "n": 3,
+     "c": 0,
+     "rate": 0.0,
+     "pass^2": 0.0,
+     "pass^3": 0.0
+    },
+    "code_fix_005": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    },
+    "code_fix_006": {
+     "n": 3,
+     "c": 3,
+     "rate": 1.0,
+     "pass^2": 1.0,
+     "pass^3": 1.0
+    }
+   },
+   "mean_pass_k": {
+    "pass^2": 0.8333333333333334,
+    "pass^3": 0.8333333333333334,
+    "pass^4": null
+   },
+   "rate_std_across_tasks": 0.408248290463863,
+   "n_tasks": 6
+  }
+ ],
+ "formula": "pass^k = C(c,k)/C(n,k)（无偏, τ-bench）",
+ "k_list": [
+  2,
+  3,
+  4
+ ]
+}

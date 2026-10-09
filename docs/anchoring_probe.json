@@ -1,0 +1,5 @@
+{
+ "status": "no_data",
+ "why": "liquidity.jsonl 不存在",
+ "path": "config/anchors/liquidity.jsonl"
+}
