@@ -1,0 +1,80 @@
+{
+ "protocol": "Table 8 六维现状盘点(综述§3.6.5): status+实测+取数命令 三联; R98 '四无'判定按现状重判",
+ "summary": {
+  "live": 4,
+  "雏形": 2,
+  "缺": 0
+ },
+ "dims": [
+  {
+   "dim": "Adaptivity(gain)",
+   "status": "live",
+   "measure": "dream v_by_version / judge success_rate",
+   "reading": "ablation 四V=[1.0, 1.0, 1.0, 1.0]",
+   "cmd": "python scripts/ablation_attribution.py",
+   "since": "R85/R114"
+  },
+  {
+   "dim": "Efficiency",
+   "status": "live",
+   "measure": "CostLedger 逐 term 成本账 + 每增益成本(匹配预算)",
+   "reading": "gate_trace.jsonl 逐轮记账; M2 对打稿 K 倍账设计在位",
+   "cmd": "python scripts/gate.py (CostLedger 落盘)",
+   "since": "R99 (§3.6.5 评估成本入预算字面)"
+  },
+  {
+   "dim": "Retention",
+   "status": "live",
+   "measure": "regression_check 保护组(delta vs η) + Eq.10 η_ret 硬门",
+   "reading": "R118: η_ret=0 判据在位; 回归判据 ε 策略键(E2)可演化",
+   "cmd": "python -m pytest tests/test_r118_eq10.py",
+   "since": "R99-初/regression + R118 Eq.10 (R98 判'无'已过时)"
+  },
+  {
+   "dim": "Stability",
+   "status": "live",
+   "measure": "pass^k 跨运行稳定(有害更新的反面) + 重复跑恒等监测",
+   "reading": "pass_k 实测: {'trial_report_r82.json': {'mean_pass_k': {'pass^2': 0.6666666666666666, 'pass^3': 0.6666666666666666, 'pass^4': None}, 'std': 0.5163977794943223}, 'trial_report_r83_clean.json': {'mean_pass_k': {'pass^2': 1.0, 'pass^3': 1.0, 'pass^4': None}, 'std': 0.0}, 'trial_report_r83_noise-code_fix_004.json': {'mean_pass_k': {'pass^2': 0.8333333333333334, 'pass^3': 0.8333333333333334, 'pass^4': None}, 'std': 0.408248290463863}, 'trial_report_r88_noise-code_fix_004_t20_m1.json': {'mean_pass_k': {'pass^2': 0.8333333333333334, 'pass^3': 0.8333333333333334, 'pass^4': 0.8333333333333334}, 'std': 0.408248290463863}, 'trial_report_r88_noise-code_fix_004_t6_m1.json': {'mean_pass_k': {'pass^2': 0.8333333333333334, 'pass^3': 0.8333333333333334, 'pass^4': None}, 'std': 0.408248290463863}}（formula=pass^k = C(c,k)/C(n,k)（无偏, τ-bench）, 5份报告）",
+   "cmd": "python scripts/pass_k_report.py",
+   "since": "R100 pass_k + R118 5连跑校准 (R98 判'无'已过时)"
+  },
+  {
+   "dim": "Transfer",
+   "status": "雏形",
+   "measure": "三臂 transplant/盲安慰剂/baseline (held-out 解耦)",
+   "reading": "三臂 success={'transplant': 1.0, 'blind_placebo': 1.0, 'baseline': 1.0} 内容效应=0.0(placebo_equal) — golden 恒等=结构必然 (R107 效度边界; 真区分须 LLM 臂)",
+   "cmd": "python scripts/transfer_and_attribution.py",
+   "since": "R107 (真区分度缺 LLM 臂 ⇒ 雏形不 live)"
+  },
+  {
+   "dim": "Meta-recursion",
+   "status": "雏形",
+   "measure": "六段链档案统计(链深/验收分布/复用状态) + 换代账本(停止决策)",
+   "reading": "链深=13 gen[109, 121] 验收={'accepted': 13} 复用状态={'pending': 13} 换代决策=10条 — 最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标",
+   "cmd": "python scripts/table8_status.py",
+   "since": "R109 六段 + R120 换代账本 (goal停止决策完整形态未建)"
+  }
+ ],
+ "meta_recursion_detail": {
+  "chain_depth": 13,
+  "gen_range": [
+   109,
+   121
+  ],
+  "supersedes_uses": 0,
+  "acceptance_verdicts": {
+   "accepted": 13
+  },
+  "subsequent_use_statuses": {
+   "pending": 13
+  },
+  "duel_regime_decisions": 10,
+  "caveat": "最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标"
+ },
+ "caveats": [
+  "R98 当时 gain/efficiency 雏形其余四无 — 本轮重判: 4 live + 2 雏形 + 0 缺 (Retention/Stability 已由 R118/R100 落地)",
+  "Transfer 雏形卡在: golden 三臂恒等(结构必然) ⇒ 真区分须 LLM 臂",
+  "Meta-recursion 雏形卡在: goal/停止决策完整形态(move-on 判据)未建",
+  "所有 reading 均来自实测脚本落盘文件, 未跑的标'缺'不装数"
+ ]
+}

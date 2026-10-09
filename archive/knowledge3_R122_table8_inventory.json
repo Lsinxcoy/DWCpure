@@ -1,0 +1,83 @@
+{
+ "round": "R122 · 项3 Table 8缺口轮 — 六维盘点出数(4 live+2雏形+0缺, R98'四无'按现状重判)",
+ "date": "2026-10-09",
+ "★ 六维盘点(综述§3.6.5 Table 8逐维, status+实测+取数命令三联)": {
+  "Adaptivity(gain)": "live — dream V四读数(ablation)",
+  "Efficiency": "live — CostLedger逐term账+M2 K倍账设计(R99 §3.6.5字面)",
+  "Retention": "live — regression_check+Eq.10 η_ret=0判据(R118) — **R98判'无'已过时**",
+  "Stability": "live — pass_k_report实测(mean_pass_k多报告,std跨任务) + R118 5连跑恒等 — **R98判'无'已过时**",
+  "Transfer": "雏形 — 三臂transplant/blind_placebo/baseline全1.0, 内容效应0.0 placebo_equal(golden恒等=结构必然, 真区分须LLM臂)",
+  "Meta-recursion": "雏形 — 六段档案统计: 链深13 gen[109-121] 验收13/13accepted 复用全pending 换代账本8条; caveat: goal停止决策完整形态未建"
+ },
+ "★ 脚本": "scripts/table8_status.py(7.8KB): 读pass_k/transfer/ablation落盘+六段档案glob统计 → docs/table8_status.json; 未跑标'缺'不装数",
+ "教训": "pass_k键=mean_pass_k/rate_std_across_tasks(非mean); transfer键=experiment.arms/attribution(非顶层) — 先读文件结构再取值",
+ "验证": "pytest 851(848+3) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "三项完成": "项1 E2常态化(R120账本) · 项2 M2对打方案稿(R121) · 项3 Table8盘点(本轮) — 用户1-2-3指令全落地",
+ "两雏形的出路": "Transfer→LLM臂真区分 · Meta-recursion→goal/停止决策判据轮(move-on四判据, R98候选) — 均待拍",
+ "inheritance": {
+  "gen": 122,
+  "at": "2026-10-09T21:20:00+08:00",
+  "parent_gen": 121,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 127,
+   "pytest": 848,
+   "inheritance_gen_prev": 121
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/table8_status.py六维盘点 + docs/table8_status.json出数 + 3测试",
+   "files": [
+    "scripts/table8_status.py",
+    "docs/table8_status.json",
+    "tests/test_r122_table8.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "docs/table8_status.json#summary",
+     "claim": "4 live+2雏形+0缺(实测出数)"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r122_table8.py (3 tests)",
+     "claim": "六维完整/三联/真键读数/档案统计全过"
+    },
+    {
+     "type": "report_html",
+     "ref": "papers/arxiv_2609.11873/NOTE_survey.md §3.6.5 Table 8",
+     "claim": "六维定义原文锚"
+    }
+   ],
+   "numbers": {
+    "pytest": 851,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 851 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r122.log",
+   "user_decision": "按1-2-3逐项推进: 项3=Table8缺口轮(本轮)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
