@@ -1,0 +1,17 @@
+{
+ "round": "R105c · 四臂实验修正版出数（dev·repeat1·rounds1·真端点）",
+ "date": "2026-10-09",
+ "★ 四臂结果": {
+  "none": "0.700 (7/10)",
+  "guidance": "0.800 (8/10)",
+  "replay": "0.600 (6/10)",
+  "skills_only": "0.700 (7/10), memo_n=40(臂修复生效)"
+ },
+ "V1方向": "guidance>none=True(0.80 vs 0.70) — 幅度=1任务, R67 判据下噪声内, 只报方向",
+ "论文方向": "replay>guidance=False(0.60 vs 0.80) — 维持 R67『replay 方向不稳』; skills_only(剔失败)=0.70 与 none 持平、低于 guidance, 与 Evo-memory 表3『剔失败伤』方向相反 — n=10 无裁决力",
+ "★ 跨跑噪声元观察(本次最有价值)": "同臂 guidance 跨跑 0.60(R105 降级跑? 否—降级跑 guidance 是好的)…精确: guidance v2=0.80; 两次跑 none/replay 同为 0.70/0.60, guidance 0.60→0.80 — **臂间差(≤0.2) ≤ 跑间抖动(0.2)** ⇒ 单跑 n=10 臂间无裁决力, 结论须多跑/加样本(与 R67 同向, 现有同臂重复的直接证据)",
+ "异常": "5 条(Timeout×1+502×4) 全硬记账无静默",
+ "口径": "样本小只报方向; 论文 §3.7 自己也无方差; 不与论文 §3.7 数字横比(基座/口径不同)",
+ "证据链": "v1 降级跑 docs/mem_fourarms_r105_v1_degraded.json(11.8K) + v2 修正跑 mem_fourarms_r105.json",
+ "验证": "pytest 799 · gate 8/8 · e2e RC=0(R105b 轮三层)"
+}
