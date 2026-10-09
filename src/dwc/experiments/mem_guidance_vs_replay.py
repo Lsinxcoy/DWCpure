@@ -509,7 +509,10 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
             c, q = sig_map[tid]  # type: ignore[misc]
             for arm in ARMS:
                 for rep in range(repeat):
-                    if arm == "guidance":
+                    if arm in ("guidance", "skills_only"):
+                        # ★ skills_only 与 guidance **同批 seed 条目** — 首版落
+                        #   else 致 memo_items=[] ⇒ 臂降级为 none（memo_n=[0] 且
+                        #   pass 与 none 完全一致 = 自检铁证; 测试锁此回归）
                         memo_items: List[Dict[str, str]] = seed[:MEMO_BUDGET]
                         summary = ""
                     elif arm == "replay":

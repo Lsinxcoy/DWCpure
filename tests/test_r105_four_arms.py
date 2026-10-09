@@ -60,3 +60,13 @@ def test_skills_only_prompt_block():
     # none 臂零记忆块（对照下界）
     pn = build_prompt("none", "t", "def f(): ...", memo_items=[mem])
     assert "过往" not in pn
+
+def test_arm_material_assignment_not_degraded():
+    """★ 回归锁: skills_only 必须与 guidance 同批条目（首版落 else ⇒ memo_n=0
+    ⇒ 臂降级为 none — pass 与 none 完全一致的自检铁证教训）。"""
+    # 源码级锁: 臂分配分支必须含 skills_only（跑真 LLM 前的静态防回退）
+    src_path = os.path.join(ROOT, "src", "dwc", "experiments",
+                            "mem_guidance_vs_replay.py")
+    src = open(src_path, encoding="utf-8").read()
+    assert 'arm in ("guidance", "skills_only")' in src, \
+        "★ skills_only 臂分配必须与 guidance 同批（落 else = 降级 none）"

@@ -1,0 +1,9 @@
+{
+ "round": "R105b · skills_only 臂降级修复（实验自检抓 bug）",
+ "date": "2026-10-09",
+ "★ bug": "臂分配 if guidance/elif replay/else ⇒ skills_only 落 else ⇒ memo_items=[] ⇒ 臂实为 none",
+ "★ 自检铁证": "首跑 memo_n=[0] 且 skills_only pass=0.700 与 none 0.700 完全一致 = 空块降级旁证（异常5条502/400/空已硬记账）",
+ "修": "arm in ('guidance','skills_only') 同批 seed + 源码级回归锁测试(4/4) + 首跑证据留档 docs/mem_fourarms_r105_v1_degraded.json(11.8K)",
+ "验证": "pytest 799(798+1) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "实验": "修正版重跑中(真端点后台) — 出数另行回报, 不引用降级数字"
+}
