@@ -1,0 +1,79 @@
+{
+ "round": "R118 · 裁决③Eq.10验收执行轮 — 支配式判定+双审计+展示层无裁决力+校准回填",
+ "date": "2026-10-09",
+ "★ 四件": [
+  "foundation/eq10.py: eq10_accept(∃k∈{gain,cost}:Δ_k>δ_k ∧ ∀j:Δ_j≥−η_j, 无任何加权和, 缺维Eq10Error大声) + score_display(等权摘要,硬标无裁决效力) + coupling_audit(Pearson手写, n≥8出ρ, |ρ|>0.8标coupled只警示不裁决, n<8不装数) + pearson(零方差⇒None不装0)",
+  "门参数(稿§⑤逐值): δ_gain=0(待校准) δ_cost=10%管理口径 η_gain=0(=现行no_worse零放松) η_cost=20% η_ret=0(Recuris判据) — 每门带CALIBRATION注记",
+  "★ δ_gain校准补测(稿§⑧.1义务): 同底同spec连跑5次dream V=1.0恒等抖动0.0 — golden臂确定性=结构必然非抖动证据; 注记回填: 真抖动须LLM臂测定(样本缺如实待校准)",
+  "展示层双锁: 源码级(inspect.getsource(eq10_accept)不含score_display/DISPLAY_WEIGHTS, 违约即红) + 行为级; 单维退化超集断言(Eq.10 accept⇒no_worse必真, 不反向)"
+ ],
+ "★ 门两教训(G1+G2连红)": "eq10.py 含判定能力缺 ①DWC-AUTO定位声明 ②TRUTH_SOURCE三读数真值源声明(gain=anchors文件字节/cost=CostLedger账本/retention=regression保护组, 只读来源不采信自述) → 补docstring复绿; 红=弃提交先修门",
+ "验收(稿§⑧)": "六边界(改善/双门拒/η_gain硬拒/η_ret硬拒/平票拒/cost路径)✓ · 缺维大声✓ · 展示层源码+行为双锁✓ · 校准注记每门在位✓ · 耦合审计n界/ρ矩阵/coupled/零方差✓ · 单维退化超集✓ · select_policy/no_worse零破坏(843全量兜底)✓",
+ "验证": "pytest 843(837+6) · gate 8/8(G1G2红后补声明复绿) · e2e RC=0 — 三层全绿",
+ "next": "选1完成(⑥R117+⑤R118) → 选项3: dep字节粒度处理(R119)",
+ "inheritance": {
+  "gen": 118,
+  "at": "2026-10-09T18:40:00+08:00",
+  "parent_gen": 117,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 123,
+   "pytest": 837,
+   "inheritance_gen_prev": 117
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "foundation/eq10.py(支配式验收+展示层+耦合审计) + δ_gain校准注记回填",
+   "files": [
+    "src/dwc/foundation/eq10.py",
+    "tests/test_r118_eq10.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r118_eq10.py (6 tests)",
+     "claim": "六边界/缺维/双锁/校准/耦合/超集全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "r118_calib 重复采样 n=5 V=1.0 恒等抖动0.0",
+     "claim": "δ_gain 校准义务(确定性臂结构必然, LLM臂待测)"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_pareto_weights.html §④⑤⑥⑦",
+     "claim": "⑤执行=过审稿字面(DecoEvo Eq.10)"
+    }
+   ],
+   "numbers": {
+    "pytest": 843,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 843 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r118.log",
+   "user_decision": "③=权重我定(用户授权R116) → 稿⑤过审(选1) → 本执行轮"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
