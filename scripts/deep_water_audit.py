@@ -105,7 +105,9 @@ ITEMS: List[Dict[str, Any]] = [
      "doc_note": ("R138 后: remember+dream 真路由, learn/evolve/maintain "
                   "/未知显式 not_dispatched（逐动作理由）⇒ **未全覆盖** "
                   "（有 dispatch 面≠全路由 — 判据用 dispatched=True 分支"
-                  "数 / ACTIONS 数, 不靠字样）"),
+                  "数 / ACTIONS 数, 不靠字样）。R141 补充: evolve 的器官"
+                  "侧 evolver.py L1683 Evolver **已实现**（run_term 的"
+                  "π 占位是陈旧自陈）⇒ 剩余缺口是**接线**不是实现"),
      # ★ 语义判据（不靠 grep 字样）: 从源码数 dispatched=True 分支与
      #   ACTIONS 全集比对（注释/自陈行排除）
      "semantic_check": "routing_coverage"},

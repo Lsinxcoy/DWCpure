@@ -80,11 +80,21 @@ def test_unimplemented_quintet_slots_are_not_faked(tr):
 
     ★★ 否则"看起来完整"会掩盖"还没实现"——
       这与 R14 那条「未采用 ≠ 通过」是同一个原则。
+    ★★ R141 更新: 实测 evolver.py L1683 Evolver 已实现 + judge 早已
+      注入路径可用 ⇒ π/V/U **都有真值**（不再是 None）; 反造假原则
+      换表达: unimplemented 空 + partial 只含"未接线"的 U —
+      **没实现的字段仍必须缺席**（本测试锁: 反造假内核不变）。
     """
     rep = tr.run_term("t", n_steps=2)
-    assert rep.quintet["pi"] is None and rep.quintet["V"] is None
-    assert rep.quintet["U"] is None
-    assert set(rep.quintet["unimplemented"]) == {"pi", "V", "U"}
+    q = rep.quintet
+    # 三个角色都已实现 ⇒ 无一缺席
+    assert q["pi"] and q["V"] and q["U"]
+    assert q["unimplemented"] == []
+    # 未接线（partial）≠ 未实现: select_winner 已实现但本盘点不接
+    assert q["partial"] == ["U"]
+    assert "未接本盘点" in q["U"]
+    # 反造假铁律: partial 字段值不许写"已实现"以外的含糊词
+    assert "已实现" in q["pi"]
 
 
 def test_next_task_source_is_not_a_settlement_report(tr):
@@ -420,7 +430,9 @@ def test_judge_is_optional():
     """★★ 意图: 不注入 judge 时三处仍显式标 None（不假装有）。"""
     tr = TermRunner()
     rep = tr.run_term("t", n_steps=2)
-    assert rep.quintet["V"] is None
+    # ★ R141: judge 器官已实现 ⇒ V 有值但标"未注入"（不是 None —
+    #   未注入≠未实现; 判分缺席仍显式: judgement/score_delta None 不变）
+    assert "judge" in rep.quintet["V"] and "未注入" in rep.quintet["V"]
     assert rep.judgement is None
     assert rep.score_delta is None
 
@@ -482,15 +494,20 @@ def test_synthetic_answer_is_labeled_in_observation():
         assert o.get("★_synthetic") is True, "自造观测必须带标记"
 
 
-def test_quintet_pi_u_still_none():
-    """★★ 意图: π（evolver）与 U（改动评估器）仍未实现 ⇒ 继续显式 None。
-
-    ★ 接了 judge 不代表其他器官都实现了 —— 不许顺手填满。
+def test_quintet_pi_u_status_after_r141():
+    """★★ R141 更新: π（evolver）与 U（select_winner）实测**已实现**
+    （evolver.py L1683/L449）⇒ 不装 None; 如实状态:
+      · π 已实现（变异器编排全链）
+      · U 已实现但**本盘点未接线** ⇒ partial 列
+    ★ 反造假内核保持: 没实现的字段仍必须缺席（unimplemented 空=都实现了）
     """
     from dwc.organs.judge import Judge
     tr = TermRunner(judge=Judge())
     rep = tr.run_term("t", n_steps=2)
-    assert set(rep.quintet["unimplemented"]) == {"pi", "U"}
+    q = rep.quintet
+    assert q["unimplemented"] == []
+    assert q["partial"] == ["U"]
+    assert "Evolver" in q["pi"] and "select_winner" in q["U"]
 
 
 def test_six_layers_unaffected_by_judge_injection():

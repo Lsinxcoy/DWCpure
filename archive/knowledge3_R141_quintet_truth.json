@@ -1,0 +1,90 @@
+{
+ "round": "R141 · routing 项1 — Quintet 陈旧自陈修正: π(evolver)早已实现, U(select_winner)已实现未接线; 反造假测试换新表达",
+ "date": "2026-10-10",
+ "★★ 声称 vs 实测(第五次兑现)": [
+  "R138 的 why 文字『evolve 方法不存在』⇒ 误导（基于 run_term L164 R25 时代陈旧自陈）",
+  "实测: evolver.py L1683 class Evolver（变异器编排: 失败签名→提案→过门→待判分）+ core.py L164 self.evolver=Evolver() 实例化 + e2e_loop 深度消费（gain/exploration/Mutator/select_winner）",
+  "实测: select_winner（evolver.py L449, 多候选竞争选赢家, judge 产出分）= U 角色已实现"
+ ],
+ "★ 修法(盘点面如实)": [
+  "Quintet.pi = dwc.organs.evolver.Evolver · 已实现（盘点语义=角色实现, 非运行接线 — TermRunner 不持 evolver 实例, 如实标注）",
+  "Quintet.U = evolver.select_winner · 已实现但未接本盘点 ⇒ partial（未接线≠未实现）",
+  "to_dict 双列表: unimplemented(None 字段) + partial(值含『未接』字样) — 反造假内核保持",
+  "core.py step 分发 why: evolve 从『方法不存在』改『器官已实现但 step 分发未接线（缺失败签名输入链, 留 R142）』"
+ ],
+ "★ 测试跟随更新(3 旧断言换新表达)": [
+  "test_unimplemented_quintet_slots_are_not_faked: 旧锁 π/V/U=None ⇒ 新锁『都已实现 + unimplemented 空 + partial=[U]』（反造假内核不变: 没实现的字段仍必须缺席）",
+  "test_judge_is_optional: V None ⇒ 『judge 已实现（未注入）』（未注入≠未实现; judgement None 不变）",
+  "test_quintet_pi_u_still_none ⇒ test_quintet_pi_u_status_after_r141"
+ ],
+ "★ 坑(记档)": "①Quintet(...) 引号嵌套少一层括号 ⇒ SyntaxError『( was never closed』(collection 18 errors — 改后必须 import 验证) ②TermRunner(db_path=...) 不接 core（我的 e2e 测试写错签名）③getattr(self,'evolver') 在 TermRunner 上永远 None（self 不是 DWC）⇒ 盘点面用模块路径字符串而非运行实例",
+ "验证": "pytest 959(952+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 141,
+  "at": "2026-10-10T12:00:00+08:00",
+  "parent_gen": 140,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 149,
+   "pytest": 952,
+   "inheritance_gen_prev": 140
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "run_term.py Quintet π/U 真值+partial 双列表 + core.py evolve why 修正 + deep_water_audit note 同步 + 7 测试",
+   "files": [
+    "src/dwc/harness/run_term.py",
+    "src/dwc/core.py",
+    "scripts/deep_water_audit.py",
+    "tests/test_r141_quintet_truth.py",
+    "tests/test_run_term.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r141_quintet_truth.py (7 tests)",
+     "claim": "Evolver 事实底座/Quintet 真值/partial 双列表/why 修正/e2e 无 None"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_run_term.py 3 条跟随更新",
+     "claim": "反造假内核保持（没实现的字段仍必须缺席）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py L1683/L449",
+     "claim": "Evolver 类 + select_winner = π/U 已实现的实测依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 959,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 959 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『顺序做1+2』的项1（routing 器官侧盘点）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

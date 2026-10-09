@@ -161,22 +161,31 @@ class CostLedger:
 class Quintet:
     """χ = (π, V, m, U, ρ) —— 五元盘点（环节⑦）。★ frozen。
 
-    ★★ π/V/U 是**角色占位**（evolver/judge/actor 尚未实现）
-      ⇒ 这里只承载 m 与 ρ 的真实值，另三个显式标 None
-      ⇒ ★ 不许用占位值填满 —— 那会让"看起来完整"掩盖"还没实现"
+    ★★ R141 按事实更新（原 R25 注释"π/V/U 未实现"已陈旧 — 盘点坐实:
+      evolver.py 1683 `class Evolver`（变异器编排）+ judge 早已注入
+      core.py L164/L165 ⇒ 两者是**已实现**角色; 只 U 的评估面
+      （select_winner 已实现于 evolver.py L449）尚未接线到本盘点）
+    ⇒ 原则不变: 不许用占位值填满 — 但也不许把**已实现**的说成没有
+      （声称 vs 实测 — 实测为准）。
     """
-    pi: Optional[str] = None      # 进化策略（evolver）★ 未实现
-    V: Optional[str] = None       # 验证器（judge）★ 未实现
+    pi: Optional[str] = None      # 进化策略（evolver）— 已实现, 见 build_quintet
+    V: Optional[str] = None       # 验证器（judge）— 已实现, 见 build_quintet
     m: Optional[str] = None       # 改进器（modifier）
-    U: Optional[str] = None       # 改动评估器 ★ 未实现
+    U: Optional[str] = None       # 改动评估器 — evolver.select_winner 已实现
     rho: Optional[str] = None     # 评价基准 ρ（config/dials.yaml）
 
     def to_dict(self) -> Dict[str, Any]:
+        # ★ R141: unimplemented（字段 None）+ partial（值含"未接"字样）
+        #   双列表 — "已实现未接线"≠"未实现"（声称 vs 实测的盘点纪律）
         return {"pi": self.pi, "V": self.V, "m": self.m,
                 "U": self.U, "rho": self.rho,
                 "unimplemented": [k for k, v in
                                   (("pi", self.pi), ("V", self.V),
-                                   ("U", self.U)) if v is None]}
+                                   ("U", self.U)) if v is None],
+                "partial": [k for k, v in
+                            (("pi", self.pi), ("V", self.V),
+                             ("U", self.U))
+                            if v is not None and "未接" in str(v)]}
 
 
 # ══════════════════════════════════════════════════════════
@@ -433,17 +442,24 @@ class TermRunner:
         # ── 4. 五元盘点 χ + 两条 dial 声明 ──
         dials = dial_config.load_dials()["dials"]
         rep.dials = {k: dials[k] for k in dial_config.DIAL_BOOLS}
-        # ★★ R25: V = judge ⇒ 若已注入就写真实来源，不留 None
-        #   π（evolver）与 U（改动评估器）仍未实现 ⇒ 继续显式 None
+        # ★★ R141: π=evolver / V=judge 均**已实现**（陈旧 R25 自陈
+        #   修正 — 实测 evolver.py L1683 Evolver 类 + core.py L164 实例化;
+        #   judge 注入路径同旧）。★ TermRunner 不持有 evolver 实例（它只
+        #   编排六层链）⇒ π 的填值语义=**角色已实现**（盘点面, 不是运行
+        #   时接线面）; U 的 select_winner(evolver.py L449) 已实现但**本
+        #   盘点不接** ⇒ 如实 partial（不是 None 假装没有）。
         q = Quintet(
             m="wire_and_memory（已实现）",
             rho="config/dials.yaml（已实现）",
-            pi=None,
+            pi=("dwc.organs.evolver.Evolver · 变异器编排"
+                "（失败签名→提案→过门→待判分）— 已实现"),
             V=(("dwc.organs.judge.Judge · 真值源 %s"
                 % ", ".join(self.judge.self_check()
                             ["truth_source"]["verified"]))
-               if self.judge is not None else None),
-            U=None)
+               if self.judge is not None
+               else "dwc.organs.judge.Judge · 已实现（未注入）"),
+            U=("dwc.organs.evolver.select_winner · 已实现但未接本盘点"
+               "（R141 如实标 partial）"))
         rep.quintet = q.to_dict()
 
         # ── 5. ★ 生成下一轮任务源（不是"结算"）──

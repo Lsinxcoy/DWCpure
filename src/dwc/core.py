@@ -311,10 +311,19 @@ class DWC:
                                % self._DREAM_K2,
                         "v_star": rep.v_star, "n_worlds": rep.n_worlds}
         elif action in ("learn", "evolve"):
-            dispatch = {"kind": action, "dispatched": False,
-                        "why": "not_dispatched: 方法不存在（DWC 未实现 "
-                               "%s 器 — run_term L164 自陈 π/U 占位）"
-                               % action}
+            # ★ R141 如实修正: R138 原判"方法不存在"是**陈旧自陈误导** —
+            #   evolve 侧 evolver.py L1683 Evolver 已实现（失败签名→提案→
+            #   过门）; 缺的是 step 分发的接线（调用 evolver.diagnose 的
+            #   输入=失败签名链, 本轮不阔配以免改判据面 — 留 R142）
+            if action == "evolve":
+                dispatch = {"kind": "evolve", "dispatched": False,
+                            "why": "not_dispatched: 器官已实现"
+                                   "(evolver.Evolver) 但 step 分发未接线"
+                                   "（缺失败签名输入链）— R141 如实修正"}
+            else:
+                dispatch = {"kind": "learn", "dispatched": False,
+                            "why": "not_dispatched: learn 器未实现"
+                                   "（无对应器官 — 与 evolve 区别标注）"}
         elif action == "maintain":
             dispatch = {"kind": "maintain", "dispatched": False,
                         "why": "not_dispatched: maintain 属记忆维护面, "
