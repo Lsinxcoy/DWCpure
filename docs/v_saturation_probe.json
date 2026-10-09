@@ -1,0 +1,146 @@
+{
+ "probe": "V_max_saturation: 论文式 V = max s_v − β₁N + β₂(N/max(1,k)) 的 s_v 在观测面取 max ⇒ max 饱和 ⇒ 观测面有满分即 V 与低分无关（结构性质实测, 非 bug 非论文违反）",
+ "n_d_search": 8,
+ "results": {
+  "all_ones": {
+   "injected": {
+    "code_fix_001": 1.0,
+    "code_fix_002": 1.0,
+    "code_fix_003": 1.0,
+    "code_fix_004": 1.0,
+    "code_fix_005": 1.0,
+    "reasoning_001": 1.0,
+    "reasoning_002": 1.0,
+    "reasoning_003": 1.0
+   },
+   "v_pi0": 1.0,
+   "n_scored_nodes": 8,
+   "max_s_in_tree": 1.0,
+   "min_s_in_tree": 1.0,
+   "V_eq_max_s": true,
+   "per_world": [
+    [
+     "dev",
+     1.0,
+     4,
+     12
+    ]
+   ]
+  },
+  "one_zero_at_head": {
+   "injected": {
+    "code_fix_001": 0.0,
+    "code_fix_002": 1.0,
+    "code_fix_003": 1.0,
+    "code_fix_004": 1.0,
+    "code_fix_005": 1.0,
+    "reasoning_001": 1.0,
+    "reasoning_002": 1.0,
+    "reasoning_003": 1.0
+   },
+   "v_pi0": 1.0,
+   "n_scored_nodes": 8,
+   "max_s_in_tree": 1.0,
+   "min_s_in_tree": 0.0,
+   "V_eq_max_s": true,
+   "per_world": [
+    [
+     "dev",
+     1.0,
+     4,
+     12
+    ]
+   ]
+  },
+  "one_zero_at_tail": {
+   "injected": {
+    "code_fix_001": 1.0,
+    "code_fix_002": 1.0,
+    "code_fix_003": 1.0,
+    "code_fix_004": 1.0,
+    "code_fix_005": 1.0,
+    "reasoning_001": 1.0,
+    "reasoning_002": 1.0,
+    "reasoning_003": 0.0
+   },
+   "v_pi0": 1.0,
+   "n_scored_nodes": 8,
+   "max_s_in_tree": 1.0,
+   "min_s_in_tree": 0.0,
+   "V_eq_max_s": true,
+   "per_world": [
+    [
+     "dev",
+     1.0,
+     4,
+     12
+    ]
+   ]
+  },
+  "zeros_then_one": {
+   "injected": {
+    "code_fix_001": 0.0,
+    "code_fix_002": 0.0,
+    "code_fix_003": 0.0,
+    "code_fix_004": 0.0,
+    "code_fix_005": 0.0,
+    "reasoning_001": 0.0,
+    "reasoning_002": 0.0,
+    "reasoning_003": 1.0
+   },
+   "v_pi0": 1.0,
+   "n_scored_nodes": 8,
+   "max_s_in_tree": 1.0,
+   "min_s_in_tree": 0.0,
+   "V_eq_max_s": true,
+   "per_world": [
+    [
+     "dev",
+     1.0,
+     4,
+     12
+    ]
+   ]
+  },
+  "no_ones_at_all": {
+   "injected": {
+    "code_fix_001": 0.0,
+    "code_fix_002": 0.0,
+    "code_fix_003": 0.0,
+    "code_fix_004": 0.0,
+    "code_fix_005": 0.0,
+    "reasoning_001": 0.0,
+    "reasoning_002": 0.0,
+    "reasoning_003": 0.0
+   },
+   "v_pi0": 0.0,
+   "n_scored_nodes": 8,
+   "max_s_in_tree": 0.0,
+   "min_s_in_tree": 0.0,
+   "V_eq_max_s": true,
+   "per_world": [
+    [
+     "dev",
+     0.0,
+     4,
+     12
+    ]
+   ]
+  }
+ },
+ "conclusions": {
+  "all_ones_v": 1.0,
+  "one_zero_head_v": 1.0,
+  "one_zero_tail_v": 1.0,
+  "zeros_then_one_v": 1.0,
+  "no_ones_v": 0.0,
+  "saturates": true,
+  "★ 结论": "一有 1.0 在观测面, 0.0 放头/尾都不影响 V; 只有全 0.0(无满分节点)V 才掉 —— max 饱和",
+  "含义": "⇒ R127`V 恒等`根因=此结构性质(与 executor 无关): 起底只要有一个任务全对, 任何策略变体的 V 都顶格; 要测搜索策略差异, 须改的是**观测面构成**或**用 judge 逐任务分**, 不是换 executor"
+ },
+ "caveats": [
+  "本探针用注入观测（不走真执行）— 目的是隔离出 V 的算术性质",
+  "β₁/β₂ 从 config/replay.yaml 读（论文无报值 ⇒  Suficiency 初值）",
+  "V 的观测面=全量跨段累计（R102 段式; revealed_all ∪ root）"
+ ]
+}

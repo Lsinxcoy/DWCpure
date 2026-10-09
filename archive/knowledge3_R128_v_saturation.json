@@ -1,0 +1,84 @@
+{
+ "round": "R128 · V_max_saturation 探针 — R127『V 恒等』根因量化坐实(max 饱和=结构性质, 与 executor 无关)",
+ "date": "2026-10-10",
+ "★ R127→R128 诊断链": [
+  "R127: --executor llm 跑完 V 仍 1.0 ⇒ 我一度以为没接上",
+  "R128 实测①: LLM executor 起底后树内 score=[1.0, 0.0, 1.0] — LLM 判分**进树了**(实测, 非推测)",
+  "R128 实测②: dream 的 V 仍 1.0 ⇒ V 的 max s_v 在观测面取 max, 12 个揭示节点里有 1.0 就顶格",
+  "⇒ 根因=论文式 max 聚合的饱和性质, **不是 bug 不是接线失败不是论文违反**"
+ ],
+ "★ 探针五档量化(注入观测隔离算术, 零 LLM 调用)": "all_ones=1.0 · one_zero_head=1.0 · one_zero_tail=1.0 · zeros_then_one=1.0 · no_ones_at_all=0.0 ⇒ 0.0 位置无关(被 max 吃), 只有全 0.0(无满分节点)才掉 — saturates=True",
+ "★ 整改路径(写死, 不虚报)": [
+  "不是换 executor(R127 方向错了) — executor 早就接进去了",
+  "正确方向二选一: ① 改观测面构成(让满分节点不在共见观测面) / ② 用 judge 逐任务分作为搜索目标(均值/分布, 不是 max)",
+  "两者都改测量口径不改论文 V 本身(论文式逐字保留, 不迁就)"
+ ],
+ "★ 结构性质对全局的影响(如实)": "所有以 dream V 为目标的比较(M1 ablation V / M2 对打 V)都继承此饱和 ⇒ 恒等读数现在有了结构性解释, 不必再怀疑 executor 接线",
+ "验证": "pytest 885(881+4) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 128,
+  "at": "2026-10-10T00:50:00+08:00",
+  "parent_gen": 127,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 135,
+   "pytest": 881,
+   "inheritance_gen_prev": 127
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/probe_v_saturation.py(五档注入探针) + 4 测试 + docs/v_saturation_probe.json",
+   "files": [
+    "scripts/probe_v_saturation.py",
+    "tests/test_r128_v_saturation.py",
+    "docs/v_saturation_probe.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r128_v_saturation.py (4 tests)",
+     "claim": "饱和性质/注入落树/文档结论/零LLM 四验收"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/core.py L580-584 max_s+V公式",
+     "claim": "V=max s_v−β₁N+β₂(N/k) 逐字, max 聚合=饱和的算术根源"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/v_saturation_probe.json#conclusions",
+     "claim": "五档实测 saturates=True, one_zero 全=1.0, no_ones=0.0"
+    }
+   ],
+   "numbers": {
+    "pytest": 885,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 885 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/v_saturation_probe.json",
+   "user_decision": "『那就继续推进』→ R127 遗留定位在 R128 闭环"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
