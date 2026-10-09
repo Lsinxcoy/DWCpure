@@ -203,31 +203,45 @@ class PolicySpec:
 
     w_delta: δ 排序权重（0=纯字典序, 1=现行 δ 降序）—— dream π^0 选择键
     prefer_revealable: R81 过滤开关（False=不过滤, 可选已观测叶子）
+    seg_order: ★ R102 · B 甲案段序 — "children"（root children 插入序,
+      与 step(root) 的「最早未观测子」顺序规定自洽）/ "delta"（段间选择用
+      dmap, 与任务源同源 — R92 稿 B 节裁决点②）。进修订域（非锁值）。
     ★ 锁值（τ/B/β/δ=0.15 等）**不在此域**: from_mapping 遇到即拒
       （混动=违校准纪律且无法归因 — 约束 4 一处变更）。
     """
     w_delta: float = 1.0
     prefer_revealable: bool = True
+    seg_order: str = "children"
 
     def __post_init__(self):
         if isinstance(self.w_delta, bool) or not isinstance(self.w_delta, (int, float)):
             raise ReplayError("w_delta 须为数值, 实得 %r" % (self.w_delta,))
         if self.w_delta < 0:
             raise ReplayError("w_delta 须 ≥0, 实得 %r" % (self.w_delta,))
+        if self.seg_order not in ("children", "delta"):
+            raise ReplayError(
+                "seg_order ∈ {children, delta}, 实得 %r（值枚举, 不猜）"
+                % (self.seg_order,))
 
     @property
     def pid(self) -> str:
         # π0 = 现行默认（current 键 — select_policy/no_worse 依赖）
-        if self.w_delta == 1.0 and self.prefer_revealable:
+        if self.w_delta == 1.0 and self.prefer_revealable \
+                and self.seg_order == "children":
             return "π0"
-        return "π(w=%g,r=%s)" % (self.w_delta, int(self.prefer_revealable))
+        # ★ R102: 默认段序不进格式（既有 pid 测试锁全保）; 非默认追加 s 后缀
+        #   （段序是真差异 — 不追加会与同 w/r 变体撞键自覆盖, L390 防双 π0 同族）
+        base = "π(w=%g,r=%s)" % (self.w_delta, int(self.prefer_revealable))
+        if self.seg_order != "children":
+            base = base[:-1] + ",s=%s)" % self.seg_order
+        return base
 
     @classmethod
     def from_mapping(cls, m: Dict[str, object]) -> "PolicySpec":
         """★ 构造校验: 锁值键/未知键 raise（R85 稿② — 修订域硬边界）。"""
         _LOCKED = {"tau", "b", "beta1", "beta2", "delta", "delta_theta",
                    "history_max", "n_envs", "seed"}
-        bad = set(m) - {"w_delta", "prefer_revealable"}
+        bad = set(m) - {"w_delta", "prefer_revealable", "seg_order"}
         locked = bad & _LOCKED
         if locked:
             raise ReplayError(
@@ -254,6 +268,10 @@ class DreamReport:
     k2_max: int
     why: str
     policy_variants: Tuple[PolicySpec, ...] = ()   # R86: 参评参数集（M>1 可审计）
+    #: ★ R102 · B 甲案: 本轮回放的段序（"treeid:seg_root|..." 跨树拼接, 可审计）
+    segments: Tuple[str, ...] = ()
+    #: ★ R102 探针②原料: {pid: pick 轨迹}（w=0 vs w=1 轨迹必须不同 — R90 靶）
+    picks: Optional[Dict[str, Tuple[str, ...]]] = None
 
 
 # ══════════════════════════════════════════════════════════

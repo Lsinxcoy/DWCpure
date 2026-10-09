@@ -423,6 +423,7 @@ class DWC:
     # R80 · Dreaming 循环（设计稿三裁决落地, §2.5–2.7 编排）
     # ══════════════════════════════════════════════════════
     def dream(self, *, k2_max: int,
+              seg_budget: int = 4,
               policy_variants: Optional[List[PolicySpec]] = None
               ) -> DreamReport:
         """★ 离线 Dreaming（2609.14858 §2.5–2.7 编排, 零新机制）。
@@ -430,6 +431,9 @@ class DWC:
         ★ M>1（R85 稿批准后实现）: policy_variants 传入 π^0 之外的变体参数集
           ⇒ 每版本在每历史树单独评估完才下一版本（§2.5 逐字）; current=π0 必含
           （单调性支点）; None ⇒ M=1 与旧行为完全一致（向后兼容零破坏）。
+        ★ R102 · B 甲案: 段式回放（Eq6 subgoal 段语义的 replay 映射）——
+          seg_budget = K_s 段内最大揭示步（默认 4 = R92 稿标**待校准**初值,
+          β 同款纪律: 初值非终值）; 段间 re-anchor 破 R90 死锁（w 主场回归）。
 
         三裁决（docs/proposal_replay_dreaming_design.html）:
         ① ℋ = run_term 尾快照序列（无快照 ⇒ 当前树现快照兜底）
@@ -443,6 +447,10 @@ class DWC:
         """
         if k2_max < 1:
             raise DwcError("dream: k2_max 须 ≥1, 实为 %r" % (k2_max,))
+        if isinstance(seg_budget, bool) or not isinstance(seg_budget, int) \
+                or seg_budget < 1:
+            raise DwcError("dream: seg_budget(K_s) 须 ≥1 整数, 实为 %r"
+                           % (seg_budget,))
         from dwc.foundation.dial_config import load_replay
         cfg = load_replay()
         b1, b2 = cfg["beta1"], cfg["beta2"]
@@ -457,50 +465,117 @@ class DWC:
         specs = [PolicySpec()] + [v for v in (policy_variants or [])
                                    if v.pid != "π0"]
         per_by: Dict[str, List[Tuple[str, float, int, int]]] = {}
+        segments_acc: List[str] = []          # R102: π0 的段序（稿审计字段）
+        picks_by: Dict[str, List[str]] = {}   # R102: {pid: pick 轨迹 — 探针②原料}
         for _spec in specs:
             per: List[Tuple[str, float, int, int]] = []
+            spec_picks: List[str] = []
             for tid, T_i in worlds:
                 sim = ReplaySimulator(T_i)
-                observed = {T_i.root_id}          # §2.5: 起步 𝒯^{m,0} = {r}
                 k = 0
                 n_revealed = 0
-                while k < k2_max:
-                    elig = sim.eligible(observed)
-                    # ★ π^0 补丁（R81）: 只把「能揭新」的非根当候选（无未观测子的
-                    #   叶子选了也是空转）; 没有可揭新的非根 ⇒ 选根开新分支
-                    #   （§2.5「每个分支追多远、何时另开分支」的最小实现 ——
-                    #   根语义读法乙后 root 才能真正开第二分支）
-                    def _can_reveal(v):
-                        return any(c not in observed
-                                   for c in T_i.nodes[v].children)
-                    nonroot = sorted(
-                        v for v in elig if v != T_i.root_id
-                        and ((not _spec.prefer_revealable) or _can_reveal(v)))
-                    if nonroot:
+                # ★ R102 · B 甲案段式（论文 Eq6 subgoal 段语义 → replay 映射,
+                #   R92 稿 B 节推荐甲; re-anchor = elig 语义的设计变更裁决）:
+                #   单循环 → 段循环（段 = root 的一个 child 分支单元）——
+                #   段内「同层双观测叶」成为常态 ⇒ w_delta 的 dream 主场回归
+                #   （R90 三迭代的死锁: 段间 interleave 使 nonroot 恒 0/1 元素）。
+                #   k/n_revealed 跨段累计（稿: 语义不变）; V/replay_score/
+                #   select_policy/no_worse 全部不动（跨段累计后同一公式）。
+                # ★ R102 修正版 re-anchor: 锚集 = {root} ∪ 已完成段根 —
+                #   **段的叶不进锚**（探针④字面: 段起点不含上段的叶; 首版
+                #   「完成集=全量」使 re-anchor 恒等 ⇒ 无效实现, 已废）。
+                #   revealed_all = 全量揭示集（V/max_s/n_revealed 跨段累计源）。
+                anchor = set()
+                revealed_all = set()
+                kids = list(T_i.nodes[T_i.root_id].children)
+                if _spec.seg_order == "delta":
+                    # 段间选择用 dmap（与任务源同源; 字典 tie 可复现）
+                    seg_roots = sorted(kids,
+                                       key=lambda v: (-dmap.get(v, 0.0), v))
+                else:
+                    seg_roots = kids          # 插入序 = step(root) 顺序规定
+                seg_rec: List[str] = []
+                done = False
+
+                for seg_root in seg_roots:
+                    if done or k >= k2_max:
+                        break
+
+                    def _in_seg(v, _sr=seg_root):
+                        # 稿明文「段内只挖本段分支」: v 在 seg_root 子树内
+                        #   （含 seg_root 自身; WorldNode.parent_id 链回溯）
+                        cur = v
+                        while cur is not None and cur != T_i.root_id:
+                            if cur == _sr:
+                                return True
+                            cur = getattr(T_i.nodes[cur], "parent_id", None)
+                        return False
+
+                    # re-anchor: observed = {root} ∪ 已完成段根（锚集; 叶丢弃）
+                    observed = {T_i.root_id} | anchor
+                    # 段内第一步 = 揭示 seg_root: 段序是对 step(root)「最早
+                    #   未观测子」顺序规定的**显式化**（段语义下顺序由段序给）;
+                    #   转移方程合规: seg_root 是已记录、父∈observed 的子 —
+                    #   只揭示不生成（replay 根本性质不违）
+                    if seg_root not in observed:
+                        observed = set(observed) | {seg_root}
+                        n_revealed += 1
+                        k += 1
+                        spec_picks.append(seg_root)   # 手动步也入轨迹（审计）
+                    k_seg = 0
+                    while k_seg < seg_budget and k < k2_max:
+                        elig = sim.eligible(observed)
+
+                        def _can_reveal2(v):
+                            return any(c not in observed
+                                       for c in T_i.nodes[v].children)
+
+                        # 段内候选**不含 root**（根开新分支由段间承担 —
+                        #   这防「段内 pick=root 揭段外节点」的越界; 段内
+                        #   nonroot 空 ⇒ 段完成出段）
+                        nonroot = sorted(
+                            v for v in elig if v != T_i.root_id
+                            and _in_seg(v)          # 段内只挖本段分支（稿明文）
+                            and ((not _spec.prefer_revealable)
+                                 or _can_reveal2(v)))
+                        if not nonroot:
+                            break             # 段内无可揭 ⇒ 段完成
                         pick = min(nonroot, key=(
                             lambda v: -_spec.w_delta * dmap.get(v, 0.0)))
-                        #   ↑ π^0 = w_delta·δ 降序（与任务源采样同源）; 字典序 tie
-                        #     可复现; w_delta=0 ⇒ 纯字典序（修订域参数, R85 稿②）
-                    else:
-                        # 可揭新的非根没有 ⇒ 根开新分支（根 children 全揭后
-                        # gained=∅ ⇒ 下方防空转 break）
-                        pick = T_i.root_id
-                    new_obs = sim.step(observed, {pick})
-                    gained = set(new_obs) - observed
-                    if not gained:
-                        break                     # 无新揭示 ⇒ 继续无意义（防空转 K₂）
-                    n_revealed += len(gained - {T_i.root_id})
-                    observed = set(new_obs)
-                    k += 1
-                    if (observed | {T_i.root_id}) >= set(T_i.nodes):
-                        break                     # 终止③ 观测面=全树
+                        spec_picks.append(pick)
+                        new_obs = sim.step(observed, {pick})
+                        gained = set(new_obs) - observed
+                        if not gained:
+                            break             # 段内防空转（r=False 选到已揭
+                        #   完子的叶）⇒ 出段（下段可能仍有可揭 — 与单循环
+                        #   「直接停全回放」不同, 段语义天然有限不死）
+                        n_revealed += len(
+                            (gained - {T_i.root_id}) - revealed_all)
+                        revealed_all |= gained
+                        observed = set(new_obs)
+                        k += 1
+                        k_seg += 1
+                        if (observed | {T_i.root_id}) >= set(T_i.nodes):
+                            done = True       # 终止③ 观测面=全树（停全部段）
+                            break
+                    anchor |= {seg_root}      # 段根进锚（段完成的锚化）
+                    revealed_all |= observed  # 本段全量并入
+                    seg_rec.append(seg_root)
+                    if (revealed_all | {T_i.root_id}) >= set(T_i.nodes):
+                        done = True           # 段间也查全树
+                # V 的观测面 = 全量跨段累计（稿: 跨段累计后同一公式）
+                observed = revealed_all | {T_i.root_id}
                 max_s = max((T_i.nodes[v].score for v in observed
                              if getattr(T_i.nodes[v], "score", None)
                              is not None), default=0.0)
                 V = replay_score(max_score=max_s, n_revealed=n_revealed,
                                  n_rounds=k, beta1=b1, beta2=b2)
                 per.append((tid, V, k, n_revealed))
+                if _spec.pid == "π0":
+                    # 稿审计字段 = 本轮回放(π0 默认回放)的段序 — 多 spec 不混
+                    segments_acc.extend("%s:%s" % (tid, s) for s in seg_rec)
             per_by[_spec.pid] = per
+            picks_by[_spec.pid] = tuple(spec_picks)
         v_by = {pid: sum(p[1] for p in pl) / float(len(pl))
                 for pid, pl in per_by.items()}
         m_star, v_star = select_policy(v_by, current="π0")
@@ -511,6 +586,8 @@ class DWC:
             v_star=v_star, betas=(b1, b2), per_world=per,
             monotone_no_worse=ok, k2_max=k2_max,
             policy_variants=tuple(specs),
+            segments=tuple(segments_acc),
+            picks={p: tuple(t) for p, t in picks_by.items()},
             why="环节⑥ Dreaming（§2.5–2.7; M=%d%s; β=%s/%s 为 config 初值"
                 "非论文报值)" % (
                     len(specs),
