@@ -6,6 +6,15 @@
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
     六段继承产物 = knowledge3 知识档的字段扩展（跨轮可审计的继承记录），
     属记忆底座的档格式职责 ⇒ DWC-MEM。
+
+★★★ TRUTH_SOURCE · 本模块的系统外真值源（判据 G2 要求必须声明）
+    ① truth_sha8 的对象 = config/anchors/dev.json 文件字节（golden 真值文件,
+       agent 不可写 — G2 主锚）
+    ② judge_fingerprint 的对象 = src/dwc/organs/judge.py 文件字节（评估器
+       本体的物理指纹 — dep(z) 定向失效的判定依据: 指纹变 = 评估器变,
+       变没变由**文件哈希**说了算, 不由任何模块自报）
+    ⇒ 两对象皆为**系统外文件**（判定只读文件字节, 不采信内存自述）;
+    ⇒ 若任一文件指不到真实存在, fingerprint() 打开即 raise（不静默）。
 六段  : parent state → proposed change → motivating evidence
         → evaluation configuration → acceptance decision → subsequent use
 
@@ -28,7 +37,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 __all__ = ["InheritanceError", "build_inheritance", "validate_inheritance",
-           "attach_inheritance", "load_latest_gen"]
+           "attach_inheritance", "load_latest_gen", "truth_fingerprint",
+           "judge_fingerprint"]
 
 #: 六段键（顺序即 §7 原文顺序）
 SEGMENTS = ("parent_state", "proposed_change", "motivating_evidence",
@@ -156,6 +166,21 @@ def validate_inheritance(obj: Dict[str, Any]) -> None:
         raise InheritanceError("段4 judge_frozen 必须 bool")
     if not str(ec.get("truth_source") or "").strip():
         raise InheritanceError("段4 truth_source 不能为空")
+    # ★ E1（设计稿④ §⑥ dep(z) 依赖声明字面）: 每档带
+    #   judge_fingerprint + epoch_id —— dep 扫描据此定向失效
+    jfp = ec.get("judge_fingerprint")
+    if not (isinstance(jfp, str) and re.match(r"^[0-9a-f]{8}$", jfp)):
+        raise InheritanceError(
+            "段4 judge_fingerprint 必须 8 位小写 hex（dep(z) 依赖记录缺此"
+            " ⇒ 换代时无从扫描失效）, 实为 %r" % jfp)
+    eid = ec.get("epoch_id")
+    if eid is not None and (not isinstance(eid, int) or eid < 0):
+        raise InheritanceError(
+            "段4 epoch_id 必须 None 或非负 int, 实为 %r" % eid)
+    if eid is None and not str(ec.get("epoch_note") or "").strip():
+        raise InheritanceError(
+            "段4 epoch_id=None 时必带 epoch_note（epoch 合同未启用须如实"
+            " 声明 — 不留空装有）")
 
     # 判据7 · 段5 判定 + 段6 诚实
     ad = obj["acceptance_decision"]
@@ -219,3 +244,11 @@ def truth_fingerprint(path: str) -> str:
     """★ truth_source 的 8 位指纹（段4 G2 可比性 — 文件字节 sha 前 8）。"""
     with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()[:8]
+
+
+def judge_fingerprint(judge_path: str) -> str:
+    """★ E1 · 评估器指纹（dep(z) 定向失效的依赖键）—— judge 模块字节 sha8。
+
+    换代判定 = 该值变化 ⇒ 依赖旧值的档/分数进 deprecated 扫描范围
+    （设计稿④ §⑥; 实现与 truth_fingerprint 同法, 分名是语义不是代码）。"""
+    return truth_fingerprint(judge_path)

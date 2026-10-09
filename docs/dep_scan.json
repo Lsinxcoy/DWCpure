@@ -1,0 +1,739 @@
+{
+ "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
+ "current_judge_fingerprint": "fffdf35a",
+ "counts": {
+  "active": 0,
+  "deprecated_by_evaluator": 0,
+  "pre_depz_legacy": 121
+ },
+ "rows": [
+  {
+   "file": "knowledge3_R100_t1_batch2.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R101_grouped_tree.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R102_segmented_dream.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R103_success_seq.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R104_memory.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R105_four_arms.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R105b_arm_fix.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R105c_fourarms_result.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R106_proposal_follow.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R107_transfer.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R108_design4a.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R109_sixstage.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "字段缺失"
+  },
+  {
+   "file": "knowledge3_R10_gate.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R110_matched_term.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "字段缺失"
+  },
+  {
+   "file": "knowledge3_R111_population_attribution.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "字段缺失"
+  },
+  {
+   "file": "knowledge3_R112_evaluator_coevolution.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "字段缺失"
+  },
+  {
+   "file": "knowledge3_R11_scripts.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R12_loader.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R13_configs.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R14_g3.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R15_adopt.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R16_causal_chain.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R17_wiring.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R18_git_memory.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R1_audit.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R20_arsi_verify.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R21_tubes.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R22_starve_fix.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R23_run_term.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R24_judge.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R25_judge_wiring.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R26_actor.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R27_evolver.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R28_test_split.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R29_applier.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R2_landing.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R30_e2e.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R31_1_learn.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R31_candidates.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R32_land_persist.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R33_retire.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R34_1_real.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R34_llm.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R35_land_llm.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R36_lifecycle.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R37_contract.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R38_rulingD.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R39_audit.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R3_landing.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R40_v2formulas.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R41_sigma.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R42_attribution.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R43_docaudit.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R44_wiring.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R45_stream.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R46_contest.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R47_consume.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R48_static_guard.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R49_findable.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R4_stages.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R50_delta.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R51_sigma.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R52_nowater.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R53_locked.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R54_granular.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R55_naturalrise.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R56_regress.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R57_deltazones.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R58_deltaruling.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R5_audit.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R5_part2.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R60_worldmodel.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R61_iwm.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R62_dwc_core.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R63_guidance_vs_replay.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R64_contrast.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R65_hard_battle.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R66_grown_migration.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R67_grown_final.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R68_z4_z5.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R69_residual_difficulty.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R6_principles.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R70_el_scheduler.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R71_c3_datachain.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R72_delta_living_chain.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R73_direction.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R74_replay.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R75_wiring_proposal.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R76_el_wiring.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R77_batch2_sowing.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R78_batch3_direction.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R79_dreaming_design.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R7_criteria.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R80_dreaming_loop.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R81_root_semantics.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R82_trial_run.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R83_el_threshold.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R84_auto_judge_backfill.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R85_m1_design.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R86_m1_revision.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R87_milestone.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R88_longrun.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R89_multiworld.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R8_executable.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R90_wdelta_boundary.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R91_hjepa_read.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R92_three_plans.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R93_rsi_survey_read1.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R93b_subagent_notes.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R94a_batch1.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R94b_batch2.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R94c_batch3.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R95_idsearch.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R96_ruminate.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R97_synthesis.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R97b_supplement.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R97c_archdiff.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R98_arch_plan.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R99a_t1_batch1.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_R9_deadcriteria.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  },
+  {
+   "file": "knowledge3_manifest.json",
+   "status": "pre_depz_legacy",
+   "judge_fingerprint": null,
+   "why": "无六段/无依赖字段（dep(z) 建立前）"
+  }
+ ],
+ "note": "deprecated_by_evaluator=0 属正常（E2 首次换代前无换代） — 不装数不造档",
+ "split_change": "deprecated_by_split_change 栏随裁决① HCE 拍定后启用（dep(z) 同一份记录, 第二触发源）"
+}

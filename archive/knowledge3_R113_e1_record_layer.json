@@ -1,0 +1,78 @@
+{
+ "round": "R113 · 裁决②E1执行轮 — 记录与约束层(判据分层重述+档依赖字段+epoch合同+dep(z)扫描) — 零行为风险",
+ "date": "2026-10-09",
+ "★ 四件": [
+  "judge.py 判据声明重述(稿§④逐字): 锚与判分执行不进递归/验收门外部化不可自改/评估策略层可经epoch+challenger+平票在位者+dep(z)共演化; 旧判据作用域收窄说明在位(Recuris三性质①③全保)",
+  "inheritance.evaluation_config 加必填 judge_fingerprint(8hex)+epoch_id(None必带epoch_note) — 稿§⑥ dep(z)依赖声明字面; judge_fingerprint()=judge.py字节sha8",
+  "foundation/epoch_guard.py: EvaluatorEpochGuard 段内冻结check(不一致raise)+点界close_epoch(reason必填/同指纹拒/轨迹记录) — E1落类, E2接challenger流",
+  "scripts/dep_scan.py: 三栏(active/deprecated_by_evaluator/pre_depz_legacy)+只读不改档+换代前deprecated=0不装数+split_change栏待①HCE"
+ ],
+ "★ 门两教训": [
+  "G2真值门红: inheritance加fingerprint后被判『含判定能力』须声明TRUTH_SOURCE — 补双对象声明(dev.json主锚+judge.py物理指纹, 判定只读文件字节不采信自述)→复绿",
+  "R109测试3红=预期设计变更(fixture补E1字段)非实现bug; R113手搓残缺六段先撞『六段缺』判据⇒改走build_inheritance(构造即校验)"
+ ],
+ "验收(稿§⑧E1)": "判据声明字面逐关键词断言✓ · dep破坏测试(换指纹→deprecated栏,其余不动,字节只读)✓ · 段内改评估器raise探针✓ · 全级零换代(deprecated=0如实)✓",
+ "验证": "pytest 821(816+5) · gate 8/8(G2修后复绿) · e2e RC=0 — 三层全绿",
+ "下一步": "M1执行轮(R114): attribution_plan契约进evolver路径乙 + 四跑消融脚本 + τ分流 + 六段attribution段; 之后E2首次换代(结果呈用户过目)",
+ "inheritance": {
+  "gen": 113,
+  "at": "2026-10-09T14:10:00+08:00",
+  "parent_gen": 112,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 118,
+   "pytest": 816,
+   "inheritance_gen_prev": 112
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "judge.py判据分层重述 + inheritance依赖字段(judge_fingerprint/epoch_id) + foundation/epoch_guard.py + scripts/dep_scan.py",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "src/dwc/foundation/inheritance.py",
+    "src/dwc/foundation/epoch_guard.py",
+    "scripts/dep_scan.py",
+    "tests/test_r113_e1_coevolution.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r113_e1_coevolution.py (5 tests)",
+     "claim": "判据字面/依赖字段/epoch牙齿/dep分栏全过"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_evaluator_coevolution.html §④⑤⑥⑧",
+     "claim": "E1 四件=过审稿字面"
+    }
+   ],
+   "numbers": {
+    "pytest": 821,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true,
+   "judge_fingerprint": "fffdf35a",
+   "epoch_id": null,
+   "epoch_note": "epoch 合同 E1 落类(EvaluatorEpochGuard), term 批 2^n 界 E2 换代流启用 — 本档为 E1 首份带依赖字段的档"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 821 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r113b.log"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

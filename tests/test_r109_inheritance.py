@@ -36,7 +36,11 @@ def _ok(**over):
                              "numbers": {"pytest": 806}},
         evaluation_config={"truth_source": "config/anchors/dev.json",
                            "truth_sha8": "abcd1234",
-                           "judge_frozen": True},
+                           "judge_frozen": True,
+                           # ★ E1(R113) 新增必填: dep(z) 依赖字段
+                           "judge_fingerprint": "abcd5678",
+                           "epoch_id": None,
+                           "epoch_note": "epoch 合同 E2 生效"},
         acceptance_decision={"gate": "pytest+gate+e2e",
                              "verdict": "accepted", "evidence_ref": "rc=0"},
     )
