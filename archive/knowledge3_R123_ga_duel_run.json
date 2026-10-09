@@ -1,0 +1,84 @@
+{
+ "round": "R123 · 项1 M2对打执行 — 两臂同预算16V硬上限对打(单点vs小GA) + Eq.10裁决平局判A + 一期恒等如实",
+ "date": "2026-10-09",
+ "★ 实测(协议验证)": {
+  "A臂(单点)": "评估4次(π0+三单键=同起点四变体, 无交叉无组合 — 忠实复刻) accept=0",
+  "B臂(GA)": "评估8次, 4代全产组合子代, final_pop=8/键空间全覆盖, K倍=2.0 accept=0",
+  "裁决": "winner=single basis=tie→incumbent(稿⑦§⑤跑前锁: accept数平⇒bestV平⇒判A在位者保守) — golden确定性臂上两臂bestV恒等=结构必然",
+  "诚实": "caveat 三条在位: 结构必然非对打失败/恒等式平局≠'两臂一样好'是'该臂测不出差别'/对打赢≠常态化授权(仍须用户再拍)"
+ },
+ "★ 修的三 bug": [
+  "tourament 两次同min ⇒ p1≡p2 ⇒ 键域全同 ⇒ 四代空转(GA形同虚设) — 改选异父本",
+  "交叉/变异子代撞已评 ⇒ best.setdefault 不评 ⇒ GA不扩展 — 正确形态: 组合池枚举补新个体(有界空间=稿⑦§②字面), 撞尽才停",
+  "_validate_attribution_plan 硬要求 members≥2 ⇒ 单键变异子代构造期 raise — 正确契约拒绝: GA=多改组合归因场景, _enum_pool改产'与π0差≥2键'的组合个体(单键=路径甲)"
+ ],
+ "验收(稿§⑦)": "A臂忠实复刻✓ · B臂N=4/代≤4/tournament k=2/合法交叉/单键变异逐项✓ · 预算硬上限≤16+K倍账2.0✓ · 消融账100%(子代必带plan, 缺=构造期raise)✓ · Eq.10裁决+平局判A(破坏测试候选)✓ · 恒等如实caveat✓ · 单点零破坏(856全量兜底)A臂纯新增脚本✓",
+ "验证": "pytest 856(851+5) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "状态": "项1 M2对打完(协议验证级) → 项2(两雏形出路: 4a Transfer LLM臂 / 4b Meta-recursion goal停止决策判据轮) — 一期结果呈报",
+ "inheritance": {
+  "gen": 123,
+  "at": "2026-10-09T22:00:00+08:00",
+  "parent_gen": 122,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 128,
+   "pytest": 851,
+   "inheritance_gen_prev": 122
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/ga_duel.py两臂对打 + 3 bug修 + docs/ga_duel.json实测 + 5测试",
+   "files": [
+    "scripts/ga_duel.py",
+    "docs/ga_duel.json",
+    "tests/test_r123_ga_duel.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r123_ga_duel.py (5 tests)",
+     "claim": "池语义/交叉变异确定/账强制/预算/对跑全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/ga_duel.json",
+     "claim": "两臂实测: A4次/B8次/K倍2.0/恒等平局判A"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_ga_duel.html §③④⑤⑥⑦",
+     "claim": "M2执行=过审稿⑦字面(同预算/Eq.10/平A/纪律)"
+    }
+   ],
+   "numbers": {
+    "pytest": 856,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 856 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r123.log",
+   "user_decision": "按1-2-3逐项: 项1=M2开打(用户拍)R123执行 — 一期协议验证; 二期LLM臂待拍"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
