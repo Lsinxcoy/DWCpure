@@ -1,0 +1,84 @@
+{
+ "round": "R139 · AppendixD 核实(欠账不存在) + 语义判据(有 dispatch 面≠全路由, routing 回落 partial)",
+ "date": "2026-10-10",
+ "★ 论文核实(R136 描述纠错)": [
+  "2609.11873.txt 全文 0 个编号 Algorithm（'Algorithm N' 零命中）",
+  "附录只有 A(RSI Landscape @290508)/B(Industry Landscape @297447) = 综述名录非算法",
+  "2607.25675(DecoEvo/Eq.10 源) 也无附录算法 ⇒ 『论文附录算法欠账』不存在"
+ ],
+ "★★ 语义判据(本轮方法论升级)": [
+  "routing 用 grep 字样判 live 是**误判**（wire 匹配 dispatch/action_dispatched 字样 7 处）",
+  "routing_coverage() 语义判据: AST 数 ACTIONS(5) vs step() 内 dispatched=True 分支(2) ⇒ 未全覆盖 ⇒ partial",
+  "落地: semantic 字段落档(actions_total/branches/uncovered/fully_routed) + semantic_check 指令路由 ⇒ 语义否决样式的机器实现"
+ ],
+ "★ AppendixD 收窄(code_rx 只认实现名)": "旧宽正则(appendix|AppD|Algorithm)匹配 6 处 **docstring 讨论** ⇒ 收窄为 def\\s+appendix|class\\s+Appendix|APPENDIX_ALGO ⇒ 0 命中 ⇒ absent; 纪律: 讨论某概念的注释 ≠ 实现",
+ "★ 最终盘点态(live=4 partial=1 absent=2)": "Z4/Z5/δ_θ/coupling live · routing partial(2/5 路由: remember+dream) · ECE absent(唯一真欠账) · AppendixD absent(不存在项留档)",
+ "★ 修 R138 测试的误触发": "deep_water_audit.py 的正则字符串含 action_dispatched 字样 ⇒ 被 R138 的零消费方 grep 命中 ⇒ 排除（是扫描模式不是消费方）",
+ "验证": "pytest 942(936+6) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 139,
+  "at": "2026-10-10T10:00:00+08:00",
+  "parent_gen": 138,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 147,
+   "pytest": 936,
+   "inheritance_gen_prev": 138
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "deep_water_audit.py: routing_coverage() AST 语义判据 + AppendixD/δ_θ/routing 三条目修正 + semantic 字段",
+   "files": [
+    "scripts/deep_water_audit.py",
+    "tests/test_r139_appendix_audit.py",
+    "tests/test_r138_routing.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r139_appendix_audit.py (6 tests)",
+     "claim": "论文0算法/AppendixD收窄/routing语义判据/反误判/汇总4-1-2/文档字段"
+    },
+    {
+     "type": "test",
+     "ref": "papers/arxiv_2609.11873/2609.11873.txt",
+     "claim": "Algorithm N 零命中 = 欠账不存在的实证"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/core.py ACTIONS+step AST",
+     "claim": "5 动作 vs 2 dispatched=True 分支"
+    }
+   ],
+   "numbers": {
+    "pytest": 942,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 942 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/deep_water_audit.json",
+   "user_decision": "『继续』→ AppendixD 待办（结论: 欠账不存在, 本轮做语义判据升级）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

@@ -6,6 +6,7 @@
    "id": "Z4",
    "name": "候选持久化+lineage",
    "status": "live",
+   "semantic": null,
    "code_hits": 14,
    "wire_hits": 8,
    "code_evidence": [
@@ -30,6 +31,7 @@
    "id": "Z5",
    "name": "merge 三条件+发生率日志",
    "status": "live",
+   "semantic": null,
    "code_hits": 16,
    "wire_hits": 10,
    "code_evidence": [
@@ -54,6 +56,7 @@
    "id": "delta_theta",
    "name": "δ_θ 残差难度（weakness 器官⑥）",
    "status": "live",
+   "semantic": null,
    "code_hits": 41,
    "wire_hits": 12,
    "code_evidence": [
@@ -78,6 +81,7 @@
    "id": "ECE",
    "name": "校准误差(Expected Calibration Error)",
    "status": "absent",
+   "semantic": null,
    "code_hits": 0,
    "wire_hits": 0,
    "code_evidence": [],
@@ -86,18 +90,20 @@
   },
   {
    "id": "AppendixD",
-   "name": "论文 Appendix D（2609.11873 附录算法）",
+   "name": "论文附录编号算法（不存在项 — R139 核实）",
    "status": "absent",
+   "semantic": null,
    "code_hits": 0,
    "wire_hits": 0,
    "code_evidence": [],
    "wire_evidence": [],
-   "doc_note": "论文原文章节 → 实现对应物待核"
+   "doc_note": "R139 核实: 2609.11873 全文 0 编号 Algorithm, 附录 A/B 是综述名录非算法; 2607.25675 无附录 ⇒ 欠账不存在; 留档防旧记忆复发"
   },
   {
    "id": "coupling",
    "name": "器官间耦合机制",
    "status": "live",
+   "semantic": null,
    "code_hits": 10,
    "wire_hits": 1,
    "code_evidence": [
@@ -117,6 +123,12 @@
    "id": "routing",
    "name": "动作分发全路由",
    "status": "partial",
+   "semantic": {
+    "actions_total": 5,
+    "dispatched_true_branches": 2,
+    "uncovered": 3,
+    "fully_routed": false
+   },
    "code_hits": 7,
    "wire_hits": 0,
    "code_evidence": [
@@ -128,7 +140,7 @@
     "src\\dwc\\core.py:323:dispatch = {\"kind\": str(action), \"dispatched\": False,"
    ],
    "wire_evidence": [],
-   "doc_note": "动作分发是否覆盖全部 7 器官"
+   "doc_note": "R138 后: remember+dream 真路由, learn/evolve/maintain /未知显式 not_dispatched（逐动作理由）⇒ **未全覆盖** （有 dispatch 面≠全路由 — 判据用 dispatched=True 分支数 / ACTIONS 数, 不靠字样）"
   }
  ],
  "summary": {

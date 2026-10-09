@@ -77,19 +77,66 @@ ITEMS: List[Dict[str, Any]] = [
      "code_rx": r"\bECE\b|expected_calibration|calibration_error",
      "wire_rx": r"ece\s*=|compute_ece|expected_calibration",
      "doc_note": "eq10.py 有 CALIBRATION 常量(同名不同物?)"},
-    {"id": "AppendixD", "name": "论文 Appendix D（2609.11873 附录算法）",
-     "code_rx": r"appendix|\bAppD\b|Algorithm\s*[A-Z]",
-     "wire_rx": r"algorithm_|appendix",
-     "doc_note": "论文原文章节 → 实现对应物待核"},
+    # ★ R139 修正: R136 的"Appendix D（2609.11873 附录算法）"描述有误
+    #   — 论文实测: 2609.11873.txt 全文 0 个编号 Algorithm; 附录只有
+    #   A(RSI Landscape)/B(Industry Landscape) 是综述名录非算法;
+    #   2607.25675(DecoEvo/Eq.10 源) 也无附录算法 ⇒ **该欠账不存在**
+    #   ⇒ 保留条目但改成"不存在的欠账"留档（防旧记忆复发）, 判定 absent
+    {"id": "AppendixD", "name": "论文附录编号算法（不存在项 — R139 核实）",
+     # code_rx 只认**算法实现名**（不认"附录/AppD"字样 — 那些是注释
+     #   讨论, R139 实测 6 处全是 docstring ⇒ 讨论≠实现的纪律）
+     "code_rx": r"def\s+appendix|class\s+Appendix|APPENDIX_ALGO",
+     "wire_rx": r"appendix_algo",
+     "doc_note": ("R139 核实: 2609.11873 全文 0 编号 Algorithm, 附录 A/B "
+                  "是综述名录非算法; 2607.25675 无附录 ⇒ 欠账不存在; "
+                  "留档防旧记忆复发")},
     {"id": "coupling", "name": "器官间耦合机制",
      "code_rx": r"coupl|couplings|organ_coupl",
      "wire_rx": r"coupling_|couple\(",
      "doc_note": "七器官间是否有显式耦合通道"},
+    # ★ R139 修正: R138 实现了 remember+dream 真路由（dispatch dict 契
+    #   约）⇒ wire_rx 旧只认 dispatch_action/_route 漏了新分发面
     {"id": "routing", "name": "动作分发全路由",
-     "code_rx": r"routing|dispatch|route\(",
-     "wire_rx": r"dispatch_action|_route",
-     "doc_note": "动作分发是否覆盖全部 7 器官"},
+     "code_rx": r"routing|dispatch|route\(|action_dispatched",
+     "wire_rx": r"dispatch|action_dispatched",
+     "doc_note": ("R138 后: remember+dream 真路由, learn/evolve/maintain "
+                  "/未知显式 not_dispatched（逐动作理由）⇒ **未全覆盖** "
+                  "（有 dispatch 面≠全路由 — 判据用 dispatched=True 分支"
+                  "数 / ACTIONS 数, 不靠字样）"),
+     # ★ 语义判据（不靠 grep 字样）: 从源码数 dispatched=True 分支与
+     #   ACTIONS 全集比对（注释/自陈行排除）
+     "semantic_check": "routing_coverage"},
 ]
+
+
+def routing_coverage() -> Dict[str, Any]:
+    """★ 真语义判据（不靠字样）: core.py 的 ACTIONS 全集 vs step() 内
+    dispatched=True 的实际分支 — 未全覆盖 ⇒ partial（有分发面≠全路由）。"""
+    import ast
+    core = os.path.join(SRC, "dwc", "core.py")
+    tree = ast.parse(open(core, encoding="utf-8").read(),
+                     filename=core)
+    actions = None
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.AnnAssign) and
+                getattr(node.target, "id", "") == "ACTIONS"):
+            actions = [e.value for e in node.value.elts]
+    n_true_branch = 0
+    step_src = ""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "step":
+            step_src = ast.get_source_segment(
+                open(core, encoding="utf-8").read(), node) or ""
+    # dispatched": True 的分支（源码字面）— 排除 not_dispatched 自陈行
+    for line in step_src.splitlines():
+        if 'dispatched": True' in line and "not_dispatched" not in line:
+            n_true_branch += 1
+    return {"actions_total": len(actions) if actions else None,
+            "dispatched_true_branches": n_true_branch,
+            "uncovered": (len(actions) - n_true_branch
+                          if actions else None),
+            "fully_routed": (actions is not None and
+                             n_true_branch >= len(actions))}
 
 
 def audit() -> Dict[str, Any]:
@@ -97,6 +144,12 @@ def audit() -> Dict[str, Any]:
     for item in ITEMS:
         code = scan(item["code_rx"])
         wire = scan(item["wire_rx"])
+        semantic = None
+        if item.get("semantic_check") == "routing_coverage":
+            semantic = routing_coverage()
+            # 未全覆盖 ⇒ partial（覆盖 grep 的 live 误判）
+            if not semantic["fully_routed"]:
+                wire = []   # 强制降级: 语义判据优先于字样计数
         # 判定: 主链有调用=live; 只声明/只常量=partial; 零命中=absent
         if wire:
             status = "live"
@@ -107,6 +160,7 @@ def audit() -> Dict[str, Any]:
         out.append({
             "id": item["id"], "name": item["name"],
             "status": status,
+            "semantic": semantic,
             "code_hits": len(code), "wire_hits": len(wire),
             "code_evidence": code[:6],
             "wire_evidence": wire[:6],

@@ -132,5 +132,8 @@ def test_no_external_consumer_of_old_str_form():
                        capture_output=True)
     lines = [l for l in r.stdout.decode().splitlines()
              if "core.py" not in l
-             and "test_r138_routing.py" not in l]
+             and "test_r138_routing.py" not in l
+             # deep_water_audit.py 的命中是**扫描正则本身**（含 action_
+             # dispatched 字样）不是消费方 — R139 起排除它
+             and "deep_water_audit.py" not in l]
     assert not lines, lines[:5]
