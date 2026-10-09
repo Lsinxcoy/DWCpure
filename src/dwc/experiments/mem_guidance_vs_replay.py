@@ -16,7 +16,7 @@
      也是**V1 假设「记忆写进去就会被用」的第一个对照检验**。
   ⇒ 论文自己也没给方差（§3.7 诚实清单）——本实验至少给 repeat 与逐次原始值。
 
-=== 三臂（同一批记忆 · 同一 prompt 骨架 · 同预算上限 · 同 temperature）===
+=== 四臂（同一批记忆 · 同一 prompt 骨架 · 同预算上限 · 同 temperature）===
   C  none      无记忆注入（下界: 记忆到底有没有用 = 检验 V1）
   A  guidance  全部记忆**平铺**注入 prompt（论文语义: 历史以洞见形式直接进 prompt）
   B  replay     记忆组织成树（根→c→q→叶）, 用**真实失败签名**沿路径
@@ -163,8 +163,17 @@ def _memory_from_verdict(tid: str, v: Any) -> Dict[str, str]:
                                      d.get("expected"), d.get("actual"))
              for d in fails[:2]]
     hint = ("上次实测失败: " + "; ".join(parts)) if parts         else str(getattr(v, "reason", ""))[:120]
+    # ★ R105 · skills_only 臂原料（Evo-memory 表3: 带失败记忆 vs 只技能）:
+    #   从**同一真实判分**确定性提炼「期望行为」（fn/args/expected）, 丢「实得
+    #   失败」细节 — 非编造（全部字段来自 judge diffs）。
+    import re as _re
+    # ★ 实际格式 fn 与 args 粘连（"%s%s 期望%s 实得%s" ⇒ sum_first_n3）——
+    #   首版正则要求 fn(args) 括号形式 ⇒ 0 命中 fallback 到失败 hint（测试抓到）
+    skills = ["%s 期望产出 %s" % (m[0], m[1])
+              for m in _re.findall(r"(\S+)\s+期望(\S+)\s+实得\S+", hint)]
     return {"scene": tid, "c": str(sig.get("c", "")),
-            "q": str(sig.get("q", "")), "fix_hint": hint, "origin": tid}
+            "q": str(sig.get("q", "")), "fix_hint": hint, "origin": tid,
+            "skill_hint": ("→ ".join(skills) if skills else hint)}
 
 #: ★ 真实误导性干扰（R65 替换占位文本）—— 措辞像专业经验, 但方向错误/无关:
 #:   这才是 guidance 平铺的真弹药（占位文本 LLM 直接无视, R64 教训）
@@ -272,7 +281,9 @@ class _HardSandbox:
         self._cls.ALLOWED = self._old   # 恢复原状（异常路径也恢复）
         return False
 
-ARMS = ("none", "guidance", "replay")
+#: ★ R105 第四臂（Evo-memory 表3 口径）: skills_only = 只给**期望行为技能**
+#:   （skill_hint, 真判分提炼）, 剔除失败细节（fix_hint 的实得失败部分）
+ARMS = ("none", "guidance", "replay", "skills_only")
 
 
 # ══════════════════════════════════════════════════════════
@@ -330,6 +341,14 @@ def _memory_block_replay(items: List[Dict[str, str]], summary: str) -> str:
     return "\n".join(lines)
 
 
+def _memory_block_skills(items: List[Dict[str, str]]) -> str:
+    lines = ["过往技能（只含期望行为, 无失败细节）:"]
+    for it in items[:MEMO_BUDGET]:
+        lines.append("- [%s] %s → %s"
+                     % (it["scene"], it["q"], it.get("skill_hint", "")))
+    return "\n".join(lines)
+
+
 def build_prompt(arm: str, task_id: str, material: str,
                  fn_hint: str = "",
                  memo_items: Optional[List[Dict[str, str]]] = None,
@@ -349,6 +368,8 @@ def build_prompt(arm: str, task_id: str, material: str,
         memo = _memory_block_guidance(memo_items or []) + "\n\n"
     elif arm == "replay":
         memo = _memory_block_replay(memo_items or [], replay_summary) + "\n\n"
+    elif arm == "skills_only":
+        memo = _memory_block_skills(memo_items or []) + "\n\n"
     if material_kind == "code":
         task_block = (
             "修复下面 Python 函数的 bug。只输出修复后的完整代码"

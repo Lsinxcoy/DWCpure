@@ -1,0 +1,14 @@
+{
+ "round": "R105 · 记忆带失败对照臂（Evo-memory 表3: 带失败记忆 vs 只技能 — skills_only 第四臂）",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "ARMS 四臂: none/guidance/replay/**skills_only**",
+  "skill_hint = 从真实 judge diffs 确定性提炼期望行为(fn/args/expected), 丢实得失败 — 非编造; guidance 臂照旧带失败细节(对照干净)",
+  "块函数 _memory_block_skills + build_prompt 分支; 四臂同 prompt 骨架只差记忆块"
+ ],
+ "★ 教训": "首版正则要求 fn(args) 括号形式 ⇒ 实际格式 fn/args 粘连(sum_first_n3) 0 命中 ⇒ fallback 失败 hint — 单测抓到, 修正则 (\\S+)\\s+期望",
+ "验证": "pytest 798(795+3) · gate 8/8 · e2e RC=0 — 三层全绿; 四臂单测 3/3(枚举/提炼无失败细节/prompt块)",
+ "实验": "跑数进行中 — dev repeat=1 rounds=1 真端点后台跑, 出数另行回报(不冒充已完成)",
+ "阶段2 完成度": "2a✓2b✓2c✓2d 字段/合并/报表✓ + 对照臂接线✓ — 阶段2 收官(实验数字异步)",
+ "下一步": "阶段3 T4 归因批: Proposal 遵循率 + 四模式诊断表 + 三维解耦实验 + 等预算对照臂"
+}
