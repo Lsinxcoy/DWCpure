@@ -1,0 +1,137 @@
+{
+ "probe": "R136: 深水六欠账机器盘点（实 7 项）— 逐项 status + 代码证据(文件:行号) + 主链接线双重检; 依据不足⇒absent 不装『实现过』；防凭旧记忆判缺口(2026-07-26 教训)",
+ "method": "code_rx 全 src/ 树扫 + wire_rx 主链接线扫; wire_hits>0=live; 仅 code>0=partial(声明/常量/锁名); 双 0=absent。机器可复算, 禁抽样",
+ "items": [
+  {
+   "id": "Z4",
+   "name": "候选持久化+lineage",
+   "status": "live",
+   "code_hits": 14,
+   "wire_hits": 8,
+   "code_evidence": [
+    "src\\dwc\\foundation\\dial_config.py:104:# ── Z4 · 候选必须持久化 + 记 lineage ──",
+    "src\\dwc\\foundation\\dial_config.py:107:raise DialError(\"Z4: candidates.persist 必须为 true（原文 'tracked'）\")",
+    "src\\dwc\\foundation\\dial_config.py:110:raise DialError(\"Z4: candidates.lineage 必须是 parent_id，实为 %r\" % lineage",
+    "src\\dwc\\organs\\weakness.py:26:本模块的 Difficulty 再校验一次 —— 双保险, 同 Z4「检查不可关」两层守）",
+    "src\\dwc\\organs\\world_model.py:26:#: Z4 候选 tracked 清单 / Z5 merge check log 的默认落盘位置",
+    "src\\dwc\\organs\\world_model.py:266:#: Z4/Z5 配置面（load_world_tree 已 DialError 锁死: persist/require_all"
+   ],
+   "wire_evidence": [
+    "src\\dwc\\foundation\\dial_config.py:104:# ── Z4 · 候选必须持久化 + 记 lineage ──",
+    "src\\dwc\\foundation\\dial_config.py:108:lineage = _need(cand, \"lineage\", \"world_tree.world_tree.candidates\")",
+    "src\\dwc\\foundation\\dial_config.py:109:if lineage != \"parent_id\":",
+    "src\\dwc\\foundation\\dial_config.py:110:raise DialError(\"Z4: candidates.lineage 必须是 parent_id，实为 %r\" % lineage",
+    "src\\dwc\\organs\\world_model.py:226:def lineage_obs(self, node_id: str) -> tuple:",
+    "src\\dwc\\organs\\world_model.py:291:# ── Z4: 候选必须持久化 + 记 lineage（WORLD_TREE_CONVERGENCE §四）──"
+   ],
+   "doc_note": "dial_config.py L104-110 实现过（旧轮 R56/R68 系列）"
+  },
+  {
+   "id": "Z5",
+   "name": "merge 三条件+发生率日志",
+   "status": "live",
+   "code_hits": 16,
+   "wire_hits": 10,
+   "code_evidence": [
+    "src\\dwc\\foundation\\dial_config.py:112:# ── Z5 · merge 三条件 + 发生率日志 ──",
+    "src\\dwc\\foundation\\dial_config.py:115:raise DialError(\"Z5: merge.require_all 必须为 true（三条件同时满足）\")",
+    "src\\dwc\\foundation\\dial_config.py:116:# ★ R68 补: log_rate 是 Z5 后半句（\"merge occurs sparsely\" ⇒ 必须记",
+    "src\\dwc\\foundation\\dial_config.py:118:_need(merge, \"log_rate\", \"world_tree.world_tree.merge\")",
+    "src\\dwc\\organs\\world_model.py:26:#: Z4 候选 tracked 清单 / Z5 merge check log 的默认落盘位置",
+    "src\\dwc\\organs\\world_model.py:266:#: Z4/Z5 配置面（load_world_tree 已 DialError 锁死: persist/require_all"
+   ],
+   "wire_evidence": [
+    "src\\dwc\\foundation\\dial_config.py:114:if not _need(merge, \"require_all\", \"world_tree.world_tree.merge\"):",
+    "src\\dwc\\foundation\\dial_config.py:115:raise DialError(\"Z5: merge.require_all 必须为 true（三条件同时满足）\")",
+    "src\\dwc\\foundation\\dial_config.py:116:# ★ R68 补: log_rate 是 Z5 后半句（\"merge occurs sparsely\" ⇒ 必须记",
+    "src\\dwc\\foundation\\dial_config.py:118:_need(merge, \"log_rate\", \"world_tree.world_tree.merge\")",
+    "src\\dwc\\organs\\world_model.py:266:#: Z4/Z5 配置面（load_world_tree 已 DialError 锁死: persist/require_all",
+    "src\\dwc\\organs\\world_model.py:330:① 同一祖先  ② 互补集合  ③ 都优于祖先（config merge.require_all=true，"
+   ],
+   "doc_note": "dial_config.py L112-116 实现过"
+  },
+  {
+   "id": "delta_theta",
+   "name": "δ_θ 论文锁值参数",
+   "status": "partial",
+   "code_hits": 1,
+   "wire_hits": 0,
+   "code_evidence": [
+    "src\\dwc\\organs\\replay.py:301:_LOCKED = {\"tau\", \"b\", \"beta1\", \"beta2\", \"delta\", \"delta_theta\","
+   ],
+   "wire_evidence": [],
+   "doc_note": "replay.py L301 只在 _LOCKED 名单(名字锁了, 功能?)"
+  },
+  {
+   "id": "ECE",
+   "name": "校准误差(Expected Calibration Error)",
+   "status": "absent",
+   "code_hits": 0,
+   "wire_hits": 0,
+   "code_evidence": [],
+   "wire_evidence": [],
+   "doc_note": "eq10.py 有 CALIBRATION 常量(同名不同物?)"
+  },
+  {
+   "id": "AppendixD",
+   "name": "论文 Appendix D（2609.11873 附录算法）",
+   "status": "absent",
+   "code_hits": 0,
+   "wire_hits": 0,
+   "code_evidence": [],
+   "wire_evidence": [],
+   "doc_note": "论文原文章节 → 实现对应物待核"
+  },
+  {
+   "id": "coupling",
+   "name": "器官间耦合机制",
+   "status": "live",
+   "code_hits": 10,
+   "wire_hits": 1,
+   "code_evidence": [
+    "src\\dwc\\foundation\\eq10.py:134:#: 耦合判定阈值（稿⑤ §⑥ |ρ|>0.8 ⇒ 标 coupled 警示伪多目标）",
+    "src\\dwc\\foundation\\eq10.py:140:def coupling_audit(samples: List[Dict[str, float]]) -> Dict[str, Any]:",
+    "src\\dwc\\foundation\\eq10.py:141:\"\"\"维间 ρ 矩阵 + |ρ|>0.8 标 coupled（只警示不裁决 — 稿⑧.3）。\"\"\"",
+    "src\\dwc\\foundation\\eq10.py:150:coupled: List[Tuple[str, str]] = []",
+    "src\\dwc\\foundation\\eq10.py:156:coupled.append((a, b))",
+    "src\\dwc\\foundation\\eq10.py:158:\"status\": \"ok\", \"n\": n, \"rho\": rho, \"coupled\": coupled,"
+   ],
+   "wire_evidence": [
+    "src\\dwc\\foundation\\eq10.py:140:def coupling_audit(samples: List[Dict[str, float]]) -> Dict[str, Any]:"
+   ],
+   "doc_note": "七器官间是否有显式耦合通道"
+  },
+  {
+   "id": "routing",
+   "name": "动作分发全路由",
+   "status": "partial",
+   "code_hits": 1,
+   "wire_hits": 0,
+   "code_evidence": [
+    "src\\dwc\\core.py:290:\"action_dispatched\": (\"remember\" if decision.get(\"action\")"
+   ],
+   "wire_evidence": [],
+   "doc_note": "动作分发是否覆盖全部 7 器官"
+  }
+ ],
+ "summary": {
+  "live": 3,
+  "partial": 2,
+  "absent": 2
+ },
+ "n_items": 7,
+ "verdict": {
+  "next_rounds": [
+   "delta_theta",
+   "ECE",
+   "AppendixD",
+   "routing"
+  ],
+  "reading": "深水项 3/7 已 live; ['delta_theta', 'ECE', 'AppendixD', 'routing'] 待办 — partial 项须逐项判『实现存在但未接主链』→ 接线; absent 项须从论文原文起建"
+ },
+ "caveats": [
+  "grep 计数 = 存在性证据, 不等于行为正确性（行为须专项测试）",
+  "wire_rx 是启发式主链标志 — 误判风险存在, 逐项人工复核在下一轮",
+  "本盘点不改任何源码（只读）"
+ ]
+}

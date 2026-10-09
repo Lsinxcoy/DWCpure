@@ -1,0 +1,84 @@
+{
+ "round": "R136 · 深水七项机器盘点 — Z4/Z5/coupling live + δ_θ/routing partial + ECE/AppendixD absent; 旧记忆『六欠账』过半已落地",
+ "date": "2026-10-10",
+ "★ 盘点结果(逐项证据, 机器可复算)": [
+  "Z4 候选持久化+lineage: live（code=14 wire=8 — dial_config.py L104-110）",
+  "Z5 merge 三条件+发生率日志: live（code=16 wire=10 — L112-116）",
+  "coupling 器官间耦合: live（code=10 wire=1）",
+  "δ_θ: partial（只在 replay.py L301 _LOCKED 锁名单 — 名字锁了功能未实现）",
+  "routing 动作分发: partial（core.py L290 action_dispatched=remember; learn/dream/evolve 显式 not_dispatched）",
+  "ECE: absent（iwm.py L36/L351 自陈『ECE 过置信惩罚未做: Advice 无自报置信字段』）",
+  "AppendixD: absent（论文 2609.11873 附录算法的实现对应物零命中）"
+ ],
+ "★★ 旧记忆纠错(2026-07-26 教训的再次兑现)": "『深水六欠账』丢人过半: Z4/Z5 早已 live（旧轮 R56/R68 系列）, coupling 也 live ⇒ 六欠账实为 4 项待办 + 2 partial ⇒ 禁止凭旧记忆判缺口, 必须机器盘点+逐项核验",
+ "★★ 盘点方法论(可复用)": "双口径判定: code_hits(实现存在) × wire_hits(主链接线); exclude_rx 排除自陈/否决行（not_dispatched/未做 是诚实边界声明不是接线 — 首跑把 ECE/routing 误判 partial, 排除后 ECE→absent 更正）; partial⇒code>0∧wire=0, absent⇒双0, live⇒wire>0",
+ "★★ 放水守卫拦截(本轮红灯真价值)": "test_no_watering 抓到我的 `len(x) <= len(y) or True`（恒真放水）⇒ 换成真断言（排除只减不增 + 排除有实效双验）; R51 犯过的错机器兜底第二次兑现",
+ "★ 下一步(四待办)": "δ_θ 从论文原文起建（锁值参数的功能实现）· routing 补 learn/dream/evolve 路由 · ECE 依赖 Advice 置信字段（iwm 自陈前置）· AppendixD 从论文原文读起",
+ "验证": "pytest 921(916+5, 含放水拦截修复) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 136,
+  "at": "2026-10-10T07:30:00+08:00",
+  "parent_gen": 135,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 144,
+   "pytest": 916,
+   "inheritance_gen_prev": 135
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/deep_water_audit.py(七项双口径机器盘点+自陈排除) + 5 测试",
+   "files": [
+    "scripts/deep_water_audit.py",
+    "tests/test_r136_deep_water_audit.py",
+    "docs/deep_water_audit.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r136_deep_water_audit.py (5 tests)",
+     "claim": "七项全列/自陈排除铁律/逐项状态/文档待办/只读不改"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_no_watering.py",
+     "claim": "放水守卫拦截 or True 恒真断言（红灯→修真断言）"
+    },
+    {
+     "type": "test",
+     "ref": "docs/deep_water_audit.json#summary",
+     "claim": "live=3 partial=2 absent=2 机器计数"
+    }
+   ],
+   "numbers": {
+    "pytest": 921,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 921 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + docs/deep_water_audit.json",
+   "user_decision": "『先做1再做2』的项2(深水盘点)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
