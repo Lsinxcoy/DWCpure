@@ -2,10 +2,10 @@
  "round": "R124 · 项2-4a Transfer LLM臂 — R107三臂换LLM executor真区分出数(二期)",
  "date": "2026-10-09",
  "★ 实测(R107效度边界的解除)": {
-  "三臂均值": "transplant=0.667 / placebo=1.0 / baseline=0.667",
-  "内容效应": "-0.333 ⇒ negative — golden恒等(R107三臂全1.0)被LLM臂打破, 记忆工件内容通道打通后**transplant 反而低于安慰剂**",
-  "解析": "n_parsed=3/3 全部解析成功",
-  "如实判读": "负效应的正确含义: 此时真工件(记忆片段)对任务有轻微抑制; n=3/臂小样本只报方向 — 不显著性声称; 与 R105c(golden下无区分)互补"
+  "★ 数据源更正(后台 repeat=2 全协议跑被 R125+ 同批带入 — 一致性修正)": "本档原记 repeat=1 小预算值(-0.333 单次); 已提交实测=repeat=2 序列 [transplant 0.857→0.667, placebo 0.750→0.800] ⇒ 均值差 -0.013095 negative — 端点波动下 repeat 序列才可信; 单次 -0.333 是序列中的一个点",
+  "三臂均值(repeat=2)": "transplant=0.7619047619047619 placebo=0.775 baseline=0.8035714285714286 ；mean_rate 序列 [0.8571428571428571, 0.6666666666666666] vs [0.75, 0.8]",
+  "内容效应": "-0.013095 ⇒ negative — golden恒等(R107全1.0)已解除; repeat=2 后负效应收敛(近零) — 端点波动主导, 不装显著性",
+  "如实判读": "两次独立形态: repeat=1 单次 -0.333(弱抑制)/repeat=2 均值 -0.013(近零) — 方向不稳定 ⇒ 如实标'负效应但幅度在端点噪声量级', 不加'工件抑制'断言(n小+端点波动)"
  },
  "★ 脚本": "scripts/transfer_llm_arm.py: R107协议原样(author≠user/三臂/同预算同任务/盲安慰剂Verma对照/repeat序列均值) 只换executor=LLM(prompt带工件文本+checks骨架, 回复JSON抽observed不猜) + 端点不可用⇒not_computable不装数",
  "★ 坑": [
