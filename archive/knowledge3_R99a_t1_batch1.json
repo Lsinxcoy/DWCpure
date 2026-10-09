@@ -1,0 +1,18 @@
+{
+ "round": "R99 · 阶段1a — A 单调性验证 + CostLedger T序列 + repair_layer（T1 可观测批第一轮）",
+ "date": "2026-10-09",
+ "★ A 实测": [
+  "20-term 主报告: pool ρ=−0.378(no_monotone) / −maxδ_top3 ρ=−0.784(weak) / judge ρ=−0.087(no_monotone)",
+  "零指标达 0.89 强档 ⇒ **R92 分支 = C_cost_upgrade（分层任务树组 cost 升优先）** — 阶段2 排序依据落定",
+  "6-term 短报告多为常数序列(pool 全 0.67/1.0) ⇒ ρ=None 是正确诚实结果(无变异无单调); r82 报告 delta_top3/judged 为 [task,value] 对列表已兼容"
+ ],
+ "★ 实现": [
+  "scripts/progress_monotonicity.py: 手写 Spearman(平均秩,不引scipy) + 论文区间三档判读(0.89/0.48,不发明阈值) + branch_r92 分支枚举; 病态条件表达式已重写干净版",
+  "CostLedger.history[(round,task,term,rejected,cumulative)]: reset 结上一 term 账(带其 open 标记), 首次无账不记(insufficient 同族); to_dict 只报 n_history 不搬全史; TermRunner 传 task_id",
+  "weakness.repair_layer(c, source): AIPC 三行映射 — judge→verification / receipt→execution / 未知→unmapped 显式不猜(归层只由产生点 source 决定, 与 c 字面值无关)",
+  "core._judge_and_backfill 回填带 repair_layer(source=judge) — 真 anchors 链测试覆盖"
+ ],
+ "验证": "pytest 768(760+8 新) · gate 8/8 · e2e rc=0(LLM段 candidates_rejected=已知端点三态) — 三层全绿",
+ "过程": "被自有锁值守卫抓 1 红(set(循环变量)==字面量=R52 病灶形状) ⇒ 改测试避开形状不动守卫, 768 绿",
+ "下一步": "阶段1b: judge meta-eval + pass^k/重复采样 + 长度/一致性审计 + 锚定探针"
+}

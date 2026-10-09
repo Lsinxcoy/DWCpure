@@ -86,6 +86,34 @@ class Difficulty:
 Z_PASS = "__pass__"              # 成功判分 —— 占分母（贴论文「全部轨迹」）
 Z_UNSIGNED = "__unsigned_fail__"  # 失败但无签名 —— 显式暴露, 不悄悄丢弃
 
+#: ★ R99 · AIPC(2604.14661) 三级修复层的 DWC 映射: 失败来源 → 修复层
+#:   ★ 依据 actor._signature_from_receipt 的 R27 注释（c 的两个来源实况）:
+#:     · 回执 error_code ⇒ 执行层失败（修 candidates/actor 路径）
+#:     · judge 实测差异 ⇒ 验证层失败（锚点 agent 不可写 ⇒ 修复只能转任务/人工面）
+REPAIR_LAYER_BY_SOURCE = {
+    "receipt": "execution",
+    "judge": "verification",
+}
+#: ★ 未知来源的显式编码 —— 不靠 c 的值猜来源（G1 定位门 / G2 不冒充）
+REPAIR_LAYER_UNKNOWN = "unmapped"
+
+
+def repair_layer(c: Optional[str], source: Optional[str]) -> str:
+    """失败事件 → 该在哪一层修（AIPC 三级修复层的 DWC 映射 · R99）。
+
+    ★ source 显式必填语义: 只有知道 c 出自哪个产生点才归层
+      ⇒ source 不给 / 不在表 ⇒ `unmapped`（★ 显式暴露, 不猜）
+    ★ 归层后的修复入口不同:
+      execution    ⇒ candidates/actor 的回执路径
+      verification ⇒ 任务/锚点面（anchors 不可写 ⇒ 转人工, W5/G2 的必然）
+    ★ c 参数当前只用于签名完整性（调用方传入以留审计）, 归层只由 source 决定 —
+      因为 c 的产生点语义与 c 的字面值无关（同名 error_code 可出自两处）。
+    """
+    _ = c                      # 显式消费: 签名带 c, 归层不看 c 的值（见 docstring ★）
+    if source is None:
+        return REPAIR_LAYER_UNKNOWN
+    return REPAIR_LAYER_BY_SOURCE.get(str(source), REPAIR_LAYER_UNKNOWN)
+
 
 def z_id_from_signature(sig: Optional[Mapping[str, str]]) -> str:
     """失败签名 (c,q) → z_id（★ z 的操作化 —— R72 裁决, 见模块头）。"""

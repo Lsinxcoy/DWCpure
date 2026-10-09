@@ -108,6 +108,12 @@ class CostLedger:
     term_cost: float = 0.0
     cumulative_cost: float = 0.0
     rejected_cost: float = 0.0          # ★ 被拒候选的成本（单列，可审计）
+    #: ★ R99 · T 序列: 已结 term 的账（SEA-Eval「每已验证增益成本」的原料 —
+    #:   每条带 (round, task) 标记; 首次 reset 无账不记, 不造假空账）
+    history: List[Dict[str, Any]] = field(default_factory=list)
+    #: 当前 open 账的标记（reset 结账时消费的是**上一** term 的标记）
+    _open_round: Optional[str] = None
+    _open_task: Optional[str] = None
 
     def spend(self, amount: float) -> None:
         self.term_cost += amount
@@ -119,14 +125,31 @@ class CostLedger:
         self.term_cost += amount
         self.cumulative_cost += amount
 
-    def reset_term(self) -> None:
-        """term 级 reset。★ cumulative 刻意不动。"""
+    def reset_term(self, round_id: Optional[str] = None,
+                   task_id: Optional[str] = None) -> None:
+        """term 级 reset。★ cumulative 刻意不动。
+
+        ★ R99 · T 序列: reset 前若**上一 term 有账** ⇒ 先结进 history
+          （条目带的是**上一** term 的 open 标记; 本次传入的 round/task 只标记新账）
+          首次调用无账 ⇒ 不记（不造假空账 —— EL 的 insufficient 同族纪律）。
+        """
+        if self.term_cost != 0.0 or self.rejected_cost != 0.0:
+            self.history.append(
+                {"round": self._open_round, "task": self._open_task,
+                 "term_cost": self.term_cost,
+                 "cumulative_cost": self.cumulative_cost,
+                 "rejected_cost": self.rejected_cost})
         self.term_cost = 0.0
+        self._open_round = round_id
+        self._open_task = task_id
 
     def to_dict(self) -> Dict[str, Any]:
         return {"term_cost": self.term_cost,
                 "cumulative_cost": self.cumulative_cost,
-                "rejected_cost": self.rejected_cost}
+                "rejected_cost": self.rejected_cost,
+                #: ★ R99: T 序列条数（★ 不把全 history 塞进每 term 快照 —
+                #:   防报告按 term 重复膨胀; 完整序列走 .history 属性）
+                "n_history": len(self.history)}
 
 
 # ══════════════════════════════════════════════════════════
@@ -310,7 +333,7 @@ class TermRunner:
         cid = chain_id or ("CH_" + uuid.uuid4().hex[:10])
         tid = "T_" + uuid.uuid4().hex[:8]
         rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time())
-        self.cost.reset_term()                      # T4: term 级 reset
+        self.cost.reset_term(task_id=task)   # T4: term 级 reset（R99: 传 task 标记新账）
 
         # ── 1. before 快照 ──
         rep.dw_version_before = self._dw_version()

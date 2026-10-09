@@ -274,9 +274,15 @@ class DWC:
                 self.world_model.record_observation(
                     "dev", tid, 1.0 if v.success else 0.0,
                     bool(v.success) if v.success is not None else False)
+        # ★ R99: 失败事件 → 修复层（AIPC 三行映射; source=judge 由本函数产生点
+        #   决定 — c 来自实测差异 ⇒ verification 层, 见 weakness.repair_layer）
+        from dwc.organs.weakness import repair_layer
+        sig = getattr(v, "failure_signature", None)
         return {"task_id": v.task_id, "success": v.success,
                 "reason": v.reason,
-                "failure_signature": getattr(v, "failure_signature", None)}
+                "failure_signature": sig,
+                "repair_layer": (repair_layer(sig.get("c"), "judge")
+                                 if sig else None)}
 
     def _task_deltas(self) -> Dict[str, float]:
         """★ 任务级 δ（批2-C, C1 落点）—— 缓存: 判分点数变才重算。"""

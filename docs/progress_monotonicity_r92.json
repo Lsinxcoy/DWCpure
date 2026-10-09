@@ -1,0 +1,129 @@
+{
+ "reports": [
+  {
+   "source": "trial_report_r82.json",
+   "n_terms": 6,
+   "series_len": {
+    "pool_rate": 6,
+    "neg_delta_top3_max": 6,
+    "judge_rate": 6
+   },
+   "spearman": {
+    "pool_rate": null,
+    "neg_delta_top3_max": -0.7142857142857143,
+    "judge_rate": null
+   },
+   "verdict": {
+    "pool_rate": "not_computable",
+    "neg_delta_top3_max": "weak_or_uncertain",
+    "judge_rate": "not_computable"
+   },
+   "paper_reference": {
+    "strong": "0.89–1.00 (好 cost, Fig 8)",
+    "weak": "0.48–0.75 (坏 cost, Fig 8)",
+    "note": "DWC 指标沿 trial 执行步离散序列, 论文沿专家轨迹连续时间 —— 参照区间只作档位, 不贴绝对标签（R92 稿声明）"
+   },
+   "branch_r92": "C_cost_upgrade"
+  },
+  {
+   "source": "trial_report_r83_clean.json",
+   "n_terms": 6,
+   "series_len": {
+    "pool_rate": 6,
+    "neg_delta_top3_max": 6,
+    "judge_rate": 6
+   },
+   "spearman": {
+    "pool_rate": null,
+    "neg_delta_top3_max": null,
+    "judge_rate": null
+   },
+   "verdict": {
+    "pool_rate": "not_computable",
+    "neg_delta_top3_max": "not_computable",
+    "judge_rate": "not_computable"
+   },
+   "paper_reference": {
+    "strong": "0.89–1.00 (好 cost, Fig 8)",
+    "weak": "0.48–0.75 (坏 cost, Fig 8)",
+    "note": "DWC 指标沿 trial 执行步离散序列, 论文沿专家轨迹连续时间 —— 参照区间只作档位, 不贴绝对标签（R92 稿声明）"
+   },
+   "branch_r92": "C_cost_upgrade"
+  },
+  {
+   "source": "trial_report_r83_noise-code_fix_004.json",
+   "n_terms": 6,
+   "series_len": {
+    "pool_rate": 6,
+    "neg_delta_top3_max": 6,
+    "judge_rate": 6
+   },
+   "spearman": {
+    "pool_rate": -0.6546536707079771,
+    "neg_delta_top3_max": -0.7142857142857143,
+    "judge_rate": -0.29277002188455997
+   },
+   "verdict": {
+    "pool_rate": "weak_or_uncertain",
+    "neg_delta_top3_max": "weak_or_uncertain",
+    "judge_rate": "no_monotone"
+   },
+   "paper_reference": {
+    "strong": "0.89–1.00 (好 cost, Fig 8)",
+    "weak": "0.48–0.75 (坏 cost, Fig 8)",
+    "note": "DWC 指标沿 trial 执行步离散序列, 论文沿专家轨迹连续时间 —— 参照区间只作档位, 不贴绝对标签（R92 稿声明）"
+   },
+   "branch_r92": "C_cost_upgrade"
+  },
+  {
+   "source": "trial_report_r88_noise-code_fix_004_t20_m1.json",
+   "n_terms": 20,
+   "series_len": {
+    "pool_rate": 20,
+    "neg_delta_top3_max": 20,
+    "judge_rate": 20
+   },
+   "spearman": {
+    "pool_rate": -0.37796447300922725,
+    "neg_delta_top3_max": -0.7840483784626473,
+    "judge_rate": -0.086710996952412
+   },
+   "verdict": {
+    "pool_rate": "no_monotone",
+    "neg_delta_top3_max": "weak_or_uncertain",
+    "judge_rate": "no_monotone"
+   },
+   "paper_reference": {
+    "strong": "0.89–1.00 (好 cost, Fig 8)",
+    "weak": "0.48–0.75 (坏 cost, Fig 8)",
+    "note": "DWC 指标沿 trial 执行步离散序列, 论文沿专家轨迹连续时间 —— 参照区间只作档位, 不贴绝对标签（R92 稿声明）"
+   },
+   "branch_r92": "C_cost_upgrade"
+  },
+  {
+   "source": "trial_report_r88_noise-code_fix_004_t6_m1.json",
+   "n_terms": 6,
+   "series_len": {
+    "pool_rate": 6,
+    "neg_delta_top3_max": 6,
+    "judge_rate": 6
+   },
+   "spearman": {
+    "pool_rate": null,
+    "neg_delta_top3_max": -0.7142857142857143,
+    "judge_rate": -0.29277002188455997
+   },
+   "verdict": {
+    "pool_rate": "not_computable",
+    "neg_delta_top3_max": "weak_or_uncertain",
+    "judge_rate": "no_monotone"
+   },
+   "paper_reference": {
+    "strong": "0.89–1.00 (好 cost, Fig 8)",
+    "weak": "0.48–0.75 (坏 cost, Fig 8)",
+    "note": "DWC 指标沿 trial 执行步离散序列, 论文沿专家轨迹连续时间 —— 参照区间只作档位, 不贴绝对标签（R92 稿声明）"
+   },
+   "branch_r92": "C_cost_upgrade"
+  }
+ ]
+}
