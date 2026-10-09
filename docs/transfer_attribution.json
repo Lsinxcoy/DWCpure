@@ -1,0 +1,81 @@
+{
+ "protocol": "3b 三维解耦+等预算臂: author(A实例)≠user(B全新实例); 三臂同预算同任务; blind_placebo=等数量盲造工件（Verma 同款对照 — 增益须超安慰剂才算内容效应）",
+ "seed": 42,
+ "budget": {
+  "n_author": 4,
+  "n_user": 8
+ },
+ "author_tasks": [
+  "code_fix_001"
+ ],
+ "n_user_tasks": 5,
+ "experiment": {
+  "author_steps": 4,
+  "user_steps": 8,
+  "n_real_artifacts": 0,
+  "arms": {
+   "transplant": {
+    "n_steps": 8,
+    "success_rate": 1.0,
+    "n_artifacts": 0,
+    "outcomes": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "blind_placebo": {
+    "n_steps": 8,
+    "success_rate": 1.0,
+    "n_artifacts": 1,
+    "outcomes": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "baseline": {
+    "n_steps": 8,
+    "success_rate": 1.0,
+    "n_artifacts": 0,
+    "outcomes": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   }
+  }
+ },
+ "attribution": {
+  "transplant_minus_placebo": 0.0,
+  "content_effect_verdict": "placebo_equal",
+  "baseline_reference": 1.0
+ },
+ "reproducibility_rules": [
+  "seed 显式(args.seed)",
+  "每臂全新实例同预算同任务",
+  "盲安慰剂臂进协议（无对照臂的增益不报）",
+  "确定性 golden executor（无 LLM 端点波动）"
+ ],
+ "caveats": [
+  "n_user 小样本只报方向",
+  "真工件数=0 时 transplant≈baseline =『无工件可移植』如实（不造工件） —— step 链不写 SKILL（技能沉淀在 dream/evolve 环）",
+  "★ 效度边界(结构必然): golden 替身 executor **不读记忆** ⇒ 记忆→执行路径被旁路 ⇒ 三臂恒等(1.0)不是『记忆无效』的证据 —— 本实验验收=解耦/安慰剂/复现**协议跑通**; 真记忆效应测法=LLM executor 臂(R105c guidance vs none 正是) —— 两实验互补",
+  "任务切分 author≠user 的 task 侧=author 任务不进 user 批"
+ ]
+}

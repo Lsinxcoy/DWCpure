@@ -1,0 +1,16 @@
+{
+ "round": "R107 · 阶段3b — 三维解耦实验(author≠user≠task) + 等预算安慰剂臂 + 复现硬规则 — 阶段3 收官",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "scripts/transfer_and_attribution.py: author(A实例沉淀工件)≠user(全新B实例) 解耦 + 三臂(transplant/盲安慰剂等数量/baseline)同预算同任务 + 归因=transplant−placebo>0 才算内容效应(Verma 手段) + 复现协议四条",
+  "确定性 golden executor(无 LLM 端点波动) ⇒ 可复跑"
+ ],
+ "★ 实测与效度边界(诚实)": [
+  "三臂 1.0 恒等 + 真工件数=0 — 结构必然非『记忆无效』: golden 替身 executor 不读记忆 ⇒ 记忆→执行路径被旁路; step 链不写 SKILL(技能沉淀在 dream/evolve 环)",
+  "本实验验收=解耦/安慰剂/复现**协议跑通**; 真记忆效应测法=LLM executor 臂(R105c guidance vs none 正是) — 两实验互补, 均入 caveats"
+ ],
+ "验收(方案字面)": "对照臂进报告协议 ✓(盲安慰剂臂+等预算+seed 均在 protocol/rules 字段, 测试断言) · 归因算术一致性测试 ✓",
+ "验证": "pytest 806(803+3) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "阶段3 完成": "3a 遵循率报表(R106) ✓ + 3b 解耦与安慰剂(R107) ✓ — 方案验收『三列连接齐全/报表可复跑/对照臂进协议』全过",
+ "下一步": "阶段4 T5: 4a 六段继承格式 + matched-term 最小对照(两份设计稿, 设计先行) → 4b 四项裁决(需用户拍板: HCE/评估器 dep(z)/Pareto/种群)"
+}
