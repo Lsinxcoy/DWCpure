@@ -1,0 +1,17 @@
+{
+ "round": "R101 · 阶段2a — C 分层任务树（H-JEPA Table1 cost 几何 → 组两级任务源; A 分支 C_cost_upgrade 落定后的第一轮）",
+ "date": "2026-10-09",
+ "★ 实现五件": [
+  "WorldNode.group_id 数据类必填(调和: add_child 入口默认''=零破坏承诺, 必填纪律落构造层)",
+  "seed_tasks(groups=) 三深度: 组节点 g_<名>(group_id==id) + 叶挂组(group_id=组名) + 空组不建(dev 无任务) + 余量直挂 root",
+  "core._load_capability_groups(): capability_groups.yaml 带校验加载(缺version/空groups/重复id ⇒ 构造期大声raise)",
+  "WorldModel.group_rates(): 组内叶 Σn_pass/Σn_obs(observed_rate 同公式) — 无观测组缺席(X2); observe 拒组节点 + judgeable 排组(W3/W5)",
+  "run_term wta 两级序: 有组且有组观测 ⇒ (rate升=弱组前, 组内δ降); 无组/无观测 ⇒ 回落现状δ分支(降级=现路径)"
+ ],
+ "★ 实测冒烟": "DWC 构造: 13 节点(root+2组+10叶) 三深度; group_rates={code_repair:0.0, knowledge_reasoning:1.0}; wta 序= code_repair(弱)3条在前→knowledge_reasoning 2条, 组内 δ 降序生效(005 最弱在首)",
+ "★ 破坏验证": "组序升转降 ⇒ 探针④红(首组≠最弱) → 恢复 → 7绿 + 字节一致(True)",
+ "fixture 教训": "首跑 3 红=测试自身 fixture(seed ids 与组成员不匹配⇒空组不建) — 非实现 bug, 修正后 7/7",
+ "数据前提(机核)": "dev 10 任务全部有组归属(code_fix6+reasoning4); paper_reproduction 组 dev 无任务⇒不建; yaml 15 条 ⊇ dev",
+ "验证": "pytest 780(773+7) · gate 8/8 · e2e RC=0 — 三层全绿; 25 处旧 add_child 调用零破坏",
+ "下一步": "阶段2b: B 段式回放(死锁破解, 甲案) → 2c 成功侧归纳+序列任务流 → 2d 库治理四件套"
+}

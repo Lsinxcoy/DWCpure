@@ -65,6 +65,11 @@ _IRON_LAWS_PATH = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), "config", "iron_laws.yaml")
 _SEVERITIES = {"block", "warn", "meta"}
 
+#: R101 · C 方案(2a): 能力组（播种建三深度的组表真源）
+_CAP_GROUPS_PATH = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))),
+    "config", "capability_groups.yaml")
+
 
 class DwcError(Exception):
     """主类入口的违规必须大声报错（不许静默降级 —— G7 静默门同族）。"""
@@ -88,6 +93,32 @@ def _load_iron_laws(path: str = _IRON_LAWS_PATH) -> Dict[str, Any]:
             raise DwcError("铁律 %s severity=%r ∉ %s"
                            % (lid, law.get("severity"), sorted(_SEVERITIES)))
     return obj
+
+
+def _load_capability_groups(path: str = _CAP_GROUPS_PATH
+                            ) -> Dict[str, List[str]]:
+    """能力组表 {组名: [sealed_task_ids]} —— R101 · C 方案播种的组真源。
+
+    ★ 「没校验的 yaml 只是文本」（_load_iron_laws 同款）: version/groups 必在,
+      组名与任务清单必填; 文件缺失/坏 ⇒ 构造期**大声 raise**（G7 不静默降级 —
+      组表是播种数据前提, 缺了就该当场炸, 而不是悄悄退化成无组树）。
+    """
+    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    if not isinstance(obj, dict) or "version" not in obj:
+        raise DwcError("capability_groups.yaml 缺 version")
+    groups = obj.get("groups")
+    if not isinstance(groups, list) or not groups:
+        raise DwcError("capability_groups.yaml 的 groups 必须是非空列表")
+    out: Dict[str, List[str]] = {}
+    for g in groups:
+        gid = g.get("group_id")
+        members = g.get("sealed_task_ids")
+        if not gid or not isinstance(members, list) or not members:
+            raise DwcError("能力组缺 group_id/sealed_task_ids: %r" % (g,))
+        if gid in out:
+            raise DwcError("能力组 id 重复: %r" % gid)
+        out[gid] = [m for m in members if isinstance(m, str)]
+    return out
 
 
 class DWC:
@@ -141,7 +172,8 @@ class DWC:
         #   R76 核出: 批1 的 el_selected 在生产永不出现的两层原因之二）⇒
         #   任务源/EL/δ 排序全部空转。播种后 node_id=judge task_id 同域。
         self.world_model.seed_tasks(
-            [t for t in self.judge.anchors if not t.startswith("_")])
+            [t for t in self.judge.anchors if not t.startswith("_")],
+            groups=_load_capability_groups())
         #: R80 · ℋ Dreaming 历史快照（设计稿裁决①: 单树时点快照,
         #: [(tree_id, deepcopy(WorldTree)), ...] — 每 run_term 尾追加,
         #: 超 history_max 丢最旧（内存环形, 不落盘）

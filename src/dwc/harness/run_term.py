@@ -668,6 +668,9 @@ class TermRunner:
                 item = {"kind": "world_tree_action",
                         "tree": act["tree"], "node": act["node"],
                         "action": act["action"],
+                        # ★ R101: 组序查询键（legal_actions 加的 group 键;
+                        #   无组 = "" — 加键不破旧消费方）
+                        "group": act.get("group", ""),
                         "why": "环节⑥：世界树未揭示叶子"
                                "（world_model.legal_actions）"}
                 tasks.append(item)
@@ -680,7 +683,20 @@ class TermRunner:
             from dwc.organs.weakness import task_delta_map
             _pts = self.judge.task_scores(split="dev")
             _dmap = task_delta_map(_pts, self.judge.store.evidence)
-            if any(_dmap.get(i["node"], 0.0) > 0.0 for i in wta):
+            # ★ R101 · C 方案(2a) 两级任务源（Table 1 平滑分级的类比物）:
+            #   有组**且**有组观测 ⇒ (组 rate 升序=弱组优先, 组内 δ 降序);
+            #   无组 / 组全无观测 ⇒ **回落现状 δ 分支**（降级路径=现路径,
+            #   稿的零破坏承诺; 组序只影响任务源排序 — C1 同族, 不动 select）
+            _rates = (self.world_model.group_rates()
+                      if self.world_model is not None else {})
+            _grouped = any(i.get("group") for i in wta)
+            if _grouped and _rates:
+                wta.sort(key=lambda i: (
+                    _rates.get(i.get("group") or "", 1.0),  # 弱组在前(升)
+                    -_dmap.get(i["node"], 0.0)))            # 组内 δ 降序
+                _base = [t for t in tasks if t["kind"] != "world_tree_action"]
+                tasks[:] = _base + wta
+            elif any(_dmap.get(i["node"], 0.0) > 0.0 for i in wta):
                 wta.sort(key=lambda i: -_dmap.get(i["node"], 0.0))
                 # tasks 里的对应条目同步换序（两列表引用同 dict —
                 # wta 重排不改 tasks; 重排 tasks 的 world_tree 段:

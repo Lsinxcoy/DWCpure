@@ -68,6 +68,12 @@ class WorldNode:
     provenance: str          # W2 ∈ {observed, simulated} —— 无默认
     confidence_source: str   # ∈ {judge_dev, dynamics, none} —— 无默认
     depth: int               # 无默认
+    #: ★ R101 · C 方案(2a): 能力组归属 —— 数据类层**必填无默认**（W2 同款:
+    #:   结构上不可省）。取值: 叶=组名(如 code_repair) · 组节点=自身 id
+    #:   (g_<组名>, 即 group_id==id 的组节点约定) · root/无组=""。
+    #:   ★ 调和说明: add_child 入口给默认 ""（=「无组」显式域值）以守 R92 稿
+    #:   「groups 不传 ⇒ 现行为零破坏」—— 必填纪律落在数据类构造层。
+    group_id: str
     score: Optional[float] = None
     branch: Optional[str] = None   # simulated 节点必有（add_child 自动锚定）
     cost: float = 0.0
@@ -128,13 +134,17 @@ class WorldTree:
         self.nodes: Dict[str, WorldNode] = {}
         root = WorldNode(id="root", parent_id=None, action=root_action,
                          provenance="observed",  # root = 初始工作区（已存在）
-                         confidence_source="judge_dev", depth=0)
+                         confidence_source="judge_dev", depth=0,
+                         group_id="")          # root 非组非叶 — 显式「无组」
         self.nodes[root.id] = root
         self.root_id = root.id
 
     # ── 展开（收束三段的①: 从真实节点长出候选）──────────────
     def add_child(self, parent_id: str, *, node_id: str, action: str,
-                  provenance: str, confidence_source: str = "none") -> WorldNode:
+                  provenance: str, confidence_source: str = "none",
+                  group_id: str = "") -> WorldNode:
+        """★ group_id 默认 "" =「无组」域值 —— R92 稿零破坏承诺（组只由
+        seed_tasks(groups=...) 的内部调用显式给; 数据类层仍是必填）。"""
         parent = self.nodes.get(parent_id)
         if parent is None:
             raise WorldModelError("父节点不存在: %r（%s）" % (parent_id, self.tree_id))
@@ -156,7 +166,8 @@ class WorldTree:
                                   % (len(self.nodes), self.max_nodes))
         node = WorldNode(id=node_id, parent_id=parent_id, action=action,
                          provenance=provenance,
-                         confidence_source=confidence_source, depth=depth)
+                         confidence_source=confidence_source, depth=depth,
+                         group_id=group_id)
         if provenance == "simulated":
             anchor = self._observed_anchor(parent_id)
             if anchor is None:
@@ -179,6 +190,12 @@ class WorldTree:
         node = self.nodes.get(node_id)
         if node is None:
             raise WorldModelError("节点不存在: %r（%s）" % (node_id, self.tree_id))
+        if node.group_id == node.id and node.id != self.root_id:
+            # ★ R101 · C 方案: 组节点（group_id==id）是结构占位, 不是任务域 —
+            #   组 rate 由 group_rates() 从组内叶聚合（组节点恒无观测）
+            raise WorldModelError(
+                "W3/W5: %r 是组节点（group_id==id）, 不可 observe — "
+                "组层 rate 走 group_rates() 的组内叶聚合" % node_id)
         if node.score is not None:
             raise WorldModelError(
                 "W5: %r 已带真值 score=%s —— provenance 单向（只许 "
@@ -200,8 +217,11 @@ class WorldTree:
         return [n for n in self.nodes.values() if n.score is None and not n.children]
 
     def judgeable(self) -> List[WorldNode]:
-        """★ W3: judge 的输入不得含 provenance=simulated 的节点。"""
-        return [n for n in self.nodes.values() if n.provenance == "observed"]
+        """★ W3: judge 的输入不得含 provenance=simulated 的节点。
+        ★ R101: 组节点（group_id==id）也不得进 —— 组非任务域（W3 探针②）。"""
+        return [n for n in self.nodes.values()
+                if n.provenance == "observed"
+                and not (n.group_id == n.id and n.id != self.root_id)]
 
     def lineage_obs(self, node_id: str) -> tuple:
         """沿 root→node 路径求和的布尔观测（信息增益的输入口径）。"""
@@ -380,7 +400,8 @@ class WorldModel:
         return t
 
     def seed_tasks(self, task_ids, *, tree_id: str = "dev",
-                   root_action: str = "dev_tasks") -> int:
+                   root_action: str = "dev_tasks",
+                   groups: Optional[Dict[str, List[str]]] = None) -> int:
         """★ §4.7 职责一「初始播种」: 一棵发现树、root + 每任务一叶。
 
           𝒲 = {W_1..W_n}, 每个 W = 一棵发现树; W.legal_actions() = 未揭示的
@@ -393,8 +414,14 @@ class WorldModel:
         ★ 幂等: 已播 ⇒ 不重播（重复播种=同 id raise 的 seed 会炸构造）。
         ★ 空任务源 ⇒ 返回 0 不建树（没任务不假装有 —— 空树由调用方按
           原语义 raise）。
-        ★ 与 ARCHITECTURE「sealed_tasks 15 条(复用 ARSI)」的差异: DWC 现有
-          真值源 = dev 10 条（ARSI 15 条未引入）—— 播**现有可用任务**,
+        ★ R101 · C 方案(2a): `groups` 传入 ⇒ 建**三深度**（root→组→叶）:
+            · 组节点 id = "g_"+组名, group_id==自身 id（组节点约定）,
+              provenance=observed（播种即在场）、score 恒 None（observe 拒）
+            · 任务叶挂其组下, group_id=组名（wta 组序的查询键）
+            · 组只建「**有 dev 任务**的」（yaml 有 dev 无 ⇒ 空组不建）
+            · groups 不传 ⇒ 行为与旧版逐字节一致（降级路径=现路径）
+          与 ARCHITECTURE「sealed_tasks 15 条(复用 ARSI)」的差异: DWC 现有
+          真值源 = dev（ARSI sealed 未全引入）—— 播**现有可用任务**,
           数量差异是任务集现实, 不是实现走样。
         """
         ids = [t for t in task_ids if isinstance(t, str)
@@ -404,9 +431,29 @@ class WorldModel:
         if tree_id in self.trees:
             return 0                                  # 幂等
         t = self.seed(tree_id, root_action)
+        idset = set(ids)
+        # ── 有 groups ⇒ 组层路径（组内有 dev 任务才建组）──
+        touched = set()
+        if groups:
+            for gname, members in groups.items():
+                have = [m for m in members if m in idset]
+                if not have:
+                    continue                          # 空组不建（dev 无任务）
+                gid = "g_%s" % gname
+                t.add_child("root", node_id=gid,
+                            action="group:%s" % gname, provenance="observed",
+                            group_id=gid)             # 组节点: group_id==id
+                for tid in have:
+                    t.add_child(gid, node_id=tid,
+                                action="task:%s" % tid, provenance="observed",
+                                group_id=gname)       # 叶: group_id=组名
+                touched.update(have)
+        # ── 未入组的余量仍直挂 root（组不覆盖 ⇒ 任务不丢）──
         for tid in ids:
-            t.add_child("root", node_id=tid,
-                        action="task:%s" % tid, provenance="observed")
+            if tid not in touched:
+                t.add_child("root", node_id=tid,
+                            action="task:%s" % tid, provenance="observed",
+                            group_id="")
         return len(ids)
 
     def tree(self, tree_id: str) -> WorldTree:
@@ -429,10 +476,34 @@ class WorldModel:
         """★ 环节⑥ 的任务源（run_term._next_task_source 消费的形态）。
 
         ★ 语义: 未揭示的叶子 = 下一轮该执行的候选任务（不是结算报告）。
+        ★ R101: `group` = 叶的 group_id（wta 组序查询键; 无组 = ""）——
+          加键不改旧键（消费方只读自己要的, 零破坏）。
         """
         return [{"tree": c.tree, "node": c.node.id, "action": c.node.action,
-                 "depth": c.node.depth, "branch": c.node.branch}
+                 "depth": c.node.depth, "branch": c.node.branch,
+                 "group": c.node.group_id}
                 for c in self.candidate_nodes()]
+
+    # ── R101 · C 方案(2a): 组层 cost —— Table 1 平滑分级的类比物 ──
+    def group_rates(self) -> Dict[str, float]:
+        """{组名: 组内叶的 Σn_pass/Σn_obs} —— observed_rate 同款公式复用。
+
+        ★ **无观测的组不在返回内**（X2 同族: 没数据 ≠ 0 难度, 不装数）;
+          调用方 wta 的 `rates.get(gid, 1.0)` 把缺席组当「强组排后」
+          （没证据说它弱 —— 弱组优先只基于已观测）。
+        ★ W4 同源: 只吃 n_obs/n_pass 两个整数, 不读任何 confidence。
+        ★ 聚合对象 = 组内**叶**（组节点 observe 被拒, 恒无观测 — 结构占位）。
+        """
+        agg: Dict[str, List[int]] = {}
+        for t in self.trees.values():
+            for n in t.nodes.values():
+                if not n.group_id or (n.group_id == n.id
+                                      and n.id != t.root_id):
+                    continue                          # 跳过 root 与组节点
+                a = agg.setdefault(n.group_id, [0, 0])
+                a[0] += n.n_obs
+                a[1] += n.n_pass
+        return {g: a[1] / float(a[0]) for g, a in agg.items() if a[0]}
 
     # ── R76 · EL 速率口的观测源（批1 A/B 共用）─────────────
     def observed_rate(self) -> Optional[float]:
