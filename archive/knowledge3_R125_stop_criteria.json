@@ -1,0 +1,86 @@
+{
+ "round": "R125 · 项2-4b Move-on停止判决 — foundation/stop_criteria.py(五判据+决策留痕) 补meta-recursion第三子项",
+ "date": "2026-10-09",
+ "★ 五判据(R98§⑦字面+§3.6.5成本收益)": [
+  "C1 loss_streak: 末k项全低于首项(连败, k=5字面)",
+  "C2 peak_exploited: 当前≥peak_frac×峰值(90%字面; 序列<2⇒insufficient不装)",
+  "C3 time_budget: 用时≥budget_frac×预算(2×字面)",
+  "C4 cost_budget: 末项成本≥2×前基线均值",
+  "C5 cost_benefit: 末项(增益/成本)<门槛(§3.6.5字面; 末成本0⇒insufficient不装)"
+ ],
+ "★ 结构与纪律": [
+  "verdict ∈ {continue, move_on} + fired_criteria(并集触发非加权=Eq.10零权重同款)",
+  "status insufficient: 数据不足不下判(单点序列/C1序列<k) ≠ continue",
+  "decision_record: 决策留痕§3.6.5『期望收益<成本/风险时是否停』字面子段",
+  "每判据calibration注记(来源: R98/AFlow字面 vs 管理口径) — 无明文不发明",
+  "G2 TRUTH_SOURCE: score_history来自judge逐term观测域; cost_history=CostLedger T序列(R99)"
+ ],
+ "★ 测试修训(实现语义正确我断言错)": "4红全因我测试算术错: [1.0,..5项]尾含首项不触发(保守语义) · [1.0,0.4]×0.5阈值不触发(0.4<0.5) · 末项=峰值=C2 exploited(升到顶=停) · 100<2×90不触发 — 全部按真实语义重写(测试学实现不是实现迁就测试)",
+ "验证": "pytest 868(861+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "★ 1-2-3全链收官": "项1 E2常态化(R120) → 项2=M2对打稿(R121)+对打执行(R123) → 项3=Table8盘点(R122) → 续: 两雏形4a Transfer LLM臂(R124)+4b停止判据(R125) — 用户指令全部落地",
+ "inheritance": {
+  "gen": 125,
+  "at": "2026-10-09T23:40:00+08:00",
+  "parent_gen": 124,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 130,
+   "pytest": 861,
+   "inheritance_gen_prev": 124
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "foundation/stop_criteria.py五判据 + decision_record + G2声明 + 7测试",
+   "files": [
+    "src/dwc/foundation/stop_criteria.py",
+    "tests/test_r125_stop_criteria.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r125_stop_criteria.py (7 tests)",
+     "claim": "五判据边界/三态/留痕/校准/raise全过"
+    },
+    {
+     "type": "report_html",
+     "ref": "papers/arxiv_2609.11873/NOTE_survey.md §3.6.5 Table 8",
+     "claim": "meta-recursion 第三子项（goal/停止）原文锚"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/table8_status.json Meta-recursion",
+     "claim": "R122 标雏形'goal停止决策未建'=本件补上"
+    }
+   ],
+   "numbers": {
+    "pytest": 868,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 868 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r125.log",
+   "user_decision": "按1-2-3逐项: 项1=E2(R120) · 项2=两雏形4a+4b(R124/R125) · 项3=Table8(R122)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
