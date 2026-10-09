@@ -1,0 +1,85 @@
+{
+ "round": "R127 · M2 二期 LLM 臂对打 — 接线定位失败轮(V 未接 LLM), 目标未达如实收",
+ "date": "2026-10-10",
+ "★ 做了什么": [
+  "scripts/ga_duel.py 加 --executor {golden,llm}: make_executor(mode, memory) 在 llm 模式走 R126 LLMExecutorFactory(真端点)",
+  "caveats 按 mode 动态输出; docs/ga_duel_llm.json 落实测",
+  "tests/test_r127_ga_duel_llm.py 5 测试: golden 零破坏/llm 路由真端点/好回复出observed/CLI开关/协议留档不变"
+ ],
+ "★★ 接线失败定位(核心, 如实)": [
+  "目标: LLM 臂出真区分(换掉 golden 恒等)",
+  "实测: mode=llm 跑完 V 仍全 1.0 恒等 — 但真 LLM 确实被调了(起底 n_calls=3 n_parsed=3 实证)",
+  "根因(读码定位): eval_v = core.dream(policy_variants=[spec]).v_by_version — dream 内每个 spec 走 ReplaySimulator 在世界树上算 replay_score; 树内观测=起底 step 落的 judge 分数; dream 零 LLM 调用(core.py L437+ dream 文档自陈『快照/回放只读, 不产分数』+ W2 分数只来自 judge 观测)",
+  "⇒ --executor llm 只换了起底 step 的执行体, 没换 V 的生产路径 ⇒ 恒等=R123 同源结构必然, 不是 LLM 真读数"
+ ],
+ "★ 另一实证(LLM 臂确有区分度, 只是没接到对打)": "直测 6 behavior 任务: 001/002/003 模型全对(V=1.0 的来源), 005 got=[True,False] vs expected False(半错), 006 引号形态差, 004 未解析 — LLM 答案有真差异, 缺的只是接线",
+ "★ 下一轮目标(明确, 不虚报本期)": "evaluator_via_llm: 把 dream 的 V 或 step 的判分接到 LLM observed(方案: 起底 step 用 LLM executor 落 judge 分数 ⇒ 树内观测变 LLM 真值 ⇒ dream V 才有真区分) — 改的是观测入口不是 dream",
+ "验证": "pytest 881(876+5) · gate 8/8 · e2e RC=0 — 三层全绿(代码零破坏, 失败的是目标不是门)",
+ "★ 本轮纪律价值": "宣称vs实测的活例: caveat 已如实标注『n_calls 只发生在起底; evaluator_via_llm 未接』— 没把结构必然伪装成 LLM 真读数",
+ "inheritance": {
+  "gen": 127,
+  "at": "2026-10-10T00:20:00+08:00",
+  "parent_gen": 126,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 134,
+   "pytest": 876,
+   "inheritance_gen_prev": 126
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "ga_duel.py --executor llm(make_executor mode+caveats 动态) + 5 测试",
+   "files": [
+    "scripts/ga_duel.py",
+    "tests/test_r127_ga_duel_llm.py",
+    "docs/ga_duel_llm.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r127_ga_duel_llm.py (5 tests)",
+     "claim": "开关/路由/零破坏过"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/core.py L437+ dream()",
+     "claim": "dream 只读回放不产分数 ⇒ V 与 executor 无因果(根因证据)"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/ga_duel_llm.json#verdict",
+     "claim": "V=1.0 恒等=结构必然(R123 同源) 非 LLM 真读数"
+    }
+   ],
+   "numbers": {
+    "pytest": 881,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 881 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0; ★ 目标未达(V 未 LLM 化)但定位成功: 代码零破坏, 收档性质=接线定位轮",
+   "user_decision": "『那就继续推进』→ 队列#2=M2 二期 LLM 臂对打(本期定位: V 未接 LLM, 下轮 evaluator_via_llm)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

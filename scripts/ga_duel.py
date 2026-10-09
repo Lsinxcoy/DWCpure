@@ -62,8 +62,18 @@ def _coerce(x):
         return x
 
 
-def make_executor(anchors: Dict[str, Any]):
-    """golden 确定性替身（两臂共享 — 控变量; M1/R114 同款）。"""
+def make_executor(anchors: Dict[str, Any], mode: str = "golden",
+                  memory: Any = None):
+    """golden 确定性替身（两臂共享 — 控变量; M1/R114 同款）。
+
+    R127 · mode="llm" ⇒ 走 R126 LLMExecutorFactory（真执行通道 —
+      二期真区分的来源; 端点四失败模态 ⇒ NOT_EVALUATED）。
+    """
+    if mode == "llm":
+        from dwc.llm.executor import LLMExecutorFactory
+        from dwc.llm import LLMClient
+        return LLMExecutorFactory(LLMClient(), anchors=anchors).make(
+            memory=memory)
     def _exec(task):
         g = anchors.get(task.get("task_id", ""), {})
         if g.get("verifier_kind") == "keyword_match":
@@ -291,6 +301,8 @@ def run_arm_ga(eval_v, judge10, budget, current: str,
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--executor", choices=["golden", "llm"], default="golden",
+                    help="R127: llm=真执行臂（二期真区分; 默认 golden 恒等协议留档）")
     ap.add_argument("--out", default=os.path.join(ROOT, "docs",
                                                   "ga_duel.json"))
     args = ap.parse_args()
@@ -306,7 +318,8 @@ def main() -> int:
     # ① 公共底: 单次 DWC + golden executor + D_search 两轮 step 起底
     shared = DWC(3, 50, executor=None, db_path=":memory:")
     shared.judge.store = TaskScoreStore(dw_version="ga_duel_r123")
-    shared.executor = make_executor(anchors)
+    shared.executor = make_executor(anchors, mode=args.executor,
+                                    memory=shared.memory)
     for _ in range(2):
         for tid in search_ids:
             shared.step({"task_id": tid, "kind": "dev"})
@@ -375,14 +388,24 @@ def main() -> int:
                        round(bB.spent / bA.spent, 4) if bA.spent else None)},
         "ledger_head": {"single": bA.ledger[:3], "ga": bB.ledger[:3]},
         "discipline": discipline,
+        "executor_mode": args.executor,
         "caveats": [
-            ("★ golden 确定性臂: 键改动在回放底不改 V ⇒ 两臂 best 恒等 ⇒ "
-             "平局规则判 A — 结构必然(R114/R118 同源), 非对打失败"
-             if identical else
-             "V 有区分度 — 记录方向(单次跑无方差)"),
-            "一期=协议验证(机制正确性由流程断言验收); 二期 LLM 臂才有真"
-            "输赢(R105c 0.60/0.70/0.80 先例) — 恒等式平局≠'两臂一样好',"
-            " 是'该臂测不出差别'",
+            (("★ golden 确定性臂: 键改动在回放底不改 V ⇒ 两臂 best 恒等"
+              " ⇒ 平局规则判 A — 结构必然(R114/R118 同源), 非对打失败"
+              if identical else
+              "V 有区分度 — 记录方向(单次跑无方差)")
+             if args.executor == "golden" else
+             ("★ R127 LLM 臂: 真执行通道接在**起底 step**, 但 V 由 dream 的 "
+              "ReplaySimulator 从世界树内已存观测算出 — 零 LLM 调用 ⇒ "
+              "V 恒等(R123 同源结构必然), **不是** LLM 真读数(实测已定位: "
+              "n_calls 只发生在起底; evaluator_via_llm 未接); 要把 V 真 "
+              "LLM 化须改 dream→judge 观测链(下轮目标, 不虚报本期)")),
+            (("一期=协议验证(机制正确性由流程断言验收); 二期 LLM 臂才有真"
+              "输赢(R105c 0.60/0.70/0.80 先例) — 恒等式平局≠'两臂一样好',"
+              " 是'该臂测不出差别'")
+             if args.executor == "golden" else
+             ("二期==本次; 恒等式平局在 LLM 臂下的正确含义仍是'该臂在"
+              "该任务集测不出差别', 不是'两臂样样等价'")),
             "K 倍账=两臂 V 评估数比值(管理口径); token 级成本差未计(暂)",
             "对打赢≠搜索器常态化授权(稿⑦§⑧双前置: 仍须用户再拍)",
         ],
