@@ -120,12 +120,18 @@ def test_dep_scan_split_fingerprint_and_four_buckets():
                                   "split_fingerprint": cur})
         mk("knowledge3_k3.json", {"judge_fingerprint": cur,      # 拆分前档(无sfp)
                                   "epoch_id": 1})
-        rep = scan(td, cur, cur)
+        # R119 语义: 无换代判决 ⇒ 字节漂移(k2)不弃置, 保持 active+drift
+        rep = scan(td, cur, cur)                      # regime=False 默认
         st = {r["file"]: r["status"] for r in rep["rows"]}
         assert st["knowledge3_k1.json"] == "active"
-        assert st["knowledge3_k2.json"] == "deprecated_by_evaluator"  # 换代优先
+        assert st["knowledge3_k2.json"] == "active"   # 漂移但无换代 ⇒ active
         assert st["knowledge3_k3.json"] == "deprecated_by_split_change"
-        assert rep["counts"]["active"] == 1
+        assert rep["counts"]["active"] == 2
+        # ★ 换代判决发生 ⇒ 漂移档进 deprecated（触发源=判决 not 字节）
+        rep1 = scan(td, cur, cur, regime_change=True)
+        st1 = {r["file"]: r["status"] for r in rep1["rows"]}
+        assert st1["knowledge3_k2.json"] == "deprecated_by_evaluator"
+        assert rep1["counts"]["deprecated_by_evaluator"] == 1
         # 拆分未启用(cur_split=None) ⇒ split 栏全 0 如实
         rep2 = scan(td, cur, None)
         assert rep2["counts"]["deprecated_by_split_change"] == 0

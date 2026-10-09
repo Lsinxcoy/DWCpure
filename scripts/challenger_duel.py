@@ -100,11 +100,13 @@ def main() -> int:
         guard.close_epoch(fp_now, reason="challenger 赢对拍",
                           by="challenger_win")
         transitions = list(guard.transitions)
-        from dep_scan import scan
-        dep_after = scan(args.archive, fp_now)["counts"]
+        from dep_scan import scan, split_fingerprint
+        dep_after = scan(args.archive, fp_now, split_fingerprint(ROOT),
+                         regime_change=True)["counts"]
     else:
-        from dep_scan import scan
-        dep_after = scan(args.archive, fp_now)["counts"]
+        from dep_scan import scan, split_fingerprint
+        dep_after = scan(args.archive, fp_now, split_fingerprint(ROOT),
+                         regime_change=False)["counts"]
 
     out = {
         "protocol": ("E2 首次对拍: challenger=regression ε 0→%s（稿§④策略键）; "

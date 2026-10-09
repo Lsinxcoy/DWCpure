@@ -2,9 +2,9 @@
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
  "current_judge_fingerprint": "ba8aaeba",
  "counts": {
-  "active": 1,
-  "deprecated_by_evaluator": 4,
-  "deprecated_by_split_change": 0,
+  "active": 2,
+  "deprecated_by_evaluator": 0,
+  "deprecated_by_split_change": 4,
   "pre_depz_legacy": 121
  },
  "rows": [
@@ -79,6 +79,7 @@
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
    "split_fingerprint": null,
+   "drift": false,
    "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
@@ -92,6 +93,7 @@
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
    "split_fingerprint": null,
+   "drift": false,
    "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
@@ -99,6 +101,7 @@
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
    "split_fingerprint": null,
+   "drift": false,
    "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
@@ -106,42 +109,56 @@
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
    "split_fingerprint": null,
+   "drift": false,
    "why": "字段缺失（E1 依赖字段建立前）"
   },
   {
    "file": "knowledge3_R113_e1_record_layer.json",
-   "status": "deprecated_by_evaluator",
+   "status": "deprecated_by_split_change",
    "judge_fingerprint": "fffdf35a",
    "split_fingerprint": null,
-   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+   "drift": true,
+   "why": "★ 拆分前档（无 split_fingerprint）"
   },
   {
    "file": "knowledge3_R114_m1_attribution.json",
-   "status": "deprecated_by_evaluator",
+   "status": "deprecated_by_split_change",
    "judge_fingerprint": "fffdf35a",
    "split_fingerprint": null,
-   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+   "drift": true,
+   "why": "★ 拆分前档（无 split_fingerprint）"
   },
   {
    "file": "knowledge3_R115_e2_first_duel.json",
-   "status": "deprecated_by_evaluator",
+   "status": "deprecated_by_split_change",
    "judge_fingerprint": "1cc940df",
    "split_fingerprint": null,
-   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+   "drift": true,
+   "why": "★ 拆分前档（无 split_fingerprint）"
   },
   {
    "file": "knowledge3_R116_verdicts_1_3.json",
-   "status": "deprecated_by_evaluator",
+   "status": "deprecated_by_split_change",
    "judge_fingerprint": "1cc940df",
    "split_fingerprint": null,
-   "why": "★ judge 指纹 ≠ 当前 ⇒ 换代触发"
+   "drift": true,
+   "why": "★ 拆分前档（无 split_fingerprint）"
   },
   {
    "file": "knowledge3_R117_hce_split.json",
    "status": "active",
    "judge_fingerprint": "ba8aaeba",
    "split_fingerprint": "e61f2cef",
-   "why": "judge + split 指纹均与当前一致"
+   "drift": false,
+   "why": "judge + split 指纹与当前一致"
+  },
+  {
+   "file": "knowledge3_R118_eq10_acceptance.json",
+   "status": "active",
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "drift": false,
+   "why": "judge + split 指纹与当前一致"
   },
   {
    "file": "knowledge3_R11_scripts.json",

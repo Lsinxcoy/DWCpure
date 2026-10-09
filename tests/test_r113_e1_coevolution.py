@@ -120,14 +120,22 @@ def test_dep_scan_buckets(tmp_path):
     io.open(os.path.join(d, "knowledge3_c.json"), "w").write("[1,2]")
     io.open(os.path.join(d, "knowledge3_l.json"), "w").write('{"round":"old"}')
     before = open(os.path.join(d, "knowledge3_a.json"), encoding="utf-8").read()
+    # ★ R119 新语义: 无换代判决 ⇒ 字节漂移(b)不弃置, 保持 active+drift
     rep = scan(d, cur)
     c = rep["counts"]
-    assert c["active"] == 1 and c["deprecated_by_evaluator"] == 1
+    assert c["active"] == 2 and c["deprecated_by_evaluator"] == 0
     # list 档被 scan 的 isinstance dict 跳过（inheritance 同款）⇒ legacy 只剩无字段 dict 档
     assert c["pre_depz_legacy"] == 1
     st = {r["file"]: r["status"] for r in rep["rows"]}
     assert st["knowledge3_a.json"] == "active"
-    assert st["knowledge3_b.json"] == "deprecated_by_evaluator"
+    assert st["knowledge3_b.json"] == "active"
+    assert next(r for r in rep["rows"]
+                if r["file"] == "knowledge3_b.json")["drift"] is True
+    # ★ 换代判决发生 ⇒ b 立刻弃置（触发源=判决 not 字节哈希）
+    rep_r = scan(d, cur, regime_change=True)
+    st_r = {r["file"]: r["status"] for r in rep_r["rows"]}
+    assert st_r["knowledge3_b.json"] == "deprecated_by_evaluator"
+    assert rep_r["counts"]["deprecated_by_evaluator"] == 1
     # 只读: active 档字节未变
     assert open(os.path.join(d, "knowledge3_a.json"),
                 encoding="utf-8").read() == before

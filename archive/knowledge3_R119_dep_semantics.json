@@ -1,0 +1,82 @@
+{
+ "round": "R119 · 选项3 — dep字节粒度修正: 触发源回归换代判决(not字节哈希), 漂移档回active",
+ "date": "2026-10-09",
+ "★ 语义修正(稿④§⑥字面「换评估器只抹依赖记录」)": [
+  "deprecated_by_evaluator 触发源 = 换代判决(E2 challenger_duel regime_change), 不是字节哈希本身 — 兼容扩展(加ε/split_mode kwarg)造成fp漂移但无换代 ⇒ 保持 active + rows.drift 标注(事实可见, 不静默不误弃)",
+  "dep_scan main 读 docs/challenger_duel.json 的 regime_change_happened(现=False ⇒ 未换代); scan() 加 regime_change 参数(默认False向后兼容)",
+  "challenger_duel 的 scan 调用按判决传 regime(赢⇒True) — 换代与弃置联动闭环"
+ ],
+ "★ 修正效果(实测)": "真档四栏: {\"active\": 2, \"deprecated_by_evaluator\": 0, \"deprecated_by_split_change\": 4, \"pre_depz_legacy\": 121} — R115 那2档兼容扩展造成的误弃消失(deprecated_by_evaluator=0, E2从未换代); 拆分前档(R113-R116无split_fingerprint)进 split 栏=第二触发源真实触发(拆分确实发生)",
+ "测试": "R113 test_dep_scan_buckets 改新语义(漂移active+drift / regime=True才deprecated) · R117 临时档测试加regime案例 · 新增 test_r119_dep_semantics(3: 漂移不弃/真档零弃置/duel判决读取)",
+ "验证": "pytest 846(843+3) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "三连完成": "选1: ⑥HCE拆分(R117)+⑤Eq.10(R118) · 选项3: dep语义修正(R119) — 用户指令全落地",
+ "裁决板": "①拆✓执行 ✓ · ②E0-E2全链 ✓ · ③权重决定+执行 ✓ · ④归因M0/M1 ✓(M2双前置待)",
+ "inheritance": {
+  "gen": 119,
+  "at": "2026-10-09T19:20:00+08:00",
+  "parent_gen": 118,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 124,
+   "pytest": 843,
+   "inheritance_gen_prev": 118
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "dep_scan regime_change触发源修正 + drift标注 + duel联动 + 三测试",
+   "files": [
+    "scripts/dep_scan.py",
+    "scripts/challenger_duel.py",
+    "tests/test_r119_dep_semantics.py",
+    "tests/test_r113_e1_coevolution.py",
+    "tests/test_r117_hce_split.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r119_dep_semantics.py (3 tests)",
+     "claim": "漂移不弃/真档零弃置/duel判决读取全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/dep_scan.json#counts",
+     "claim": "真档四栏实测: deprecated_by_evaluator=0(未换代)"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_evaluator_coevolution.html §⑥ dep(z)",
+     "claim": "触发源=换代判决(稿字面『换评估器只抹依赖记录』)"
+    }
+   ],
+   "numbers": {
+    "pytest": 846,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 846 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r119.log",
+   "user_decision": "选项3=dep字节粒度处理(用户拍板: 1执行完再执行3)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
