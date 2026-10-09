@@ -257,7 +257,8 @@ class TermRunner:
                  judge: Optional["Judge"] = None,
                  world_model: Optional[WorldModel] = None,
                  iwm: Optional[IwmOrgan] = None,
-                 el_scheduler: Optional[ELScheduler] = None):
+                 el_scheduler: Optional[ELScheduler] = None,
+                 executor: Optional[Any] = None):
         self.store = store or CausalChainStore(db_path)
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
@@ -271,6 +272,8 @@ class TermRunner:
         #   ③ 终止条件③（保护组回归）可判
         # ★ 判分器**可选注入**: 没注入时三处仍显式标 None（不假装有）
         self.judge = judge
+        #: R126 · 执行体（None = 保持 R25 自造观测路径, 零破坏）
+        self.executor = executor
         #: R60 · 环节⑥ 的任务源（可选注入，与 judge 同款纪律）——
         #: 没注入 ⇒ _next_task_source 不含世界树任务（不假装有）
         self.world_model = world_model
@@ -620,15 +623,37 @@ class TermRunner:
     def _build_observations(self, rep: TermReport) -> Dict[str, Dict]:
         """★ 造一批观测（judge 的输入契约）。
 
-        ★★★★ R25: 这批观测**是 run_term 自造的**，不是真实执行结果
-          ⇒⇒ 所以它证明的是「judge 接线通了」，**不是**「判分有效」
-          ⇒⇒ ★ 而这是 actor 存在前的必然状态:
-            actor 未实现 ⇒ 没人真的去解 code_fix_001 ⇒ 没有真观测
-          ⇒⇒⇒ ⇒ 所以本方法产出的观测**全部标为"自造"**，
-            且只喂 behavior 形态里最容易伪造的那类（记忆内部一致）
-          ⇒⇒ ★★ 绝不用它冒充"任务已解决"—— 那正是塌缩型评分器
+        ★★★ R126: 注入 executor 时走**真执行通道**（LLM 真臂 or 任何
+          外部执行体）—— 观测来自执行而非自造 ⇒ 判分终于有真对象;
+          未注入 ⇒ 保持 R25 自造逻辑（**零破坏**, 恒等性质不变）。
+        ★★★★ R25 契约仍在: 自造路径标 ★_synthetic, 只喂最弱的那种
+          keyword 通过 ⇒ 证明接线通, 不冒充"任务已解决"（塌缩型评分器
+          反面）。真路径标 ★_executed, 且**不**预填任何值。
         """
-        out: Dict[str, Dict] = {}
+        # ── R126 · 真执行路径（executor 注入才启用）──
+        if self.executor is not None:
+            out: Dict[str, Dict] = {}
+            for tid, rec in self.judge.anchors.items():
+                if tid.startswith("_"):
+                    continue
+                if rec.get("verifier_kind") != "behavior":
+                    continue
+                try:
+                    rc = self.executor({"task_id": tid, "kind": "dev"})
+                except Exception as exc:            # 执行体炸 ⇒ 该任务弃
+                    out[tid] = {"error_code": "executor_raised",
+                                "llm_error": type(exc).__name__}
+                    continue
+                det = dict(getattr(rc, "detail", None) or {})
+                if "observed" not in det:
+                    # 端不可用/解析失败 ⇒ 未评价（不当 False, 不当 0）
+                    out[tid] = {"error_code": det.get(
+                        "error_code", "no_observed")}
+                    continue
+                out[tid] = {"observed": det["observed"], "★_executed": True}
+            return out
+        # ── R25 自造路径（executor 未注入 ⇒ 原样行为）──
+        out = {}
         # 只喂一条 keyword_match（因为它不依赖"真的解出函数"）
         for tid, rec in self.judge.anchors.items():
             if tid.startswith("_"):

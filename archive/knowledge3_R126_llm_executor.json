@@ -1,0 +1,80 @@
+{
+ "round": "R126 · LLM 执行体下沉 src 级 — 真观测通道 + DWC 零破坏默认接线（最后一公里的第一次）",
+ "date": "2026-10-09",
+ "★ 改了什么": [
+  "新增 src/dwc/llm/executor.py: LLMExecutorFactory.make→executor 闭包(接 Actor §3.3② Receipt 契约, 不发明第二套) + obs_skeleton/parse_llm_observed/memory_text/coerce + stats{n_calls,n_parsed,n_errors} 四模态",
+  "harness/run_term.py: _build_observations 真路径(executor 注入⇒behavior 任务走执行体, 标★_executed; 未注入⇒R25 自造路径原样) + TermRunner(executor=) kwarg",
+  "core.py: DWC.__init__ 默认接线 — executor>显式注入 / llm configured>自动装 LLM 执行体 / 都无>None(R25 路径) ⇒ 旧调用方(不传 llm)逐字节零破坏"
+ ],
+ "★ 失败四模态全走 NOT_EVALUATED": "llm_no_text / llm_parse_failed / llm_transport_error(异常也接) / no_observed — 无一装 False/0/猜值; keyword 任务不发 call(n_calls=0 显式计数, 非静默)",
+ "★ 真正的最后一公里": "此前 run_term 观测=run_term 自造(R25 诚实占位) ⇒ 进化测量恒等; 本件后『有真观测的可能』成为默认可开接线 — R107/R122/R123/R124 的恒等 caveat 从此有默认解",
+ "★ 坑": "executor.py 的 ANCHOR_DIR 上跳层级写错(三级到底 src/ 而非仓库根) — llm/ 比 core.py 深一级; 测试跑前先发现; core.py 那个三级是对的别顺手改",
+ "验证": "pytest 876(868+8) · gate 8/8 · e2e RC=0(生灭闭环) — 三层全绿",
+ "inheritance": {
+  "gen": 126,
+  "at": "2026-10-09T23:55:00+08:00",
+  "parent_gen": 125,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 133,
+   "pytest": 868,
+   "inheritance_gen_prev": 125
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/llm/executor.py(新) + run_term 真路径 + core 默认接线 + 8 测试",
+   "files": [
+    "src/dwc/llm/executor.py",
+    "src/dwc/harness/run_term.py",
+    "src/dwc/core.py",
+    "tests/test_r126_llm_executor.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r126_llm_executor.py (8 tests)",
+     "claim": "真路径/四模态/零破坏/显式优先/合成路径冻结全过"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/transfer_llm_arm.json",
+     "claim": "R124 LLM 臂协议验证过 observed 通道（提升件的行为源头）"
+    },
+    {
+     "type": "report_html",
+     "ref": "README.md『executor 由调用方注入』",
+     "claim": "本件保持该语义(显式注入优先), 只减接线不减语义"
+    }
+   ],
+   "numbers": {
+    "pytest": 876,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 876 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『那就继续推进』→ 队列#1=LLM 执行体默认化"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

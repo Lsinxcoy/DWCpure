@@ -179,14 +179,26 @@ class DWC:
         #: 超 history_max 丢最旧（内存环形, 不落盘）
         self._replay_history: List[Tuple[str, Any]] = []
         #: ── 组装件（执行环境 / LLM / term 编排）──
-        self.executor = executor
         self.llm = llm
+        # ★★★ R126 · 执行体默认接线（**零破坏**）:
+        #   executor 显式给了 ⇒ 原样用（调用方注入语义不变, README §11.2）
+        #   executor 没给而 llm 已配置 ⇒ 自动装 LLM 执行体（少一次接线）
+        #   两者都没给 ⇒ self.executor=None ⇒ run_term 走 R25 自造路径
+        #   ⇒ 旧调用方（不传 llm）行为逐字节不变
+        if executor is not None:
+            self.executor = executor
+        elif llm is not None and getattr(llm, "configured", False):
+            from dwc.llm.executor import LLMExecutorFactory
+            self.executor = LLMExecutorFactory(llm).make(memory=self.memory)
+        else:
+            self.executor = None
         #: run_term 委托给 TermRunner —— **共享同一 memory**（一个 agent
         #: 一份记忆, 不许入口各存各的）
         self.runner = TermRunner(db_path=db_path, memory=self.memory,
                                  judge=self.judge, budget=budget,
                                  world_model=self.world_model, iwm=self.iwm,
-                                 el_scheduler=self.el)
+                                 el_scheduler=self.el,
+                                 executor=self.executor)   # R126 传导
 
     def _initial_obs(self) -> Observations:
         """θ₀ = 构造时点的状态（空库 → usage_stats 结构标量）。"""
