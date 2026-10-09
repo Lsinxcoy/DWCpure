@@ -1,0 +1,104 @@
+{
+ "protocol": "4a Transfer LLM 臂: R107 三维解耦+等预算+盲安慰剂原样, 只把 golden executor 换 LLM（prompt 带工件内容 ⇒ 记忆→执行内容通道打通）; 增益须超安慰剂(Verma 同款)",
+ "seed": 42,
+ "repeat": 1,
+ "budget": {
+  "n_author": 2,
+  "n_user": 3
+ },
+ "author_tasks": [
+  "code_fix_001"
+ ],
+ "n_user_tasks": 5,
+ "n_real_artifacts": 0,
+ "arms_summary": {
+  "transplant": {
+   "rates": [
+    0.6666666666666666
+   ],
+   "mean_rate": 0.6666666666666666,
+   "n_parsed": 3,
+   "n_calls": 3
+  },
+  "blind_placebo": {
+   "rates": [
+    1.0
+   ],
+   "mean_rate": 1.0,
+   "n_parsed": 2,
+   "n_calls": 3
+  },
+  "baseline": {
+   "rates": [
+    0.6666666666666666
+   ],
+   "mean_rate": 0.6666666666666666,
+   "n_parsed": 3,
+   "n_calls": 3
+  }
+ },
+ "attribution": {
+  "transplant_minus_placebo": -0.333333,
+  "content_effect_verdict": "negative"
+ },
+ "runs": [
+  {
+   "transplant": {
+    "n_steps": 3,
+    "success_rate": 0.6666666666666666,
+    "n_artifacts": 0,
+    "outcomes": [
+     false,
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 3,
+     "n_parsed": 3,
+     "n_errors": 0
+    }
+   },
+   "blind_placebo": {
+    "n_steps": 2,
+    "success_rate": 1.0,
+    "n_artifacts": 1,
+    "outcomes": [
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 3,
+     "n_parsed": 2,
+     "n_errors": 1
+    }
+   },
+   "baseline": {
+    "n_steps": 3,
+    "success_rate": 0.6666666666666666,
+    "n_artifacts": 0,
+    "outcomes": [
+     false,
+     true,
+     true
+    ],
+    "llm": {
+     "n_calls": 3,
+     "n_parsed": 3,
+     "n_errors": 0
+    }
+   }
+  }
+ ],
+ "reproducibility_rules": [
+  "seed 显式; repeat 序列报均值（端点波动不藏）",
+  "三臂同预算同任务同实例结构",
+  "盲安慰剂臂：同数量盲造工件",
+  "LLM 解析失败率如实报（n_parsed/n_calls）"
+ ],
+ "caveats": [
+  "n_user=8 单臂小样本 — 只报方向, 不做显著性声称",
+  "LLM 端点质量决定绝对分数 — 对打的是臂间差不是绝对分",
+  "author 产物可能 0 件 ⇒ transplant≈baseline=『无工件可移植』 如实, 不造工件",
+  "真工件内容=memory 账本片段（R107 step 链不写 SKILL ⇒ author 侧 step 不改行为）— 真工件数须看报数字段"
+ ]
+}

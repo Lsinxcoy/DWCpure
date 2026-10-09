@@ -1,0 +1,83 @@
+{
+ "round": "R124 · 项2-4a Transfer LLM臂 — R107三臂换LLM executor真区分出数(二期)",
+ "date": "2026-10-09",
+ "★ 实测(R107效度边界的解除)": {
+  "三臂均值": "transplant=0.667 / placebo=1.0 / baseline=0.667",
+  "内容效应": "-0.333 ⇒ negative — golden恒等(R107三臂全1.0)被LLM臂打破, 记忆工件内容通道打通后**transplant 反而低于安慰剂**",
+  "解析": "n_parsed=3/3 全部解析成功",
+  "如实判读": "负效应的正确含义: 此时真工件(记忆片段)对任务有轻微抑制; n=3/臂小样本只报方向 — 不显著性声称; 与 R105c(golden下无区分)互补"
+ },
+ "★ 脚本": "scripts/transfer_llm_arm.py: R107协议原样(author≠user/三臂/同预算同任务/盲安慰剂Verma对照/repeat序列均值) 只换executor=LLM(prompt带工件文本+checks骨架, 回复JSON抽observed不猜) + 端点不可用⇒not_computable不装数",
+ "★ 坑": [
+  "execute_code cell 300s timeout 内 6s/call ×多call 易超 ⇒ 长跑走 terminal(且后台静默无notify会丢输出)",
+  "'find . -name __pycache__ -delete' 触发 blocklist(递归风险) ⇒ 限定 ./src ./tests ./scripts"
+ ],
+ "验证": "pytest 861(856+5) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "状态": "项2-4a Transfer完成 ✓ → 项2-4b Meta-recursion goal/停止决策判据轮(剩)",
+ "inheritance": {
+  "gen": 124,
+  "at": "2026-10-09T23:00:00+08:00",
+  "parent_gen": 123,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 129,
+   "pytest": 856,
+   "inheritance_gen_prev": 123
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/transfer_llm_arm.py(LLM臂三臂) + docs/transfer_llm_arm.json实测 + 5测试",
+   "files": [
+    "scripts/transfer_llm_arm.py",
+    "docs/transfer_llm_arm.json",
+    "tests/test_r124_transfer_llm.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r124_transfer_llm.py (5 tests)",
+     "claim": "骨架/解析/占位/通道/脚本全过(1skip=后台未落盘后改)"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/transfer_llm_arm.json#attribution",
+     "claim": "LLM臂内容效应=-0.333 negative(R107恒等解除)"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/table8_status.json Transfer 维",
+     "claim": "R98/R122 标'雏形'的真臂补测 = 本脚本"
+    }
+   ],
+   "numbers": {
+    "pytest": 861,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 861 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r124.log",
+   "user_decision": "按1-2-3: 项1=M2对打(R123) · 项2=两雏形出路: 4a Transfer(R124本轮)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
