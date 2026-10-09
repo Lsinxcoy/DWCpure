@@ -1,0 +1,61 @@
+{
+ "protocol": "M1 四跑消融: 同ℋ底单次dream四spec(键域A/B不相交断言); 三读数+τ分流; τ₀=0.2 自家抖动量级待校准",
+ "seed": 42,
+ "specs": {
+  "s0": {
+   "pid": "π0",
+   "keys": {
+    "w_delta": 1.0,
+    "prefer_revealable": true,
+    "seg_order": "children"
+   }
+  },
+  "sA": {
+   "pid": "π(w=1,r=1,s=delta)",
+   "keys": {
+    "w_delta": 1.0,
+    "prefer_revealable": true,
+    "seg_order": "delta"
+   }
+  },
+  "sB": {
+   "pid": "π(w=1,r=0)",
+   "keys": {
+    "w_delta": 1.0,
+    "prefer_revealable": false,
+    "seg_order": "children"
+   }
+  },
+  "sAB": {
+   "pid": "π(w=1,r=0,s=delta)",
+   "keys": {
+    "w_delta": 1.0,
+    "prefer_revealable": false,
+    "seg_order": "delta"
+   }
+  }
+ },
+ "v_by_slot": {
+  "s0": 1.0,
+  "sA": 1.0,
+  "sB": 1.0,
+  "sAB": 1.0
+ },
+ "effects": {
+  "main_effect_A": 0.0,
+  "main_effect_B": 0.0,
+  "interaction_I": 0.0,
+  "tau": 0.2,
+  "calibration_note": "初值 0.2 = R105c 同配置跨跑 guidance 0.60→0.80 抖动量级（自家实测, 非文献值 — 文献无组合归因协议）, 待校准",
+  "split": "additive",
+  "compensation_flag": false,
+  "fork_rule": "|I|<τ ⇒ additive: 拆分归因单点续用; ≥τ ⇒ interactive: 整体归档不拆功（稿§④）",
+  "identical_v": true
+ },
+ "caveats": [
+  "★ V 恒等(四 spec 同值) ⇒ I=0 分流 additive = **结构必然**（dream V 对策略键不敏感时）, 不冒充可加性发现 — 稿§⑨①",
+  "单次 dream 无重复采样 — 交互项接近 τ 时按稿§⑤加跑定噪声(留)",
+  "补偿 flag 是候选不是自动判决（W5 + 生产门归用户）"
+ ],
+ "attribution_plan_required_for": "多改提案进 evolver 必带 plan（R114 路径乙已接）— 本脚本为 plan 的 τ/消融预算提供实跑读数"
+}

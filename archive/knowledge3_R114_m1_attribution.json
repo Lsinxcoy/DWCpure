@@ -1,0 +1,92 @@
+{
+ "round": "R114 · M1执行轮 — 单点纪律升级(路径乙attribution_plan) + 四跑消融归因 + 六段attribution段",
+ "date": "2026-10-09",
+ "★ 三件": [
+  "evolver Proposal.attribution_plan 字段 + _validate_attribution_plan(members≥2唯一/ablation_budget n_runs≥1+cost_to_ledger/tau>0+calibration_note/fork_rule — 缺=raise同款严厉) + _assert_single_change 路径乙(合法plan放行多处; 无plan多处原消息raise; 通用必填重排消息不变)",
+  "scripts/ablation_attribution.py: 四spec(0/A=seg_order delta/B=prefer_revealable False/AB合, 键域不相交+四pid唯一构造即断言) → 同ℋ底单次dream四V → 三读数 → τ分流(τ₀=0.2=R105c抖动量级, calibration_note必带)",
+  "inheritance 可选第七段attribution(build kwarg+validate: 成员≥2/三读数数值/split二值/τ>0/注记必填 — 单点档不带合法)"
+ ],
+ "★ 实测": "四V {s0,sA,sB,sAB}=1.0 恒等 ⇒ I=0 ⇒ additive — caveat『结构必然不冒充可加性发现』(稿§⑨①路径); 教训: 首版warmup用run_term不判分无回放料V全0假象 → 改core.step真判分链 V=1.0(回放底有料)",
+ "★ 教训": "dream() k2_max 必填 kwarg — 首跑 TypeError 补参; build_inheritance 签名漏 attribution kwarg(validate先加了段检查) — 测试抓到补挂载",
+ "验收(稿§⑧M1)": "四跑三读数出数✓ · τ分流三档边界(0.6≥0.2交互/-0.5补偿/0.0可加)✓ · 拆判据=边界断言锁✓ · 单点路径零破坏(828全量兜底)✓ · 恒等如实✓ · 键域不相交断言✓",
+ "验证": "pytest 828(821+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "M1→M2 前置": "M1绿 ✓; M2开跑还需: 经典GA对打方案过审 + 用户对搜索器再拍一次(稿§⑧双前置)",
+ "下一步": "E2首次换代(结果呈用户过目) 或 ①HCE拍定(dep(z) split栏激活) 或 ③Pareto(目标+权重)",
+ "inheritance": {
+  "gen": 114,
+  "at": "2026-10-09T15:10:00+08:00",
+  "parent_gen": 113,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 119,
+   "pytest": 821,
+   "inheritance_gen_prev": 113
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "evolver.attribution_plan路径乙 + scripts/ablation_attribution.py四跑 + inheritance可选attribution段",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "scripts/ablation_attribution.py",
+    "src/dwc/foundation/inheritance.py",
+    "tests/test_r114_m1_attribution.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r114_m1_attribution.py (7 tests)",
+     "claim": "路径乙四探针/τ分流三档/单点零破坏/attribution段全过"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_population_attribution.html §④⑤⑥⑧",
+     "claim": "M1=过审稿字面"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/ablation_attribution.json#effects",
+     "claim": "四V实测(恒等1.0)与三读数出数"
+    }
+   ],
+   "numbers": {
+    "pytest": 828,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true,
+   "judge_fingerprint": "fffdf35a",
+   "epoch_id": null,
+   "epoch_note": "epoch 合同 E1 已落类, E2 换代流启用"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 828 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + /tmp/e2e_r114.log"
+  },
+  "attribution": {
+   "members": [
+    "seg_order",
+    "prefer_revealable"
+   ],
+   "main_effect_A": 0.0,
+   "main_effect_B": 0.0,
+   "interaction_I": 0.0,
+   "split": "additive",
+   "tau": 0.2,
+   "calibration_note": "初值 0.2 = R105c 同配置跨跑 guidance 0.60→0.80 抖动量级（自家实测, 非文献值 — 文献无组合归因协议）, 待校准"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

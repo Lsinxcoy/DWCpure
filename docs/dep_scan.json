@@ -2,7 +2,7 @@
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
  "current_judge_fingerprint": "fffdf35a",
  "counts": {
-  "active": 0,
+  "active": 1,
   "deprecated_by_evaluator": 0,
   "pre_depz_legacy": 121
  },
@@ -102,6 +102,12 @@
    "status": "pre_depz_legacy",
    "judge_fingerprint": null,
    "why": "字段缺失"
+  },
+  {
+   "file": "knowledge3_R113_e1_record_layer.json",
+   "status": "active",
+   "judge_fingerprint": "fffdf35a",
+   "why": "指纹与当前 judge 一致"
   },
   {
    "file": "knowledge3_R11_scripts.json",

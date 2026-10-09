@@ -1113,6 +1113,11 @@ class Proposal:
     #:   ★ 诚实边界: **填值方（方向选择策略）无设计明文**（R73 裁定"无设计
     #:   不发明选择器"）—— 本字段先就位形态+校验, 选择策略落地时消费。
     direction: Optional[str] = None
+    #: ★ M1（设计稿③ §⑥ 路径乙 · 用户拍板"都做"）· 多改提案的归因计划:
+    #:   带**合法** plan 的多处变更 = 放行（成员/预算/τ/同键不相交声明齐）;
+    #:   无 plan 的多处变更 = 原 raise 照旧（路径甲单点零破坏）。
+    #:   plan 缺字段/成员重复/τ 无校准注记 ⇒ 构造期 raise（与单点同款严厉）。
+    attribution_plan: Optional[Dict[str, Any]] = None
 
     state: str = "draft"
     gate_verdict: Optional[Dict[str, Any]] = None
@@ -1188,9 +1193,18 @@ class Proposal:
         """
         t = str(self.target or "")
         p = str(self.patch or "")
-        # ① target 必须是**单个**目标（不含多值/多语句分隔）
+        # ① 通用必填（两路径共用 — 语义与原判据同款）
         if not t.strip():
             raise EvolverError("★ target 必填（单变更约束: 得有个确定的目标）")
+        if not p.strip():
+            raise EvolverError("★ patch 必填 —— 空 patch = 没有干预")
+        # ★★★ M1 路径乙（设计稿③ §⑥）: 合法 attribution_plan ⇒ 放行多处
+        #   —— 单点纪律**升级**为归因纪律, 不是废除: 多改必须带消融账,
+        #   缺 plan 的多处仍走下方路径甲原判据（零回退）
+        if self.attribution_plan is not None:
+            self._validate_attribution_plan()
+            return
+        # ── 路径甲（现状原样 — 单处形态判据, 全部消息不变）──
         for sep, what in ((",", "多个目标(逗号分隔)"), (";", "多条语句(分号)")):
             if sep in t:
                 raise EvolverError(
@@ -1205,9 +1219,51 @@ class Proposal:
             raise EvolverError(
                 "★ 约束 4: patch 含 %d 个 `@@`(多 hunk) = **多处变更** "
                 "⇒ 测量无法归因；一处干预只需一个 hunk" % n_hunks)
-        # ③ 空 patch（什么都改不了）也拒
-        if not p.strip():
-            raise EvolverError("★ patch 必填 —— 空 patch = 没有干预")
+        # ③ 空 patch 判据已提前至通用必填段（M1 重排, 消息不变）
+
+    def _validate_attribution_plan(self) -> None:
+        """★★★ M1 · 路径乙的牙齿（设计稿③ §⑥ attribution_plan 四字段）。
+
+        members=键域清单(唯一 ⇒ 同键冲突构造期拒, 稿§⑦) · ablation_budget
+        (n_runs≥1 且成本入账) · tau>0 + calibration_note 必填（τ 初值待校准
+        的诚实位）· fork_rule 必填（可加性/交互的分流去向声明）。
+        """
+        plan = self.attribution_plan
+        if not isinstance(plan, dict):
+            raise EvolverError(
+                "★ attribution_plan 必须 dict, 实为 %r" % type(plan))
+        members = plan.get("members")
+        if not (isinstance(members, list) and len(members) >= 2
+                and all(isinstance(x, str) and x.strip() for x in members)):
+            raise EvolverError(
+                "★ plan.members 须为 ≥2 个非空键域清单, 实为 %r" % (members,))
+        if len(set(members)) != len(members):
+            raise EvolverError(
+                "★ plan.members 含重复键域 %r — 同键冲突不可消融"
+                "（稿§⑦ keys(A)∩keys(B)=∅ 的成员层表达）" % (members,))
+        budget = plan.get("ablation_budget")
+        if not isinstance(budget, dict) or not (
+                isinstance(budget.get("n_runs"), int)
+                and budget["n_runs"] >= 1):
+            raise EvolverError(
+                "★ plan.ablation_budget.n_runs 须 ≥1 int（消融预算必须声明）"
+                ", 实为 %r" % (budget,))
+        if not budget.get("cost_to_ledger"):
+            raise EvolverError(
+                "★ plan.ablation_budget.cost_to_ledger 必须 true"
+                "（§3.6.5 评估成本入预算 — CostLedger 记账）")
+        tau = plan.get("tau")
+        if not (isinstance(tau, (int, float)) and not isinstance(tau, bool)
+                and tau > 0):
+            raise EvolverError("★ plan.tau 须 >0 数值, 实为 %r" % (tau,))
+        if not str(plan.get("calibration_note") or "").strip():
+            raise EvolverError(
+                "★ plan.calibration_note 必填（τ 初值来源诚实位 — "
+                "无明文不发明, 初值须注明）")
+        if not str(plan.get("fork_rule") or "").strip():
+            raise EvolverError(
+                "★ plan.fork_rule 必填（|I|<τ 可加拆分 / ≥τ 整体归档的"
+                " 分流去向 — 稿§④ τ 分流）")
 
     def key(self) -> str:
         """★ 提案指纹（去重 + 可归因）。"""

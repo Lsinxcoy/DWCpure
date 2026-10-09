@@ -76,6 +76,7 @@ def build_inheritance(
     acceptance_decision: Dict[str, Any],
     subsequent_use: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
+    attribution: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """构造六段对象（构造后立即 validate — 两步一体）。"""
     obj = {
@@ -89,6 +90,8 @@ def build_inheritance(
         "evaluation_config": evaluation_config,
         "acceptance_decision": acceptance_decision,
         # 段6 默认: 未观察 ⇒ pending + 断供说明（R106 缺口未接线前的诚实态）
+        # ★ M1 可选第七段（单点档不带该键 — optional 语义在键存在性）
+        **({"attribution": attribution} if attribution is not None else {}),
         "subsequent_use": subsequent_use or {
             "status": "pending",
             "access": None, "effect": None,
@@ -199,6 +202,31 @@ def validate_inheritance(obj: Dict[str, Any]) -> None:
         raise InheritanceError(
             "段6 status=%r 必带 gap_note（断供如实 — 不留 null 装有）"
             % su["status"])
+
+    # ★ M1 · 可选第七段 attribution（组合改动的归因账 — 设计稿③ §⑤⑥;
+    #   单点档不带 = 合法; 带了就必须四件齐（成员/三读数/τ/分流））
+    att = obj.get("attribution")
+    if att is not None:
+        if not isinstance(att, dict):
+            raise InheritanceError("attribution 必须 dict")
+        members = att.get("members")
+        if not (isinstance(members, list) and len(members) >= 2):
+            raise InheritanceError(
+                "attribution.members 须 ≥2（单点改动不带本段）")
+        for k in ("main_effect_A", "main_effect_B", "interaction_I"):
+            if not isinstance(att.get(k), (int, float)) \
+                    or isinstance(att.get(k), bool):
+                raise InheritanceError("attribution.%s 须数值" % k)
+        if att.get("split") not in ("additive", "interactive"):
+            raise InheritanceError(
+                "attribution.split ∈ {additive, interactive}, 实为 %r"
+                % (att.get("split"),))
+        if not isinstance(att.get("tau"), (int, float)) \
+                or att["tau"] <= 0:
+            raise InheritanceError("attribution.tau 须 >0")
+        if not str(att.get("calibration_note") or "").strip():
+            raise InheritanceError(
+                "attribution.calibration_note 必填（τ 来源诚实位）")
 
 
 # ══════════════════════════════════════════════════
