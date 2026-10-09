@@ -1,0 +1,83 @@
+{
+ "round": "R142 · 七桶路由 Table 8 落地 — BUCKETS 七桶值枚举 + infra_only 不进化 + 弃权一等输出（原『M2 常态化授权』纠正为真缺口）",
+ "date": "2026-10-10",
+ "★★ 词汇纠错(我自己的)": "队列里的『M2 常态化授权』在 DWC 无对应物（m2 仅是 candidates.py 符号; Table 8=M1-M9 维度不是 M2）⇒ 按纪律挑明: 不硬造 M2, 换成**有据可依的真缺口** = Table 8 七桶路由（EVOLUTION_CORE_V2 §3.2 规划 diagnosis/router.py, src/ 零实现 — grep BUCKETS/stuck_fail/all_pass_efficient 全零命中）",
+ "★ 实现 organs/router.py（设计稿目录 tree 在诊断组, DWC 扁平惯例 ⇒ organs/ 并列, 逻辑分组在模块头）": [
+  "BUCKETS 七桶与 Table 8 原文一字不差 + ROUTE/EVOLVABLE 路由表",
+  "infra_only ⇒ no_diagnosis（论文明文禁令: 否则演化会用 harness 改动修环境 bug）且**永不可进化**",
+  "unreachable_fail ⇒ abstain（弃权是一等输出, Listing 2 is_culprit=false）",
+  "stuck_fail ⇒ recovery_hint（同签名重复≥N=3 ⇒ 恢复提示而非改动）",
+  "all_pass_wasteful ⇒ propose（省成本是改进面 — 成本维度 CostLedger/预算天花板输入）"
+ ],
+ "★★ 判定链的顺序坑(实测修正)": [
+  "v1 把 mixed 放兜底 ⇒ n_pass>0∧n_fail>0 全被 fixable 吞（mixed 永不可达）⇒ 修: mixed 优先于 fixable",
+  "兜底改 raise: pass+infra 混合 Table 8 未定义 ⇒ 显式 raise 不猜（口径边界实测: infra_fail 只服务 infra_only 排他判据, fail+infra 仍正常分 fixable）"
+ ],
+ "★ 测试契约(9 条)": "七桶逐字/infra 排他/成本维度(None 口径不猜)/unreachable 弃权/stuck 优先于 fixable/mixed+fixable 默认/空观测 raise/负值 raise/batch 保序/全表随行",
+ "验证": "pytest 968(959+9) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 142,
+  "at": "2026-10-10T12:40:00+08:00",
+  "parent_gen": 141,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 150,
+   "pytest": 959,
+   "inheritance_gen_prev": 141
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/router.py 新建(Table 8 七桶路由, infra_only 不进化) + 9 测试",
+   "files": [
+    "src/dwc/organs/router.py",
+    "tests/test_r142_router.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r142_router.py (9 tests)",
+     "claim": "七桶逐字/路由表语义/判定链顺序/契约 raise/batch 保序"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md §3.2 L103-118",
+     "claim": "Table 8 原文七桶 + infra_only 禁令 + 三分处理策略 = 实现依据"
+    },
+    {
+     "type": "test",
+     "ref": "grep BUCKETS/stuck_fail src/ 零命中（R142 前）",
+     "claim": "真缺口坐实（非凭记忆）"
+    }
+   ],
+   "numbers": {
+    "pytest": 968,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 968 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『顺序做1+2』的项2（原 M2 词汇纠正为 Table 8 真缺口）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

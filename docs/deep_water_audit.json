@@ -138,7 +138,7 @@
     "uncovered": 3,
     "fully_routed": false
    },
-   "code_hits": 8,
+   "code_hits": 11,
    "wire_hits": 0,
    "code_evidence": [
     "src\\dwc\\core.py:303:dispatch: Dict[str, Any]",
