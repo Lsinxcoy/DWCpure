@@ -1,0 +1,85 @@
+{
+ "protocol": "Evo-memory 序列任务流的 DWC 版: weak 重复 + strong 干扰; ★ 观测合成（weak=错值/strong=对值）= 编排与统计链验证, 非判分有效; ★ 换槽变体无生成器 ⇒ 缺（不造）",
+ "n_steps": 6,
+ "sequence": [
+  {
+   "i": 1,
+   "role": "weak_repeat",
+   "task": "code_fix_001",
+   "success": false,
+   "synthetic_obs": true
+  },
+  {
+   "i": 2,
+   "role": "weak_repeat",
+   "task": "code_fix_001",
+   "success": false,
+   "synthetic_obs": true
+  },
+  {
+   "i": 3,
+   "role": "strong_interfere",
+   "task": "code_fix_002",
+   "success": true,
+   "synthetic_obs": true
+  },
+  {
+   "i": 4,
+   "role": "weak_repeat",
+   "task": "code_fix_001",
+   "success": false,
+   "synthetic_obs": true
+  },
+  {
+   "i": 5,
+   "role": "weak_repeat",
+   "task": "code_fix_001",
+   "success": false,
+   "synthetic_obs": true
+  },
+  {
+   "i": 6,
+   "role": "strong_interfere",
+   "task": "code_fix_003",
+   "success": true,
+   "synthetic_obs": true
+  }
+ ],
+ "outcomes": [
+  false,
+  false,
+  true,
+  false,
+  false,
+  true
+ ],
+ "pass_rate": 0.3333333333333333,
+ "k_eff": {
+  "longest_pass_run": 2,
+  "trailing_pass_run": 1
+ },
+ "caveat": "Evo-memory 的伪进化联合判据（K_eff→0 ∧ K_SR→0）口径未核 （原报告未逐字核公式）⇒ 只报基础序列与 K_eff, 不冒充",
+ "success_stats_after": {
+  "code_fix_001": {
+   "n": 4,
+   "k": 0,
+   "rate": 0.0,
+   "streak": 0,
+   "group": "code_repair"
+  },
+  "code_fix_002": {
+   "n": 1,
+   "k": 1,
+   "rate": 1.0,
+   "streak": 1,
+   "group": "code_repair"
+  },
+  "code_fix_003": {
+   "n": 1,
+   "k": 1,
+   "rate": 1.0,
+   "streak": 1,
+   "group": "code_repair"
+  }
+ }
+}

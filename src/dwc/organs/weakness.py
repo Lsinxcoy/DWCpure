@@ -195,6 +195,51 @@ def task_delta_map(points, evidence_lookup
     return out
 
 
+def task_success_stats(points, evidence_lookup
+                       ) -> Dict[str, Dict[str, Any]]:
+    """★ R103 · 成功侧归纳的聚合原料（Trace2Skill A+ 对称物 — 10 篇横搜缺口）。
+
+    ★ 为什么存在: ingest 不变量②**只要求失败**带签名 ⇒ 成功痕迹进了记忆却
+      **无人聚合**（对称缺口 — 报告 48 行原文「judge 已产出 success 观测但
+      无人聚合」）。本函数把「谁、成功了几次、最近是否还在成」聚合出来,
+      供序列任务流（2c）与报表消费 — **只给统计不给阈值判定**（L1105 同族:
+      不发明「成功到什么程度算什么」的判定, 调用方拿描述统计自己决策）。
+
+    ★ 口径（与 task_delta_map 同一数据链, 只换查询面）:
+      · points = judge.task_scores(split) · evidence_lookup = store.evidence
+      · n=该任务观测总数 · k=成功数(success is True) · rate=k/n
+      · streak=**尾部连续成功**（最近的 pass 跑, 中断即止 — 描述统计）
+      · success is None(未评价) 不计入 n（None 不当 0/1 — judge 纪律）
+    ★ 无观测任务不入表（与 task_delta_map「无失败也入表 0.0」不同 —
+      成功侧的『入表』语义是『有观测』, 没观测就不装）。
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    for p in points:
+        ev = evidence_lookup(p.evidence_ref)
+        succ = ev.get("success") if isinstance(ev, dict) else None
+        row = out.setdefault(p.task_id, {
+            "n": 0, "k": 0, "rate": None, "streak": 0,
+            "group": p.group_id, "_tail": []})
+        if succ is None:
+            continue                          # 未评价不计入分母（judge 纪律）
+        row["n"] += 1
+        row["_tail"].append(bool(succ))
+        if succ:
+            row["k"] += 1
+    for row in out.values():
+        tail = row.pop("_tail")
+        if row["n"]:
+            row["rate"] = row["k"] / float(row["n"])
+        streak = 0
+        for ok in reversed(tail):
+            if ok:
+                streak += 1
+            else:
+                break
+        row["streak"] = streak
+    return {t: r for t, r in out.items() if r["n"]}
+
+
 class DifficultyEstimator:
     """路线丙估计器: 组内基线稀有度（替代 p_𝒯）。
 

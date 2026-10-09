@@ -1,0 +1,16 @@
+{
+ "round": "R103 · 阶段2c — 成功侧归纳聚合(Trace2Skill A+ 对称物) + 序列任务流(Evo-memory 口径)",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "weakness.task_success_stats: 成功侧聚合(n/k/rate/尾部streak, None不入分母, 无观测不入表) — 只描述不判定(L1105 同族); 报告48行缺口『judge 已产 success 观测无人聚合』的落点",
+  "core.success_stats() 转发口(G5 消费点①) + scripts/sequence_eval.py(消费点②)",
+  "scripts/sequence_eval.py: weak重复×2+strong干扰 编排(确定性, 无失败史保底) · core.step 执行判分链 · K_eff(最长/尾部连续通过) · 合成观测如实标注 weak=错值strong=对值=编排验证非判分有效 · Evo-memory 联合判据口径未核不冒充 · 换槽变体无生成器标缺"
+ ],
+ "★ 两个 bug 教训": [
+  "入口错: 首版用 run_term(它是 term 编排不执行任务 ⇒ judged 恒 None) — trial 生产链=core.step(R84 自动判分) — 先抄生产链再另起炉灶",
+  "编排 bug: 保底 weak 赋值在 strong 计算之后 ⇒ 同任务两边都出现 — 测试抓到, 修=strong 在 weak 定稿后重算"
+ ],
+ "实测": "序列9步 通过率0.22 K_eff={longest:2,trailing:1} · success_stats 出3任务; 5/5 新测绿",
+ "验证": "pytest 791(786+5) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "下一步": "阶段2d: 库治理四件套(贡献衰减退役+封顶+meta-skill) + 写入三步(salience→摘要→τ合并) + 技能卡双字段(invalid_conditions/recovery_strategies) + 记忆带失败对照臂"
+}

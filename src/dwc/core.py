@@ -619,3 +619,17 @@ class DWC:
             return []
         hist = z_history_from_scores(pts, self.judge.store.evidence)
         return DifficultyEstimator(hist).weak_ranking(group_id)
+
+    def success_stats(self, *, split: str = SPLIT_DEV
+                      ) -> Dict[str, Dict[str, Any]]:
+        """★ R103 · 成功侧聚合报表（Trace2Skill A+ 对称物的消费口①）。
+
+        weakness.task_success_stats 的转发 — 挂在主类让序列任务流（scripts）
+        与报表层都能吃到（G5 ≥2 消费点: 本方法 + sequence_eval）。
+        无观测 ⇒ {}（不装）。只给描述统计（n/k/rate/streak）不给判定阈值。
+        """
+        from dwc.organs.weakness import task_success_stats
+        pts = self.judge.task_scores(split=split)
+        if not pts:
+            return {}
+        return task_success_stats(pts, self.judge.store.evidence)
