@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWC 下一阶段架构补全与强化方案 · 双论文全覆盖（R98）</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--card2:#1c2330;--line:#30363d;--txt:#e6edf3;--dim:#8b949e;
+--acc:#58a6ff;--red:#f85149;--yel:#d29922;--grn:#3fb950;--gry:#6e7681;--pur:#bc8cff;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75;font-size:15px}
+.layout{display:flex;min-height:100vh}
+nav{width:248px;flex-shrink:0;background:var(--card);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow-y:auto;padding:20px 0}
+nav .brand{padding:0 20px 14px;border-bottom:1px solid var(--line);margin-bottom:10px}
+nav .brand b{color:var(--acc);font-size:16px}
+nav .brand div{color:var(--dim);font-size:12px;margin-top:4px}
+nav a{display:block;padding:8px 20px;color:var(--dim);text-decoration:none;font-size:13.5px;border-left:3px solid transparent}
+nav a:hover{color:var(--txt);background:#1f2733}
+nav a.on{color:var(--acc);border-left-color:var(--acc);background:#161b2255}
+main{flex:1;max-width:1080px;margin:0 auto;padding:36px 40px 80px}
+h1{font-size:26px;margin-bottom:6px}
+.sub{color:var(--dim);font-size:13.5px;margin-bottom:26px}
+h2{font-size:20px;margin:44px 0 16px;padding-left:12px;border-left:4px solid var(--acc)}
+h3{font-size:16.5px;margin:22px 0 10px;color:#79c0ff}
+p{margin:8px 0;color:#c9d1d9}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+.card.acc{border-left:4px solid var(--acc)} .card.red{border-left:4px solid var(--red)}
+.card.yel{border-left:4px solid var(--yel)} .card.grn{border-left:4px solid var(--grn)}
+.card.pur{border-left:4px solid var(--pur)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:900px){.grid,.grid3{grid-template-columns:1fr}nav{display:none}}
+.tag{display:inline-block;padding:1px 9px;border-radius:20px;font-size:11.5px;font-weight:600;margin-right:6px;vertical-align:middle}
+.t-acc{background:#1f6feb33;color:#79c0ff;border:1px solid #1f6feb66}
+.t-red{background:#f8514922;color:#ff7b72;border:1px solid #f8514955}
+.t-yel{background:#d2992222;color:#e3b341;border:1px solid #d2992255}
+.t-grn{background:#3fb95022;color:#56d364;border:1px solid #3fb95055}
+.t-gry{background:#6e768122;color:#8b949e;border:1px solid #6e768155}
+.t-pur{background:#bc8cff22;color:#d2a8ff;border:1px solid #bc8cff55}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+th{background:var(--card2);color:#79c0ff;text-align:left;padding:8px 10px;border:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border:1px solid var(--line);vertical-align:top;color:#adbac7}
+td.mono,code{font-family:Consolas,monospace;font-size:12.5px}
+code{background:#1c2330;padding:1px 6px;border-radius:5px;color:#79c0ff}
+ul,ol{margin:6px 0 6px 22px;color:#c9d1d9}
+li{margin:4px 0}
+.big{font-size:30px;font-weight:700;color:var(--acc)}
+.stat{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+.stat>div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;text-align:center;min-width:110px}
+.stat .lab{color:var(--dim);font-size:12px;margin-top:2px}
+.kv{color:var(--dim);font-size:13px}
+.warn{background:#f8514915;border:1px solid #f8514955;border-radius:8px;padding:12px 16px;margin:12px 0;color:#ffb3ae}
+.ok{background:#3fb95015;border:1px solid #3fb95055;border-radius:8px;padding:12px 16px;margin:12px 0;color:#9be9a8}
+.phase{display:grid;grid-template-columns:150px 1fr;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0}
+.phase .ph-l{background:var(--card2);padding:16px;border-right:1px solid var(--line)}
+.phase .ph-r{background:var(--card);padding:14px 18px}
+.phase .ph-l b{color:#79c0ff;font-size:15px}
+.phase .ph-l div{color:var(--dim);font-size:12px;margin-top:6px}
+footer{color:var(--gry);font-size:12.5px;margin-top:60px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+<div class="brand"><b>DWC 架构补全方案</b><div>双论文全覆盖 · R98 · 2026-10-09</div></div>
+<a href="#think" class="on">① 深度思考 · 四环判断</a>
+<a href="#inventory">② 全清单 163 条</a>
+<a href="#t1">③ T1 可观测度量</a>
+<a href="#t2">④ T2 任务与经验</a>
+<a href="#t3">⑤ T3 记忆工件质量</a>
+<a href="#t4">⑥ T4 归因与受益</a>
+<a href="#t5">⑦ T5 递归与继承</a>
+<a href="#plan">⑧ 执行序四阶段</a>
+<a href="#verdict">⑨ 裁决域 + 不采纳</a>
+<a href="#matrix">⑩ 覆盖矩阵 163/163</a>
+<a href="#honest">⑪ 诚实条款</a>
+</nav>
+<main>
+<h1>DWC 下一阶段架构补全与强化方案</h1>
+<div class="sub">结合 <b>H-JEPA 世界模型（2610.06805）</b> 与 <b>RSI 综述（2609.11873）</b> 双论文深度研究 ·
+可借鉴点全清单 <b>163 条逐条覆盖</b>（机器归族 matrix_families.json, 待分 0）· R98</div>
+
+<h2 id="think">① 深度思考 — 两篇论文交汇出的「四环」判断</h2>
+<p><b>DWC 现状</b>（R58–R97）：七器官七环节 + 四机制活链（δ 排序 / EL 调度 / Dreaming / M&gt;1），
+L2 稳、L3 选择型成立、L4 bounded、L5 structural 最小子集（NOTE_architecture_diff.md）。
+骨架是「<b>判分-记忆-调度的状态机</b>」。</p>
+<p><b>两篇论文各自的命门</b>：H-JEPA 的魂是 <b>「预测-残差」</b>——世界模型的价值在预测未来、
+用 progress 单调性当方向盘（DWC 的世界树只记录观测、不产生任何预测 vs 实测的对齐）；
+RSI 综述的魂是 <b>「effective 判定」</b>——结构递归谁都行，可信的进步必须带 matched 预算、
+独立评估、依赖失效（DWC 的「声称 vs 实测」只做到一半）。</p>
+<div class="card pur">
+<b>核心判断：下一阶段 = 从「状态机」补全为「反馈控制器」，缺的是四环</b>
+<div class="grid" style="margin-top:10px">
+<div><span class="tag t-acc">预测环</span> 世界模型不预测 ⇒ 无从谈「进步方向对不对」<br>
+<span class="kv">H-JEPA 方案 A/B/C + cost 几何 + subgoal 重锚定</span></div>
+<div><span class="tag t-pur">度量环</span> 改进的可信度度量 = 0 ⇒ effective L5 无从谈起<br>
+<span class="kv">meta-eval / pass^k / T 序列 / ρ 耦合 / matched 对照</span></div>
+<div><span class="tag t-yel">质量环</span> 经验与记忆不设防 ⇒ L3/L4 会腐化<br>
+<span class="kv">成功侧归纳 / Library Drift 件 / 近重复合并 / 技能卡双字段</span></div>
+<div><span class="tag t-red">继承环</span> 改了不算数 / 继承无格式 ⇒ L5 停在 structural<br>
+<span class="kv">遵循率 / 四模式归因 / 六段格式 / dep(z) 定向失效</span></div>
+</div>
+</div>
+<p>五条架构主线（T1–T5）= 四环的实现拆分（T4 归因是四环共用的连接件）。163 条可借鉴点
+逐条落进五主线或明确处置（确认型 42 / 不适用 15），<b>零漏项</b>。</p>
+
+<h2 id="inventory">② 可借鉴点全清单 — 机器源与归族</h2>
+<div class="stat">
+<div><div class="big">163</div><div class="lab">全清单条目</div></div>
+<div><div class="big" style="color:#79c0ff">44</div><div class="lab">T1 可观测度量</div></div>
+<div><div class="big" style="color:#79c0ff">21</div><div class="lab">T2 任务与经验</div></div>
+<div><div class="big" style="color:#79c0ff">26</div><div class="lab">T3 记忆工件质量</div></div>
+<div><div class="big" style="color:#79c0ff">9</div><div class="lab">T4 归因与受益</div></div>
+<div><div class="big" style="color:#79c0ff">6</div><div class="lab">T5 递归与继承</div></div>
+<div><div class="big" style="color:#56d364">42</div><div class="lab">确认型（已有同型）</div></div>
+<div><div class="big" style="color:#8b949e">15</div><div class="lab">不适用（排除）</div></div>
+</div>
+<div class="card">
+<b>机器源（可复跑核验）</b>：
+<code>papers/arxiv_2609.11873/matrix_23.json</code>（23 篇映射判定行 156, 正则抽取） +
+<code>2610.06805.md</code> 映射节 7 行 ⇒
+<code>papers/arxiv_2609.11873/matrix_families.json</code>（163 条全量 + 归族标签, 断言 sum=163 &amp; 待分=0）。
+判定分布（23 篇 140 行正则口径）：缺 31 / 半有 43 / 确认型 41 / 不适用 12；补提取两篇 16 行 + H 7 行并入。
+</div>
+
+<h2 id="t1">③ T1 · 可观测与度量层（44 条 · 阶段 1 · 零判据变动）</h2>
+<div class="card acc"><b>定位</b>：先看得见，再谈改进。全部落在分析层与记账维度，不动 select/judge 判据，
+W/G 门与锁值原样。这是 SYNTHESIS 结论「可观测缺口比机制缺口更实惠」的直接执行。</div>
+<h3>核心动作（7 件）</h3>
+<div class="grid">
+<div class="card"><span class="tag t-acc">A·H-JEPA</span><b>progress 单调性验证</b>（R92 已固化待执行）<br>
+<code>scripts/progress_monotonicity.py</code>：三进度指标（pool rate / −δ_top3 / −δmax）沿 trial 步
+Spearman ρ，参照论文区间 0.89–1.00 好 / 0.48–0.75 差（不发明新阈值）。<br>
+<b>结果分支</b>：ρ 强 ⇒ C 的 cost 改造降级先做 B；ρ 弱 ⇒ C 升优先。</div>
+<div class="card"><span class="tag t-acc">R·SEA-Eval</span><b>CostLedger 加 (round,task) 维 → T 序列</b><br>
+现三账（term/cumulative/rejected）已有 ⇒ 补两列即可算「<b>每已验证增益成本</b>」——
+无界累积+质量不升=伪进化的第一读数（能力幻觉 31.2× 的成本轴）。</div>
+<div class="card"><span class="tag t-acc">R·HealthBench</span><b>judge meta-evaluation</b><br>
+dev 10 锚点旁做独立复算：macro-F1 + 随机基线 0.50 + 「落在分布第几分位」。
+judge 可信度度量从 0 到 1——RSI「度量环」的第一件。</div>
+<div class="card"><span class="tag t-acc">R·τ-bench+HLE</span><b>pass^k + worst-at-k + 重复采样方差</b><br>
+pass^k=C(c,k)/C(n,k)；最坏 k 曲线（U-statistic min）；同一样本判多次报 std
+（判分链可靠性；Phi-4 教训：两次 5-run 可差 5–10pp）。与 el_sched B=8 同源口径。</div>
+<div class="card"><span class="tag t-acc">R·AutoCompiler</span><b>repair_layer 字段</b><br>
+失败事件 → 「该在哪一层修」（三层映射）。D6 门槛同款极小改动，
+把 δ 的 (c,q,m) 从「是什么」推进到「改哪里」。</div>
+<div class="card"><span class="tag t-acc">R·HLE</span><b>任务准入门：LLM 答错才准入</b><br>
+机器门把「模型会答的题」筛掉——与 δ 难度排序互补（δ 是后验, 准入是前验）；
+dev 池恒小背景下先做低配版（对每锚点跑一次盲基线）。</div>
+<div class="card"><span class="tag t-acc">R·Verma</span><b>锚定探针 + persistence/feedback 归因维度</b><br>
+attempt 相似度（&gt;0.95=near-identical 探针）；报告 Ŝ 增益时区分「只是多抽一次」vs 真反馈收益。</div>
+<div class="card"><span class="tag t-yel">R·HealthBench</span><b>长度偏差审计 + 一致性族</b><br>
+每打分通道算「分数 vs 输出长度」相关；多评审分歧率（HLE 15.4% 协议）——
+judge 健康检查批, 与 meta-eval 同轮。</div>
+</div>
+<p class="kv">T1 其余条目（step/sequence 效率、Jeffreys 区间、噪声注入检索测试、RSR 规则敏感性探针、
+逐轮 FF/ACPE…）见 §⑩ 矩阵 T1 行。</p>
+
+<h2 id="t2">④ T2 · 任务结构与经验获取层（21 条 · 阶段 2 · C1 裁决域内）</h2>
+<div class="card acc"><b>定位</b>：L3 选择型已成立 ⇒ 下一步是把「选择」的对象从平铺叶子升级为
+<b>有结构、有几何、有节律</b>的任务空间。H-JEPA 三方案的主场（A 的结果决定 B/C 优先序）。</div>
+<h3>核心动作（6 件）</h3>
+<div class="grid">
+<div class="card"><span class="tag t-acc">方案 C</span><b>分层任务树 · 组两级 cost</b><br>
+Table 1 cost 几何：单标量 δ 硬序 → 组→任务两级平滑分级（L1 距离对照实测 23.3→39.3 的同款思路）；
+两级 wta（弱组在前+组内 δ 降序）；W1–W6 逐条守约已在 R92 稿写死（组节点 score=None、observe 拒绝、depth 外部化）。</div>
+<div class="card"><span class="tag t-acc">方案 B</span><b>段式回放 · 死锁破解</b><br>
+段内只挖本段分支 ⇒ child1 的同层双叶态成为段内常态 ⇒ <b>w_delta 的 dream 主场回归</b>
+（R90 正是段间 interleave 摧毁反序对）；丙案（组层段）依赖 C, 后置。</div>
+<div class="card"><span class="tag t-yel">R·Evo-memory</span><b>序列任务流编排</b><br>
+同任务重复 + 换槽变体 + 插入干扰（防背答案）——现 seed_tasks 播种是平铺,
+加一层「序列组」概念（与 C 的组节点天然合流）。</div>
+<div class="card"><span class="tag t-yel">R·AFlow</span><b>预算/patience 不对称</b><br>
+失败耗预算但不计 patience（160/64 同款）——接进 stall_signal/exploration_signal,
+只改调度参数语义, 不动判据。</div>
+<div class="card"><span class="tag t-yel">R·harness 分析</span><b>move-on 四判据合并</b><br>
+5 连败 / 90% 峰值 / 时间 / 2× 预算——与现 p̂≤τ、stall_signal 合并成显式停滞判决表
+（state.cost_used 已存在但没接进调度——接线即得）。</div>
+<div class="card"><span class="tag t-yel">R·HLE/AIMO</span><b>难度门当数据筛选器</b><br>
+AIMO pass-rate&gt;0.3 即弃（32 次采样）的低配版：EL 的 STALLED 卡住（p̂≤τ）已有同向逻辑,
+补「过易任务降权」与准入门（T1）形成前验+后验双闸。</div>
+</div>
+
+<h2 id="t3">⑤ T3 · 记忆与工件质量层（26 条 · 阶段 2 · L4 强化）</h2>
+<div class="card acc"><b>定位</b>：记忆不设防 = L3/L4 会腐（Library Drift 实测：劣化先于任务分数可见）。
+DWC 的 access/effect 记账与 D6/D7 门已有骨架 ⇒ 补「生命周期 + 质量 + 对照」三件套。</div>
+<h3>核心动作（8 件）</h3>
+<div class="grid">
+<div class="card"><span class="tag t-red">R·Trace2Skill</span><b>成功侧归纳通道</b><br>
+ingest 不变量②只要求失败带签名, 成功无人聚合（10 篇横搜命中此缺口）⇒
+新增 success-signature 族, 挂进 weakness 的族史聚合（对称分析员 A+ 的零训练版）。</div>
+<div class="card"><span class="tag t-red">R·Library Drift</span><b>库治理四件套</b><br>
+① append-only 证据日志（access/effect 已有 ⇒ 加「贡献衰减即退役」触发规则）
+② 活跃数封顶 ③ meta-skill 引导写入 ④ <b>退役过激比无引导更差</b>（非单调, 需对照）。</div>
+<div class="card"><span class="tag t-red">R·PAHF</span><b>写入三步：salience→摘要→τ 近重复合并</b><br>
+现 <code>_signature_is_globally_unique()</code> 只查唯一性、无近重复合并 ⇒
+MemoryKernel 新增相似度 τ 分支（update vs add）。</div>
+<div class="card"><span class="tag t-red">R·PRACTICE</span><b>技能卡加 invalid_conditions / recovery_strategies</b><br>
+SKILL 必填 (scene,method,boundary) 缺两字段 ⇒ 失效条件与恢复策略入 schema；
+同时补 <b>recovered/regressed 配对口径</b>（每次更新报两数而非单点均值）。</div>
+<div class="card"><span class="tag t-yel">R·Evo-memory</span><b>记忆带失败对照实验</b><br>
+三臂（none/guidance/replay）已有 ⇒ 加「剔除 FAILURE_SIGNATURE」臂——
+memory 自陈带失败记忆的增量价值, 现从未单独测过。</div>
+<div class="card"><span class="tag t-yel">R·Evo-memory/S3Gym</span><b>噪声注入 + D6 升级</b><br>
+灌 N 条异场景条目测召回退化（零新机制, <code>_self_test()</code> 现成挂点）；
+D6 从「能否成为 evolver 输入」升级为 S3Gym 两条件（够具体到新状态可执行）。</div>
+<div class="card"><span class="tag t-yel">R·Metis</span><b>依赖闭包 + 复发门 codify</b><br>
+计划文本 → 可调用工件的「复发 ≥θ + 编译过才转」路径（DWC 现无任何编译成工件的通道）；
+dep 闭包思想同时服务 T5 的 dep(z) 定向失效。</div>
+<div class="card"><span class="tag t-yel">R·Trace2Skill/Metis</span><b>低频路由 + 激活统计 + 渐进披露</b><br>
+低支持观察不丢弃路由低频层（按 zone 已分层, 补显式规则）；invoked vs injected
+两率报表（Table 3 同款）；长 trace 先摘要后按需展开的 Trunc 接口（留位, 反思器未建）。</div>
+</div>
+
+<h2 id="t4">⑥ T4 · 归因与受益层（9 条 · 阶段 3 · 「改了算数」）</h2>
+<div class="card acc"><b>定位</b>：RSI 补读最锋利的发现——<b>更新能力 ≠ 受益能力</b>
+（小模型的更新≈前沿模型, 受益却失败在「未激活 / 激活未忠实遵循」两模式）。
+DWC 的 evolver 链强在「改」, 薄在「改完有没有被算数」。</div>
+<h3>核心动作（5 件）</h3>
+<div class="grid">
+<div class="card"><span class="tag t-red">R·Harness Benefit</span><b>Proposal 遵循率可观测</b><br>
+两失败模式各配一个读数：<b>激活率</b>（工件被相关路径调用吗）与<b>忠实遵循率</b>
+（调用后行为按工件走了吗）——从 candidates 执行回执取, 报表化。</div>
+<div class="card"><span class="tag t-red">R·persistent 四模式</span><b>保留改变的四模式诊断表</b><br>
+错误教训 / 超范围适用 / 不调用 / 牺牲旧能力——每个已采纳 Proposal 连
+证据→后续使用→新旧任务效果三列（知识档形态正是其骨架, 补连接字段）。</div>
+<div class="card"><span class="tag t-yel">R·Trace2Skill</span><b>author ≠ user ≠ task 三维解耦实验</b><br>
+修订者 agent 与执行修订的 agent 分开跑一遍 = 「策略可移植吗」的最低成本实验
+（现 run_term 是同 agent 前后测）。</div>
+<div class="card"><span class="tag t-yel">R·Verma</span><b>对照决定结论：等预算归因臂</b><br>
+报告任何增益带「同预算对照」（盲重采样式安慰剂）——正是 Verma 把 +12.2 变负的手法；
+与 T1 的归因维度合并为一个报告协议。</div>
+<div class="card"><span class="tag t-yel">R·Trace2Skill</span><b>Agentic 分析员：最小修复复现再提 patch</b><br>
+纯读日志 57% 误归因 vs 实现最小修复复现 14%——candidates 已有 _baseline_reproduces,
+把「复现成功才提候选」升为硬规则。</div>
+</div>
+
+<h2 id="t5">⑦ T5 · 递归与继承层（6 条 · 阶段 4 + 裁决域）</h2>
+<div class="card acc"><b>定位</b>：从 structural L5 的最小子集迈向 effective 判定的准备层。
+本层多数条目<b>必须先经用户裁决</b>（撞判据/撞单点归因）——方案只出设计稿与选项, 不默认动。</div>
+<div class="grid">
+<div class="card"><span class="tag t-pur">设计稿</span><b>六段继承产物格式</b><br>
+parent state → proposed change → evidence → evaluation config → acceptance → subsequent use
+（综述 §7 原文六段）; 对齐四工业对照物（Lark 时间接地 / Humanlaya 版本化 /
+Hyra 可执行经验 / ARA 轨迹实证）——knowledge3 档的字段扩展设计。</div>
+<div class="card"><span class="tag t-pur">设计稿</span><b>effective-L5 matched-term 最小对照</b><br>
+三件套（matched budget / 独立锚 / 安慰剂）文献各≤1 篇 ⇒ DWC 是跟随设计者:
+先出「同 term 预算下 π0 vs π*」的最小对照设计（不声称 L5e）。</div>
+<div class="card"><span class="tag t-yel">半有→设计</span><b>HCE 第三段：dev 拆搜索/选择信号</b><br>
+现 dev 一肩挑两职（AIRA2 80/10/10、标签隐藏、最终选择只用未参与搜索的 D_val）——
+需裁决（动 eval split 结构）。</div>
+<div class="card"><span class="tag t-pur">裁决</span><b>评估器共演化 · dep(z) 定向失效</b><br>
+RQGM 路线 vs 𝒢_fixed 判据（2608.24876 硬约束）——若开则 dep(z)（换评估器只抹依赖记录）
+与 epoch/checkpoint 必须同批设计；不开则维持现状（SYNTHESIS 冲突 1）。</div>
+<div class="card"><span class="tag t-pur">裁决</span><b>Pareto 多目标验收</b><br>
+DecoEvo 教训（分数耦合对照 13/15 反向）+ 双审计 + Pareto 验收 = 单目标 no_worse 的升级——
+需先答「哪几个目标、谁定权重」。</div>
+<div class="card"><span class="tag t-pur">裁决</span><b>自适应停止 + 种群搜索</b><br>
+停止：综述 §7 开放方向无标准可抄, 候选=move-on 四判据（T2 已并入）+ 成本-收益阈值；
+种群/tournament/交叉（AFlow/AgentNAS 族）撞 _assert_single_change 单点归因 —— <b>默认不引</b>。</div>
+</div>
+
+<h2 id="plan">⑧ 执行序 — 四阶段（每轮一提交一知识档, 三层验证不变）</h2>
+<div class="phase"><div class="ph-l"><b>阶段 1 · T1</b><div>可观测批<br>2 轮<br>零判据变动<br>760+ tests</div></div>
+<div class="ph-r"><b>1a</b> A 单调性（已有脚本, 跑+判读分支）+ CostLedger T 序列 + repair_layer 字段；
+<b>1b</b> judge meta-eval + pass^k/重复采样 + 长度/一致性审计 + 锚定探针。<br>
+<span class="kv">验收：T 序列表出数 · meta-eval 报 macro-F1 · pass^k 进 score 输出 · gate 8/8 · e2e rc=0</span></div></div>
+<div class="phase"><div class="ph-l"><b>阶段 2 · T2+T3</b><div>任务与记忆<br>3–4 轮<br>C1 裁决域<br>按 A 结果定序</div></div>
+<div class="ph-r"><b>2a</b> B 段式回放（死锁硬伤优先, 甲案不依赖 C）；
+<b>2b</b> C 分层任务树（若 A 显示 ρ 弱则升为 2a——<b>分支判据已写死在 R92 稿</b>）；
+<b>2c</b> 成功侧归纳 + 序列任务流；<b>2d</b> 库治理四件套 + 写入三步 + 技能卡双字段 + 对照实验臂。<br>
+<span class="kv">验收：w_delta 主场回归（段内反序对出现）· 组序进 wta 且 6/6 不回退 · 每件带探针测试</span></div></div>
+<div class="phase"><div class="ph-l"><b>阶段 3 · T4</b><div>归因批<br>2 轮<br>报表化为主<br>候选硬规则</div></div>
+<div class="ph-r"><b>3a</b> 遵循率两读数 + 四模式诊断表（知识档字段扩展）；
+<b>3b</b> 三维解耦实验 + 等预算归因臂 + 复现硬规则。<br>
+<span class="kv">验收：每个已采纳 Proposal 三列连接齐全 · 遵循率报表可复跑 · 对照臂进报告协议</span></div></div>
+<div class="phase"><div class="ph-l"><b>阶段 4 · T5</b><div>递归与裁决<br>1–2 轮 + 拍板<br>设计先行<br>不默认动</div></div>
+<div class="ph-r"><b>4a</b> 六段继承格式 + matched-term 最小对照（两份设计稿）；
+<b>4b</b> （裁决通过后）HCE 第三段 / 评估器 dep(z) / Pareto / 停止——逐项独立轮。<br>
+<span class="kv">验收：设计稿过审 → 执行轮只做 实现→三层验证→知识档→提交</span></div></div>
+
+<h2 id="verdict">⑨ 裁决域（4 项需你拍板）+ 明确不采纳（15 条不适用归并）</h2>
+<div class="warn"><b>需拍板（阶段 4 前给出决定）：</b><br>
+① <b>HCE 第三段</b>：dev 拆搜索/选择信号——动 eval split 结构, 影响一切历史分数可比性<br>
+② <b>评估器共演化 + dep(z)</b>：撞 2608.24876 𝒢_fixed 硬约束——不开=维持现状（推荐）, 开=先改判据设计<br>
+③ <b>Pareto 多目标</b>：单目标 no_worse 升级——哪几目标、权重谁定<br>
+④ <b>种群/交叉搜索</b>：撞 _assert_single_change 单点归因——推荐不引（AgentNAS 自陈单种子消融问题）</div>
+<div class="card grn"><b>明确不采纳（15 条不适用 + 3 项主动排除, 带理由）</b>：<br>
+<b>训练与权重</b>（SFT/RL/LoRA/GRPO/OPD/SIGReg latent——全库零梯度层, 架构边界）；
+<b>人评与用户面</b>（Likert 标注/用户偏好/人工介入计数——DWC 无人评面, 但 Nemotron 标注协议
+列为「将来外部校准可抄」备忘）；<b>在线服务维度</b>（serving 延迟/工具体合成——SEA 范式推论, 不在世界树/判分域）；
+<b>LLM 自修补臂</b>（Verma 否定域+现状绕开, 若引入须三件套）；<b>多数共识当真值</b>（与 golden 锚纪律冲突,
+AIMO 的共识只作其语境内的 fallback, 不迁）。</div>
+
+<h2 id="matrix">⑩ 覆盖矩阵 — 163/163 逐条（机器源 matrix_families.json）</h2>
+<div class="ok"><b>覆盖断言</b>：163 = 44(T1) + 21(T2) + 26(T3) + 9(T4) + 6(T5) + 42(确认型) + 15(不适用)，
+待分 0——每条可借鉴点都有族归属与处置（动作 / 裁决 / 对照确认 / 排除），<b>零漏项</b>。</div>
+<p class="kv">确认型 42 条 = 判据已同型（golden 锚 / TRUTH_SOURCE / 单点拦截 / W5 单向 / held-out 双 split /
+π0 必含 / insufficient 不装数 / 离线回放 …）——写入对照表即结案，无需动作。</p>
+<h3><span class="tag t-acc">44 条</span>T1 · 可观测与度量</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 3 | **pass^k 可靠性指标**：k 次独立同任务试验全对的概率，无偏估计 C(c,k)/C(n,k) | `organs/el_sched.py`：`B_WINDOW=8`、`TAU=6/8`，`record(bool)` 灌滑窗、`pass_rate` 未满 B 返回 **None**（`status="insufficient"`）、p̂&gt;τ 才推进；`</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 7 | **成本结构**：输入占 95.9%、输出 4.1%，主因是长 system prompt（政策+函数定义） | `harness/run_term.py` `CostLedger` 三账：`term_cost`（每 term 清零）、`cumulative_cost`（永不清）、`rejected_cost`（被拒候选也算进前两者） | **半有**：DWC 记账</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 3 | **置信度 + RMS 校准误差**：强制模型输出 0–100% 置信度，再算"声称 50% 是否真有 50% 对" | `foundation/world_model.py:40` 明文 "**收束排序只吃布尔观测的信息增益，不吃任何 confidence（W4）**"；`:69` `confidence_source ∈ {judge_dev, dynamics</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 5 | **专家分歧率审计**：两轮各抽 200 题、多评审 + rebuttal，得 15.4%（生化健康子集 18%，单评审协议下跳到 25%） | `organs/judge.py::self_check()` 只查任务集构成与 provenance；`regression_check()` 判单批 Δ 是 ok/regression；**src 无任何"多评审员/多</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 6 | **评审反馈回路**：bug-bounty + 学生审计 + 组织者逐条核 + HLE-Rolling 动态 fork | `foundation/version.py` / `harness/run_term.py::_dw_version()` 记版本；世界树随轮增长；**无外部反馈入口**（src 无 issue/audit 通道），也无"数据集 fork"概</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 7 | **难 = 更多算力**：reasoning 模型 token 消耗显著更高，且要求 compute-optimal | `harness/run_term.py:108-110` `CostLedger` 三账：`term_cost`（每 term 清零）/`cumulative_cost`（永不清）/`rejected_cost`（**被拒候选成本单列**，`r</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 5 | **pass@k vs maj@k 差距 = 改进空间读数**（Fig 2 画出 pass 上界） | `el_sched.pass_rate()` 给**平均通过率**（滑窗均值，未满 B 返回 `None`）；`organs/evolver.py:773` `stall_signal(Ŝ_t − Ŝ_{t−w} ≤ δ ⇒ 停滞)`（数据不足 `sigma=0`</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 7 | **限时调度 + 提前停止**：350s 基础 + 210s 共享 buffer（上限 560s）；16 候选里前 4–5 个一致即取消剩余；取消尾部 straggler | `llm/client.py` 只有**传输层** timeout（R36：默认必须 None）；`run_term` 无 per-task 时间预算、无"多数一致即停"逻辑 | **缺**：</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2504.21318</td><td>¦ 6 | **评测方差纪律**：50/64 次重复、报标准差、KDE 分布、明说两次 5-run 可差 5–10pp、批判单次单分数 | `judge.score()` 单批出 `pass_rate`（一次判分一次读数）；`el_sched` 需 **B=8 次布尔观测**才给 p̂（不满窗 `status="insufficient"`、`pass_rate=None` 不</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **meta-evaluation：判分器本身被打分**（macro-F1，random=0.50 下界，报"落在医生分布第几分位"） | judge 只有 `TRUTH_SOURCE = (类别, 路径)` 指向 `config/anchors/` 的 golden reference 与 sealed 标签 + 启动期 `_check_truth_source` **文</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **worst-at-k 最坏情况可靠性曲线**（U-statistic kernel min，k 到 16） | `regression_check(baseline, current)` 是**单次**同批任务前后比较（终止条件③ 的基础） | **缺**：DWC 没有"重复采样看最坏"的度量；对 judge 这种可能抖动的组件尤其缺 |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **长度偏差审计 + 长度受控胜率**（GPT-4o r=−0.053 / o3 r=0.123） | judge 的 `keyword_match` 类锚点**天然对长度不敏感**，但 DWC **从未做过任何相关性审计** | **半有（性质上有、度量上缺）**：可抄"对每个打分通道算 分数 vs 输出长度 的相关"作为 judge 健康检查 |</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **16 次重复运行报 std（≈0.002）** | judge 无重复运行方差报告；`el_sched` 反而明确"窗口未满 B ⇒ 判不了（insufficient）" | **缺但同族**：DWC 已有"样本不足不许判"的纪律，缺的是"同一样本判多次报方差" |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2511.20857</td><td>¦ **step efficiency（AlfWorld 22.6→11.5 步）与 sequence robustness（Easy↔Hard 方向）两个指标** | DWC **无**"完成任务步数"指标（`el_sched` 只吃 8 次布尔观测算 pass rate）；也**无**任务顺序鲁棒性对照 | **缺（两个都是可直接加的指标）**：步数可挂在世界树节点深度上；</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 3 | 记忆写入三步管道：**salience 判别 → 摘要 → 相似度 τ 决定 update vs add** | `memory.py`：`remember()`（L230）、`_signature_is_globally_unique()`（L497，只查唯一性，**无近重复合并**）、`maintain()`（L606，归档/维护） | **可迁移，缺口明确**</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 4 | **Preference Drift Detector**（区分"新增"与"推翻旧偏好"） | `organs/iwm.py` 有四路漂移度量 `semantic_delta / lexical_delta / structural_delta / distributional_delta`（L99–189）+ `drift()`（L222）—— 但那是**观测分布</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 5 | **四阶段协议 + 系统性漂移注入**（Phase 1/2 学-测、Phase 3/4 换 persona 再学-测，输入不变只换标签） | `src/dwc/experiments/mem_guidance_vs_replay.py` 已有三臂对照框架（none / guidance / replay，R67：0.688 / 0.812 / 0.750，**\|Δ</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 6 | `FF`（反馈使用率）与 `ACPE`（累积误差）两个指标 | DWC 的 `memory.py` 有 `access_count / effect_count`（D7：价值由访问与效果推出），PROGRESS 三栏表报单点均值 | **可迁移**：`FF` ≈ 记忆激活率（对应综述 L4 的 activation 失败），`ACPE` ≈ 逐轮累积误差曲线。两者都</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ 迁移评估设计：**author ≠ user ≠ task 分布** 三维解耦（跨规模/跨族/OOD 各自留出） | `run_term` 是同 agent 前测/后测（T1–T4），无"修订者 vs 使用者"分离，无跨底座迁移 | **缺**（评估设计可迁移）：把"产生修订的 agent"与"执行修订的 agent"分离跑一遍，是判"技能/策略是否真的可移植"的最低成本实</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **完整性审计（11 超 SOTA → 6 干净；FinQA 抄答案 1.0）** | `evolver.ProposalGate.check`（evolver.py:1560）+ `Proposal._assert_single_change()`（evolver.py:1168）+ `judge.regression_check` 在**采纳前**把关；`applier</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **T 沿序列收敛（`K_eff`）作为主判据，SR 只是门槛** | `harness/run_term.py::CostLedger` 已记 `term_cost / cumulative_cost / rejected_cost`（"failed attempts and their costs also require recording"），`foundation</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **伪进化联合判据**：`K_eff→0` 且 `K_SR→0` 同时成立 = 停滞 | `WorldModel.observed_rate()/record_round(improved)` 给 pass-rate 序列；`IwmOrgan.record_round(adopted, improved)` + `grounded()`/`self_trust()` 给采纳</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **F 收完整轨迹 τ_g（每个 prompt/响应/工具调用/结果），不只聚合指标** | `judge._diff`（judge.py:787）给逐条差异作候选 grounding（`candidates` TRUTH_SOURCE 写明「grounding 真值源: dwc.organs.judge.Judge._diff 的逐条差异」）；`weakness` 的 `</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **Coupled Goodhart（两个优化器共享同一固定 verifier，互不见更新史）** | 同构风险在 DWC 是**单优化器**：`candidates` 生成、`evolver` 采纳、二者吃同一条 δ 链；防线是**评估器不可编辑**（`OBJECT_TO_COMPONENT["评估器"] = "evaluator"`，注释 §3.4 不可编辑）+ tes</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 后验信念探针：步边界读分数 token logits，Δε_k 定位"拉远金标准"的步（Eq.1–2） | 无任何模型内部状态读取。`organs/judge.py` 的 `Verdict` 只有 `success: Optional[bool]`、`reason`、`failure_signature{c,q}`、`n_checks/n_pass`；判分是规则比对（`cl</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 掩码接地审计 G^ρ/G^a/G^p + 位置残差化（Eq.3–4） | 证据链是**外显**的：`judge._store_evidence()` → `evidence.jsonl` → `Verdict.failure_signature` → `TaskScoreStore`（C3' TS3 逐任务分数序列），存的是"结论从哪来"，不是"输入消融后这步变难多少" |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 步选择验收规则：信念负漂移 top-k → 接地三分位只重排不删（Algorithm 1） | 候选生成走 `organs/candidates.py::CandidateGenerator.generate()`（R1/R2 规则变异 + `_llm_generate`），筛选靠 `evolver.check_component`/`check_pairing`(K2) </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ RSR 规则敏感性干预协议（LoR/PTS 确定性改规则 + FR/IB-RSR 分解） | judge 的 anchors/golden 与规则全部固定（`Judge.__init__(anchors_path=...)`、`_check_truth_source`），**没有任何"改规则→测分数响应比例"的探针**；DWC 只有"任务过没过"的二值/细粒度分 | **缺</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 3 | **selective erasure**：记录带 `dep(z)` 依赖集，换评估器只抹依赖它的记录并重算统计 | `organs/applier.py`：`apply_on_copy` → `commit`/`rollback` + 强制 `window` 窗口末比对 + `readback_ok`；`core.py` 的 `_replay_history` 只</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 7 | **成本/不确定度口径**：blended tokens（输出 5×）、95% Jeffreys 区间 | `foundation/state.py:51` 有 `wm_dev_n # 样本量（置信区间必需）`，但全仓无 Jeffreys/区间实现 | **缺（区间实现）/ 未核（DWC 报告链是否产区间）**：仅见字段注释，未见任何区间计算调用——`未核` |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **同 seed 只换搜索空间的受控对照**（Table 3：160 evals 的 LLM 空间 vs 500 evals 的 einspace 语法空间） | `core.dream(policy_variants=...)`：`specs = [PolicySpec()] + 变体`，**π0 必含（单调性支点）**、每版本在每历史树独立评估、`select_poli</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **预算/时长硬上限**（proxy 3600 s、final 86400 s、VRAM 11264 MB，CUDA event 计时排除 IO） | `CostLedger` 只记成本不设上限；`world_model` W6「深度/池上限必填无默认」（`depth_limit`/`max_nodes`）；`el_sched` 无时间维度 | **半有**：有"上限外部化</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **结构审计**（π^τ_str + 充分性分 + 必须引用证据的 rationale + 修复建议，且**看不到分数**） | judge 的诊断是确定性 diff（`classify_c/classify_q` → `Verdict.reason`/`diffs`），**没有"只看题面与细则、不看答案分数"的角色**；DWC 的 LLM proposer 走 `cand</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **近平局对比审计**：L rollout + `|z_i−z_j|≤τ_tie` 配对 + rubric-blind 两阶段评审 | DWC 世界树按题只有二值观测（`world_model.information_gain(n_obs, n_pass)`，W4 只吃布尔），**同一题多次 rollout 打分分布不存在**，因此没有"近平局对"的概念；也没有盲评两阶段 </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **Pareto 验收**（∃k Δ_k&gt;δ 且 ∀j Δ_j≥−η，不加权聚合） | 单目标"不劣于现行"：`replay.no_worse_than_current` / `select_policy` 的 argmax（候选必含 current）；`evolver.select_winner` 单标量选优；`applier` 回归窗口 | **半有**：都有"不</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **代理分 vs 外部标准双轨迹监测**（Figure 3：proxy 89.1 而 gold 下滑） | C3' 的 `task_scores(split)` + `evidence(ref)` 能取逐任务序列，`evolver.stall_signal/has_rise/natural_rise` 做趋势判读——但**只有 judge 一路分**，没有"训练期代理分 v</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **预算归因对照**（Table 4 的 1.89× token 对照） | `applier._record_liquidity` + `evolver.gain/liquidity_summary` 按轮/按组件记账收益，**无 token/call 级成本对照**；实测 `860 accepted → 2 applied` 说明接受-落地差很大但未做成"同预算对照组"</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **锚定的在线度量**（inter-attempt 相似度，&gt;0.95 = near-identical） | 全库无任何 attempt 相似度探针；且 `_assert_single_change` 强制小 diff ⇒ 单点编辑**结构上**注定与被改对象高相似（Verma 意义上的 local edit） | **缺（可迁移，便宜）**：度量只用代码最长匹配子</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **安慰剂方法学**（等预算无信息对照臂） | judge C3' 外置判分（`organs/judge.py`；golden 在 `config/anchors/`，agent 不可写）+ `el_sched.STATUS_INSUFFICIENT`（没观测不许当通过）+ dream M=1 时"单调性退化**平凡成立并显式记录**（不冒充改进）"（core.py:399</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 8 | OPD（学生自采样、teacher 打分、forward-KL） | 无训练 ⇒ 无 OPD。但**形式可借**：DWC 的 judge 可对"候选生成器自产的提案"打分布分而非 0/1 | **远期项**，依赖 DWC 有可训练的 proposal 模型，当前不具备 |</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 6 | **判决–改进耦合度量**（`ρ(A,g)`、三分位 gap、NABA 相关） | 全 src grep `相关系数|correlat|耦合|spearman|pearson` 仅命中 `candidates.py:662` 的 `mode = "delta_correlated"`（语义无关）；**没有任何自评→下轮改进的耦合度量** | **缺**：DWC 有 </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ subgoal tracking/re-anchor 单调 | **缺** |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ 选择性抽象频谱间隙 probe | **半有** |</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ progress 单调性 Spearman Fig8 | **缺** |</td><td><span class="tag t-red">缺</span></td></tr>
+</table>
+<h3><span class="tag t-acc">21 条</span>T2 · 任务结构与经验</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 2 | **多属性回归 reward（五维向量 + 加权和）** | `judge.py` 的产出是逐任务 `Verdict`（pass/fail + c/q/m 签名）与 `pass_rate`/`overall_score`；`regression_check` 只比 pass-rate 的 Δ | **缺**：DWC 的判分是**标量/布尔**，没有"属性向量"这一层</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 2 | **两因子 reward**：`r = r_action × r_output`（终态对 + 必要信息给到） | `judge.Verdict` = pass/fail + 失败签名 (c,q,m)；`pass_rate(v)=k/n over checks`；`overall_score()` 聚合多任务；**无“是否把必要信息告诉了用户”这一因子** | **缺</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 3 | **答案等价 judge + 多数共识当真值**：Qwen2.5-32B 判 predicted/expected 等价；无真值题用最常见答案当 ground-truth | `organs/judge.py`：`evaluate → _diff/_compare` 确定性比对、`_eq`/`_as_literal` 容差；`judge.py:175` "c/q 必</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **对话级 rubric + 负分判据 + 权重 + "命中分/满分分"分母**（Eq.1） | `organs/judge.py::score()` 是**二值**的：逐任务 `pass/fail/not_evaluated`，`pass_rate = n_pass/(n_pass+n_fail)`；dev anchors 共 **10 条（6 behavior + 4 </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 8 | 绝对分数（70.5 / 68.8 / 41.3 / 70.3） | R67 本地证据是"三臂无显著差异" | **不可迁移**：依赖 GPT-4o / GPT-4.1 闭源 agent + LLM 人类模拟器（诚实条款 5），且任务族完全不同（偏好评测 vs 修复任务） |</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2603.21331</td><td>¦ Amdahl 先 profile、按"对全局的贡献"分配优化预算（"optimize what matters"） | 任务源排序 = 任务级 δ 降序（`core._task_deltas` → `weakness.task_delta_map`，再 `core._el_pick` 交给 `ELScheduler`）；**无"占全局代价比例"的权重** | **缺**（可</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.21331</td><td>¦ move-on 四判据（5 连败 / 90% 峰值 / 2 h / 2×） | 停滞只有两处：`el_sched.py` 的 `p̂≤τ`（B=8, τ=6/8）与 `evolver.stall_signal(score_history, window, delta)`；`state.cost_used` 预算存在但**不接进调度** | **半有**：`stall_sig</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **Eq.1 温度化 rank 选择（T=0.2）+ 交叉 p_c=15% + 种群/进化** | `core._task_deltas` → `weakness.task_delta_map` 做**任务级 δ 降序**，`core._el_pick`/`ELScheduler` 取任务；`dream` 里 π⁰ = `w_delta·δ` 降序 + 字典序 tie（可复</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **序列任务流替代孤立 episode**（R1→R2→R3→A2→A3、正交干扰、变量槽防背答案） | 计量单位是 `run_term`（一个改进周期，T1–T4 前测后测）；`_snapshot_worlds` 把每 term 尾的世界树快照进 ℋ（跨 term 持久）；`world_model.seed_tasks` 播种任务，但**无"同任务重复 + 换槽变体 + </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **能力幻觉：SR 可比但成本差 31.2×** | DWC 的 `Judge` 只判对错（`Verdict.success`）+ 分数序列（C3' `TaskScoreStore`）；**没有任何"同分不同本"的横向对比维度** | **缺**（观念级）：C3' 记的是质量轴，SEA-Eval 证明只有质量轴会把伪进化判成先进化；与上表第 2 行是同一个补丁的两面 |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **RL 算法按任务条件选择（六种 + 触发条件）** | 无 RL、无权重训练；**同构的元选择**在 `dream`：`PolicySpec`（`w_delta`、`prefer_revealable` 等纯选择参数）、`PolicySpec.from_mapping` 拒绝未知键与**锁值键**（「锁值键不进修订域」） | **半有**：DWC 有"按条件选参数集"的</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **Phase 2：LLM 把 seed 分解成带槽搜索空间**（免人工、任务专属、有界 20×8） | `organs/candidates.py::CandidateGenerator` 是**trace-grounded 确定性生成**：模块头自陈「DWC src 实测 grep 零 LLM 接入 ⇒ 第一版只能是确定性退化形态」，纪律③ 是「推不出 ⇒ 返回 `ne</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **Phase 3：种群 + tournament + 单/双槽变异/交叉的组合式重搜** | 世界树是**单点展开**：`world_model.WorldTree`（W1「唯一树结构」）、收束排序只吃布尔信息增益（W4）；`evolver.Proposal._assert_single_change()`（evolver.py:1168）构造期强制**一处改动**；`c</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **预算/patience 不对称**：失败耗预算但不计 patience（160 / 64） | `evolver.stall_signal(score_history, window, delta)`（σ_t = 1[Ŝ_t − Ŝ_{t−w} ≤ δ]，δ=`NOISE_DELTA`=0.15 实测拍板）+ `exploration_signal`（**仅停滞时**把</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **盲测**：任务 README 换成 `TASK_X` 最小 spec，只影响 agent 能读什么 | judge 真值在 `config/anchors/`（agent 不可写）；但任务语义对 agent 完全可见（`judge` 的 golden reference 就在文件里），无"隐去任务身份"协议 | **缺（可迁移）**：盲测是 prompt 层改动（把 t</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **盲重采样臂**（resample：原 prompt 重抽、不看失败、等预算） | `src/dwc/llm/client.py:290-297`：仅**传输类**异常重试（R36 注释），`return self.complete(prompt, system=system, ...)` **原样重发同一 prompt**——字面就是"内容不变的盲重抽"；但 (a) 默</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **k≈2 任务内预算律**（46–53% 收益在 k=2，k=7 边际归零） | `evolver.stall_signal`（773 行起，σ_t = 1[Ŝ_t − Ŝ_{t−w} ≤ δ]，`NOISE_DELTA`=0.15）是**跨轮**停滞判据；`harness/run_term.py::CostLedger` 记 `term_cost`/`cumulativ</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 3 | 同任务多 executor 成败对照 → 归因 | DWC 有 judge 逐任务判分 `organs/judge.py::TaskScoreStore.record(verdict, group_id, ...)`（L486）与 `evidence(ref)`（L536），但**没有"同任务多候选并排对照"的归因步骤**；δ 失败签名在 `organs/weakn</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 2 | **宽/严双配置 + 种子不相交 + 评估轨迹不回流** | `el_sched.py` 是**难度推进**（B=8、τ=6/8、代内/换代两级）而非同任务宽严双配置；`judge.py` 有 `SPLIT_DEV`/`SPLIT_TEST`（"metric 演化不许读"）与 `regression_check`（同批任务集才可比） | **半有**：隔离原则在判分</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ 时间分层 stride/window | **缺** |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ 顶层 goal cost 抽象空间 | **缺** |</td><td><span class="tag t-red">缺</span></td></tr>
+</table>
+<h3><span class="tag t-yel">26 条</span>T3 · 记忆与工件质量</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 3 | **用训练出来的 reward model 做质量过滤（阈值筛样本）** | 记忆写入用**规则门槛**：`memory.py` D6（能否成为 evolver 输入）、D7（无 access 记录不得当有价值）；`dial_config.py` 淘汰前的"未召回 ≠ 淘汰"与"唯一签名 ⇒ 不淘汰"硬否决 | **半有**：都有"写入前过门"，但 Nemotron</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 1 | **LLM 答错才准入**：机器门把"模型会答的题"筛掉（"questions are rejected if LLMs can answer them correctly"），MC 只许一个模型通过 | `organs/weakness.py:211` `delta = max(-math.log(r), 0.0)`（失败率 r→δ）、n=0 ⇒ `delta=n</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 6 | **工具配额写进 prompt、超限即弃**：每题 1–8 次代码执行随机配额 + 剩余次数警告注入，超限样本从训练集删除；沙箱侧再限 6 次/2s/200 字符 | `dial_config.py` Z 门体系（Z2 sealed 数、Z4 lineage、Z5 merge、Z6 stuck）+ `harness/run_term.py::run_term(n_s</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 1 | **Post-action 反馈通道**（错误 → 修记忆） | DWC 已有闭环：`foundation/activity.py::FEEDBACK_CLOSED = "feedback_closed"`（L47，语义"回到判分器"）+ `judge.py::Verdict` → reflect 管写入 | **一致，非迁移项**。PAHF 的 **Proposi</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 2 | **Pre-action 主动澄清**（问人拿缺的信息） | DWC `src/` 内 grep `preference` = **0 命中**，也无"提问"器官；但 `organs/actor.py` 的 step 可以跑测试/读文件/再观察 | **形式不可迁、语义可迁**。DWC 无人可问，等价物是"**向环境取证**"（多跑一次探测、读一次文档）= 把 γ（</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2602.16173</td><td>¦ 7 | per-user 偏好记忆（DWC 无用户） | 无对应 | **不可迁移**：DWC 是开发者 agent，没有"用户偏好"这一对象；能借的是**按 key 隔离**的组织方式（对应 `chain_id` / `zone` 已有的分区） |</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ 并行 many-to-one 合并（128 analyst 单轮 + 3 层 merge ⇒ 3 min），顺序编辑 15/60 min 且质量更低 | DWC 是**一改一验**：`Proposal._assert_single_change` 保证单点改动，`ProposalGate.check` 逐条把关，`evolver.record_edit` 顺序入 `liqu</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ 低频知识路由到 `references/`（13 个文件）主文档保持广适用 | `MemoryNode` 的 Zone/Tube/Kind 分层 + `recall_search(scene, terms)` 按场景取 | **半有**（分层思想同型）：DWC 按 zone 分层而非"主文档 + 按需附件"；可借鉴"低支持观察不丢弃、路由到低频层"的显式规则 |</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **异步多 GPU worker 池（steady-state、无同步屏障、8 卡 ≈ 8× 吞吐、1 worker 1 GPU、9 h 单次执行上限）** | 全库 grep `multiprocessing|threading|asyncio|concurrent|并行`：**src/dwc 下仅 `replay.py` 的"并行度 W"（回放批次上限 \|C\| ≤ </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **ReAct 取代静态算子（动态 scoping + 同轨迹内交互 debug）** | `ACTIONS: tuple = ("remember", "learn", "dream", "maintain", "evolve")`（core.py:62） 固定枚举 + `world_model.legal_actions()`；但 `core.step` 对 `lear</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **噪声注入**（预载 20 条无关技能测检索退化） | `MemoryKernel.maintain/archive/eviction_candidates` 做记忆膨胀治理；`memory._self_test()` 是现成自测挂点；**无"注入无关条目 → 观测召回退化"的评估** | **缺**（可迁移的评估手段，零新机制）：往 `remember()` 灌 N 条</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **双杠杆：harness（脚手架）+ weight（LoRA）在同一循环内交替** | 全库 grep `LoRA|fine-tun|梯度|gradient|参数更新|finetune` = **0 命中**；`evolver.EVOLUTION_OBJECTS_21` 里有 `"提示词"→prompt`、`"代码"→code`、`"架构"→architecture`（*</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **分层双表征 M=(M_text, M_code)**，文本三类 plan/env/pit（按"怎么被消费"分类） | 单一 SQLite 记忆内核 `organs/memory.py::MemoryKernel`：`MemoryKind` 5 类（trace / working_state / failure_sig / skill / proposal）+ `Zone</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **复发门 `|B(p)|≥θ`** + **query-only codify**（轨迹被有意排除） | 无任何"把经验编译成可调用工件"的路径；`MemoryKind.SKILL`（scene/method/boundary）仍是文本；最接近的"何时保留"由 `evolver` 依 GAI dials 决定淘汰（`memory.py::eviction_candidat</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **工具准入守卫**：`Compile(impl(t), Close(∅,{t})) = 1` + 一次纠错、二次拒 | 门更靠前也更严但**验证内容不同**：`applier.apply_on_copy → commit/rollback` + 回归窗口 `window_settle` + `evolver.check_component`/`check_pairing`</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **依赖闭包不动点** `U_{r+1} = U_r ∪ ⋃Dep(t)`（运行期注入依赖完备） | 不存在"工具/工件依赖"概念（无工件图）；最接近的是 `memory_node.chain_id`（因果链 `foundation/causal_chain.py`）把记忆串成链，但**不是闭包、不参与注入** | **缺** |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **激活/复用统计**（Table 3：0% 无注入、94% invoked vs 84.1% injected） | `MemoryNode.access_count / last_access / effect_count`、`used()`、`record_effect()`、`recall_many()` 记 access 而 `recall_search()` 不</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **联合选择**（文本 + 工具一起选；选中 plan 自动带入 D(p)） | `recall_search/recall_many(scene, terms, k)` 单通道检索 + `weakness.weak_ranking` 的 δ 稀有度**排序偏置**（`只可作排序偏置: 不给阈值, 只给顺序`）；无 LLM Manager 做跨表征联合选择 | **半有**</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **渐进披露** `Trunc(x;h) = head h(x)∥...∥tail h(x)` + 按需展开 | DWC **没有反思器角色**：`Tube.REFLECT` 管阶段的对象是失败签名归因（`(c,q,m)`），不是长轨迹；无"先摘要后按需展开"的证据暴露协议 | **缺**（若 DWC 将来要对长 trace 做反思，这是现成可搬的接口设计） |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 1 | **评估器共演化**：challenger 与在位者在同一 anchor 上比 BB_ε，赢了换 | `src/dwc/organs/judge.py` 文档头写死："★ 它**不进递归**（2608.24876 §5.1.1 硬要求: "𝒢_fixed 不能进递归。 递归改记忆，判分器不动。"）"；全仓 grep 无 challenger→judge 替换路径 |</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **双工件共演化**：solver skill `s` + rubric-generator `g` 两个独立持久修订域 | DWC 只有**一个**修订域：`organs/replay.py::PolicySpec`（`w_delta`、`prefer_revealable`），且 `from_mapping` **拒收锁值**（τ/B/β/δ=0.15）。评估侧完全没有</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 2 | 技能卡 `v=(pattern, usage_spec)`，spec 含 **`invalid_conditions` + `recovery_strategies`** | `memory.py`：`MemoryKind.SKILL` 必填 `(scene, method, boundary)`（`EXPERIENCE_REQUIREMENTS` L108–112</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 4 | BPE 式初始技能发现 | 无对应。DWC 的轨迹是修复步骤，`memory.py` 的 SKILL 由 reflect 管人工/LLM 写入 | **概念可迁、对象不同**：可在已有 `archive/knowledge3_R*.json` 轨迹上跑"频繁子序列合并"做冷启动种子库。**未做** |</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 5 | 库更新后**配对**报告救回/弄坏（91/15、58/32） | DWC 有 `docs/REGRESSION_GUARD.md` 与 `evolver.py::has_drop / noise_delta / stall_signal`，但 PROGRESS 的实验行只报单点均值 | **强烈可迁移（抄口径即可）**：每次记忆/规则更新必须报 `recovered</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 6 | 冻结主模型、只进化外部 artifact | DWC 即此路线（agent 参数不动，改记忆/规则） | **一致，非迁移项** |</td><td><span class="tag t-gry">—</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 7 | 绝对收益 9.7 / 2.6pp、+30.3pp（GPT-5.2） | DWC R67 三臂记忆实验结论是 **\|Δ\|≤2 = 噪声**（PROGRESS.md 第 25 行） | **数字不可迁移**：EmbodiedBench 每 split 50 episode、且 executor/teacher 与 DWC 不同；DWC 不具备 Qwen3.7-Max</td><td><span class="tag t-gry">—</span></td></tr>
+</table>
+<h3><span class="tag t-red">9 条</span>T4 · 归因与受益</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2603.25158</td><td>¦ **成功侧对称分析员 `A+`**（成功轨迹也提 patch） | `core.ingest` 不变量② **只要求失败**痕迹带 `failure_signature`，成功痕迹无对称归纳通道；`judge` 已产出 success 观测但无人聚合 | **缺**（可迁移）：新增 success-signature 族聚合，挂进 `weakness.z_history_f</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ Agentic 分析员：查 artifact + **实现最小修复并复现成功**再提 patch（vs 纯读日志：57% vs 14% 误归因） | `candidates.CandidateGenerator.generate` 有 `_baseline_reproduces`（**重放基线复现失败**）+ `_r1_range_offset`/`_r2_type_wra</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ patch 组合效应：贪心平台 + off-source 回归（57↔21、26↔46 翻转）+ BO 选择 | 每轮只改一处 ⇒ 天然无组合爆炸；`evolver.gain(liq, component, now_round, window)` 只测单改动窗口增益，`novelty_score` 抑制重复触碰 | **缺但低优先**：DWC 的单改设计已规避该失败模式；一</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **HCE 三分数据 + 标签对 agent 隐藏 + 评估外置独立容器 + `D_test` 不回传 orchestrator** | `organs/judge.py`：`SPLIT_DEV = "dev"`（锚点集，恒小、每条带 golden reference）、`SPLIT_TEST = "test"`（注释逐字：**「锁定集，metric 演化不许读」**）、`</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2604.14661</td><td>¦ **三级修复层级**（PyTorch 源 / ONNX 图 / 运行时；失败事件 → 该在哪一层改） | `organs/applier.py` 是唯一写可写面的器官，判据1 = setattr 后**读回比对**，判据2 = 必须有回滚路径；`evolver` 的 `editable_vocab()` 限定可改面 | **半有**：写后读回+回滚已同型；**缺"失败该在哪</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 原子改写 + 局部性约束 + checklist-mimicry 检测 | 候选是整函数体 splice（`_splice_body`/`_r1_range_offset`/`_r2_type_wrap`），无"只改一步/1–3 子步"的局部性约束，也无"禁止抄 oracle"检测 | **缺**（对象不同：DWC 改代码而非推理链，但"局部性 + 禁抄参考"这两条约束本身</td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **自我修复条件**（placebo/feedback：把失败产物喂回去让模型改） | `organs/candidates.py` 是 trace-grounded **确定性推导**：R1 规则吃差值模式（239 行），`delta_eq_args/delta_const/delta_correlated` 三模式（657–662 行）按**本次失败的证据统计**收窄候</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **"对照决定结论"的归因纪律**（同 treatment 只换对照，+12.2 变负） | `iwm.record_round(adopted, improved)`（339 行）+ `self_trust`（346 行）区分"采纳/改进"，但没有"这个改进是不是只是多抽了一次"的归因维度 | **缺**：DWC 报告 Ŝ_t 增益时无法区分 persistence 与 </td><td><span class="tag t-red">缺</span></td></tr>
+<tr><td class="mono">2608.30760</td><td>¦ 1 | **更新策略可学习**（`Δ=S(V,T)`，SFT+OPD 训出来） | `organs/evolver.py`（1,873 行）：`Proposal` / `Mutator`（L1079–1230）、`select_winner`（L449）、`liquidity_*`、`gain` —— **全部是人写的规则与阈值**（`NOISE_DELTA=0.15` 锁</td><td><span class="tag t-gry">—</span></td></tr>
+</table>
+<h3><span class="tag t-pur">6 条</span>T5 · 递归与继承</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 4 | **Iterative Weak-to-Strong（生成器迭代升级，学生超老师）** | `evolver.py` 的 `Mutator.propose(sig)` → `ProposalGate.check` → `Evolver.accept(p, baseline, …)`；`llm/client.py` 才是候选生成来源（R31 实测 `src/` 零 L</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 1 | **自举数据回路**：stage-0 模型生成 → 过滤 → 用过滤数据训更强模型 → 它再生成（1.2M→15k→700K→260K→1.7M），生成器随轮升级 | `organs/candidates.py`（候选生成）docstring 明言："DWC src 实测 grep **零 LLM 接入** ⇒ 第一版只能是**确定性退化形态**"，产出 `Cand</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 4 | **GenSelect：训一个"从 k 个解里挑最好"的选择器**（1M→566K 样本，16 解入 prompt，`Judgment: [IDX]`），显著超过 majority voting | `organs/replay.py:165` `select_policy`：`π*=argmax V`、**候选集必含 current**（缺则 `raise`）、平</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 需要显式 per-criterion rubric（特权输入） | DWC 的判据是 anchors + golden reference 的结构化条目（`classify_c/classify_q` 期望值比对），粒度到字段/断言而非自然语言 rubric | **半有**（结构化程度更高，天然满足"逐条可查"；但没有"以 gold 作特权输入生成检查清单"这一训练期技巧</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 2 | **独立 anchor + 保守下界**：BB_ε 只吃 anchor 计数，1−ε 下界 | judge 有 `SPLIT_DEV`（"锚点集，恒小，每条带 golden reference"）与 `SPLIT_TEST`（"锁定集，metric 演化不许读"），`TRUTH_SOURCE = config/anchors/dev.json`，`_check_tr</td><td><span class="tag t-yel">半有</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 4 | **epoch / checkpoint 制度**：指数 checkpoint（ρ=2）把重处理压到 O(B) | 无 epoch 概念；最近的同构物是 `el_sched.py` 的代/环境两级推进（B=8, τ=6/8，`insufficient` 单列）与 applier 的 window | **半有**：有"分段推进 + 窗口结算"的形状，没有"段内判据冻</td><td><span class="tag t-yel">半有</span></td></tr>
+</table>
+<h3><span class="tag t-grn">42 条</span>确认型 · 已同型（对照即结案）</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 1 | **判质量的优先序**：有 ground truth/verifier 就用它，没有才上模型判 | `judge.py` 真值源 = `config/anchors/dev.json` 的 golden reference + `SPLIT_TEST` 锁定标签；`evaluate()` 走 `_diff`/`_compare` 与规则比对；fallback 被硬约</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 5 | **两阶段训练 + 2% 旧数据回放防遗忘** | `dial_config.py`："未召回 ≠ 淘汰，可能只是检索策略问题"；稀有保护"某类失败的唯一签名 ⇒ 不淘汰"；`judge.regression_check` 用**同批任务集**比 Δ（退化即 regression） | **确认型（同族约束）**：两者都在防"新阶段覆盖旧能力"。Nemotron 用</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 1 | **终态比对判分**：真值 = 标注的目标数据库状态；比终态而非比轨迹，允许对话随机 | `organs/judge.py`：`TRUTH_SOURCE = (("dev_anchors","…/config/anchors/dev.json"), ("test_sealed","…/test_sealed.json"))`，锚点文件 agent 不可写；`eval</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 6 | **唯一终态标注约束**：写 instruction 时保证“只有一种可能终态”，每题 ≥40 次 agent 试跑验证 | `config/anchors/dev.json` 的 golden reference + `SPLIT_TEST` 锁标签；`dial_config._sealed_task_count()` 读 `E:/ARSI/config/seal</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 2 | **LLM-judge 等价判分**：o3-mini 结构化解码出 `extracted_final_answer/reasoning/correct/confidence`，允许"小数 vs 分数"等价；judge 被明确约束"不许重解题" | `organs/judge.py`：`TRUTH_SOURCE` 指向 `config/anchors/dev.json</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 4 | **私有 held-out 集防过拟合**：公开 2,500 + 私有集 + 发布后 late contributions 形成第二私有集 | `organs/judge.py`：`SPLIT_TEST = "test" # 锁定集，metric 演化不许读`、`TRUTH_NOT_BUILT = {"test_sealed"}`；`foundation/capab</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2501.14249</td><td>¦ 8 | **每题必须带解法 rationale + 精确唯一答案**（"every question is accompanied by a detailed solution"；开放题一律 0 分） | `judge` 锚点每条带 `golden reference`（`SPLIT_DEV = "dev" # 锚点集，恒小，每条带 golden reference`）；`</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 2 | **难度门当数据筛选器**：难例二轮 SFT 前 "pass-rate&gt;0.3 即弃"（32 次采样）；难题多配额 | `organs/el_sched.py:38-39` `B_WINDOW=8`、`TAU=6.0/8.0`（p̂&gt;τ 才 `NEXT_ENV/NEXT_GEN`，p̂≤τ ⇒ `STALLED` 卡住）；`organs/weakness</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2504.21318</td><td>¦ 5 | **探索→放大 + 固定基准做进度标尺 + 逐项 ablation**（Fig 5 的 12 点，AIME24/GPQA-diamond 先锁死） | `judge.regression_check(baseline,…)`；`evolver.gain(liq, component, now_round, window)`、`stall_signal()`（Z6 卡</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2504.21318</td><td>¦ 8 | **脱污染**：23 个 benchmark 清单算法去污染；AIME-2025 因发布晚天然无污染 | `judge.TRUTH_SOURCE` = dev.json + test_sealed.json；`SPLIT_TEST` 锁标签；`dial_config._sealed_task_count()` 读 `E:/ARSI/config/sealed_tas</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2511.20857</td><td>¦ **剪枝率随任务多样性变化**（GPQA 36.8% vs AIME 10.8–17.5%） | `eviction_candidates()` 的稀有保护：同 `(c,q,m)` 全库计数 ≤1 ⇒ `rare_protected=True` 不淘汰；`dream` 的 `unique_waiver` 是**同量的镜像**（"淘汰时唯一签名受保护，归纳时唯一签名也不该被'</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.21331</td><td>¦ 五阶段门：正确性全过才测性能（firewall 在测量之前） | `Judge.evaluate` 判分 + `ProposalGate.check` 把关候选 + `judge.regression_check`；`Proposal._assert_single_change` 保证一处改动 | **确认型**：DWC 的门在"提案/落地"层而非"计时"层，结构同型（先验</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.21331</td><td>¦ "Fixed evaluation, mutable code"：agent 永不改评分器 | W2/W5：`world_model` 的 `provenance` 单向 observed/simulated、"分数只来自 judge 观测"（`core.dream` 注释 "dream 不写树、不产分数"）；judge 真值源 `anchors` | **确认型**（同一</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.21331</td><td>¦ Single-file invariant + git 即台账（每实验一 commit） | `Proposal._assert_single_change`（单点改动断言）+ `evolver.record_edit`/`liquidity` 台账（`k1_coverage`、`liquidity_summary`、`gain(..., window)`） | **确认型</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.25158</td><td>¦ 归纳偏置 "prevalent pattern bias"：独立重复出现的编辑 = 系统属性 | `weakness.z_id_from_signature(c,q)` 把失败归入签名族、`z_history_from_scores` 按族史算 δ、`DifficultyEstimator.weak_ranking` 只给排序 | **确认型**（同一偏置已在 δ 族上存在</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **「Agents never self-report metrics.」/ 分数只由 orchestrator 在独立容器给** | `organs/world_model.py` TRUTH_SOURCE：「本模块不自判：observe(score, success) 两个值由调用方从 judge 传入」「**simulated 节点无 score 写入路径**（WOR</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **附录 A：自报 `log_loss=0.0` 被 search 选为全局最优、探索停止** | `judge` 判分重复 5 次 std=0.0（R50 实测，「judge 零随机源」）+ `judge._diff`（judge.py:787）逐条差异供 grounding + `iwm` 明示「回归判定 = dwc.organs.judge.regression_ch</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **Percentile Rank（连续、避奖牌阈值噪声）** | 分数粒度 = **k/n over checks**（R54 甲案，11 task / 26 check），实测出 δ 调节区 (0.111, 0.222] 后拍板 `NOISE_DELTA = 0.15`；判分确定性（5 次 std=0.0） | **确认型**：同一条"离散阈值会放大噪声"的顾虑，两边都</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2603.26499</td><td>¦ **HCE 同时是实验工具**（用它区分"真过拟合 vs 评估噪声"） | `evolver` R50 三组实测（重复判分 5 次、候选池 Δ∈{−1,0,1}、δ 可行域扫描）先量噪声带再定 δ；`noise_delta()` 强制带出 `basis`/`precondition` 让调用方复核 | **确认型**：同一条"判据必须实测得来、且可复核"的纪律；AIRA 2</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **蒸馏失败 vs 检索失败的可诊断性**（strategy reuse rate、检索 trace、扰动下 rank 敏感度） | `MemoryNode.used()/changed_behavior()/proven_value()`（条目是否被用、是否改变行为、是否被证有效）；`MemoryKernel.recall_search/recall_many` 返回**</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ **`Φ`/`Ψ` 分离，且 `Ψ` 是抑制噪声的门** | `Φ` ≈ `candidates.CandidateGenerator.generate(sig, diffs, baseline_src, fn_name)` + `evolver.Mutator.propose(sig)`（从轨迹/签名产候选）；`Ψ` ≈ `ProposalGate.check(p)` +</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2604.14661</td><td>¦ **每阶段一个可验证出口**（"Every step needs a verifiable exit"：golden output / shape check / path check / 数值比对贯穿全流程） | `organs/judge.py::score()` 同时报 `pass / fail / **not_evaluated**` 三个数，"未评价不许当 Fal</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2604.14661</td><td>¦ **失败模式：环境感知形成错误前提 → 污染后续全部推理**（Win on ARM 误判 x86_64） | `applier` 判据1 明写"治母巢 P0-3：返回 ok:True 但零副作用"；`judge`/`weakness`/`el_sched`/`replay`/`world_model` 全部带 `TRUTH_SOURCE` 声明 + 启动期 `_check_</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **Feedback-Agent 按平台期切换杠杆（先 harness、停滞转 weight）** | `evolver.stall_signal(score_history, window, delta)`（σ_t = 1[Ŝ_t − Ŝ_{t−w} ≤ δ]，`NOISE_DELTA=0.15` 实测拍板）+ `exploration_signal`（**仅停滞时**激</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **Meta-RL：把"选择 harness 还是 weight"的策略本身当学习对象（§9 Future work）** | `core.dream(policy_variants=...)` 已实现 **M&gt;1**：`specs = [PolicySpec()] + 变体`、π⁰ 必含（单调性支点）、每版本在每历史树独立评估完才下一版本、`select_polic</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **初始分数构造为 `gpt-oss-120b` 过 `A₁`，据此把 harness 增量与 weight 增量分开报** | `core.dream` 的 π⁰ = 当前策略 + 「单调性退化平凡成立并显式记录（不冒充改进）」；`evolver` 的 `record_edit`/`liquidity` 台账（`k1_coverage`、`liquidity_summar</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 结果过滤保留（N 采样中任一到达金标才留） | 同族机制已存在且更严：`applier.apply_on_copy` → `commit`/`rollback` + 回归窗口 `window_settle`，实测注释 `860 accepted → 2 applied`；外加 K1 覆盖/K2 声明一致/池上限 | **确认型**（DWC 的门更严，且拒绝原因可查 `can</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **invalidate-and-replace**（v:0→1、追加新记录、不原地改） | 同族纪律已在且更硬：`world_model.observe()` W5 —— `provenance 只许 simulated→observed，且真值不许覆盖`；`memory.py::maintain()` 的 `归档而非删除`（`archived_at` 时间戳 + 审计记</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2606.24151</td><td>¦ **反思全在执行关键路径外**（可异步，不增 serving 延迟） | `core.dream()` 是**离线只读回放**（快照进 ℋ、回放不写树）；ACTIONS 路由 `remember/learn/dream/maintain/evolve` 分步 dispatch | **确认型**（重活离线化的同族设计；但 DWC 无"在线服务延迟"这一量纲 ⇒ 该指标 **</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 5 | **共享扩展同时提升多效用**（90% 补丁改共享面） | `evolver.py` 约束 4："★ 所以本模块硬性限制: **一个提案只改一处** … 若允许多处 ⇒ 任何测量都无法归因" | **确认型（同时是张力）**：RQGM 用 90% 共享面实测支持"一处改动可同时改善多个效用"，这正是 DWC 单变更约束付出的代价的量化证据；采纳前须显式裁决"可归因性</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 8 | **训练分不进选择**："utility is computed on a HELD-OUT validation set you NEVER see" | `evolver.accept` 硬分支：`held_out 缺失时必须返回 "decision": "blocked"`（`Δ_in ≥ 0 ∧ Δ_ho ≥ 0` 双 split 约束）；judge 有 `</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **验收外置**：「Only validation metrics are used for selection; test metrics are never exposed to the pipeline.」 | `organs/judge.py`：`SPLIT_DEV="dev"` 锚点集（带 golden reference）、`SPLIT_TEST="test"`</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **null-NAS 暴露**：「To unmask such a null-NAS scenario, we report the second-best architecture's score in this case.」 | `el_sched`：窗口未满 B ⇒ `STATUS_INSUFFICIENT`（「没观测过」不许默认通过也不许默认停滞）；`core.dr</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.07984</td><td>¦ **失败分诊 + 交互式修复**（Code Executor 失败把截断 traceback 回喂、最多 10 次重试，且「Only fix bugs — do NOT change the architecture design.」） | `applier` 落地前 `ProposalGate.check`（evolver.py:1560）+ `judge.regress</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **Definition 1 分数解耦**：聚合分绝不作生成器目标 | 同上：DWC 的 judge anchors/golden 固定，`weakness.py::delta_group` 只吃频率；**没有"聚合分驱动评估器修改"这条通路**，所以也没有它的风险。已有的同类防线：`evolver.check_pairing`(K2) 要求声明与意图一致、`applier</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **提案/验收数据分离**（rewriter 只见 probe，`V_g` 对其隐藏；审计集冻结使新旧同分） | 同族隔离已存在：anchors 与 SPLIT_DEV/TEST 分离、`Judge._check_truth_source()`、`TaskScoreStore` 双查询口；`evolver.record_edit`/`liquidity` 记账使"改了什么"</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.25675</td><td>¦ **反思成本只在优化期、部署只留 solver**（`only the optimized solver skill is retained`） | DWC 的对应物：`dream()` 是**离线只读**（`dream 不写树、不产分数（W2: 分数只来自 judge 观测`），M&gt;1 策略修订在回放中评估后择优落地 | **确认型**（同为"重活在离线、在线只留精</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2607.26117</td><td>¦ **Dreaming 回放 + M&gt;1 策略修订（自条件化的持久化形态）** | `core.dream`（core.py:387–476）：π0 必含（419–420 行，单调性支点）、每版本在每历史树独立评估、`replay.select_policy`/`no_worse_than_current`（replay.py:165/189）、β 从 config 读</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 1 | **探索期扣住 verifier 真值，只给 agent 自评分** `s_i`，评估期才揭盲 | `organs/judge.py` 的 TRUTH_SOURCE 明写 "自判禁止：…无任何自评打分"（`experiments/mem_guidance_vs_replay.py` 同款声明）；`memory.py` 文档头："价值只能由 access/effect</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 3 | **三条经验通路同预算对比**（raw history / 摘要 / 参数训练） | `experiments/mem_guidance_vs_replay.py` 正是三臂对照：`C none`（无记忆下界）/ `A guidance`（平铺注入）/ `B replay`（按真实失败签名 prefix-only 揭示），指标全来自 `judge.evaluate`</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 5 | **摘要必须是可执行动作规则**（两条件判据） | `memory.py` 的 D6 写入门："这条记忆能否成为 evolver 的输入? 不能 ⇒ 留在 PROXY 或归档区"，且"**写入时就要判的门槛**" | **确认型**：DWC 的 D6 是 S3Gym 两条件的更弱版本（只判该记忆能否成为 evolver 输入，没判够不够具体到新状态可执行）。S3Gy</td><td><span class="tag t-grn">确认型</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ IDM 防慢特征坍缩 | **确认型** |</td><td><span class="tag t-grn">确认型</span></td></tr>
+</table>
+<h3><span class="tag t-gry">15 条</span>不适用 · 排除（带理由）</h3>
+<table><tr><th style="width:110px">来源</th><th>条目（映射节原文, 截断 190 字）</th><th style="width:74px">判定</th></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 6 | **human eval（136 prompt / 6 点 Likert / 同批标注员 / 顺序随机）** | 全 src 无人评环节；判分全为规则/锚点 | **不适用（当前阶段）**：DWC 无人评面。**但**若将来要做"判分器是否过严/过松"的外部校准，Nemotron 的"固定响应集 + 随机顺序 + 同批标注员 + 长度知觉二次端点"是一套可直接抄的协</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2406.11704</td><td>¦ 7 | **训练面本身（9T token / 6,144 H100 / SFT / DPO / RPO）** | DWC 无训练：`llm/client.py` 是云端 API 接入层 | **不适用**：全部训练机制不可迁移（算力与权重条件均不具备）。可迁移的只有**数据与判据层设计**（上表 1–5） |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2406.12045</td><td>¦ 8 | **方法取舍**：FC &gt; ReAct &gt; Act；think 函数无增益；self-reflection/planning 不适合 user-in-loop | `llm/client.py` 为云端 API 接入；DWC 无 user-in-loop，有跨轮记忆与 `replay.py` Dreaming 回放（`replay_score` 的 V </td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2504.16891</td><td>¦ 8 | **权重线性 merge + 长轨迹摘要化**：`CoT*0.3+TIR*0.7` 三列齐升（maj@16 69.1、length 12489、code 0.85）；R1 summary 重写成 ≤2048 token 干净摘要（**答案≠原解即丢**、取最长，只损 1–2%） | `applier.py` `setattr` 读回不等即报错；`dial_confi</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2504.21318</td><td>¦ 7 | **RL/训练本身**：GRPO、verl、32 H100、90 步、G=8、KL 0.001 | DWC 无训练：`llm/client.py` 为 API 客户端，无 policy gradient | **不适用**（算力与权重条件均不具备）。其规则 reward（第 3 行）与 6k 题 90 步 +10pp AIME 的小样本高收益可当旁证，但不是 DWC</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2505.08775</td><td>¦ **axes 由 model-based classifier 标注、对话由 o1-preview 过滤** | DWC 的判据由人写死在 `config/anchors/`，无模型标注环节 | **不适用（有意为之）**：DWC 把判据面放在 agent 可写面之外，引入模型标注等于扩大判据面——与 G2 冲突，**不应迁移** |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2604.08988</td><td>¦ `K_align` 用户干预率、工具自合成 `\|A\|` 单调增长 | DWC 无用户交互回路；动作集 `ACTIONS` 固定（`core._decide` 只在 ACTIONS 内选），无工具合成 | **不适用**（诚实排除）：DWC 不是执行体 agent，这两条是 SEA 范式的推论，不落在 DWC 的世界树/判分/调度域 |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2604.14661</td><td>¦ **人工介入计数作为核心指标** | DWC 无人工环节，无该度量 | **不适用**（DWC 当前阶段无此物，不是缺陷） |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2605.27276</td><td>¦ **Sample-task 正则（初始化 scaffold 时喂多样任务规格，防单实例过拟合）** | judge 的任务真值来自 `config/anchors/dev.json` 多任务集合（11 task / 26 check），`task_delta_map` 跨任务归一；**无"初始化期喂多样规格"的概念**（DWC 不生成 scaffold，只生成 patch）</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2606.06350</td><td>¦ 信念引导塑形 r = r_out + γ_Φ·r_shape + **冻结参考防 gaming** | DWC 是零模型、无 RL/权重更新（LLM 只当 proposer/judge），Eq.5–7 **不适用**；但"参考必须冻结、修订域与评估器分离"这条反作弊纪律已在：`evolver.LAYER_BY_ITEM["evaluator"]="architecture"</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2606.07909</td><td>¦ 7 | 冷启动用合成 query 填记忆 | DWC 任务源在 `world_model`（`_next_task_source`，PROGRESS R60 行） | **不适用**：DWC 不缺任务，缺的是失败样本；对应做法是主动制造失败（与综述 L3 的自生成任务同族），非本篇机制 |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2606.26294</td><td>¦ 6 | **对抗目标校正 judge 自偏好** | `judge.py` 的 c/q 分类是"**规则**分类，非 LLM"，`m` 才归 LLM 且"第一版确定性 ⇒ 无 LLM ⇒ m 留空并**显式标注**" | **不适用**：RQGM 的对抗项是为 LLM-judge 的 self-preference bias 而生（`judge.py` 无此失效模式）。DW</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 4 | **参数训练通路** | `llm/client.py` 是云端 LLM 接入层（唯一用途 = `candidates.py` 候选生成），DWC 全链无训练 | **不适用**：DWC 不持权重、不训练。S3Gym 的负迁移结论（PvZ 23→6）对 DWC 的可迁移部分是**警告而非方案**——即"把判错的经验固化下来会覆盖原本有效行为"，对应 DWC 的记忆写</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2608.31100</td><td>¦ 7 | **`s_i` 与动作同帧产出的接口** | `actor.execute_task`/`run_dev_suite` 只回传 judge 判分，agent 不产出并列自评 | **不适用**：DWC 禁自评 ⇒ 不需要该接口。**但**若将来做"自评校准"实验（对照 S3Gym Table 5），该接口是前置条件 ⇒ 暂列不适用 |</td><td><span class="tag t-gry">不适用</span></td></tr>
+<tr><td class="mono">2610.06805</td><td>¦ SIGReg latent 训练 | **不适用** |</td><td><span class="tag t-gry">不适用</span></td></tr>
+</table>
+
+<h2 id="honest">⑪ 诚实条款</h2>
+<ul>
+<li><b>清单口径</b>：163 条 = 23 篇报告映射节正则抽取 156 行 + H-JEPA 映射节 7 行；两篇映射节
+（2602.16173/2608.30760）判定标记不同（「一致/可迁移/不可迁移」）, 按行原样入矩阵未改判。</li>
+<li><b>归族是启发式</b>：关键词+判定标签自动归族后人工修正 8 条——个别条目族边界可争议
+（如 repair_layer 在 T1/T4 之间）, 以「动作归阶段」为准执行时可换族, 但总数与零漏项断言不变。</li>
+<li><b>深度分层不变</b>：本方案基于 23 篇逐行 + 9 篇摘要级 + 综述 100% 逐行 + H-JEPA 逐行
+（NOTE_supplement / SYNTHESIS / 2610.06805.md）; 15 条不适用的排除理由均出自各报告原文自陈或
+DWC 全库 grep 证据。</li>
+<li><b>A→B/C 分支判据沿用 R92 稿</b>, 不本稿新发明; 裁决四项本稿只列选项不代答
+（生产门裁决归用户铁律）。</li>
+<li><b>不做的事</b>：本方案为设计与排序, 不含实现; 执行轮按阶段独立开轮, 每轮三层验证
+（pytest 全量 + gate 8/8 + e2e rc=0）+ 知识档 + 同批自洽（current+1 前瞻法）。</li>
+</ul>
+<footer>DWC · R98 方案稿 · 源：H-JEPA(2610.06805) 精读 + RSI 综述(2609.11873) 全材料深读 ·
+163 条矩阵 matrix_families.json · 执行序对齐 R92 三方案与 SYNTHESIS P0–P2 · 生产门裁决归用户</footer>
+</main>
+</div>
+</body>
+</html>
