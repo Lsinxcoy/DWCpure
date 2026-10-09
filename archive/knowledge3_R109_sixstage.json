@@ -1,0 +1,69 @@
+{
+ "round": "R109 · 4a执行① — 六段继承产物实现（稿① R108 过审 → 执行轮）",
+ "date": "2026-10-09",
+ "★ 实现": [
+  "src/dwc/foundation/inheritance.py: build_inheritance(构造即校验) + validate_inheritance(七判据) + attach_inheritance(只扩不破, 重复挂 raise) + load_latest_gen(链读取, 档损坏大声 raise) + truth_fingerprint(sha256[:8])",
+  "四对照物属性=写入即 raise: Lark(at ISO-8601/gen int) · Humanlaya(parent_gen链/不原地改) · Hyra(kind∈3值+exec_form非空) · ARA(refs≥1+type∈5值)",
+  "段6 默认 pending+gap_note(R106双缺口如实挂账) — 不留 null 装有"
+ ],
+ "★ 门教训": "G1 定位门首跑红(foundation 模块缺 DWC-MEM 定位声明) — 按目录惯例补『记忆底座=knowledge3 档格式职责』后 gate 8/8; 红=弃提交纪律执行(先修门再收档)",
+ "★ 口径三改": "USE_STATUS 注释『四值+pending』→『五值』→实测 n=4 终版『四值(pending+三态)』— 声称vs实测, 以元组实测为准",
+ "验证": "pytest 813(806+7) · gate 8/8(G1 修后复绿) · e2e RC=0 — 三层全绿",
+ "本档形态": "★ 首份带 inheritance 六段的 knowledge3 档(示范): gen=109 parent_gen=None(首档) truth_sha8=dev.json指纹 refs=test(813)",
+ "下一步": "4a执行②(R110): matched-term 三臂脚本(π0/π*/π̂ 同底+CostLedger账+锚断言+禁措辞)",
+ "inheritance": {
+  "gen": 109,
+  "at": "2026-10-09T11:00:00+08:00",
+  "parent_gen": null,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 114,
+   "pytest": 806,
+   "gate": "8/8"
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "+src/dwc/foundation/inheritance.py 六段构造/校验/接合/链读 + tests/test_r109_inheritance.py",
+   "files": [
+    "src/dwc/foundation/inheritance.py",
+    "tests/test_r109_inheritance.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r109_inheritance.py (7 tests)",
+     "claim": "七判据探针全绿"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/proposal_six_stage_inheritance.html §⑥",
+     "claim": "写入即校验七判据来自过审稿"
+    }
+   ],
+   "numbers": {
+    "pytest": 813,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "c007b42e",
+   "judge_frozen": true
+  },
+  "acceptance_decision": {
+   "gate": "pytest 813 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl 最新行 + /tmp/e2e_r109.log"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
