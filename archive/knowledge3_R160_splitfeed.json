@@ -1,0 +1,88 @@
+{
+ "round": "R160 · held_out 数据面 — splitfeed.py; R159 的 na⇒passed 通路（settle R28 时代 backlog）",
+ "date": "2026-10-10",
+ "★★ 取证两个意外（先核实再动手的回报）": [
+  "① test_sealed.json **内容是真的**: 10 条锁定任务 × golden, 与 dev **零重叠**（除 _provenance 元键）; judge.evaluate(task, 'test') **实测跑通**（truth_category=test_sealed）",
+  "② judge 架构三 split 早已设计好（L92-95 SPLIT_DEV/TEST/TRAIN）+ Judge.__init__ L606 **文件存在即加载 self.sealed** — 缺的从来不是 test 数据, 是『谁把两份判分装配成 accept 的弹药』",
+  "⇒ 声称 vs 实测 #11: judge docstring 自陈『test 未落地』与实测（文件在+能判+互不相交）部分矛盾 — TRUTH_NOT_BUILT 白名单只是文件缺失时的历史保险（os.path.exists=True ⇒ 走 continue, 不影响判定）"
+ ],
+ "★ 实现 harness/splitfeed.py": [
+  "_tasks_of(judge, split): dev ⇒ judge.anchors / test ⇒ judge.sealed（真实属性, 排除 _ 元键）",
+  "feed(judge, run_impl): 逐 task evaluate → overall_score 聚合 ⇒ SplitScores(in_score, held_out_score)（micro 平均 Σk/Σn 单源口径 — R54 起同一函数）",
+  "feed_pair(judge, base_impl, cand_impl): baseline/current 一对（同一 judge 同 split ⇒ Δ 同口径可比 — accept 的弹药）",
+  "★ 缺席≠0: split 无锚点 ⇒ 口径 None（上层映射 na, 不拼 0.0 混 Δ）"
+ ],
+ "★★ 裁决记录（设计稿没规定 dev 内怎么切 — 显式选 A）": [
+  "A 案（取）: held_in=dev 全集, held_out=test_sealed 全集",
+  "理由: ① 论文只要『两组不重叠』② dev 再切让两边样本太小, k/n 细粒度没统计意义 ③ 实现最小（G4 不扩权）",
+  "B 案（否）: dev 内切 held-in/held-out"
+ ],
+ "★ test 锁定纪律在档": "『no part of metric evolution reads it』— test_sealed 只准候选评估读; proposer/变异器/规则学习不许读（R147 门①同族防泄漏精神）",
+ "★ 闭环测试": "test_split_gate_flips_na_to_passed: feed_pair 产弹 ⇒ R159 split 门 base<cur ⇒ passed（base==cur ⇒ rejected — Δ=0 空过拒, 口径对）",
+ "验证": "pytest 1099(1093+6) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 160,
+  "at": "2026-10-10T24:30:00+08:00",
+  "parent_gen": 159,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 168,
+   "pytest": 1093,
+   "inheritance_gen_prev": 159
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/splitfeed.py 新建(judge 双 split 判分装配成 accept 弹药)",
+   "files": [
+    "src/dwc/harness/splitfeed.py",
+    "tests/test_r160_splitfeed.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r160_splitfeed.py (6 tests)",
+     "claim": "真 split 10/10 互不相交/聚合双口径/缺席⇒None/pair 产弹/na⇒passed 闭环/裁决在档"
+    },
+    {
+     "type": "test",
+     "ref": "config/anchors/{dev,test_sealed}.json",
+     "claim": "两 split 真实存在+零重叠（grep+load 核实）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/judge.py L92/L585/L606",
+     "claim": "三 split 架构+anchors/sealed 加载（缺的不是数据是装配面）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1099,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1099 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ held_out 数据面"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
