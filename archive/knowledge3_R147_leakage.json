@@ -1,0 +1,83 @@
+{
+ "round": "R147 · 泄漏筛查落地（门组第 1 块）— RRSI 第 0 步字面子集 + critic 缺口诚实标",
+ "date": "2026-10-10",
+ "★ 论文口径（核原文不猜）": [
+  "位置: RRSI 第 0 步「必须在任何评估之前」（顺序不可换 — 原文: 泄漏候选会拿 inflated evolve 分数诱后续轮）",
+  "判据 L123 逐字: 拒『explicitly encode task names, entity names, task-specific values, answers, or other logic specific to the evolve benchmark』; 拒『inert machinery』; 留『generic prompt or tool-description improvements』",
+  "门属性: 一票否决（非补偿同族 — 泄漏不可被别的项补偿）"
+ ],
+ "★★ 诚实边界（A4 缺口在档）": "原文 Leakage Screening = LLM critic（Opus 4.8）读 diff 判断; 自陈 A4『critic 能可靠识别』是**未检验假设**（未报漏检/误检率, critic 与 proposer 同厂 = 自评偏置未检, cf. 2607.12790 共谋塌缩）⇒ DWC 用托管/免费模型时更不能假定同等判别力 ⇒ 本模块只做字面五类 + critic 角色显式 not_instrumented ⇒ allowed≠语义干净（note 写死）",
+ "★ 实现 organs/leakage.py": [
+  "Candidate 契约: diff 非空（空 diff 显式拒 — 没内容可筛≠干净）",
+  "_find_word 词边界查找（初版 in 子串匹配被实测抓到误报: 『t』命中 retry ⇒ 修为整词判 — 对齐原文『explicitly encode 』语义）",
+  "ScreenResult: hits 带上下文（可审计可复核）+ allowed 一票否决 + critic 缺口随行",
+  "inert machinery 弱 proxy: 无任何 ASCII 标识符字符 ⇒ 标记（**只标记不否决** — 启发式误报代价高, 宁漏不误; 如实降级）",
+  "screen_batch 保序 + rejected 清单（原文前置语义: 被拒不进评估）"
+ ],
+ "验证": "pytest 1008(1000+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 147,
+  "at": "2026-10-10T16:00:00+08:00",
+  "parent_gen": 146,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 155,
+   "pytest": 1000,
+   "inheritance_gen_prev": 146
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/leakage.py 新建(RRSI 第 0 步字面筛查+词边界+inert proxy+critic 缺口)",
+   "files": [
+    "src/dwc/organs/leakage.py",
+    "tests/test_r147_leakage.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r147_leakage.py (8 tests)",
+     "claim": "五类值域/三类一票否决/通用保留/空 diff 拒/inert 标记不否决/batch 保序"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2609.24972.md L123",
+     "claim": "判据原文逐字"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2609.24972.md L329-330 A4",
+     "claim": "critic 假设未检验 = DWC 边界的论文侧依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 1008,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1008 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ 门组第 1 块 leakage"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
