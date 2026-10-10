@@ -1,0 +1,83 @@
+{
+ "round": "R149 · drawback 检测器（门③）— op 三值+表达式树; clean≠认证正确; 确定性抗共谋",
+ "date": "2026-10-10",
+ "★ 论文口径": [
+  "§2.1 立场: 『我们很少知道什么是好, 但给定输出通常能找到缺点 ⇒ clean = 没找到已知缺点, 不是认证正确』（bootstrap 靠这个不对称）",
+  "配套理由: 『mostly deterministic detectors fail differently from the LLM being graded ⇒ resist shared-blind-spot collusion』（裸 LLM judge 同源失效会串通）",
+  "式 1 表达式树: 叶 op · 析取 · 合一 · 否定 · k-of-v 无权重投票 · 加权投票对阈值 θ; abstain 子节点被排除"
+ ],
+ "★ 实现 organs/drawback.py": [
+  "Op: 确定性 (task, y, ctx) -> verdict; 返回枚举外显式拒（None 当 clean = 静默放行, 禁）",
+  "Node 六形态契约: leaf/or/and/not/k_of_v/weighted（k∈[1,n] / θ∈(0,Σw] / 权重非负 / not 单 child — 越界即拒）",
+  "_eval 三值语义: abstain 子节点排除; 全 abstain ⇒ abstain; not 的 abstain 透传（不折 clean）",
+  "Grader: op 重名不覆盖; 树挂未注册 op 即拒（set_tree 时, 不等 grade 才炸）; 未设树 ⇒ no_tree（显式缺席不默认 clean）",
+  "★ 门③语义锁: ok 只有 clean 为 True; abstain/no_tree 都不过门（没查≠干净 — X2 同族）; note 写死『clean=没找到已知缺点（非认证正确）』"
+ ],
+ "★ 实测抓的洞": "① Node.children 传单 Node 未包 tuple ⇒ len() TypeError 无型保护 ⇒ 入口加 isinstance tuple 防御 ② 测试三处小错（单 child 未包 tuple / leaf 未注册 op 的预期路径错 — set_tree 已拦）⇒ 修",
+ "验证": "pytest 1023(1015+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 149,
+  "at": "2026-10-10T17:20:00+08:00",
+  "parent_gen": 148,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 157,
+   "pytest": 1015,
+   "inheritance_gen_prev": 148
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/drawback.py 新建(op 三值+表达式树六形态+Grader)",
+   "files": [
+    "src/dwc/organs/drawback.py",
+    "tests/test_r149_drawback.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r149_drawback.py (8 tests)",
+     "claim": "三值契约/组合语义/全 abstain 不过门/k_of_v+weighted/契约越界/Grader/clean 非正确"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2607.12790.md §2.1",
+     "claim": "clean=没找到缺点 原文立场"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md §5.4",
+     "claim": "门③顺序 + 确定性抗共谋理由"
+    }
+   ],
+   "numbers": {
+    "pytest": 1023,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1023 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续 逐步推进 不再批准』→ 门③ drawback"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
