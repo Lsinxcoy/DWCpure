@@ -1,0 +1,74 @@
+{
+ "round": "R173 · rule growth face — LATERAL generalization proposal + landed consolidation (three gates, non-seed only)",
+ "date": "2026-10-11",
+ "what": [
+  "Mutator.propose_lateral (same (c,q) different fn kin-fix as candidate; rationale marks generalization source; None when no family => abstain) — this is the FIRST landing point direction.py's R73 boundary comment itself named ('stuck.on_stuck: switch_strategy ~= LATERAL')",
+  "Evolver.propose_lateral thin delegate (Loop entry — same pattern as propose/diagnose)",
+  "Loop uses it when no own-fn rule match (candidate generation, not adoption)",
+  "Loop._consolidate_rule + _RuleTarget: landed => land_rule three gates (check_entry schema + evidence.success=real trial + readback) + persist_learned flush to config/anchors/rules.json (cross-process survival, R32 caliber); seed keys => seed_noop honestly recorded (no claiming 'learned new')"
+ ],
+ "evidence": "003 landed => consolidation seed_noop (honest); 002 lateral proposal generated but gates blocked it (sum_first_n fix fails on average => real drawback => rejected — gates do NOT give borrowed fixes a free pass); non-seed probe key really lands in rules.json",
+ "honesty": "LATERAL is candidate generation only; invalid => gates/trial block => abstain. landed consolidation on seed keys is no-op by design (persist_learned learned=non-seed semantics — code/JSON not dual-source)",
+ "verify": "pytest 1195 (1189+6) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 173,
+  "at": "2026-10-11T10:30:00+08:00",
+  "parent_gen": 172,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 181,
+   "pytest": 1189,
+   "inheritance_gen_prev": 172
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Mutator.propose_lateral + Evolver delegate + Loop LATERAL wiring + Loop._consolidate_rule/_RuleTarget (land_rule 3 gates + persist_learned)",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "src/dwc/harness/loop.py",
+    "tests/test_r173_rule_growth.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r173_rule_growth.py (6 tests)",
+     "claim": "lateral same-family/none/not-force-pass/seed-noop/disk-write/reject-unverified"
+    },
+    {
+     "type": "test",
+     "ref": "direction.py R73 boundary comment",
+     "claim": "LATERAL first landing point self-named by design boundary"
+    }
+   ],
+   "numbers": {
+    "pytest": 1195,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1195 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "003 seed_noop + 002 lateral blocked + probe key in rules.json",
+   "user_decision": "R171-R173 sequential push (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

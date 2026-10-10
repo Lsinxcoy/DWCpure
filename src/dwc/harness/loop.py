@@ -89,6 +89,7 @@ class Loop:
         self._el_last = None
         self._el_token = -1
         self._el_last_task: Optional[str] = None    # ★ R172: p̂ 归因环境
+        self._last_consolidation: Optional[Dict] = None  # ★ R173 固化痕迹
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -233,8 +234,22 @@ class Loop:
             self._last_skip = "diagnose 失败: %s" % exc
             return {"chain_verdict": "blocked", "score": score, "landed": False}
         if not proposals:
-            self._last_skip = "无提案命中（task=%r）" % tid
-            return {"chain_verdict": "blocked", "score": score, "landed": False}
+            # ★★★ R173: 无本 fn 规则 ⇒ LATERAL 泛化（同 (c,q) 近亲修法）
+            #   — direction.py R73 边界自己点名的第一落点
+            #   （switch_strategy 语义近似 LATERAL）; 泛化 patch 无效 ⇒
+            #   门/试跑拦 ⇒ 弃权, 不硬过（候选生成 ≠ 采纳）
+            _lat = None
+            try:
+                _lat = self.evolver.propose_lateral(sig)
+            except Exception as exc:            # noqa: BLE001 — 留痕不静默
+                self._last_skip = "LATERAL 泛化失败: %s" % exc
+            if _lat is not None:
+                proposals = [_lat]
+            else:
+                self._last_skip = ("无提案命中（task=%r — 同族泛化也无, "
+                                   "unfixable_now 是一等输出）" % tid)
+                return {"chain_verdict": "blocked", "score": score,
+                        "landed": False}
         # ★★ R170: 提案在手 ⇒ 试跑（把 RULES patch 合成新源码 ⇒ judge
         #   复判 — 门⑤的真 ΔS 证据只从这出; 合成失败 ⇒ None ⇒ ⑤拒）
         _trial = self._trial_run(tid, proposals[0])
@@ -323,6 +338,14 @@ class Loop:
         #   function" 实测抓到; store 的契约 = 完整 impl 源码）
         if landed and _trial and _trial.get("impl"):
             self.impl_store[tid] = _trial["impl"]
+        # ★★★ R173 · 固化（落地经验 ⇒ RULES 新规则 — 论文核心进化环）:
+        #   landed 的签名键若**非种子** ⇒ land_rule 三闸（schema +
+        #   evidence.success=试跑真验 + readback）落盘 persist_learned;
+        #   种子键 ⇒ 如实 no-op 记录（persist_learned 语义: learned=非种子,
+        #   代码/JSON 不双源）— 不谎称"学了新的"
+        if landed:
+            self._consolidate_rule(tid, sig, proposals[0], _trial, res)
+        # ★ R168: 本轮 ledger 账出口（④ downstream 的素材 — 只记本轮,
         # ★ R168: 本轮 ledger 账出口（④ downstream 的素材 — 只记本轮,
         #   跨轮累积由 Loop 持有者接（daemon 面 — 不在本方法内藏状态））
         self._last_ledger_entries = list(res.credit_entries or [])
@@ -422,6 +445,59 @@ class Loop:
         return None
 
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
+    def _consolidate_rule(self, tid: str, sig: Dict[str, str],
+                          proposal: Any, trial: Optional[Dict],
+                          res: Any) -> Optional[Dict[str, Any]]:
+        """★★★ R173 · 固化面（landed ⇒ RULES; 三闸 + 只收非种子）。
+
+        ★ 入口条件: landed（真落地过）— 没落地不许固化（不假装学会）。
+        ★ 键: Mutator.key_for(sig)（唯一构造 — 与 propose 同口径;
+          两侧不一致 ⇒ 固化了永远查不到的老病）。
+        ★ 三闸走既有 applier.land_rule（schema check_entry + evidence
+          success + readback — R32-R33 的四代打磨, 不重造）。
+        ★ 种子键（001/003/reasoning 的签名族）⇒ **no-op 并如实记**
+          （那是查表学到的, 不是新规则; persist_learned 的 learned=非
+          种子语义 — 代码/JSON 不双源）。
+        ★ trial["impl"] 作 patch（完整实现 — 修法经 judge 复验过的）。
+        ★ 异常 ⇒ 留痕返回 None（**不许静默** — R150 纪律; 固化失败≠
+          本轮失败: impl_store 已写回, 规则下次再学即可）。
+        """
+        try:
+            from dwc.organs.evolver import Mutator
+            from dwc.harness.landing import LandingError
+            key = Mutator.key_for(sig)
+            if key in Mutator.SEED_KEYS:
+                self._last_consolidation = {"key": key, "outcome": "seed_noop"}
+                return self._last_consolidation
+            rec = (self.judge.anchors.get(tid) or
+                   (getattr(self.judge, "sealed", None) or {}).get(tid) or {})
+            entry = {
+                "component": proposal.component,
+                "dimension": proposal.dimension or "D1",
+                "target_layer": (proposal.target_layer or ""),
+                "target": tid,
+                "m": (sig.get("m") or ""),
+                "m_source": (sig.get("m_source") or "rule"),
+                "patch": (trial or {}).get("impl") or proposal.patch,
+                "rationale": ("R173 Loop 固化: task %s 由提案落地并经 judge"
+                              " 复验（strategy=bridge-landed）" % tid),
+            }
+            tgt = _RuleTarget(Mutator, key)
+            rec_res = self.applier.land_rule(
+                tgt, key, entry,
+                {"success": bool((trial or {}).get("success")),
+                 "split": "dev", "task": tid},
+                Mutator.check_entry)
+            self._last_consolidation = {
+                "key": key, "outcome": "consolidated",
+                "readback_ok": rec_res.readback_ok}
+            return self._last_consolidation
+        except Exception as exc:                 # noqa: BLE001 — 留痕不静默
+            self._last_consolidation = {"outcome": "error",
+                                        "why": "%s: %s" % (type(exc).__name__,
+                                                            exc)}
+            return self._last_consolidation
+
     def _pick_task(self, tasks: List[str]) -> str:
         """★★★ R172: δ_θ 排序 + EL 状态机的任务采样（core._el_pick 同源）。
 
@@ -508,6 +584,34 @@ class Loop:
     def _dev_tasks(self) -> List[str]:
         return sorted(k for k in self.judge.anchors
                       if not k.startswith("_"))
+
+
+class _RuleTarget:
+    """★★ R173: Mutator.RULES 的可写面（applier.Target — e2e step8g 同款）。
+
+    ★ flush_fn = Mutator.persist_learned（固化的跨进程存活 — R32 口径:
+      种子留代码 · 学到的落盘 config/anchors/rules.json, 不双源）。
+    """
+
+    def __init__(self, mutator_cls: Any, key: str):
+        from dwc.organs.applier import Target
+        self._t = Target(getter=lambda: mutator_cls.RULES.get(key),
+                         setter=lambda v: mutator_cls.RULES.__setitem__(key, v),
+                         has_fn=lambda: key in mutator_cls.RULES,
+                         delete_fn=lambda: mutator_cls.RULES.pop(key, None),
+                         flush_fn=mutator_cls.persist_learned)
+
+    def has(self):
+        return self._t.has()
+
+    def snapshot(self):
+        return self._t.snapshot()
+
+    def write(self, v):
+        return self._t.write(v)
+
+    def flush(self):
+        return self._t.flush()
 
 
 class _MemoryTarget:

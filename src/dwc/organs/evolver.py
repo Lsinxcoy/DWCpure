@@ -1661,6 +1661,49 @@ class Mutator:
         """★ 声明过的失败签名（可审计：我们只修这些）。"""
         return sorted(self.RULES)
 
+    def propose_lateral(self, sig: Dict[str, str]) -> Optional[Proposal]:
+        """★★★ R173 · LATERAL 泛化提案（同 (c,q) 不同 fn 的近亲修法）。
+
+        ★ 依据: direction.py 的 R73 边界注释**自己点名的第一落点** —
+          「world_tree.yaml stuck.on_stuck: switch_strategy 语义近似
+          LATERAL」+ proposal 层的『换一个方向试』语义; 本方法 = 那个
+          语义在**签名匹配**面的实例化: 本 fn 的签名没规则时, 拿
+          **同 (c,q) 近亲 fn** 的 patch 当候选（换一个 fn 试）。
+        ★ 返回 None（无同族）⇒ 调用方**如实弃权**（unfixable_now）——
+          不编修法; 有同族 ⇒ Proposal（rationale 显式标泛化来源,
+          dimension/component 取近亲的 — 可归因, 不冒充"专为该 fn 学"）。
+        ★★★ 边界: 这是**候选生成**, 不是采纳 — 真有效性由门组 + 试跑
+          （R170 _trial_run）判; 泛化 patch 修不好 ⇒ 门拦/试跑 fail
+          ⇒ 弃权, 不硬过。
+        """
+        c, q = sig.get("c", ""), sig.get("q", "")
+        if not c or not q:
+            return None
+        kin = None
+        for k in sorted(self.RULES):            # 排序 ⇒ 同族多个时确定选
+            kc, kq, kfn = k.split(":", 2)
+            if kc == c and kq == q:
+                kin = k
+                break                            # 首个同族（可复现）
+        if kin is None:
+            return None
+        rule = self.RULES[kin]
+        full = dict(sig)
+        full["m"] = rule.get("m", "")
+        full["m_source"] = "lateral_rule"
+        return Proposal(
+            proposal_id="P_" + hashlib.sha256(
+                ("LAT:" + Mutator.key_for(sig)).encode()).hexdigest()[:8],
+            failure_signature=full,
+            component=rule["component"], target=rule["target"],
+            patch=rule["patch"],
+            rationale=("LATERAL 泛化: %s 无本 fn 规则 ⇒ 借同族 (c=%s,"
+                       "q=%s) 的 %s 修法试（R173 — 有效性由门+试跑判）"
+                       % (sig.get("fn", ""), c, q, kin)),
+            dimension=rule.get("dimension"),
+            target_layer=(rule.get("target_layer")
+                          or layer_of(rule["component"])))
+
 
 # ══════════════════════════════════════════════════════════
 # 门（约束 1：先过门再采纳）
@@ -1768,6 +1811,11 @@ class Evolver:
     # ══════════════════════════════════════════════
     # 诊断 → 提案
     # ══════════════════════════════════════════════
+    def propose_lateral(self, sig: Dict[str, str]) -> Optional[Proposal]:
+        """★★ R173: LATERAL 泛化委派（Loop 侧入口 — 实现在 Mutator, 与
+        propose/diagnose 同一委派模式: 器官对器官, 策略在 Mutator）。"""
+        return self.mutator.propose_lateral(sig)
+
     def diagnose(self, signatures: List[Dict[str, str]]
                  ) -> Dict[str, Any]:
         """★ 诊断：失败签名 → 去重后的提案清单。
