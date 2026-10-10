@@ -586,6 +586,33 @@ def build_implementation(fn_name: str, base_source: str,
     return body
 
 
+def _run_keyword_task(judge: Any, task_id: str, split: str,
+                       implementation: Optional[str],
+                       _src: Dict[str, Any],
+                       rec: Dict[str, Any]) -> Dict[str, Any]:
+    """★★ R171: keyword_match 任务的执行面（答案文本执行器）。
+
+    ★ 执行形态: 不是跑代码 — **答案文本原样进 observation**
+      （observed = {"answer": <impl>} — judge 侧（L844-853）按
+      expected_keywords 逐条比对）。
+    ★ implementation 缺省 ⇒ **显式报错**（不是 REFERENCE: 文本任务
+      没有"参考实现"可跑 — agent 的初值必须由调用方给（broken_dev）
+      ⇒ 缺 impl = 没有可执行物, 如实报错不冒充）。
+    ★ prompt **不注入** execution（只留痕在 traces — 防"把判据面
+      泄漏给执行面", 与 R169 白名单纪律同源）。
+    """
+    if implementation is None or not str(implementation).strip():
+        raise ActorError(
+            "keyword_match 任务 %r 的 implementation（答案文本）缺 ⇒ "
+            "无可执行物（文本任务无 REFERENCE — 初值须由调用方给）"
+            % task_id)
+    return {"task_id": task_id, "split": split,
+            "observation": {"answer": implementation,
+                            "text": implementation},
+            "traces": [{"event": "keyword_task_text",
+                        "chars": len(implementation)}]}
+
+
 def execute_task(actor: "Actor", judge: Any, task_id: str,
                  decision_source: str = "heuristic",
                  trace_hook=None,
@@ -622,10 +649,17 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
             % (task_id, split, len(judge.anchors),
                len(getattr(judge, "sealed", None) or {})))
     rec = _src[task_id]
-    if rec.get("verifier_kind") != "behavior":
+    if rec.get("verifier_kind") not in ("behavior", "keyword_match"):
         raise ActorError(
-            "execute_task 只支持 behavior 形态（%r 是 %r）"
+            "execute_task 只支持 behavior/keyword_match 形态（%r 是 %r）"
             % (task_id, rec.get("verifier_kind")))
+    if rec.get("verifier_kind") == "keyword_match":
+        # ★★ R171: keyword_match 路由（judge 早支持 — observed["answer"]
+        #   含全部 expected_keywords ⇒ pass; 此前 actor 硬卡 behavior
+        #   ⇒ reasoning 4 条永远 execute fail ⇒ R170 实测 blocked 的
+        #   根因）。执行形态 = **答案文本执行器**（不是代码执行!）
+        return _run_keyword_task(judge, task_id, split, implementation,
+                                 _src, rec)
     checks = rec["checks"]
     fns = {c["fn"] for c in checks}
     if len(fns) != 1:

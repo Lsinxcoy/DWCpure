@@ -49,5 +49,37 @@
   "fn": "reverse_string",
   "rules_known": false
  },
- "_reasoning_excluded": "reasoning_001..004 是 keyword_match 形态, execute_task 目前只支持 behavior（R171 接线 — 不编造非 behavior 判据的执行面）"
+ "reasoning_001": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "broken_impl": "快速排序的平均情况很好, 实际很快。",
+  "impl_note": "答非所问（缺 pivot/递归/最坏 全部关键词）— judge 0/3; 修法=RULES E_KEYWORD 族（答案模板补全）",
+  "fn": "",
+  "rules_known": true
+ },
+ "reasoning_002": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "broken_impl": "CAP 定理讲的是分布式系统的一些性质。",
+  "impl_note": "缺 一致性/可用性/分区容错 全部关键词 — judge 0/3",
+  "fn": "",
+  "rules_known": true
+ },
+ "reasoning_003": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "broken_impl": "TCP 建立连接需要来回几次确认, 两次可能不够可靠。",
+  "impl_note": "缺 SYN/ACK/三次/握手 全部关键词 — judge 0/4",
+  "fn": "",
+  "rules_known": true
+ },
+ "reasoning_004": {
+  "category": "knowledge_reasoning",
+  "verifier_kind": "keyword_match",
+  "broken_impl": "数据库里加一些辅助结构能让查找变快, 树状结构都有利。",
+  "impl_note": "缺 索引/B+树/平衡/磁盘 全部关键词 — judge 0/4（首版答案含『索引』一词 ⇒ k_passed=1, 已改措辞保 0 口径）",
+  "fn": "",
+  "rules_known": true
+ },
+ "_reasoning_note": "R171: keyword_match 任务面接通（execute_task 加文本执行器; judge 早支持 — judge L844-853 expected_keywords 逐条判）。修法=RULES 新族 E_KEYWORD（答案模板 — 任务相关知识, 规则库随任务集增长 = 论文语义）"
 }

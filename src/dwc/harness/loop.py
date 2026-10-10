@@ -323,6 +323,21 @@ class Loop:
                 "blocked": list(res.chain.get("blocked") or []),
                 "score": score, "landed": landed}
 
+    def _trial_keyword(self, tid: str, answer: str
+                       ) -> Optional[Dict[str, Any]]:
+        """★ R171: keyword_match 试跑（答案文本 ⇒ judge 按 kw 逐条判）。"""
+        try:
+            o = execute_task(self.actor, self.judge, tid,
+                             implementation=answer, split="dev")
+            v = self.judge.evaluate(tid, "dev", observed=o["observation"])
+        except Exception:                        # noqa: BLE001 — 非 fatal
+            return None
+        pr = (float(v.k_passed) / float(v.n_checks)
+              if (isinstance(v.k_passed, int) and isinstance(v.n_checks, int)
+                  and v.n_checks) else None)
+        return {"success": v.success, "pass_rate": pr,
+                "score": 1.0 if v.success else 0.0, "impl": answer}
+
     def _trial_run(self, tid: str, proposal: Any
                    ) -> Optional[Dict[str, Any]]:
         """★★★ R170: 提案试跑（post-state 复判 — 门⑤的真 ΔS 证据源）。
@@ -340,6 +355,13 @@ class Loop:
         fn = str(getattr(proposal, "target", "") or "").strip()
         if not fn:
             return None
+        # ★★ R171: keyword_match 形态（答案修法 — patch 就是完整答案
+        #   文本; target 是 task_id（judge 签名 fn=首 kw 但 RULES
+        #   target 已按 task_id 记）⇒ 直接当文本试跑, 不包 def
+        _rec = (self.judge.anchors.get(tid) or
+                (getattr(self.judge, "sealed", None) or {}).get(tid) or {})
+        if _rec.get("verifier_kind") == "keyword_match":
+            return self._trial_keyword(tid, frag)
         # 片段已是完整函数体（含 return/多行）⇒ 直接包 def; 若是单行
         # 表达式（RULES 的风格）也兼容 — 只是缩进 4
         # ★★★ 签名口径（R170 实测修）: executor **按名调 fn(args)** —

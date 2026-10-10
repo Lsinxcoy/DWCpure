@@ -1,0 +1,78 @@
+{
+ "round": "R171 · reasoning 任务面接通 — keyword_match 路由 + 文本执行器 + RULES E_MISMATCH 族",
+ "date": "2026-10-11",
+ "root_cause": "execute_task 硬卡 behavior 形态 ⇒ reasoning 4 条永远 ActorError（R170 probe 里 3/12 轮 blocked 的项）; judge 侧早支持 keyword_match（L844-853 observed.answer 按 expected_keywords 逐条判）— 只差 actor 路由",
+ "deliverables": [
+  "actor._run_keyword_task（文本执行器 — 答案原样进 observation.answer; 缺 implementation ⇒ 显式 ActorError（文本任务无 REFERENCE — 不冒充）; prompt 不注入 execution（防判据泄漏 — R169 同源纪律））",
+  "broken_dev +4 条 reasoning（答非所问初值 — 0/n fail, judge kw 口径）",
+  "RULES +4 条 E_MISMATCH:extra_content:<kw> 族（修法=含全部 kw 的答案模板; component=prompt（COMPONENT_VOCAB 族内, 非新造）; 规则库随任务集增长 = 2606.09498 语义, 不是编答案骗判——修法本身是任务相关知识）",
+  "Loop._trial_keyword（答案文本直接试跑 — 不包 def）"
+ ],
+ "signature_caliber": "reasoning 失败的签名 fn = **首失败 kw**（judge L788 first.get('kw'）— 不是 task_id）⇒ RULES 键 = c:q:kw = E_MISMATCH:extra_content:SYN（实测口径, 不是猜的）",
+ "run_proof": "daemon×Loop 12 轮: n_landed=6(001/003+4 reasoning) · n_skipped=6(4 无规则弃权 + 2 复访 idle score=1.0) · ℒ_t 6 笔记账",
+ "honest_record": "reasoning_004 首版 broken 答案含『索引』一词 ⇒ k_passed=1 不是 0 — 改措辞保 0 口径（broken 要真的答非所问）",
+ "verify": "pytest 1184(1178+6) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 171,
+  "at": "2026-10-11T08:30:00+08:00",
+  "parent_gen": 170,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 179,
+   "pytest": 1178,
+   "inheritance_gen_prev": 170
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "actor keyword_match 路由+文本执行器 + broken_dev +4 reasoning + RULES E_MISMATCH 族 +4 + Loop._trial_keyword",
+   "files": [
+    "src/dwc/organs/actor.py",
+    "src/dwc/organs/evolver.py",
+    "src/dwc/harness/loop.py",
+    "config/anchors/broken_dev.json",
+    "tests/test_r171_reasoning_wireup.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r171_reasoning_wireup.py (6 tests)",
+     "claim": "keyword 路由/缺 impl 报错/broken 0/n/reasoning landed+store 写回/签名 fn=首 kw"
+    },
+    {
+     "type": "test",
+     "ref": "daemon x Loop 12 轮 probe",
+     "claim": "n_landed=6, n_skipped=6, L_t=6"
+    }
+   ],
+   "numbers": {
+    "pytest": 1184,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1184 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "reasoning 4/4 landed",
+   "user_decision": "R171-R173 顺序推进（用户 2026-10-11 授权）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

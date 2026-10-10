@@ -1449,6 +1449,60 @@ class Mutator:
             "patch": ("if n <= 1:\n    return 1\n"
                       "return n * factorial(n - 1)"),
             "rationale": "缺递归基 ⇒ 无限递归；按判据 0!/1! 都应为 1"},
+        # ★★★ R171 · E_MISMATCH 族（keyword_match 知识题 — 修法 =
+        #   含全部 expected_keywords 的答案文本）
+        #   ★ 口径: 签名的 fn = 首条失败 kw（judge L788 — first.get("kw")）
+        #   ⇒ 键 = c:q:kw; patch = 完整答案文本（judge 按 kw 逐条判）
+        #   ★ component=prompt（文本/提示面 — COMPONENT_VOCAB 族内,
+        #     不是新造类别）; 这不是"编答案骗判"——修法本身就是
+        #     任务相关知识（规则库随任务集增长 = 2606.09498 语义）
+        "E_MISMATCH:extra_content:pivot": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reasoning_001",
+            "m": "keyword_completion",
+            "m_source": "rule",
+            "patch": ("快速排序的最坏时间复杂度是 O(n^2)：当 pivot 恰好选到"
+                      "极值，分区极度不平衡时，递归深度退化到 n 层，每层"
+                      "都要扫过剩余元素。"),
+            "rationale": "答案缺 pivot/递归/最坏 全部关键词 ⇒ 补成完整"
+                         "解释（judge 按 expected_keywords 逐条判）"},
+        "E_MISMATCH:extra_content:一致性": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reasoning_002",
+            "m": "keyword_completion",
+            "m_source": "rule",
+            "patch": ("CAP 定理指分布式系统三者不可兼得：一致性"
+                      "（consistency，各节点同刻看到相同数据）、可用性"
+                      "（availability，每个请求都能得到非错响应）、分区容错"
+                      "（partition tolerance，网络分区时系统仍可工作）。"),
+            "rationale": "答案缺 一致性/可用性/分区容错 全部关键词 ⇒ 补"
+                         "完整三属性解释"},
+        "E_MISMATCH:extra_content:SYN": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reasoning_003",
+            "m": "keyword_completion",
+            "m_source": "rule",
+            "patch": ("TCP 三次握手：客户端发 SYN，服务端回 SYN+ACK，客户端"
+                      "再回 ACK，连接建立。需要三次是为了双向确认彼此的发送"
+                      "和接收能力都正常；两次无法证明客户端能收到服务端的"
+                      "响应。"),
+            "rationale": "答案缺 SYN/ACK/三次/握手 全部关键词 ⇒ 补完整"
+                         "握手过程解释"},
+        "E_MISMATCH:extra_content:B+树": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reasoning_004",
+            "m": "keyword_completion",
+            "m_source": "rule",
+            "patch": ("数据库索引是加快查询的辅助数据结构。B+树比二叉"
+                      "搜索树更适合，因为它的树更平衡、高度更低，且节点"
+                      "大小按磁盘页设计，减少磁盘 I/O，叶子节点链表便于"
+                      "范围扫描。"),
+            "rationale": "答案缺 索引/B+树/平衡/磁盘 全部关键词 ⇒ 补完整"
+                         "解释"},
     }
 
     # ★★★★ R37 · 模块加载即给种子补 target_layer（数据迁移）

@@ -42,8 +42,9 @@ def loop():
 
 
 def test_broken_dev_all_fail(loop):
-    """★ 6 条初值全 fail（judge 真判 — 闭合性不自欺）。"""
-    assert len(loop.impl_store) == 6
+    """★ 10 条初值全 fail（judge 真判 — 闭合性不自欺; R171 起含
+    reasoning 4 条 keyword_match 答案文本）。"""
+    assert len(loop.impl_store) == 10
     for tid, impl in loop.impl_store.items():
         out = execute_task(loop.actor, loop.judge, tid, implementation=impl)
         v = loop.judge.evaluate(tid, "dev", observed=out["observation"])
@@ -108,9 +109,12 @@ def test_broken_dev_file_required():
 def test_rules_known_from_file():
     """★ rules_known 自报标（001/003=true, 002/004/005/006=false）。"""
     lp = Loop()
+    # ★★ R171 起含 reasoning 4 条（全 true — RULES E_MISMATCH 族已补）
     assert lp.rules_known == {"code_fix_001": True, "code_fix_002": False,
                               "code_fix_003": True, "code_fix_004": False,
-                              "code_fix_005": False, "code_fix_006": False}
+                              "code_fix_005": False, "code_fix_006": False,
+                              "reasoning_001": True, "reasoning_002": True,
+                              "reasoning_003": True, "reasoning_004": True}
 
 
 def test_known_first_ordering():
