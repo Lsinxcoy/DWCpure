@@ -1,0 +1,85 @@
+{
+ "round": "R156 · 五面合流 — bridge→gates→adoption→credit 一次跑通（只编排不新增判定）",
+ "date": "2026-10-10",
+ "★ 补齐的缺口": "R153-R155 四面各自可测但**没接线**（候选择 loop 从未真跑）⇒ harness/pipeline.py run_round() 把四面按真实顺序接成一条管线",
+ "★ 管线顺序（每步产物是下步输入 — 顺序即契约）": [
+  "① bridge.to_facts — Candidate[] → TermFacts（patch 逐字投影）",
+  "② gates.run_gates — 六门三态链裁决",
+  "③ adoption.apply_chain — 链裁决 → Proposal 状态机（gated/rejected）",
+  "④ credit.record — 赢家编辑记 ℒ_t（a_i=1）"
+ ],
+ "★★ 记账口径与原文差异（显式声明）": [
+  "原文 ℒ_t 记本轮**所有**候选编辑（含 admissible-but-lost 的 a_i=0）",
+  "DWC 当前无对手方面（evaluator 未接 — 判谁赢在 caller/judge 侧）⇒ **只记赢家**, as_dict 恒带 lost_not_recorded=True",
+  "★ 缺席≠有: 陪跑面缺席 ≠ 没有陪跑 — X2 纪律, 不拿『只记赢家』冒充全账"
+ ],
+ "★ 短路纪律": "链 blocked ⇒ credit 不记账（没通过≠赢）; adoption 仍迁 rejected（留痕完整 — 不是空白）",
+ "★ ΔS/ΔC 混合口径（测试抓出真问题）": "逐编辑优先 > 整候选均摊; 均摊时 notes 显式标『ΔS/ΔC 均摊口径』; **混合（ΔS 精+ΔC 摊）如实标** — 我初版断言『无均摊 note』是全精确谎, 改判: ΔS 无摊/ΔC 有摊各算各账",
+ "★ 其他契约": "空候选拒 / 未知组件 layer_of ValueError 显式炸（不猜词表层）/ 维度不在九维 PipelineError",
+ "验证": "pytest 1078(1070+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 156,
+  "at": "2026-10-10T22:10:00+08:00",
+  "parent_gen": 155,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 164,
+   "pytest": 1070,
+   "inheritance_gen_prev": 155
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/pipeline.py 新建(四面合流编排+赢家记账+混合口径标注)",
+   "files": [
+    "src/dwc/harness/pipeline.py",
+    "tests/test_r156_pipeline.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r156_pipeline.py (8 tests)",
+     "claim": "顺序/短路不记账/赢家记账/均摊标注/混合口径/组件越界/空候选/维度校验"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/{candidate_bridge,gates,adoption}.py",
+     "claim": "被编排的四面（R152-R154 — 不重造, 只接线）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/credit.py（R155）",
+     "claim": "ℒ_t 台账（只记赢家 + lost_not_recorded 标注差异）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1078,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1078 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续逐项推进』→ 合流接线"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
