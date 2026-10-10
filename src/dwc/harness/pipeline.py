@@ -70,7 +70,9 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
               delta_s_by_edit: Optional[Dict[str, float]] = None,
               delta_c_by_edit: Optional[Dict[str, float]] = None,
               nu_str: Optional[float] = None,
-              split_verdict: Optional[Dict[str, Any]] = None) -> RoundResult:
+              split_verdict: Optional[Dict[str, Any]] = None,
+              baseline: Optional[Dict[str, float]] = None,
+              current: Optional[Dict[str, float]] = None) -> RoundResult:
     """★ 一次候选环（五面合流 — 编排, 不新增判定）。
 
     ★ 顺序: bridge → gates → adoption → credit（chain blocked 时 credit
@@ -87,7 +89,8 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
                     score_star=score_star, delta_s=delta_s,
                     delta_c=delta_c, noise_band=noise_band,
                     domain_guard_ok=domain_guard_ok, nu_str=nu_str,
-                    split_verdict=split_verdict)
+                    split_verdict=split_verdict,
+                    baseline=baseline, current=current)
 
     # ② 六门链
     chain = run_gates(facts)

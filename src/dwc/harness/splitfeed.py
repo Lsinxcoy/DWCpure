@@ -96,16 +96,24 @@ def _aggregate(judge: Any, split: str, tasks: Sequence[str],
 
 def feed(judge: Any, run_impl: Callable[[str], Any], *,
          held_in_split: str = HELD_IN_SPLIT,
-         held_out_split: str = HELD_OUT_SPLIT) -> SplitScores:
+         held_out_split: str = HELD_OUT_SPLIT,
+         tasks: Optional[Sequence[str]] = None) -> SplitScores:
     """★ 一份候选实现 ⇒ held-in/held-out 两份判分（accept 的弹药）。
 
     ★ run_impl(task_id) → observation：由调用方给（它持"改哪个实现"的
       上下文; 本模块不知道候选长什么样）。
+    ★ tasks: **评估面限定**（本模块能判的子集 — R161 实测: e2e 演示集
+      只实现了 4 个 code_fix task, 而 dev split 有 10 条 ⇒ 不编数据,
+      显式收窄评估面并如实记账）; None = split 全量。
     ★ 缺哪个 split 的锚点 ⇒ 那个口径 None（不给 accept 假数据 — 它会
       因此判 blocked ⇒ 上层映射 na, 归因链完整）。
     """
     in_tasks = _tasks_of(judge, held_in_split)
     ho_tasks = _tasks_of(judge, held_out_split)
+    if tasks is not None:
+        _lim = set(tasks)
+        in_tasks = [t for t in in_tasks if t in _lim]
+        ho_tasks = [t for t in ho_tasks if t in _lim]
     if not in_tasks:
         raise SplitFeedError("held_in split=%r 无锚点任务 ⇒ 无 in 口径"
                              % (held_in_split,))
@@ -123,15 +131,17 @@ def feed(judge: Any, run_impl: Callable[[str], Any], *,
 
 
 def feed_pair(judge: Any, base_impl: Callable[[str], Any],
-              cand_impl: Callable[[str], Any], **kw: Any
+              cand_impl: Callable[[str], Any], *,
+              tasks: Optional[Sequence[str]] = None, **kw: Any
               ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """★★ baseline/current 两份 ⇒ accept(baseline, current) 的**一对**。
 
     ★ 这才是 R159 split 门缺的最后一环: accept 要两份判定口径, 本函数
       一次产齐（同一 judge 同一 split 组合 — 比较才同口径）。
+    ★ tasks: 评估面限定（透传给两侧 feed — 两边限同一子集才有得比）。
     """
-    b = feed(judge, base_impl, **kw)
-    c = feed(judge, cand_impl, **kw)
+    b = feed(judge, base_impl, tasks=tasks, **kw)
+    c = feed(judge, cand_impl, tasks=tasks, **kw)
     base = {"in_score": b.in_score, "held_out_score": b.held_out_score}
     cur = {"in_score": c.in_score, "held_out_score": c.held_out_score}
     for name, d in (("baseline", base), ("current", cur)):

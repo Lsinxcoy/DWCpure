@@ -56,7 +56,9 @@ def to_facts(cands: Sequence[Any], *, vocabulary: Tuple[str, ...] = (),
              score_star: Optional[float] = None,
              nu_str: Optional[float] = None,
              domain_guard_ok: Optional[bool] = None,
-             split_verdict: Optional[Dict[str, Any]] = None) -> TermFacts:
+             split_verdict: Optional[Dict[str, Any]] = None,
+             baseline: Optional[Dict[str, float]] = None,
+             current: Optional[Dict[str, float]] = None) -> TermFacts:
     """★ Candidate[] → TermFacts（门组输入 — 投影, 不重算）。"""
     from dwc.organs.budget import EditItem
 
@@ -81,7 +83,8 @@ def to_facts(cands: Sequence[Any], *, vocabulary: Tuple[str, ...] = (),
         not_evaluated=0,                        # 候选环由 caller 给（本模块不知）
         candidate_diff=diff_text,
         vocabulary=tuple(vocabulary),
-        edits=edits, split_verdict=split_verdict)
+        edits=edits, split_verdict=split_verdict,
+        baseline=baseline, current=current)
 
 
 def run_candidate_gates(cands: Sequence[Any], *,

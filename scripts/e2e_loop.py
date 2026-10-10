@@ -482,15 +482,16 @@ _led = CreditLedger()
 _pr = None
 if _ov:
     _pr = float(_ov["score"])
+_SynthP = (props[0] if props else Proposal(
+    proposal_id="e2e_synth_%d" % (len(_hist) - 1),
+    failure_signature=dict(v1.failure_signature or {}),
+    component="prompt",
+    target="unknown",
+    patch=(_cands[0].patch if _cands else "noop"),
+    rationale="R158 e2e 管线合成提案（无查表命中时占位 — "
+              "显式标注, 不冒充有提案）"))
 _rr = run_round(_cands, t=len(_hist) - 1,
-                proposal=(props[0] if props else Proposal(
-                    proposal_id="e2e_synth_%d" % (len(_hist) - 1),
-                    failure_signature=dict(v1.failure_signature or {}),
-                    component=(props[0].component if props else "prompt"),
-                    target=(props[0].target if props else "unknown"),
-                    patch=(_cands[0].patch if _cands else "noop"),
-                    rationale="R158 e2e 管线合成提案（无查表命中时占位 — "
-                              "显式标注, 不冒充有提案）")),
+                proposal=_SynthP,
                 ledger=_led,
                 vocabulary=tuple(_ALL),
                 pass_rate=_pr,
@@ -506,6 +507,58 @@ print("  ℒ_t 记账: %d 笔（%s）· lost_not_recorded=%s"
       % (len(_rr.credit_entries),
          [e["edit"][:28] for e in _rr.credit_entries],
          _rr.as_dict()["lost_not_recorded"]))
+# ── 7d-2 ★★★ R161 · split 门真判（splitfeed 喂 baseline/current）──
+#   ★ R160 建了数据面（dev 10 + test_sealed 10 互不相交）⇒ 这里真接:
+#     baseline = 全 task 用 _BUGGY; current = 前 _n_fix 个用 _FIX
+#     （**与 7c 的 Ŝ 同口径** — 同一批实现同一修法, 不是另造一对）
+#   ★ test 锁定纪律: splitfeed 是候选评估侧读取（允许）; proposer 不读
+from dwc.harness.splitfeed import feed_pair
+# ★ tasks=_ALL: dev split 有 10 条而 e2e 演示实现只覆盖 4 个 code_fix
+#   ⇒ R161 实测 KeyError('code_fix_005') — 不编 _BUGGY 数据, 显式收窄
+#   评估面到 4 条（口径仍同 split 双组: in=这4条的dev, ho=test 无覆盖
+#   ⇒ ho=None ⇒ accept blocked ⇒ 上层 na 如实上报）
+_b, _c = feed_pair(
+    j,
+    lambda tid: execute_task(Actor(), j, tid,
+                             implementation=_BUGGY[tid])["observation"],
+    lambda tid: execute_task(Actor(), j, tid,
+                             implementation=(_FIX[tid]
+                                             if tid in set(_ALL[:_n_fix])
+                                             else _BUGGY[tid]))["observation"],
+    tasks=tuple(_ALL))
+_fmt = lambda v: ("%.4f" % v) if isinstance(v, (int, float)) else "None(缺席)"
+print("  splitfeed: baseline(in=%s ho=%s) current(in=%s ho=%s)"
+      % (_fmt(_b["in_score"]), _fmt(_b["held_out_score"]),
+         _fmt(_c["in_score"]), _fmt(_c["held_out_score"])))
+# ★ 用真 pair 重跑链（split 门从 na ⇒ 按 accept 真判或如实 na）
+_rr2 = run_round(_cands, t=len(_hist) - 1,
+                 proposal=_SynthP,
+                 ledger=_led, vocabulary=tuple(_ALL), pass_rate=_pr,
+                 score_star=(_hist[0]["score"] if _hist else None),
+                 delta_s=max(0.0, _THIS_SCORE - (_hist[0]["score"]
+                                                 if _hist else 0.0)),
+                 delta_c=0.01, noise_band=0.01, domain_guard_ok=True,
+                 baseline=_b, current=_c)
+_g4 = {g["gate"]: g for g in _rr2.chain["gates"]}["split"]
+print("  ★ split 门: %s · decision=%s"
+      % (_g4["status"], _g4["detail"]["split"]["decision"]))
+# ★★★ R161 断言语义（**如实优先于好看**）:
+#   · ho 缺席（本 e2e 演示集只覆盖 dev 的 4 条, test 无覆盖）⇒ na
+#     accept 判 blocked 的理由是 held_out missing — 系统级演示覆盖面问题
+#   · ho 在场 ⇒ 必须真判 passed/blocked（不许 na）
+if _b["held_out_score"] is None:
+    assert _g4["status"] == "not_applicable" and "held_out" in \
+        _g4["detail"]["why"], \
+        "ho 缺席 ⇒ split 门必须 na 且理由说 held_out（不许假 passed）"
+    print("  ✓ R161 接通: splitfeed 真跑了（ho=演示集未覆盖 test ⇒ na 如实,")
+    print("    R160 的 feed/feed_pair 与 R159 的 _g4_split 链路通 — full"
+          " test 覆盖时同链路即真判 passed/blocked")
+else:
+    assert _g4["status"] in ("passed", "blocked"), \
+        "ho 在场 ⇒ split 门必须真判（不是 na）, 实 %r" % _g4["status"]
+    print("  ✓ R161 闭环: split 门 na ⇒ %s（dev×test 双 split 真判）"
+          % _g4["status"])
+
 # ★★ R158 三条断言（防假接通 — 白屏绿≠跑通）
 assert _rr.chain["verdict"] in ("applicable_passed_with_na", "blocked"), \
     "链裁决必须三终态（空链=没跑通）"

@@ -28,9 +28,15 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 CHAIN_PASS_STATE = "gated"
 CHAIN_BLOCK_STATE = "rejected"
 
-#: 可接受的链 verdict（链级非补偿的三种终态）
-CHAIN_VERDICTS: Tuple[str, ...] = ("applicable_passed_with_na", "blocked",
-                                   "error")
+#: ★ 可接受的链 verdict（R161 补全: gates.py 的**四种**终态 — 我 R154
+#   只收三种, 漏了"全 applicable 门 passed 且无 na"的 all_applicable_passed;
+#   R161 测试一跑就炸 ⇒ 判定集合以 gates.py 为唯一真源, 这里必须收齐）
+CHAIN_VERDICTS: Tuple[str, ...] = ("applicable_passed_with_na",
+                                   "all_applicable_passed", "blocked", "error")
+
+#: ★ 通过族（非 blocked/error — 迁移到 gated 的充要条件）
+CHAIN_PASS_VERDICTS: Tuple[str, ...] = ("applicable_passed_with_na",
+                                        "all_applicable_passed")
 
 
 class AdoptionError(Exception):
@@ -88,7 +94,7 @@ def apply_chain(p: Any, chain: Dict[str, Any]) -> AdoptionRecord:
 
     before = getattr(p, "state", "")
     after = (CHAIN_BLOCK_STATE if verdict in ("blocked", "error")
-             else CHAIN_PASS_STATE)
+             else CHAIN_PASS_STATE)          # pass 族由 CHAIN_PASS_VERDICTS 界定
     if not _valid_state(after):
         raise AdoptionError("目标 state %r 不在 evolver 五态内" % (after,))
 

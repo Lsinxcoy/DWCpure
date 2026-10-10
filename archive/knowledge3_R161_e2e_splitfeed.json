@@ -1,0 +1,84 @@
+{
+ "round": "R161 · e2e 接通 splitfeed — split 门真产双 split 判分（R160×R159 链路合龙）",
+ "date": "2026-10-10",
+ "★ e2e 7d-2 真输出（RC=0）": [
+  "splitfeed: baseline(in=0.3333 ho=None 缺席) current(in=1.0000 ho=None 缺席)",
+  "split 门: not_applicable · decision=blocked（accept 判 blocked 因 ho 缺 — R159 精化的 na 口径）",
+  "✓ R161 接通: splitfeed 真跑了; ho=演示集未覆盖 test ⇒ na 如实（不假 passed）"
+ ],
+ "★★ 抓到一个真 bug（R154 漏收第四终态）": "链 verdict 有**四**种终态（gates.py: applicable_passed_with_na / all_applicable_passed / blocked / error）而 adoption.CHAIN_VERDICTS 只收三种 ⇒ 无 na 的全 passed 场景下 apply_chain 直接 AdoptionError。修 adoption（收齐 + CHAIN_PASS_VERDICTS 界定 pass 族）。**判定集合以被调方（gates.py）为唯一真源**",
+ "★ frozen 契约教训（第 2 次家族）": "TermFacts 是 frozen dataclass ⇒ 不能事后 `facts.baseline = ...`（FrozenInstanceError 实测）⇒ 参数必须**构造期传入**（to_facts 加 baseline/current, pipeline 透传）",
+ "★ tasks 收窄（不编数据）": "e2e 演示集只实现 4 个 code_fix task 而 dev split 有 10 条 ⇒ KeyError('code_fix_005') 实测 ⇒ feed/feed_pair 加 tasks 限定评估面（不编 _BUGGY 条目凑数）; test 无这 4 条 ⇒ ho=None ⇒ na 如实",
+ "★ 观测契约先读再写": "测试首版 observed 传裸 lambda ⇒ judge._diff L860 `for call in calls` TypeError — 契约是 dict{fn: [(args,result),...]}（与 actor.execute_task 产出同型）⇒ R144『先读再写』家族第 5 次",
+ "★ 编辑自纠 2 处": "① 插入段引用了未定义的 _SynthP ⇒ 重构为前置构造两处共用 ② 测试里 `if False else` 死代码 ⇒ 删（同 R142 家族）",
+ "验证": "pytest 1102(1099+3) · gate 8/8 · e2e RC=0（7d-2 真输出）",
+ "inheritance": {
+  "gen": 161,
+  "at": "2026-10-11T00:20:00+08:00",
+  "parent_gen": 160,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 169,
+   "pytest": 1099,
+   "inheritance_gen_prev": 160
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "e2e step 7d-2 接 splitfeed + adoption 修第四终态漏收 + to_facts/pipeline 透传 pair + feed tasks 限定",
+   "files": [
+    "scripts/e2e_loop.py",
+    "src/dwc/harness/adoption.py",
+    "src/dwc/harness/pipeline.py",
+    "src/dwc/harness/candidate_bridge.py",
+    "src/dwc/harness/splitfeed.py",
+    "tests/test_r161_e2e_splitfeed.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "e2e 7d-2 真输出（RC=0）",
+     "claim": "splitfeed pair 真产+split 门按 accept 判（ho 缺⇒na 如实）"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r161_e2e_splitfeed.py (3 tests)",
+     "claim": "pair 透传⇒passed/frozen 构造期/tasks 收窄⇒None"
+    },
+    {
+     "type": "test",
+     "ref": "R154 adoption CHAIN_VERDICTS 漏收",
+     "claim": "第四终态 bug（无 na 场景炸）— 判定集合以 gates.py 为真源"
+    }
+   ],
+   "numbers": {
+    "pytest": 1102,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1102 + gate 8/8 + e2e rc=0（7d-2 真输出）",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e log",
+   "user_decision": "『按顺序推进两项』项1"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
