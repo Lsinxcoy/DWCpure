@@ -26,7 +26,7 @@
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R154 · 每轮一知识档 | **163 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R155 · 每轮一知识档 | **164 commits** · `archive/knowledge3_R*.json` | `git rev-list --count HEAD` |
 
 ---
 

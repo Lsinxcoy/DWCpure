@@ -1,0 +1,81 @@
+{
+ "round": "R155 · 闭环回写（信用台账 ℒ_t）— §3.3 正则器(2) 落地; R151 budget 的另一半",
+ "date": "2026-10-10",
+ "★ 缺口坐实（声称 vs 实测 #9）": "R151 budget.py 只落了正则器(1)式4 议程; 设计稿 L244 正则器(2)证据感知信用分配 ℒ_t 七元组 **grep 零实现**（与 R151 只议 b_t 有关 — 同段落两半, 这轮补齐）",
+ "★ 实现 organs/credit.py": [
+  "CreditEntry frozen 七元组: (t, edit, layer, hunk, dimension, ΔS, ΔC, a_i)（逐字段契约 — t<0/空串/非数值/a_i 越界全拒）",
+  "★ a_i 二元纪律: winner=1; admissible_but_lost=0（原文显式要记 — 过全门但输给更高分**不是失败**）; 0.5/None 待定模式拒（归因可算性优先）",
+  "adopted_flag(is_winner, cause): 裁决→a_i; **cause 非空**（陪跑也要可归因 — a_i=0 不许无因）",
+  "CreditLedger append-only: entries() 返副本（外部改不动内部 — 事后改账=销毁证据, epoch_ledger 铁律同款）",
+  "summary: n/n_winner/n_lost/winner_rate/sum_ds/sum_dc + by_dimension/by_layer 聚合（归因体检 — 哪个维度总在陪跑一下可见）",
+  "★ 空台账: 缺席≠0（没记≠没发生 — 不造 winner_rate 冒充测过）"
+ ],
+ "★ 分工（与 budget 同正则器族两半）": "budget.py 管本轮允许多少编辑(proposer 侧约束); credit.py 管每处编辑归多少因(评估侧留痕) — 互不替代",
+ "★ 边界说明": "ΔS/ΔC 由调用方抄录已判读数; a_i 由调用方给裁决 — 本模块不重算不判赢（判赢是 judge/evolver.accept 的分, G2）",
+ "验证": "pytest 1070(1064+6) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 155,
+  "at": "2026-10-10T21:30:00+08:00",
+  "parent_gen": 154,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 163,
+   "pytest": 1064,
+   "inheritance_gen_prev": 154
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/credit.py 新建(ℒ_t 七元组+a_i 二元+append-only+聚合)",
+   "files": [
+    "src/dwc/organs/credit.py",
+    "tests/test_r155_credit.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r155_credit.py (6 tests)",
+     "claim": "七字段/a_i 二元/append-only/聚合/空台账缺席≠0/口径在档"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md L244",
+     "claim": "ℒ_t 七元组 + a_i 判据 + admissible-but-lost 原文"
+    },
+    {
+     "type": "test",
+     "ref": "grep 信用分配 src/ 零命中（R155 前）",
+     "claim": "正则器(2) 真缺口坐实（R151 只落了一半）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1070,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1070 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『按 1-2 顺序推进』项2 闭环回写"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
