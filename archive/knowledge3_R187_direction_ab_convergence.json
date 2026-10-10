@@ -1,0 +1,71 @@
+{
+ "round": "R187 · A×B 共同性深度分析（用户指令; 无代码改动, 三选项待裁决）",
+ "date": "2026-10-12",
+ "conclusion": "共同性比表层深: A(何时换向)与B(向哪里换)都回答同一个问题『在哪个候选上施加哪个方向的算子』——单独实现都会把对方硬编码掉（只做A⇒换向时没有可换对象; 只做B⇒没有何时上溯下钻的控制）",
+ "code_evidence": [
+  "DWC 的 LATERAL 泛化(R173, loop.py:262) 已是 A∩B 的最小实例 — 既是换向动作又是候选生成",
+  "mechanical_candidates(R177) 已是两层候选树 = B 的 taxonomy 在 DWC 的在场形态（无需新建, 只缺控制面）",
+  "停滞素材齐: score序列+噪声带0.01(R185同源)+gate blocked; 序素材齐: round_no",
+  "R73『选择策略未做』与 R186 的修正各对一半: R173 实现了特例, 但不是可判定的机制"
+ ],
+ "recommended": "选项2（只做 R1停滞判定+R2序内fallback, REVERSE留待下轮对RULES真内容设计）— 闭环最小且三条规则有真实数据会走到",
+ "verify": "docs/DIRECTION_AB_CONVERGENCE_2026-10-11.md; 无代码改动",
+ "inheritance": {
+  "gen": 187,
+  "at": "2026-10-12T00:05:00+08:00",
+  "parent_gen": 186,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 199,
+   "pytest": 1284,
+   "inheritance_gen_prev": 186
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "analysis report only — no code change (awaiting user ruling on options 1/2/3)",
+   "files": [
+    "docs/DIRECTION_AB_CONVERGENCE_2026-10-11.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "code-level evidence read in repo (not sampled)",
+     "claim": "loop.py:262 if-not-proposals => propose_lateral IS already an A∩B instance; mechanical_candidates IS already a 2-level candidate tree; noise band 0.01 exists (R185); replay argmax exists (R174)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "3-layer commonality analysis (trigger same-source / structural homology / purpose same-source)",
+     "claim": "A and B converge on one decision function pick_direction(state) -> (direction, candidate); the answer to 'which direction on which candidate' requires both"
+    }
+   ],
+   "numbers": {
+    "layers": 3,
+    "code_sites": 3
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "8923669f",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "analysis covers both A and B with code-level evidence",
+   "verdict": "accepted",
+   "evidence_ref": "docs/DIRECTION_AB_CONVERGENCE_2026-10-11.md; three options presented, user ruling pending",
+   "user_decision": "user pointed out A and B seem to share commonality and ordered deep analysis (2026-10-11/12)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
