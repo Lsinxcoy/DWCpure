@@ -54,6 +54,50 @@ class MetricLoopError(Exception):
 
 
 # ══════════════════════════════════════════════════════════
+# R182 · A_train 精化（reliability-weighted 共识 — κ=10 有据）
+# ══════════════════════════════════════════════════════════
+
+def a_train_weighted(train_verdicts: List[Dict[str, str]],
+                     tree: Any, marginal: Dict[str, Optional[float]],
+                     *, kappa: float = 10.0) -> Optional[float]:
+    """★★★ R182 · A_train = 候选树 op 集合的 reliability-weighted 共识率。
+
+    ★ 论文（2607.12790 逐字）:
+      "共识是 reliability-weighted: 每个 opining op 的票按
+       1/(1+κ·max(0,m_o)) 缩放, m_o 是该 op 的锚定 leave-one-out marginal"
+      ⇒ anchor-proven ops lead, unproven ops vote near-neutrally;
+      否则"一坨相关检测器...会定义 regularizer 奖励的那个伪标签自己"。
+    ★ DWC 形态（R176 三态纪律不变）:
+      · train_verdicts = 每 train 输出上**每个 op** 的三态判定
+        （[{op_name: verdict}] — 由调用方跑 _eval 或池求值给出）
+      · 一票 = 该 op 在该 train 输出上判 clean; 权重 = reliability_weight(m_o)
+      · A_train = Σ(w_o·clean) / Σ(w_o)（只在有 clean/drawback 票的 op 上
+        — 全 abstain 的 op 不进分子也不进分母: abstain 不是同意也不是反对）
+      · 树无 op / 全 abstain ⇒ None（缺席≠0 — fail-closed 同族）
+    ★ 与 R176 的关系: 上轮 A_train = component 出现率（无 per-op marginal
+      可用的诚实降级）; 本轮升级为 κ=10 加权 — 公式仍乘性进 S(e)。
+    """
+    if not train_verdicts:
+        return None
+    ops_in_tree = {l.op for l in _flatten_and(tree) if l.kind == "leaf"}
+    if not ops_in_tree:
+        return None
+    num = den = 0.0
+    for tv in train_verdicts:
+        for name in ops_in_tree:
+            v = tv.get(name)
+            if v is None or v == ABSTAIN:      # abstain 不进分母
+                continue
+            w = reliability_weight(marginal.get(name), kappa=kappa)
+            den += w
+            if v == CLEAN:
+                num += w
+    if den == 0.0:
+        return None                           # 全 abstain ⇒ 无共识可测
+    return num / den
+
+
+# ══════════════════════════════════════════════════════════
 # R179 · 真数据面（judge.task_scores(dev) ⇒ 每树 grade ⇒ dev_points）
 # ══════════════════════════════════════════════════════════
 
@@ -119,7 +163,11 @@ def dev_points_from_store(store: Any, *, split: str = "dev",
             #   （grade 内部就调它 — 同一条判定路径, 不另造口径）
             tv[_tree_key(t)] = _eval(t, _POOL_OPS, None, None, ctx)
         out.append({"label": bool(label), "task_id": p.task_id,
-                    "score": p.score, "tree_verdicts": tv})
+                    "score": p.score, "tree_verdicts": tv,
+                    # ★ R182: ctx 随点带出（loo_marginal_dev 要重算
+                    #   树判定 — 不存 ctx 就得回读 evidence, 浪费且可能
+                    #   两次读不一致; 同点同 ctx = 可复现）
+                    "ctx": ctx})
     notes = {"n_points": len(out), "n_skipped": n_skip, "split": split}
     if not out:
         raise MetricLoopError(
@@ -272,6 +320,100 @@ def _tree_key(t: Node) -> str:
 # ══════════════════════════════════════════════════════════
 # S(e) 组装 + 选优（§4 逐字: argmax 在候选与现任之间取）
 # ══════════════════════════════════════════════════════════
+
+def loo_marginal_dev(dev_points: List[Dict[str, Any]], op_name: str,
+                     incumbent: Any) -> Optional[float]:
+    """★★★ R182 · m_o = op 的锚定 leave-one-out marginal（2607.12790 ④）。
+
+    ★ 口径（论文原文 + e2e 参考实现逐字对齐）:
+      拿掉 op_name 后的表达式 vs 原表达式, 在 dev 面上的**判定变化幅度**;
+      论文"per-op fitness = 现任表达式的 leave-one-out marginal", "可自动
+      判定的淘汰判据就是这个值"。负边际（拿掉它反而更好）⇒ 退役候选
+      （grace 2 轮后 — 附录 C）。
+    ★ 实现: 从 incumbent 树重建一棵不含该 op 叶的树（and 树去掉一个叶 =
+      剩下的 and 链 — leaf 本身被拿掉时用 sibling 顶上; 根叶被拿掉 ⇒
+      None（不可拿 — 那会改 fixed root 结构）⇒ 记 None 不造数）
+    ★ 无 dev 点 / incumbent 不含该 op ⇒ None（缺席≠0）
+    """
+    if not dev_points:
+        return None
+    from dwc.organs.drawback import Node as _N, _eval as _ev
+    ops = _POOL_OPS
+    reduced = _drop_leaf(incumbent, op_name)
+    if reduced is None:
+        return None                      # 根叶/不在树 ⇒ 不造 marginal
+    n_changed = 0
+    n_total = 0
+    for p in dev_points:
+        ctx = p.get("ctx") or {}
+        if "ctx" not in p:
+            # dev_points 若无 ctx（旧形态 — select 注入的树判定已算）, 用
+            # tree_verdicts 里 incumbent（and(13)）与 reduced 的差 ⇒ 不适用
+            # ⇒ 诚实返回 None（本函数只吃带 ctx 的真点）
+            return None
+        try:
+            v_full = _ev(incumbent, ops, None, None, ctx)
+            v_drop = _ev(reduced, ops, None, None, ctx)
+        except Exception:                 # noqa: BLE001 — 留痕不静默
+            return None
+        n_total += 1
+        if v_full != v_drop:
+            n_changed += 1
+    if n_total == 0:
+        return None
+    return n_changed / float(n_total)
+
+
+def _drop_leaf(tree: Any, op_name: str) -> Any:
+    """★ 从 and 链里拿掉一个叶（保留其余 — 结构变换, 不改语义组合规则）。"""
+    from dwc.organs.drawback import Node as _N
+    if tree.kind == "leaf":
+        return None                          # 不能拿根叶
+    if tree.kind != "and":
+        return None                          # 只处理 and 链（出厂形态）
+    leaves = _flatten_and(tree)
+    if not any(l.op == op_name for l in leaves if l.kind == "leaf"):
+        return None                          # 不含该 op ⇒ 无 marginal 可算
+    # ★★ R182 实测纠偏: 出厂树的**固定 root**（root_parse_ok, build_grader
+    #   root_first=True 的构造保证 — 论文"the fixed root conjoined with
+    #   the evolved expression"）不可拿 — 摊平后无法按位置分辨, 但它的
+    #   name 是出厂保留字 ⇒ 按名拦（结构保证的名字签名, 不是魔法串）
+    if op_name == "root_parse_ok":
+        return None                          # 固定 root 不可拿（构造保证）
+    kept = [l for l in leaves
+            if not (l.kind == "leaf" and l.op == op_name)]
+    if not kept:
+        return None                          # 全拿光 ⇒ 无表达式
+    out = kept[0]
+    for leaf in kept[1:]:
+        out = _N(kind="and", children=(out, leaf))
+    return out
+
+
+def _flatten_and(tree: Any) -> List[Any]:
+    from dwc.organs.drawback import Node as _N
+    if tree.kind == "leaf":
+        return [tree]
+    if tree.kind != "and":
+        return [tree]
+    out: List[Any] = []
+    for c in tree.children:
+        out.extend(_flatten_and(c))
+    return out
+
+
+def reliability_weight(m_o: Optional[float], *, kappa: float = 10.0
+                       ) -> float:
+    """★★ 共识权重 1/(1+κ·max(0,m_o))（论文逐字 — 安全选择非调参旋钮）。
+
+    ★ m_o=None ⇒ 1.0（该 op 无锚定 marginal ⇒ 中性票, 不罚不奖 —
+      论文 "unproven ops vote near-neutrally"）
+    ★ m_o 大（拿掉它共识变多）⇒ 权重趋 0（它的票与锚不一致 — 降权）
+    """
+    if m_o is None:
+        return 1.0
+    return 1.0 / (1.0 + kappa * max(0.0, float(m_o)))
+
 
 def score_candidate(*, verdicts: List[str], labels: List[bool],
                     a_train: Optional[float], n_nodes: int

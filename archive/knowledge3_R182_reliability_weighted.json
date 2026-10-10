@@ -1,0 +1,69 @@
+{
+ "round": "R182 · A_train refinement (reliability-weighted consensus — kappa=10 from Appendix C, formula per paper)",
+ "date": "2026-10-11",
+ "paper": "2607.12790 2.4 verbatim: consensus is reliability-weighted — each opining op's vote scaled by 1/(1+kappa*max(0,m_o)), m_o = that op's anchored leave-one-out marginal; Appendix C: kappa=10, grace=2 rounds retirement; 'anchor-proven ops lead and unproven ops vote near-neutrally'",
+ "what": "metric_loop.loo_marginal_dev (drop op from the and-chain incumbent, measure dev verdict change rate; fixed root NOT droppable — construction guarantee, not naming magic) + reliability_weight (m=None => 1.0 neutral vote, kappa=10) + a_train_weighted (sum w_o*clean / sum w_o over the candidate tree's op set per train output; abstain excluded from BOTH numerator and denominator; all-abstain => None fail-closed)",
+ "relation_to_r176": "R176 landed the honest degradation (component occurrence rate) because per-op marginal was not yet computed; this round upgrades A_train to the paper's kappa=10 weighting. Still multiplicative into S(e); None(no train) is not 0",
+ "measured": "and-tree LOO marginals are mostly 0.0 (single-op removal does not change verdicts — the other ops already veto) => weight 1.0, exactly the 'anchor-proven' case the paper describes; manual arithmetic verified digit by digit: (1.0+1/3.5)/(1.0+1/3.5+1.0)=0.3913",
+ "verify": "pytest 1261 (1253+8) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 182,
+  "at": "2026-10-11T19:30:00+08:00",
+  "parent_gen": 181,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 190,
+   "pytest": 1253,
+   "inheritance_gen_prev": 181
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "metric_loop loo_marginal_dev/reliability_weight/a_train_weighted",
+   "files": [
+    "src/dwc/organs/metric_loop.py",
+    "tests/test_r182_reliability_weighted.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r182_reliability_weighted.py (8 tests)",
+     "claim": "kappa10 / fixed-root not droppable / absent-op None / and-tree zero marginals / abstain excluded / manual arithmetic / no-train None"
+    },
+    {
+     "type": "trial_report",
+     "ref": "manual digit-by-digit check",
+     "claim": "(1.0+1/3.5)/(1.0+1/3.5+1.0)=0.3913 matches output"
+    }
+   ],
+   "numbers": {
+    "pytest": 1261,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "95d0d390",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1261 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "kappa=10 weighted A_train with auditable arithmetic",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
