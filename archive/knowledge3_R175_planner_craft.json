@@ -1,0 +1,73 @@
+{
+ "round": "R175 · planner contract synthesis face (2603.25111 §4.3 three-stage DWC replication)",
+ "date": "2026-10-11",
+ "unfreeze": "R167 froze 'no planner (no verifier = overreach)'. Re-measured: verifier is now four layers (judge score / six gates incl ② per-contract check + ⑤ noncomp delta_s / R170 trial re-verify / R174 replay not-worse) => the synthesize-verify loop closes => unfreeze the SYNTHESIS side",
+ "what": "organs/planner.py: TEMPLATES whitelist (bounded_param / delta_band / enum_member — static lambdas only, LLM never supplies check logic; free-formula DSL deliberately NOT landed: eval string = injection surface, and DWC criteria are structured checks not Dafny specs) + _validate_spec (Alg3 validateFGGM local checks incl degeneracy guards) + parse_llm_spec (fence/list tolerant) + craft (Alg1 defineFGGM -> validate -> package candidate; err refeed on failure; budget exhausted => (None, trace) — never a fake contract)",
+ "measured": "real MiMo endpoint: attempt1 enumMember(1) rejected by the NEW single-member-always-true guard (found because endpoint was really called!) => err refeed => attempt2 enumMember(3) accepted — the paper Alg loop demonstrably ran",
+ "bugs_fixed": [
+  "write via exec-code string with backslash-n went through double unescaping and broke the source string (SyntaxError) — rewrote via write_file and list-join prompts (no escape layers)",
+  "compose_prompt name drift (_ vs public) — craft called the private name, tests the public",
+  "inheritance kind='add' rejected by the chain validator (only patch/config_delta/rule are legal change kinds — new file = patch of the component tree)"
+ ],
+ "verify": "pytest 1212 (1200+12) gate 8/8 (G1 fixed with DWC-AUTO declaration) e2e RC=0",
+ "inheritance": {
+  "gen": 175,
+  "at": "2026-10-11T12:30:00+08:00",
+  "parent_gen": 174,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 183,
+   "pytest": 1200,
+   "inheritance_gen_prev": 174
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/planner.py new (whitelist templates + validate + craft with err refeed) — component tree search/ side gains the synthesis face",
+   "files": [
+    "src/dwc/organs/planner.py",
+    "tests/test_r175_planner_craft.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "real endpoint craft run",
+     "claim": "attempt1 enumMember(1) rejected (single-member always true) => err refeed => attempt2 accepted"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r175_planner_craft.py (12 tests)",
+     "claim": "whitelist / type drift / degeneracy / fence parse / no_llm / err refeed / budget exhausted / real endpoint"
+    }
+   ],
+   "numbers": {
+    "pytest": 1212,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1212 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "err-refeed loop observed on real endpoint",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
