@@ -72,6 +72,11 @@ class Loop:
         self.actor = Actor()
         self.credit = None                       # run_round 内建 ledger
         self.max_tasks = int(max_tasks_per_round)
+        #: ★ R168 · 最近一轮的四量采集（metrics_from_round 出口 — 读窗口,
+        #   daemon/监控可查; 初始全 not_instrumented 而不是 None）
+        from dwc.organs.metrics import four_metrics
+        self.last_metrics = four_metrics()
+        self._last_ledger_entries: List[Any] = []
 
     # ── 真 round_fn（Daemon 契约: (round_no, daemon) -> dict|None）──
     def round(self, round_no: int, daemon: Any = None) -> Dict[str, Any]:
@@ -101,6 +106,17 @@ class Loop:
             cv = ("applicable_passed_with_na"
                   if any(v == "applicable_passed_with_na" for v in verdicts)
                   else "all_applicable_passed")
+        # ★ R168 四量采集（每轮出口 — 素材: RoundLog 台账 + 本轮 ledger 账;
+        #   本轮的提案数从 _last_n_candidates 取（_run_one_task 出口的
+        #   真实 gate_all 输入数 — 不另造统计面））
+        from dwc.organs.metrics import metrics_from_round
+        from dwc.daemon import RoundLog
+        self.last_metrics = metrics_from_round(
+            RoundLog(round_no=round_no, started_at=0.0,
+                     n_candidates=getattr(self, "_last_n_candidates", 0),
+                     chain_verdict=cv, landed=n_landed > 0,
+                     score=score),
+            ledger_entries=self._last_ledger_entries)
         return {"n_candidates": self._last_n_candidates,
                 "chain_verdict": cv,
                 "blocked": self._last_blocked,
@@ -171,6 +187,9 @@ class Loop:
                         evidence={"success": True,
                                   "reason": "loop: %s" % tid})
         landed = bool(res.landing)
+        # ★ R168: 本轮 ledger 账出口（④ downstream 的素材 — 只记本轮,
+        #   跨轮累积由 Loop 持有者接（daemon 面 — 不在本方法内藏状态））
+        self._last_ledger_entries = list(res.credit_entries or [])
         return {"chain_verdict": res.chain["verdict"],
                 "blocked": list(res.chain.get("blocked") or []),
                 "score": score, "landed": landed}

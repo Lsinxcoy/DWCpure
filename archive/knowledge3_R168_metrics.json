@@ -1,0 +1,88 @@
+{
+ "round": "R168 · four-quantity collector — measure's feeder (2/3/4 from not_instrumented to real collection)",
+ "date": "2026-10-11",
+ "design": [
+  "key finding: measure.py (R171) already landed four-quantity STRUCTURE and calibers (Activation/FaithfulUse/DownstreamBenefit each with post_init checks) — missing is the FEEDER: 2/3/4 not_instrumented since R22",
+  "R168 = collector (not second impl): metrics.py collects from live data and projects into measure.measure() — calibers/three-valued/raise all stay in measure.py (anti-drift family R144)",
+  "activation source: evolver candidate gate-pass rate n_gated/n_proposals (DWC isomorphic of nest's '98.8% never accessed' — proposed but nobody wants)",
+  "faithful source: landing execution rate n_landed/n_gated (R163 state=adopted)",
+  "downstream source: ledger delta_s inter-group difference (adopted vs not — R156 live ledger material, no recompute)",
+  "collector scope = 2/3/4 ONLY: update(1) is judge face (UpdateQuality needs judge caliber) — do not invent self-assessment inside collector"
+ ],
+ "smoke_truth": "Loop.round(1) real run: task already passed => no proposals => denominator 0 => four-quantity ALL na (not fabricated 0.0%!) — exactly the design: absent != 0. This is the mirror of the nest disease: when nothing generated, must not fake aliveness",
+ "fixes": [
+  "test _entry default arg edit='e%d' % t evaluated at DEF time => NameError (my own bug)",
+  "my collector call used undefined n_cands_total and cv-before-def => moved after cv computation, n_candidates from _run_one_task exit (_last_n_candidates)",
+  "test expected 4/4 => corrected to 3/4 (collector scope is 2/3/4; update na until judge feeds)",
+  "dead code `four_metrics.__wrapped__ if False else None` in pytest.raises block (G4 family — my own tautology)",
+  "measure.measure returns nested {'quantities':...} — first summarize used flat keys => all na; read real return then fixed"
+ ],
+ "Loop integration": "Loop.last_metrics per-round window (daemon/monitor readable); _run_one_task exits credit_entries into _last_ledger_entries (downstream material)",
+ "verify": "pytest 1164 (1156+8) gate 8/8 e2e RC=0; Loop real-run four-quantity na correct behavior",
+ "inheritance": {
+  "gen": 168,
+  "at": "2026-10-11T05:40:00+08:00",
+  "parent_gen": 167,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 176,
+   "pytest": 1156,
+   "inheritance_gen_prev": 167
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "organs/metrics.py new (three collectors + four_metrics + RoundLog entry) + Loop.last_metrics per-round window",
+   "files": [
+    "src/dwc/organs/metrics.py",
+    "src/dwc/harness/loop.py",
+    "tests/test_r168_metrics.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r168_metrics.py (8 tests)",
+     "claim": "three collectors/absent-not-zero/denominator-zero/RoundLog entrance/type position caliber"
+    },
+    {
+     "type": "test",
+     "ref": "Loop.round(1) real smoke",
+     "claim": "task already passed => denominator 0 => all na (not fabricated 0.0%)"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2609.11873 (via EVOLUTION_CORE_V2 3.3)",
+     "claim": "four quantities update/activation/faithful/downstream (nest 98.8% disease)"
+    }
+   ],
+   "numbers": {
+    "pytest": 1164,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1164 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + Loop smoke",
+   "user_decision": "R168 measure four-quantity instrumentation"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
