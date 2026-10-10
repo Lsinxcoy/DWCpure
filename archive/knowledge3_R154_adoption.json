@@ -1,0 +1,85 @@
+{
+ "round": "R154 · 采纳面（链裁决→Proposal 状态机桥）— 与 ProposalGate 静态门两层互补",
+ "date": "2026-10-10",
+ "★ 取证起点（evolver 现状逐项）": "① gate_all() L1758 走 self.gate.check（ProposalGate L1616 静态五判据: target/component/rationale/dimension/禁触判据面）② accept() L1779 静态函数判 split（Δ_in≥0∧Δ_ho≥0∧max>0 + blocked 缺 test split + 第五态 adopted_not_implemented）③ Proposal.gate_verdict 字段 L1123 被 gate_all 填 ⇒ **运行时六门链未接状态机**（缺口坐实）",
+ "★ 实现 harness/adoption.py": [
+  "apply_chain: 链 verdict 三终态 → Proposal.state（gated/rejected — evolver 五态内, 不造新态）",
+  "★ blocked ⇒ rejected: 不进判分（链都没过就判分浪费 + blocked 段会污染 ΔS 归因）",
+  "★ error ⇒ rejected: 失败≠通过（G7; 链执行异常不是空白通过）",
+  "gate_verdict 留痕: **链全文**入 Proposal（可回放, 不只 verdict 字符串）",
+  "AdoptionRecord: proposal_id/before/after/blocked/na/n_gates（进台账用）",
+  "batch 长度错位 ⇒ 拒整批（A 裁决写 B 头比报错更危险）"
+ ],
+ "★ 两层门分工（不替换 — 有据）": [
+  "ProposalGate.check = 静态 proposer 契约面（构造期能发现的违规 — target/rationale/词表/维度/禁触判据）",
+  "门组链（R152 六门）= 运行时评估面（要候选数据才判 — leakage/预算/split）",
+  "⇒ 两层都过才可判分（gate_all 静态先, 链运行时后 — 顺序不可换）"
+ ],
+ "★ 测试": "7 tests: pass→gated/blocked→rejected/error→rejected/契约四拒/batch 错位拒/五态归属/分工在档",
+ "验证": "pytest 1064(1064 即 1057+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 154,
+  "at": "2026-10-10T20:50:00+08:00",
+  "parent_gen": 153,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 162,
+   "pytest": 1057,
+   "inheritance_gen_prev": 153
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/adoption.py 新建(链裁决→状态机桥+两层门分工)",
+   "files": [
+    "src/dwc/harness/adoption.py",
+    "tests/test_r154_adoption.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r154_adoption.py (7 tests)",
+     "claim": "三终态迁移/ blocked→reject/error→reject/契约/batch错位/五态"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py L1616/L1758/L1779",
+     "claim": "ProposalGate 静态五判据 + gate_all + accept split 判据"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/gates.py（R152）",
+     "claim": "链裁决唯一真源（本模块只消费）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1064,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1064 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『按 1-2 顺序推进』项1 采纳面"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
