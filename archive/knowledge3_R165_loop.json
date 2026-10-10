@@ -1,0 +1,82 @@
+{
+ "round": "R165 · daemon 接真 round_fn — 『agent 活着』从 demo 到真跑闭环",
+ "date": "2026-10-11",
+ "★ 深度设计": [
+  "round_fn 不是把 e2e 塞 lambda ⇒ Loop 类持长生命周期器官（evolver/applier/judge 跨轮存活）; daemon 只管轮转",
+  "单轮闭环全复用既有器官: execute_task⇒judge.evaluate⇒diagnose⇒gate_all(R162)⇒pipeline(R156 六面) — 零新判定",
+  "任务面 = judge.anchors dev 10 条轮转（round_no % len）— 真选择器无设计不发明（R73 同族 backlog）",
+  "memory target（生产落地面由部署方给 — 循环只证链路真跑, 不写脏盘）"
+ ],
+ "★★ 两个测试内事故（都是真纪律抓出来）": [
+  "① **测试写生产账本**: Loop._append_history 首版写 {round,tasks,score,landed} 到 score_history.jsonl ⇒ e2e 的 natural_rise 读 h['src'] KeyError 炸 — **不同写入方共用一文件必须同 schema**（改成与 e2e 同款 {round,score,src} + 附加键; 另立键=炸别人, 另立文件=账本分家）",
+  "② **G4 放水门抓我自己**: 我写的 `tasks[1%n] != tasks[1%n] or True` 恒真断言被 test_no_watering 抓回 ⇒ 换成取模回环证据（round 1 与 round 11 选同 task ⇒ 与 len 相关, 非恒真）"
+ ],
+ "★ 一次路径层数错（实测抓到）": "dirname 上溯 3 层只到 src/ ⇒ judge 指 src/config/anchors 空目录 FileNotFound ⇒ 4 层（repo root）修正 + 注释钉死",
+ "★ R164×R165 合流实测": "Daemon(round_fn=Loop.round).run(rounds=3) 三轮真推进零 error; CLI 烟测 build_round_fn via daemon rounds_exhausted/2",
+ "验证": "pytest 1138(1131+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 165,
+  "at": "2026-10-11T03:30:00+08:00",
+  "parent_gen": 164,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 173,
+   "pytest": 1131,
+   "inheritance_gen_prev": 164
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "harness/loop.py 新建（真 round_fn: Loop 类持跨轮器官, 单轮闭环全复用）",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "tests/test_r165_loop.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r165_loop.py (7 tests)",
+     "claim": "单轮真跑/dev 轮转/idle≠error/空 dev 拒/Daemon×Loop 合流 3 轮零 error"
+    },
+    {
+     "type": "test",
+     "ref": "score_history 同 schema 修复",
+     "claim": "共用文件不同 schema ⇒ e2e KeyError 实测事故（机制登记）"
+    },
+    {
+     "type": "test",
+     "ref": "G4 放水门拦截 or True",
+     "claim": "放水断言被 test_no_watering 机器抓回（改回真证据）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1138,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1138 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续』R165 daemon 接真 round_fn"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
