@@ -36,8 +36,11 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from dwc.organs.drawback import (ABSTAIN, CLEAN, DRAWBACK, Grader, Node,
-                                Op, VERDICTS)
+                                Op, VERDICTS, _eval)
 from dwc.organs.ops import DEFAULT_POOL, _count_nodes, op_root_parse_ok
+
+#: ★ R179: op 注册表（树求值的 ops 参数 — 池里每个具名 op）
+_POOL_OPS: Dict[str, Op] = {op.name: op for op in DEFAULT_POOL}
 
 #: ★ 论文常数（Appendix C — 有出处, 不是调参旋钮）
 W_FAIL: float = 2.0                 # recall weight for the fail class
@@ -48,6 +51,82 @@ W_TRAIN: float = 1.0                # A_train 指数（论文 w — 小常数取
 
 class MetricLoopError(Exception):
     """Metric Loop 的显式拒（缺素材/候选空/口径违反 — 大声报错）。"""
+
+
+# ══════════════════════════════════════════════════════════
+# R179 · 真数据面（judge.task_scores(dev) ⇒ 每树 grade ⇒ dev_points）
+# ══════════════════════════════════════════════════════════
+
+def _ctx_from_evidence(evi: Dict[str, Any]) -> Dict[str, Any]:
+    """★ R179: verdict evidence dict ⇒ op ctx（口径桥 — 只投影不重算）。
+
+    ★ 字段映射（judge/ops 两侧字段名核实后定 — 不猜）:
+      · success    = verdict 总判（label 的唯一源 — 不用 score 阈值造
+                     第二口径: score 是连续分, success 才是 judge 的判）
+      · pass_rate  = k_passed/n_checks（op_pass_rate_weak 的原值口粮）
+      · candidate_diff / vocabulary = evidence 里的对应字段（缺 ⇒ None）
+      · parsed_ok  = verdict 在场即结构解析过（judge 只记 success 非 None
+                     的点 ⇒ 恒 True, 与 ctx_from_facts 同口径）
+    ★ 缺字段 ⇒ None/不进（op 对该 ctx 面 abstain — 三值协议的第三态）
+    """
+    k = evi.get("k_passed")
+    n = evi.get("n_checks")
+    return {"judge_success": evi.get("success"),
+            "pass_rate": (None if not n else (float(k) / float(n))),
+            "candidate_diff": evi.get("candidate_diff"),
+            "vocabulary": evi.get("vocabulary"),
+            "component": (evi.get("component")
+                          or (evi.get("checks") or [{}])[0].get("component")),
+            "parsed_ok": True}
+
+
+def dev_points_from_store(store: Any, *, split: str = "dev",
+                          trees: Optional[List[Node]] = None
+                          ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """★★★ R179: judge store ⇒ dev_points（Metric Loop 的真数据面接线）。
+
+    ★ 每点 = {label, tree_verdicts: {key: verdict}}:
+      · label = evidence["success"]（judge 总判 — 唯一 label 源）
+      · tree_verdicts[key] = 该树在该点 ctx 上的 grade（Grader.grade）
+    ★ 缺席诚实化: 无 dev 点 / evidence 解析失败 ⇒ 该点跳过并计数
+      （notes 里给 n_points/n_skipped — 不造点）
+    """
+    trees = trees if trees is not None else mechanical_candidates()
+    try:
+        pts_in = store.task_scores(split=split)
+    except Exception as exc:                      # noqa: BLE001 — 留痕不静默
+        raise MetricLoopError(
+            "task_scores(split=%r) 失败: %s: %s（Metric Loop 无数据面 ⇒ "
+            "不选优 — 不造点）" % (split, type(exc).__name__, exc))
+    out: List[Dict[str, Any]] = []
+    n_skip = 0
+    for p in pts_in:
+        try:
+            evi = store.evidence(p.evidence_ref)
+        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+            n_skip += 1
+            continue
+        label = evi.get("success")
+        if label is None:
+            n_skip += 1
+            continue
+        ctx = _ctx_from_evidence(evi)
+        tv: Dict[str, str] = {}
+        for t in trees:
+            # ★★ R179 实测纠偏: Grader.grade 是**实例方法**（tree 绑在
+            #   实例上, 且返 dict）— dev_points 要的是单值三态 ⇒ 直接用
+            #   drawback 的模块级求值器 _eval(tree, ops, task, y, ctx)
+            #   （grade 内部就调它 — 同一条判定路径, 不另造口径）
+            tv[_tree_key(t)] = _eval(t, _POOL_OPS, None, None, ctx)
+        out.append({"label": bool(label), "task_id": p.task_id,
+                    "score": p.score, "tree_verdicts": tv})
+    notes = {"n_points": len(out), "n_skipped": n_skip, "split": split}
+    if not out:
+        raise MetricLoopError(
+            "dev 面无点（n_skipped=%d）⇒ fail-closed: Metric Loop 不选优"
+            "（论文: 无 dev 意见 ⇒ unselectable — 不拿空集当'全过'）"
+            % n_skip)
+    return out, notes
 
 
 # ══════════════════════════════════════════════════════════

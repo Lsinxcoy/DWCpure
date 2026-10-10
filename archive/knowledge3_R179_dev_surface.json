@@ -1,0 +1,74 @@
+{
+ "round": "R179 · Metric Loop real data surface (judge.task_scores(dev) => dev_points => select)",
+ "date": "2026-10-11",
+ "what": "metric_loop.dev_points_from_store + _ctx_from_evidence: the judge store's dev split now feeds the selection surface — each point = {label=evidence['success'] (the ONLY label source — no second caliber from score thresholds), tree_verdicts={key: _eval opinion}}; label/vocabulary/pass_rate projected without recomputation",
+ "measured": "protocol-level fake store: labels [False,True], trees judged three-valued per point, select picked pass_rate_weak(1) with S=0.49 on the real choice set; validity gate rejected 4/13 trees (golden_leak/component_known abstain-dominated) — the honest face of the real data surface (ops abstain when their ctx fields are missing)",
+ "fail_closed": "no dev points (all evidence unresolvable or success=None) => MetricLoopError — never treats an empty set as 'all passed'; partial availability returns real data plus n_skipped (not all-or-nothing)",
+ "bug_caught": "my own test expected 'returns n_skipped=2' when ALL evidence is unresolvable — wrong: that state must raise (fail-closed); only PARTIAL availability returns with skips. Test rewritten into two tests locking both states",
+ "verify": "pytest 1241 (1234+7) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 179,
+  "at": "2026-10-11T16:30:00+08:00",
+  "parent_gen": 178,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 187,
+   "pytest": 1234,
+   "inheritance_gen_prev": 178
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "metric_loop dev_points_from_store/_ctx_from_evidence (judge store -> dev_points wiring)",
+   "files": [
+    "src/dwc/organs/metric_loop.py",
+    "tests/test_r179_dev_surface.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "protocol-level fake store run",
+     "claim": "labels from success; trees three-valued; select S=0.49 on real set; 4/13 trees validity-rejected"
+    },
+    {
+     "type": "trial_report",
+     "ref": "my own fail-closed test error",
+     "claim": "all-unresolvable must raise; partial returns data+n_skipped — both now locked"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r179_dev_surface.py (7 tests)",
+     "claim": "ctx projections / labels / fail-closed / partial skip / select argmax"
+    }
+   ],
+   "numbers": {
+    "pytest": 1241,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1241 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "dev_points built from store protocol; fail-closed both states",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
