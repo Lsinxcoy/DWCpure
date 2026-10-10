@@ -659,11 +659,22 @@ class Judge:
                 continue
             if not isinstance(rec, dict):
                 raise JudgeError("train 条目须 dict: %r" % tid)
+            # ★★★ R189-B 补齐的隐藏口径（R189-B 测试抓到的真漏）:
+            #   旧版只查**顶层** expected — 但 label 可以藏在 checks[].expected
+            #   里（behavior 题的断言级期望）⇒ train 面带 label 而校验看不见。
+            #   修法: 顶层 + checks 逐层都查（宁可 raise 不放水）
+            _leak = []
             if "expected" in rec or "expected_keywords" in rec:
+                _leak.append("顶层 expected/expected_keywords")
+            for _c in (rec.get("checks") or []):
+                if isinstance(_c, dict) and (
+                        "expected" in _c or "expected_keywords" in _c):
+                    _leak.append("checks[].expected")
+            if _leak:
                 raise JudgeError(
-                    "train 条目 %r 带了 golden（%r）⇒ 变成第二个 dev —"
+                    "train 条目 %r 带了 golden（%s）⇒ 变成第二个 dev —"
                     " 拒（2607.12790: train = 大、无标签）"
-                    % (tid, "expected/expected_keywords"))
+                    % (tid, "; ".join(_leak)))
             n += 1
         if not n:
             raise JudgeError("train split 零条目（只有元数据）⇒ 无共识面")

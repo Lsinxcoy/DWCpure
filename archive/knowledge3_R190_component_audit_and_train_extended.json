@@ -1,0 +1,86 @@
+{
+ "round": "R190（R189-A 组件对账 + R189-B train split 扩容修洞）— 用户指令 A-B-C 逐步推进",
+ "date": "2026-10-12",
+ "A_component_audit": "树26组件机扫: FILE_EXISTS 12 / EMBEDDED 2(signature→weakness.py:118, grounded→leakage.py) / PARTIAL 2(gdi 只有DB列无计算, split 只有门④无独立面) / ABSENT 10(每条有据: vocab未收口/dual无多主体场景/budget_ledger与budget.py两种形态未裁决/state无对应物/freshness依赖state/granularity与候选树重叠/consume未显式化/coupling无协同对象/quintuple主体大件/autonomy需外部裁决)",
+ "comments_audit": "core.py(690行17def) 里 gdi/grounded/quintuple/VOCABULARY 等只出现在docstring ⇒ 注释冒充风险; 纪律补丁: 架构文档声称'已实现'必须能答 宿主文件:行号+符号名",
+ "B_three_holes": [
+  "洞①: 无标签ctx判据键全None ⇒ 6op中4abstain, 剩2恒clean ⇒ A_train恒1.0 (R184已留痕) — 修: TRAIN_POOL(6+exec_ok+evidence_rich) + ctx补exec_error/output_chars",
+  "洞②: train behavior 无impl_store ⇒ implementation=None ⇒ 跑REFERENCE基准 ⇒ 观测不是agent产出 (论文语义被架空) — 修: _broken_impl_for_fn 回退 broken_dev 同fn初值; 绝无跳过",
+  "洞③(最深): a_train_weighted 只认当前选中树的op ⇒ 新op票被静默丢弃 ⇒ 恒1.0 — 修: op_filter 显式覆盖（A×B收敛又一次实证: A_train时间面受选中树空间面限制）"
+ ],
+ "measured": "A_train 1.0→0.9167（4/12真负例: factorial×2 RecursionError, is_palindrome×2）; train.json 6→15条全unlabeled（含checks内层无expected）; judge 补 checks[].expected 内层校验（R184只拦顶层是漏）",
+ "verify": "pytest 1298→1310(+12) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 190,
+  "at": "2026-10-12T01:10:00+08:00",
+  "parent_gen": 188,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 201,
+   "pytest": 1298,
+   "inheritance_gen_prev": 188
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A步组件审计 + B步 train split 扩容6→15 并修三层口径洞 (ops TRAIN_POOL; loop impl 回退+ctx 质量代理键; metric_loop op_filter; judge checks 内层 label 校验)",
+   "files": [
+    "docs/COMPONENT_AUDIT_R189.md",
+    "docs/R189B_TRAIN_SPLIT_PLAN.md",
+    "config/anchors/train.json",
+    "src/dwc/organs/ops.py",
+    "src/dwc/harness/loop.py",
+    "src/dwc/organs/metric_loop.py",
+    "src/dwc/organs/judge.py",
+    "tests/test_r189b_train_extended.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "component audit machine scan",
+     "claim": "树26组件: FILE_EXISTS 12 / EMBEDDED 2 (signature,grounded) / PARTIAL 2 (gdi DB-only, split gate-only) / ABSENT 10 (vocab,dual,budget_ledger,state,freshness,granularity,consume,coupling,quintuple,autonomy) — 每个有符号级证据, 非关键词猜"
+    },
+    {
+     "type": "trial_report",
+     "ref": "A_train 15-training-set live run",
+     "claim": "三层洞修完全净值 A_train 0.9167（4/12 条 broken 初值真执行异常: factorial×2 RecursionError, is_palindrome×2）— 不再是恒 1.0 退化"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "3 holes each caught by live run, not code reading",
+     "claim": "洞①(无标签ctx判据键全None⇒6op中4abstain)修TRAIN_POOL+质量代理键; 洞②(无impl⇒跑REFERENCE基准)修_broken_impl_for_fn回退; 洞③(a_train_weighted只认树内op⇒新op票被丢)修op_filter覆盖"
+    }
+   ],
+   "numbers": {
+    "pytest": 1310,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "a_train_before": 1.0,
+    "a_train_after": 0.9167
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1310 + gate 8/8 + e2e rc=0 + A_train 非退化实证",
+   "verdict": "accepted",
+   "evidence_ref": "docs/COMPONENT_AUDIT_R189.md + docs/R189B_TRAIN_SPLIT_PLAN.md + tests/test_r189b_train_extended.py",
+   "user_decision": "user ordered A-B-C 逐步推进 (2026-10-12)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

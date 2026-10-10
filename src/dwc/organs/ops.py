@@ -129,11 +129,61 @@ def op_golden_leak():
     return _mk("golden_leak", fn)
 
 
+# ══════════════════════════════════════════════════════════
+# ★★★ R189-B · 无标签面 op（train split 专用 — **不依赖 label**）
+#   依据 2607.12790: A_train = ε 与 op 池在**无标注 train 输出**上的
+#   一致度; op 是"原子检测器", drawback 检测**不认证正确**。
+#   ⇒ 无标签面上可判的是**质量代理**（不引入 label）: 执行有没有炸 /
+#     证据有没有含量。它们 **不是**正确性度量（诚实边界, 见 R189 计划）。
+#   ★ 隔离纪律: 这两个 op **不进 DEFAULT_POOL**（门③候选族尺寸被
+#     1298 测试锁着 ⇒ 不动行为面）; 只喂 train 面的 TRAIN_POOL。
+# ══════════════════════════════════════════════════════════
+
+def op_exec_ok():
+    """无标签 op: 执行无异常（判据 = ctx['exec_error'] — R189-B）。
+
+    ★ None ⇒ clean（真跑完没炸）; 有异常名 ⇒ drawback。
+    ★ 键缺席 ⇒ abstain（没跑过 ⇒ 不知道 — 与 R166 空词表纪律同族）。
+    ★ 不碰 label: 异常与否是执行事实, 不是判分。
+    """
+    def fn(task, y, ctx):
+        if "exec_error" not in ctx:
+            return ABSTAIN
+        return CLEAN if ctx["exec_error"] is None else DRAWBACK
+    return _mk("exec_ok", fn)
+
+
+def op_evidence_rich():
+    """无标签 op: 证据含量充分（判据 = ctx['output_chars'] 主观阈值 — R189-B）。
+
+    ★ 太短的输出 = 没什么可判的（"证据稀薄" — 2607.12790 的
+      under-determined 家族）。阈值 EVIDENCE_MIN_CHARS = 4 有据:
+      R184 的 6 条 train 输出文本实测全 > 4 ⇒ 该判据在现有盘上
+      只拦**真空/异常短**输出, 不制造假阴性（如实前缀: 阈值是
+      工程常量, 不是论文常数 — 论文未给数字）。
+    ★ 键缺席 ⇒ abstain。
+    """
+    def fn(task, y, ctx):
+        n = ctx.get("output_chars", None)
+        if n is None:
+            return ABSTAIN
+        return CLEAN if int(n) >= EVIDENCE_MIN_CHARS else DRAWBACK
+    return _mk("evidence_rich", fn)
+
+
 #: 池的出厂清单（root 单独装 — 它永远在 conjunction 首位）
 DEFAULT_POOL: Tuple[Op, ...] = (
     op_root_parse_ok(), op_judge_verdict(), op_nonempty_diff(),
     op_component_known(), op_golden_leak(), op_pass_rate_weak(),
 )
+
+#: ★ R189-B · 无标签面池（train split 专用 — 门③仍用 DEFAULT_POOL）
+#: TRAIN_POOL = DEFAULT_POOL + 2 个无标签 op（判据键不依赖 label）
+TRAIN_POOL: Tuple[Op, ...] = DEFAULT_POOL + (op_exec_ok(),
+                                            op_evidence_rich())
+
+#: R189-B 证据含量阈值（工程常量 — 论文未给数字, 如实标注）
+EVIDENCE_MIN_CHARS: int = 4
 
 
 @dataclass

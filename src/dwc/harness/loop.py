@@ -246,6 +246,39 @@ class Loop:
                 _os.path.dirname(_os.path.abspath(__file__)))))
         return _os.path.join(root, "archive", "direction_ledger.jsonl")
 
+    def _broken_impl_for_fn(self, rec: Dict[str, Any]) -> Optional[str]:
+        """R189-B · train behavior 面的实现回退面（broken_dev 同 fn 初值）。
+
+        ★ 原则: train 观测必须是 **agent 产出**。impl_store 未载该 tid 时
+          回退到 broken_dev 里同 fn 的 broken_impl（agent 的"初值错误"态）;
+          再没有 ⇒ None（调用方跳过 — 不拿 REFERENCE 基准冒充产出）。
+        """
+        try:
+            import json as _json
+            from dwc.organs.judge import TRUTH_SOURCE as _TS
+            # TRUTH_SOURCE[0][1] = dev.json 的路径 ⇒ 取它的目录找 broken_dev
+            _dev_path = (_TS[0][1] if _TS and isinstance(_TS[0], tuple)
+                         else None)
+            if not _dev_path:
+                return None
+            bd_path = os.path.join(os.path.dirname(_dev_path),
+                                   "broken_dev.json")
+            if not os.path.exists(bd_path):
+                return None
+            with io.open(bd_path, encoding="utf-8") as _fh:
+                bd = _json.load(_fh)
+            want = {(c or {}).get("fn")
+                    for c in (rec.get("checks") or []) if isinstance(c, dict)}
+            for k in sorted(bd):                # 排序 ⇒ 同 fn 多条时确定选
+                v = bd[k]
+                if k.startswith("_") or not isinstance(v, dict):
+                    continue
+                if v.get("fn") in want and v.get("broken_impl"):
+                    return v["broken_impl"]
+            return None
+        except Exception:                      # noqa: BLE001 — 观察面自吞
+            return None
+
     def _dir_pick_candidates(self, tid: str, sig: Dict[str, str],
                              round_no: int, score: Optional[float]) -> list:
         """FORWARD 空 ⇒ 沿 fallback 序换向生成候选（R188 R1/R2/R3）。
@@ -703,39 +736,95 @@ class Loop:
             from dwc.organs.metric_loop import (_POOL_OPS, _current_tree,
                                                 a_train_weighted,
                                                 loo_marginal_dev)
-            names = sorted(_POOL_OPS)
+            # ★★★ R189-B · 无标签面用 **TRAIN_POOL**（= DEFAULT_POOL +
+            #   exec_ok + evidence_rich — 判据键不依赖 label; 门③仍用
+            #   DEFAULT_POOL 不动）⇒ 修 R184 的恒 1.0 口径洞（旧盘 6 op
+            #   里 4 个在无标签 ctx 上 abstain, 只剩 parsed_ok/nonempty
+            #   两个都判 ⇒ A_train 零分辨）
+            from dwc.organs.ops import TRAIN_POOL as _TP
+            _ops_map = {op.name: op for op in _TP}
+            names = sorted(_ops_map)
             tv: List[Dict[str, str]] = []
             pts_like: List[Dict[str, Any]] = []
             for tid in sorted(self.judge.train_anchors):
                 if tid.startswith("_"):
                     continue
                 rec = self.judge.train_anchors[tid]
-                # ★ keyword 任务无 impl 就跑不了（R171/ActorError 纪律:
-                #   文本任务无 REFERENCE ⇒ 初值须由调用方给）。train 面
-                #   上的答案是 agent 产物 ⇒ 用 impl_store 当前文本; 缺
-                #   ⇒ 跳过该条（None — 不硬造一个答案冒充 train 输出）
+                # ★★★ R189-B 深层根因修复（实测抓到, 比计划更深）:
+                #   train behavior 任务无 impl_store ⇒ implementation=None
+                #   ⇒ PureFunctionExecutor 用 **REFERENCE（基准真码）**
+                #   ⇒ 观测是"基准的输出" **不是 agent 产出** ⇒ 论文
+                #     A_train（ε 与 op 在 **agent 无标注输出**上的一致度）
+                #     被架空。⇒ 修法: impl 取序改为
+                #     impl_store(agent当前) → broken_dev 同 fn 的 broken_impl
+                #     （agent 的"初值错误"态 — 真产出）→ 都没有 ⇒ 跳过
+                #     （R184 纪律: 不硬造答案冒充 train 输出）★★ 绝不跑
+                #     REFERENCE: 那是基准, 不是被评的产出。
                 _impl = self.impl_store.get(tid)
+                if not _impl:
+                    _impl = self._broken_impl_for_fn(rec)
                 if rec.get("verifier_kind") == "keyword_match":
                     if not _impl:
                         continue
                     out = _et(self.actor, self.judge, tid, split="train",
                               implementation=_impl)
                 else:
-                    out = _et(self.actor, self.judge, tid, split="train")
+                    if not _impl:
+                        # ★ 无 impl 的 behavior ⇒ 跳过（REFERENCE 不是产出）
+                        continue
+                    out = _et(self.actor, self.judge, tid, split="train",
+                              implementation=_impl)
+                # ★★★ R189-B · 无标签 ctx 补**质量代理**键（均不依赖 label）:
+                #   exec_error — 执行异常名/None（_et 的成败投影; ActorError
+                #     会走 traces 而非 observation — 如实取, 不猜）
+                #   output_chars — 观测文本长度（evidence_rich 的口粮）
+                # ★★ 边界: 这三个键是**代理**不是判分 — judge_success 仍
+                #    恒 None（train 无 label 是论文前提; R184 纪律不破）
+                _obs_raw = out.get("observation", "")
+                _obs = (str(_obs_raw) if not isinstance(_obs_raw, dict)
+                        else str(_obs_raw))
+                _traces = out.get("traces") or []
+                # ★★★ R189-B 二次纠偏（实测抓的第二个口径洞）:
+                #   执行器捕异常时 actor 记的是 **outcome="raised" +
+                #   observed.exception**（actor.py:284-289）; **不是**
+                #   tr.error（那是 Trace 的另一个字段, 本执行路径恒 None）
+                #   ⇒ 首版读 tr.error ⇒ factorial 无限递归被当 clean
+                #     ⇒ exec_ok 全 clean ⇒ A_train 仍恒 1.0。
+                _exec_err = None
+                for _t in _traces:
+                    if isinstance(_t, dict):
+                        if _t.get("outcome") == "raised":
+                            _o = _t.get("observed") or {}
+                            _exec_err = (_o.get("exception")
+                                         if isinstance(_o, dict) else None) \
+                                or "raised"
+                            break
+                    elif getattr(_t, "outcome", None) == "raised":
+                        _o = getattr(_t, "observed", None) or {}
+                        _exec_err = (_o.get("exception")
+                                     if isinstance(_o, dict) else None) \
+                            or "raised"
+                        break
                 ctx = {"judge_success": None,          # ★ 无标签 — 不喂判定
                        "pass_rate": None,
-                       "candidate_diff": str(
-                           out.get("observation", ""))[:200],
+                       "candidate_diff": _obs[:200],
                        "vocabulary": (),
                        "component": None,
-                       "parsed_ok": True}
-                tv.append({n: _ev(_N(kind="leaf", op=n), _POOL_OPS,
+                       "parsed_ok": True,
+                       # ↓ R189-B 新增（不依赖 label）
+                       "exec_error": _exec_err,
+                       "output_chars": len(_obs)}
+                # ★ 三态投票用 TRAIN_POOL 的 ops_map（R189-B: 池换了,
+                #   map 也得换 — 否则 KeyError: exec_ok 未注册在 _POOL_OPS）
+                tv.append({n: _ev(_N(kind="leaf", op=n), _ops_map,
                                   None, None, ctx) for n in names})
                 pts_like.append({"label": None, "ctx": ctx})
             inc = _current_tree()
             marg = {n: loo_marginal_dev(pts_like, n, inc) for n in names
                     if n != "root_parse_ok"}
-            a = a_train_weighted(tv, inc, marg)
+            # ★★★ R189-B: op_filter=TRAIN_POOL 全集（不由当前树限 —
+            #   否则新 op 的票被静默丢 ⇒ A_train 恒 1 的第三层根因）
+            a = a_train_weighted(tv, inc, marg, op_filter=names)
             self._last_a_train_why = ("train split 真无标签共识: %d outputs"
                                       % len(tv))
             return a

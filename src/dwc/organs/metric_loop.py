@@ -59,7 +59,8 @@ class MetricLoopError(Exception):
 
 def a_train_weighted(train_verdicts: List[Dict[str, str]],
                      tree: Any, marginal: Dict[str, Optional[float]],
-                     *, kappa: float = 10.0) -> Optional[float]:
+                     *, kappa: float = 10.0,
+                     op_filter: Optional[Any] = None) -> Optional[float]:
     """★★★ R182 · A_train = 候选树 op 集合的 reliability-weighted 共识率。
 
     ★ 论文（2607.12790 逐字）:
@@ -79,7 +80,15 @@ def a_train_weighted(train_verdicts: List[Dict[str, str]],
     """
     if not train_verdicts:
         return None
-    ops_in_tree = {l.op for l in _flatten_and(tree) if l.kind == "leaf"}
+    # ★★★ R189-B: op_filter = 显式 op 集合覆盖（None ⇒ 树内, 旧行为）:
+    #   train 面用 TRAIN_POOL（含无标签 op exec_ok/evidence_rich）—
+    #   旧行为只认**当前选中的树**的 op ⇒ R189-B 前 A_train 恒 1.0
+    #   的真根因: 出厂树（R183 可能 adopt 成单叶 pass_rate_weak）不含
+    #   新 op ⇒ 它们的票被静默丢弃 ⇒ 恒 1（R189-B 实测抓到第三层洞）。
+    if op_filter is not None:
+        ops_in_tree = set(op_filter)
+    else:
+        ops_in_tree = {l.op for l in _flatten_and(tree) if l.kind == "leaf"}
     if not ops_in_tree:
         return None
     num = den = 0.0
