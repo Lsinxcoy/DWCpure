@@ -500,6 +500,72 @@ class Loop:
             self._last_skip = "patch 写回取失败（store 不动）: %s" % exc
         return None
 
+    def _train_outputs_consensus(self) -> Optional[float]:
+        """★★★ R184 · A_train 的**真论文口径**（2607.12790 逐字）。
+
+        "A_train(e) = e 与 opining pool ops 在**无标注 train 输出**上的
+         共识判定的一致度"
+
+        ★ 与 R183 的差别（正确性修复, 不是功能加码）: R183 用 dev 判据点
+          当 train verdicts — 但 dev 点**已被 judge 判过**（带 label）⇒
+          不是"无标注输出"。R184 起: train split（R184 落的 6 条无标签
+          题面）跑 actor 拿 observation（**只跑不判** — judge 不参与）
+          ⇒ op 池对每个 observation 逐 op 三态 ⇒ κ=10 加权共识。
+        ★ 缺席如实化: train.json 缺席 / actor 跑炸 ⇒ None（A_train 缺席,
+          S(e) fail-closed — 与 R176 三态纪律同族）。
+        ★ train 任务无 expected ⇒ op 判的 ctx 里 judge_success=None（喂
+          不到 label — 这正是无标签: op 看到的只有跑出来的行为）
+        """
+        if getattr(self.judge, "train_anchors", None) is None:
+            self._last_a_train_why = "train split 缺席（诚实边界④）⇒ A_train 缺席"
+            return None
+        try:
+            from dwc.organs.actor import execute_task as _et
+            from dwc.organs.drawback import Node as _N, _eval as _ev
+            from dwc.organs.metric_loop import (_POOL_OPS, _current_tree,
+                                                a_train_weighted,
+                                                loo_marginal_dev)
+            names = sorted(_POOL_OPS)
+            tv: List[Dict[str, str]] = []
+            pts_like: List[Dict[str, Any]] = []
+            for tid in sorted(self.judge.train_anchors):
+                if tid.startswith("_"):
+                    continue
+                rec = self.judge.train_anchors[tid]
+                # ★ keyword 任务无 impl 就跑不了（R171/ActorError 纪律:
+                #   文本任务无 REFERENCE ⇒ 初值须由调用方给）。train 面
+                #   上的答案是 agent 产物 ⇒ 用 impl_store 当前文本; 缺
+                #   ⇒ 跳过该条（None — 不硬造一个答案冒充 train 输出）
+                _impl = self.impl_store.get(tid)
+                if rec.get("verifier_kind") == "keyword_match":
+                    if not _impl:
+                        continue
+                    out = _et(self.actor, self.judge, tid, split="train",
+                              implementation=_impl)
+                else:
+                    out = _et(self.actor, self.judge, tid, split="train")
+                ctx = {"judge_success": None,          # ★ 无标签 — 不喂判定
+                       "pass_rate": None,
+                       "candidate_diff": str(
+                           out.get("observation", ""))[:200],
+                       "vocabulary": (),
+                       "component": None,
+                       "parsed_ok": True}
+                tv.append({n: _ev(_N(kind="leaf", op=n), _POOL_OPS,
+                                  None, None, ctx) for n in names})
+                pts_like.append({"label": None, "ctx": ctx})
+            inc = _current_tree()
+            marg = {n: loo_marginal_dev(pts_like, n, inc) for n in names
+                    if n != "root_parse_ok"}
+            a = a_train_weighted(tv, inc, marg)
+            self._last_a_train_why = ("train split 真无标签共识: %d outputs"
+                                      % len(tv))
+            return a
+        except Exception as exc:              # noqa: BLE001 — 留痕不静默
+            self._last_a_train_why = ("train 共识面失败: %s: %s"
+                                      % (type(exc).__name__, exc))
+            return None
+
     def _a_train_weighted(self, pts: List[Dict[str, Any]]
                           ) -> Optional[float]:
         """★★★ R183 · A_train（κ=10 加权 — R182 的 Loop 侧适配）。
@@ -630,10 +696,12 @@ class Loop:
             #   L979/L981）⇒ duck-typing 直接传 self.judge（R180 实测纠偏:
             #   首版写 hasattr(judge,"store") 分支 — 多余, Judge 面就够）
             pts, notes = dev_points_from_store(self.judge, split="dev")
-            # ★★ R183: A_train 用 R182 的 κ=10 加权共识（不是 R176 的
-            #   component 出现率 — train verdicts = dev 面 ctx 上逐 op 的
-            #   三态判定; marginal = 各 op 在现任树上的 LOO）
-            _at = self._a_train_weighted(pts)
+            # ★★ R184: A_train 优先取**真 train split**（无标签大集合
+            #   — 论文口径）; 缺席（诚实边界④）回落 dev 面加权（R183 的
+            #   口径, why 里如实标了回落原因 — 不放水冒充论文口径）
+            _at = self._train_outputs_consensus()
+            if _at is None:
+                _at = self._a_train_weighted(pts)
             self._last_a_train = _at
             res = select(pts, a_train=_at)
             self._last_metric_pick = {"picked_key": res["picked_key"],

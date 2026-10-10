@@ -80,8 +80,10 @@ def test_missing_truth_source_raises(tmp_path):
 def test_self_check_all_verified(j):
     """★★★ 意图: 两个 split 都已验证（无未落地项）。"""
     sc = j.self_check()
+    # ★ R184: train_unlabeled 加入（train split 落地 — 无标签大集合）
     assert set(sc["truth_source"]["verified"]) == {"dev_anchors",
-                                                   "test_sealed"}
+                                                   "test_sealed",
+                                                   "train_unlabeled"}
     assert sc["truth_source"]["not_built"] == []
     assert sc["splits_disjoint"] is True, \
         "两个 split 必须互斥（R28 修过一个恒 False 的断言）"

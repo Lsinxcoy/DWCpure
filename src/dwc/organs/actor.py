@@ -640,8 +640,13 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
     # ★ R169 split 路由: dev ⇒ judge.anchors; test ⇒ judge.sealed
     #   （缺 split 的 spec ⇒ KeyError 如实抛 — 不拿 dev 顶替, 那会把
     #    locked test 变成训练可见集）
-    _src = judge.anchors if split == "dev" else getattr(judge, "sealed",
-                                                       None) or {}
+    # ★★ R184 · split 路由加 train（无标签大集合 — 只跑不判）:
+    #   train.json 的条目无 golden ⇒ actor 照样跑（跑题面是客观的）,
+    #   但 judge 不许给它判分（evaluate(split="train") 恒 raise —
+    #   L717 纪律）。⇒ "跑+opine" 的通路在这里, "判分" 不在这条路。
+    _src = (judge.anchors if split == "dev"
+            else (judge.sealed if split == "test"
+                  else (getattr(judge, "train_anchors", None) or {})))
     if task_id not in _src:
         raise ActorError(
             "task %r 不在 split=%r 的锚点集（dev=%d/sealed=%d）— "
@@ -685,8 +690,11 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
     for c in checks:                 # ★★★ 全部断言，不只第一条
         task = {"task_id": task_id, "kind": "code_repair",
                 "fn": fn_name, "args": c["args"]}
+        # ★★ R184 · train 无标签: check 无 "expected" ⇒ expected=None
+        #   透传（不是判分 — actor 只跑行为; label 不在通路上。论文
+        #   train = 无标注大集合: "跑得出来" 与 "判得了分" 是两件事）
         tr = actor.act(task, ex,
-                       expected={"value": c["expected"]},
+                       expected={"value": c.get("expected")},
                        decision={"source": decision_source,
                                  "why": "确定性执行器"},
                        trace_hook=trace_hook)

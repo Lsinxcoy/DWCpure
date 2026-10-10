@@ -1,8 +1,8 @@
 {
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
- "current_judge_fingerprint": "95d0d390",
+ "current_judge_fingerprint": "8923669f",
  "counts": {
-  "active": 66,
+  "active": 67,
   "deprecated_by_evaluator": 0,
   "deprecated_by_split_change": 4,
   "pre_depz_legacy": 121
@@ -695,24 +695,32 @@
    "status": "active",
    "judge_fingerprint": "95d0d390",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R181_adopt_tree.json",
    "status": "active",
    "judge_fingerprint": "95d0d390",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R182_reliability_weighted.json",
    "status": "active",
    "judge_fingerprint": "95d0d390",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R183_self_evolution_loop.json",
+   "status": "active",
+   "judge_fingerprint": "95d0d390",
+   "split_fingerprint": "e61f2cef",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R18_git_memory.json",

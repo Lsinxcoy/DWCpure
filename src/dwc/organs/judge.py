@@ -83,6 +83,10 @@ TRUTH_SOURCE: Tuple[str, ...] = (
     # ⇒⇒ ★★ 绝不能用 dev 的副本冒充 —— 那会让回归检测形同虚设
     #     （分子分母同源，改了哪边都算过）
     ("test_sealed", r"E:/Divine Wisdom Core/config/anchors/test_sealed.json"),
+    # ★★ R184 · train: 2607.12790 的"无标注大集合"（A_train 共识面）
+    #   — train.json 落了（R184: 6 条同族新题, 无 expected）; 与 dev/
+    #   test 互不相交（前缀 train_ + 题面不同 — 已验 dev∩train=∅）
+    ("train_unlabeled", r"E:/Divine Wisdom Core/config/anchors/train.json"),
 )
 
 #: ★★ 未落地的真值源（判据: 声明了但文件不存在 ⇒ 启动必须 raise）
@@ -582,6 +586,7 @@ class Judge:
 
     def __init__(self, anchors_path: Optional[str] = None,
                  sealed_path: Optional[str] = None,
+                 train_path: Optional[str] = None,
                  store_path: Optional[str] = None,
                  evidence_path: Optional[str] = None,
                  dw_version: Optional[str] = None):
@@ -602,6 +607,19 @@ class Judge:
         # ★★ 关键: 未落地**不该让启动失败** —— dev 可用是事实，
         #   test 缺席也是事实 ⇒ 两者都如实报告，用到 test 时才 raise
         #   （与 R14 那条「未采用 ≠ 失败」同族：不同状态要能区分）
+        # ★★ R184 · train split（2607.12790 的"无标注大集合" — A_train 的
+        #   共识面）。三条纪律逐条对齐论文:
+        #   ① train.json 在档才载入 — **缺席不失败**（诚实边界④的同款:
+        #      dev 可用与 train 缺席都是事实, 用到 train 时才响）
+        #   ② train 面**无 golden** ⇒ _load 的字段校验对它放宽: 它只提供
+        #      "题面+验证器配置"供跑, 不提供 expected（拿不到 label = 设计
+        #      如此, 不是缺数据 — 论文"A_train = 与 opining pool 在*无标注*
+        #      train 输出上的共识判定的一致度"）
+        #   ③ evaluate(split="train") **恒 raise**（无标签判不了分 — 保持
+        #      L717 纪律; train 面只能被 "跑+opine", 不能被判分）
+        p_train = train_path or TRUTH_SOURCE[2][1]
+        self.train_anchors = (self._load_unlabeled(p_train, SPLIT_TRAIN)
+                              if os.path.exists(p_train) else None)
         if sealed_path:
             self.sealed = self._load(sealed_path, SPLIT_TEST)
         else:
@@ -618,6 +636,39 @@ class Judge:
                                     dw_version=dw_version)
 
     # ── 真值源加载与自检 ──
+    @staticmethod
+    def _load_unlabeled(path: str, split: str) -> Dict[str, Dict[str, Any]]:
+        """★★ R184 · train split 专用装载（无标签大集合 — 论文逐字）。
+
+        ★ 与 _load 的差别只有一条且只有一条: **不要求 golden 字段**
+          （无 expected / expected_keywords ⇒ 拿不到 label）。其余全同:
+          文件不存在 raise、非 dict raise、条目须 dict。
+        ★ 反过来的收紧: 条目若**带了 golden**（expected 出现）⇒ 显式报
+          错 — train 面带 label 就变成了第二个 dev（论文"train = 大、
+          无标签"; dev/test 才带 anchor）。宁可 raise 不放水。
+        ★ _provenance 元数据不算条目。
+        """
+        if not os.path.exists(path):
+            raise JudgeError("train split 文件不存在: %s" % path)
+        data = json.loads(io.open(path, encoding="utf-8").read())
+        if not isinstance(data, dict) or not data:
+            raise JudgeError("train split 为空: %s" % path)
+        n = 0
+        for tid, rec in data.items():
+            if tid.startswith("_"):
+                continue
+            if not isinstance(rec, dict):
+                raise JudgeError("train 条目须 dict: %r" % tid)
+            if "expected" in rec or "expected_keywords" in rec:
+                raise JudgeError(
+                    "train 条目 %r 带了 golden（%r）⇒ 变成第二个 dev —"
+                    " 拒（2607.12790: train = 大、无标签）"
+                    % (tid, "expected/expected_keywords"))
+            n += 1
+        if not n:
+            raise JudgeError("train split 零条目（只有元数据）⇒ 无共识面")
+        return data
+
     @staticmethod
     def _load(path: str, split: str) -> Dict[str, Dict[str, Any]]:
         """加载真值源。★ 文件不存在必须 raise（不许返回空 dict 假装合法）。"""

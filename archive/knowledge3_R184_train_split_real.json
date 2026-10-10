@@ -1,0 +1,84 @@
+{
+ "round": "R184 · train split really landed as an unlabeled set (fixes R183's dev-points caliber deviation from the paper)",
+ "date": "2026-10-11",
+ "paper_deviation_fixed": "R183 fed A_train with dev judgement points — but those points are ALREADY JUDGED (labeled) whereas the paper says A_train is agreement with the op pool on UNLABELED train outputs. This round lands the real thing.",
+ "what": [
+  "config/anchors/train.json: 6 unlabeled items (behavior: whitelisted fns with different args — no expected; keyword: new prompts — no expected_keywords), each marked unlabeled=True",
+  "Judge._load_unlabeled: loads the train split; MISSING golden fields are accepted (that is the point), but an item CARRYING golden RAISES (a labeled train surface is just a second dev — watered down is refused)",
+  "Judge.evaluate(split='train') still raises unconditionally (no label to judge — honesty boundary 4 preserved); execute_task(split='train') can run (behavior via args; keyword needs an impl from impl_store, missing => skipped, not fabricated)",
+  "Loop._train_outputs_consensus: runs train tasks (run-only, judge does not participate) => op pool three-valued per output => kappa=10 weighted consensus; round's A_train prefers this caliber and falls back to dev-weighted (R183) with the reason recorded when train is absent"
+ ],
+ "measured": "A_train = 1.0 from 3 real unlabeled outputs (keyword items skipped: no impl in impl_store — honest skip); r1/r2 rounds ran with train-fed A_train",
+ "honest_record": "A_train=1.0 is DEGENERATE at n=3 (all outputs pass => every op votes clean => consensus identically 1 => the factor loses discriminating power). This is exactly why the paper says a LARGE set — enough items for genuine false positives/negatives to appear. Train set expansion is the next action (recorded, not hidden)",
+ "old_test_updated": "test_judge.test_self_check_all_verified enumerated two splits; R184 adds train_unlabeled — the enumeration was stale, the self_check behavior is correct (reports the new truth source honestly)",
+ "verify": "pytest 1277 (1268+9) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 184,
+  "at": "2026-10-11T21:30:00+08:00",
+  "parent_gen": 183,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 192,
+   "pytest": 1268,
+   "inheritance_gen_prev": 183
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "train.json + Judge._load_unlabeled/train_anchors + actor train route + Loop._train_outputs_consensus",
+   "files": [
+    "config/anchors/train.json",
+    "src/dwc/organs/judge.py",
+    "src/dwc/organs/actor.py",
+    "src/dwc/harness/loop.py",
+    "tests/test_r184_train_split_real.py",
+    "tests/test_judge.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r184_train_split_real.py (9 tests)",
+     "claim": "unlabeled json / disjoint / loads / refuses to score / refuses golden / behavior runs / no cross-split / consensus or None / round uses it"
+    },
+    {
+     "type": "trial_report",
+     "ref": "live consensus run",
+     "claim": "A_train=1.0 from 3 real unlabeled outputs (keyword skipped without impl — honest)"
+    },
+    {
+     "type": "test",
+     "ref": "test_judge enumeration stale",
+     "claim": "self_check now reports three verified truth sources; stale enumeration updated"
+    }
+   ],
+   "numbers": {
+    "pytest": 1277,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "8923669f",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1277 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "A_train now fed by the paper's unlabeled caliber",
+   "user_decision": "four items audit requested by user (2026-10-11): R184 fixes the train caliber deviation"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

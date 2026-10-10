@@ -1,0 +1,85 @@
+{
+ "train_code_001": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "验证 sum_first_n 在若干 n 上的累加行为（无标注 — R184）",
+  "verifier_kind": "behavior",
+  "checks": [
+   {
+    "fn": "sum_first_n",
+    "args": "7"
+   },
+   {
+    "fn": "sum_first_n",
+    "args": "10"
+   }
+  ],
+  "unlabeled": true
+ },
+ "train_code_002": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "验证 factorial 在若干 n 上的阶乘行为（无标注 — R184）",
+  "verifier_kind": "behavior",
+  "checks": [
+   {
+    "fn": "factorial",
+    "args": "4"
+   },
+   {
+    "fn": "factorial",
+    "args": "6"
+   }
+  ],
+  "unlabeled": true
+ },
+ "train_code_003": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "验证 is_palindrome 对若干串的回文判定行为（无标注 — R184）",
+  "verifier_kind": "behavior",
+  "checks": [
+   {
+    "fn": "is_palindrome",
+    "args": "'level'"
+   },
+   {
+    "fn": "is_palindrome",
+    "args": "'abc'"
+   }
+  ],
+  "unlabeled": true
+ },
+ "train_reason_001": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "简述数据库的三种常见隔离级别及其差异。",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "unlabeled": true
+ },
+ "train_reason_002": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "什么是缓存穿透？常见的防护手段有哪些？",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "unlabeled": true
+ },
+ "train_reason_003": {
+  "category": "knowledge_reasoning",
+  "verifier_rung": 1,
+  "prompt": "解释一下什么是线程死锁，以及产生的四个必要条件。",
+  "verifier_kind": "keyword_match",
+  "scoring": "keyword_match",
+  "unlabeled": true
+ },
+ "_provenance": {
+  "derived_from": "config/anchors/dev.json（同 family 结构派生 — 复制而非引用）",
+  "derived_at": "2026-10-11",
+  "why": "R184 · 2607.12790 train split = 无标注大集合 — A_train 的共识面; dev/test 互不相交",
+  "这是复制而非引用": "train 条目与 dev 条目 task_id/题面均不同; behavior 题用 dev 白名单内同名 fn 的**不同 args**（不扩沙箱白名单 — R184 不碰安全面）",
+  "无标签纪律": "train 面不给 golden（无 expected / expected_keywords）⇒ judge 判不了分 = 设计如此",
+  "机械规则": "train_{family}_{序号}; content = 同 family 变体题"
+ }
+}
