@@ -1,0 +1,89 @@
+{
+ "round": "R188 · DirectionController 落地（用户选全做）— 三方向停滞判定+序内fallback+全败终止",
+ "date": "2026-10-12",
+ "paper_rules": {
+  "R1": "EvoTS 2608.17933: invalid or improvement <= threshold => stagnant",
+  "R2": "2609.04128 §5.5: randomly order three directions, fall back to next",
+  "R3": "同原文 terminate only when all three fail + DWC None-is-legal"
+ },
+ "spacetime_answer": "决策函数统一: next_action(state) 同吃时间面(attempt序列)吐空间面(direction); 折平有损已如实标注（增益趋势被压成一个bit）",
+ "measured": "live: r2 FORWARD(0候选)->LATERAL(1候选); r3 序不同 REVERSE(0)->LATERAL(1); code_fix_004 三方向全试0候选 => terminal; ledger archive/direction_ledger.jsonl 每方向每跳1行",
+ "smoke_fixes": [
+  "n_candidates 默认 0 => 未填被误判形态③; 改 -1=未填, 0=真跑了没出",
+  "FORWARD 空未入链 => next_action 重选 FORWARD; 补链起点记账",
+  "成功生成候选未入链 => 下轮 LATERAL 重复; 补入链"
+ ],
+ "honest_bounds": [
+  "REVERSE 现 RULES 7 条无'更简单'类 target => 如实 []（登记位, 非缺陷）",
+  "04128/EvoTS 都不是为 DWC 三方向写的 — 同构映射非论文原文",
+  "三方向尝试是候选生成, 采纳仍归六门+replay（分工不变）"
+ ],
+ "verify": "pytest 1298 (1284+14) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 188,
+  "at": "2026-10-12T00:40:00+08:00",
+  "parent_gen": 187,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 200,
+   "pytest": 1284,
+   "inheritance_gen_prev": 187
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "direction.py +DirectionController (fallback_order/stagnant_of/next_action/reverse_candidates); loop.py 接线 _dir_pick_candidates/_dir_generate/_dir_ledger_append; test_r188(14); R170 断言如实更新",
+   "files": [
+    "src/dwc/organs/direction.py",
+    "src/dwc/harness/loop.py",
+    "tests/test_r188_direction_controller.py",
+    "tests/test_r170_broken_dev.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r188_direction_controller.py",
+     "claim": "14 tests: 序确定性+变序+类型收紧 R1三态+首试不判 REVERSE表空 R2链推进不回退 R3全败抛错 candidate入链(修真bug) 值锁3+语义不变"
+    },
+    {
+     "type": "trial_report",
+     "ref": "live 6 rounds + ledger 台账",
+     "claim": "r2 链 FORWARD(空)->LATERAL(命中1); r3 序不同 REVERSE(空)->LATERAL(命中1); code_fix_004 三方向全试且0候选 => terminal 台账"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "3 smoke-caught bugs fixed before commit",
+     "claim": "①n_candidates 默认0让未填被误判停滞 => 改-1 ②FORWARD 空未入链导致下轮重选 ③成功生成候选未入链导致 LATERAL 重复"
+    }
+   ],
+   "numbers": {
+    "pytest": 1298,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "8923669f",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1298 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "direction ledger + live rounds + 14 tests",
+   "user_decision": "user chose option 1 (do all of R1+R2+R3) (2026-10-12)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

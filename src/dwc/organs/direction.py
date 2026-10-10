@@ -30,8 +30,10 @@
 """
 from __future__ import annotations
 
+import hashlib
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict
+from typing import Dict, List, Optional, Sequence, Tuple
 
 
 class EvolutionDirection(str, Enum):
@@ -87,6 +89,187 @@ def ensure_direction(value) -> EvolutionDirection:
 def semantics_of(value) -> str:
     """方向 → 逐字语义（查表, 语义只有一份真源 SEMANTICS）。"""
     return SEMANTICS[ensure_direction(value)]
+
+
+# ══════════════════════════════════════════════════════════
+# ★★★ R188 · DirectionController（R186 搜论文 → R187 A×B 收敛分析 → 本件）
+#   选择策略的三条规则（每条论文出处, 全部纯函数可单测）:
+#     R1 停滞即换    — EvoTS 2608.17933 原文: "invalid or its improvement
+#                     is no greater than a threshold"
+#     R2 序内 fallback — 2609.04128 §5.5 原文: "randomly order the three
+#                     directions ... fall back to the next direction"
+#     R3 全败记账终止 — 同原文 "The branch terminates only when all three
+#                     directions fail" + DWC 纪律「None 是合法结果」
+#   ★ A×B 收敛（R187）: A(何时换向)=next_action 的**输入**（state）,
+#     B(向哪里换)=next_action 的**输出**（direction+candidate）——
+#     二者在 pick_direction 的同一决策点汇合, 不再分时/空两件。
+# ══════════════════════════════════════════════════════════
+
+#: 噪声带（R185 同源 — score 增益 ≤ 该值视为无增益, 不是"变小了"）
+NOISE_BAND = 0.01
+
+#: REVERSE「更简单」代理判据的 patch 长度上限（字符 — 表达式片段口径）
+REVERSE_MAX_PATCH = 16
+
+#: 视为「无效」的链判（EvoTS 的 invalid — 门拦/出错都算, idle 不算:
+#   idle 是本方向没有可试对象, 归 R3 的 n_candidates==0 分支）
+INVALID_VERDICTS = frozenset({"blocked", "error"})
+
+
+@dataclass(frozen=True)
+class DirectionAttempt:
+    """一次方向尝试的记录（时间面的最小单位 — R188 R1 的判据输入）。
+
+    ★ 全部字段可从 Loop 现有量构造（不发明新事实源）:
+      direction  — ensure_direction 校验过的三方向之一
+      stagnant   — 调用方判 or 由 stagnant_of() 从下面三字段推
+      score_gain — None = 无前值（首试）; DWC 现有 score 序列可算
+      verdict    — Loop 现有 chain_verdict 原值（blocked/error/...）
+      n_candidates — 该方向真生成的候选数（0 = unfixable_now）
+    """
+    direction: EvolutionDirection
+    score_gain: Optional[float] = None
+    verdict: Optional[str] = None
+    #: -1 = 未填（**不是** 0）—— 0 是"真跑了但一个候选都没出",
+    #: 语义不同必须分开（实测: 首版默认 0 让"未填"被误判形态③,
+    #: 首试直接判停滞 ⇒ fallback 链错乱 — R188 smoke 抓到）
+    n_candidates: int = -1
+    note: str = ""
+
+    def is_invalid(self) -> bool:
+        """EvoTS 'invalid' — 链判 in INVALID_VERDICTS。
+
+        ★ verdict None（还没判）⇒ False（没信息不下判 — fail-closed 到
+          「非无效」而不是「猜它无效」—— 宁可多试一次方向）
+        """
+        return (self.verdict or "") in INVALID_VERDICTS
+
+    def _gain_in_band(self) -> bool:
+        """增益落入噪声带 ⇒ 视为无增益（R185 同源口径）。
+
+        ★ gain None ⇒ False（首试无前值, 没有"没增益"这回事）
+        ★ 负增益 ⇒ True（真的退步 — 比停滞更强的换向信号）
+        """
+        return self.score_gain is not None and self.score_gain <= NOISE_BAND
+
+    def has_no_candidate(self) -> bool:
+        """本方向一个候选都生成不出（无对象可换 — R1 的第三种形态）。
+
+        ★ **只有显式填过**（>= 0）才算 —— 未填（-1）是"没信息",
+          不下的判据（fail-closed: 宁可多试一次方向, 不猜它停滞）。
+        """
+        return self.n_candidates == 0
+
+
+@dataclass(frozen=True)
+class DirectionDecision:
+    """next_action 的输出（空间面的最小单位 — A×B 收敛的汇合点）。"""
+    direction: EvolutionDirection
+    reason: str
+    order: Tuple[EvolutionDirection, ...] = ()
+    n_tried: int = 0
+
+
+def fallback_order(round_no: int, task_id: str = "") ->         Tuple[EvolutionDirection, ...]:
+    """R2 · 三方向的尝试**全序**（04128 "randomly order" 的 DWC 实例化）。
+
+    ★ 不用真随机: 以 sha256(f"{round_no}|{task_id}") 派生确定性全序 ——
+      04128 要的是 vary（别每轮同序 ⇒ 卡死在同一首发方向）,
+      DWC 纪律要的是可复现（同 round 同 task ⇒ 同序, 便于跨会话重放审判）。
+    ★ 三方向全在内（锁 3 — 不因"某个方向没候选"就从序里删掉:
+      删了就等于提前宣布它败了, 而它可能只是本轮没有对象。）
+    """
+    # G1/G7: round_no 必须是 int（None/"1" 都不猜着 stringify —
+    #   试跑不可复现比炸更贵; DWC 全链 round_no 都是 int）
+    if isinstance(round_no, bool) or not isinstance(round_no, int):
+        raise DirectionError(
+            "round_no 必须是 int, 实为 %r（别拿字符串化兜底 — 会静默"
+            "产生不可复现的序）" % (round_no,))
+    if not isinstance(task_id, str):
+        raise DirectionError(
+            "task_id 必须是 str, 实为 %r" % (task_id,))
+    seed = hashlib.sha256(
+        ("%s|%s" % (round_no, task_id)).encode("utf-8")).hexdigest()
+    dirs = [d for d in EvolutionDirection]           # 枚举序 = 稳定打底
+    # 确定性洗牌: seed 重复分组 — 每个方向取一段 hash, 按 (段, 枚举位) 排序
+    return tuple(sorted(
+        dirs,
+        key=lambda d: (seed[(_vi := dirs.index(d)) * 8:(_vi + 1) * 8],
+                       dirs.index(d))))
+
+
+def stagnant_of(attempt: DirectionAttempt) -> bool:
+    """R1 · 一次尝试是否「停滞」（EvoTS 判据的 DWC 三态映射）。
+
+    ★ 三种形态任一成立 ⇒ 停滞（换向信号）:
+      ① invalid            — verdict ∈ {blocked, error}
+      ② gain ≤ NOISE_BAND  — 有效果但不够看（或退步）
+      ③ n_candidates == 0  — 无对象可试（unfixable_now 的一等输出）
+    ★ 三者全不成立 ⇒ False —— 包括**首试**（gain None ⇒ 不下"无增益"判）
+    """
+    return (attempt.is_invalid()
+            or attempt._gain_in_band()
+            or attempt.has_no_candidate())
+
+
+def next_action(state: Sequence[DirectionAttempt],
+                round_no: int = 0, task_id: str = "") -> DirectionDecision:
+    """R1+R2 · 沿 fallback 序找第一个未试过的方向 ⇒ 决策。
+
+    ★ 已试过 = state 里已有非停滞尝试的方向（停滞过的方向**不进**本
+      集合 — 04128 的语义: 当前方向失败就 fall back 到下一个, 不回头。
+      ⇒⇒ ⇒**链不回退**: once stagnant, 该方向本轮不再选。
+    ★ 全序耗尽 ⇒ 抛 DirectionError（R3 的记账触发条件在调用方:
+      上游拿 terminal 记台账 + unfixable_now, 不造第四方向）。
+    """
+    order = fallback_order(round_no, task_id)
+    # 04128 原文 "fall back to the next direction" — **链不回退**:
+    # 停滞过的方向本轮不再选 ⇒ 已试集合 = **全部**试过的（含停滞的）;
+    # 实测 smoke（首版只排除"未停滞的"）⇒ 停滞的首发方向又被选中,
+    # fallback 死循环 — R188 抓到
+    tried_all = {a.direction for a in state}
+    for d in order:
+        if d not in tried_all:
+            return DirectionDecision(
+                direction=d,
+                reason=("fallback_order[%d]=%s（已试 %d 个方向后选未试的）"
+                        % (order.index(d), d.value, len(tried_all))),
+                order=order, n_tried=len(state))
+    raise DirectionError(
+        "三方向全试过且均停滞 ⇒ terminal（R3: 全败记账, 不造第四方向）"
+        " tried=%r" % ([a.direction.value for a in state],))
+
+
+def reverse_candidates(rules_index: Optional[Dict[str, Dict]] = None,
+                       component: str = "") -> List[str]:
+    """R3 的 REVERSE 半边 · **表驱动**候选键（不是候选本身 — 候选由
+    evolver 产, 本函数只回答"回退方向可试哪些 target"）。
+
+    ★ 设计语义（EVOLUTION §8.3 逐字）: 「回退到更简单的方案」——在 DWC
+      的形态 = 同 component 的 target 中, 存在**比当前更简单**的规则
+      （更小 patch / 更少约束 / 保留更少）。判据用 patch 长度的字典序,
+      可复现无魔法。
+    ★★★ 诚实边界: RULES 现有 7 条**无一条**是"更简单"类的（修法全是
+      补全/追加 — 都是向前的）⇒ 本函数当前如实返回 []。**这不是缺陷**:
+      没有更简单的修法可回退时, REVERSE 无对象 = R1 形态③（n_candidates
+      == 0）⇒ 上游记台账。将来 RULES 增长出简化类 target 时, 这里是
+      **唯一登记点**（不在别处硬编码）。
+    """
+    rules = dict(rules_index or {})
+    if not component:
+        return []
+    simplifiable = []
+    for key, rule in sorted(rules.items()):      # 排序 ⇒ 输出确定
+        if rule.get("component") != component:
+            continue
+        patch_text = str(rule.get("patch", "") or "")
+        # 「更简单」的代理 = patch 短（≤ REVERSE_MAX_PATCH 字符）——
+        # patch 是**表达式片段**（RULES 口径）: 短 = 改动面窄 = 简单。
+        # 完整 DTC（diff tree complexity）不在 DWC 判据面内 ⇒ 如实标
+        # 长度代理, 不冒充复杂度度量
+        if patch_text and len(patch_text.strip()) <= REVERSE_MAX_PATCH:
+            simplifiable.append("%s|%s" % (key, patch_text.strip()))
+    return simplifiable
 
 
 # ══════════════════════════════════════════════════════════

@@ -36,6 +36,12 @@ from dwc.organs.applier import Applier
 from dwc.organs.evolver import Evolver
 from dwc.organs.judge import Judge
 from dwc.harness.pipeline import run_round
+from dwc.organs.direction import (DirectionAttempt,
+                                DirectionError,
+                                DirectionDecision,
+                                ensure_direction,
+                                next_action as dir_next_action,
+                                reverse_candidates)
 from dwc.organs.replay import (no_worse_than_current, select_policy,
                                shortlist_candidates)
 from dwc.harness.splitfeed import feed_pair
@@ -147,6 +153,13 @@ class Loop:
         from dwc.organs.metrics import four_metrics
         self.last_metrics = four_metrics()
         self._last_ledger_entries: List[Any] = []
+        # ★★★ R188 · DirectionController 在途状态（跨调用点传链:
+        #   _run_one_task 内一次取方向 → 候选 → 判停滞 → 换向; 每任务
+        #   每轮一条链, round 入口清空（串行生产, 无并发问题）
+        #   dict[task_id] = List[DirectionAttempt]
+        self._dir_attempts: Dict[str, List[DirectionAttempt]] = {}
+        #: R188 决策痕迹（读窗口 — 监控/测试可查; 每 _run_one_task 出口更新）
+        self._last_dir_decision: Optional[DirectionDecision] = None
 
     # ── 真 round_fn（Daemon 契约: (round_no, daemon) -> dict|None）──
     def round(self, round_no: int, daemon: Any = None) -> Dict[str, Any]:
@@ -164,6 +177,9 @@ class Loop:
         #   不改变"没数据时"的行为 — core._el_pick 同款保底）; R170 的
         #   rules_known 机械优先**退役**（EL 上位 — 按观测说话比固定
         #   排序更论文; rules_known 仍留字段供 broken_dev 自报审计）
+        # ★ R188 · 方向链按轮重建（跨轮的尝试账本由 ledger 持久化,
+        #   进程内只保当前轮 — daemon 重启=重新开始, 保守默认同 R183）
+        self._dir_attempts = {}
         sel = [self._pick_task(tasks)]
         n_landed = 0
         verdicts: List[str] = []
@@ -220,6 +236,137 @@ class Loop:
                                    if self._last_skip else None)}
 
     # ── 单 task 闭环（全器官复用）──
+    # ── R188 · DirectionController（三方向 fallback 链）─────────
+    def _dir_archive_path(self) -> str:
+        """方向台账路径（archive/direction_ledger.jsonl — 与知识档同目录）。"""
+        import os as _os
+        root = getattr(self, "repo_root", None)
+        if root is None:
+            root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+                _os.path.dirname(_os.path.abspath(__file__)))))
+        return _os.path.join(root, "archive", "direction_ledger.jsonl")
+
+    def _dir_pick_candidates(self, tid: str, sig: Dict[str, str],
+                             round_no: int, score: Optional[float]) -> list:
+        """FORWARD 空 ⇒ 沿 fallback 序换向生成候选（R188 R1/R2/R3）。
+
+        ★ 三条规则的在此的形态:
+          R1 停滞即换 — evolver 对应入口产出 0 候选 ⇒ 记 attempt
+             (n_candidates=0) ⇒ 下一跳 next_action 换向;
+          R2 序内 fallback — fallback_order(round_no, tid) 派生确定性
+             全序（sha256 种子 — 同输入同输出, 不用真随机）;
+          R3 全败记账 — DirectionError ⇒ 台账 + []（调用方 blocked,
+             与 R173 硬编码返回语义一致, 旧行为不回归）。
+        ★★★ R173 的伦理边界不变: 候选生成 ≠ 采纳; 泛化 patch
+          修不好 ⇒ 门/试跑拦 ⇒ 弃权, 不硬过。
+        """
+        attempts = self._dir_attempts.setdefault(tid, [])
+        # ★ FORWARD 的尝试已由调用方完成（diagnose 空 ⇒ 才进本函数）⇒
+        #   必须先记一笔 attempt（否则 next_action 会把 FORWARD 当"未试
+        #   过"再选一次 — R188 smoke 抓到: 实测链首跳 LATERAL 后又回到
+        #   FORWARD, 与 04128 "fall back" 向前不回退的语义相反）
+        if not any(a.direction.value == "FORWARD" for a in attempts):
+            attempts.append(DirectionAttempt(
+                direction=ensure_direction("FORWARD"), n_candidates=0,
+                note="R188: FORWARD 无签名命中 ⇒ 记停滞（入链起点）"))
+        for _hop in range(3):                    # 三方向, 一方向一跳
+            try:
+                dec = dir_next_action(
+                    attempts, round_no=round_no, task_id=tid)
+            except DirectionError as exc:
+                # R3 · 全败 ⇒ 台账（自吞异常不冒泡断主链 — G7 观察面纪律）
+                self._dir_ledger_append(tid, attempts, terminal=str(exc))
+                self._last_skip = ("三方向全败（terminal — R3）: task=%r; "
+                                   "%s" % (tid, exc))
+                return []
+            self._last_dir_decision = dec
+            cands = self._dir_generate(dec.direction, sig)
+            self._dir_ledger_append(
+                tid, attempts, direction=dec.direction,
+                n_candidates=len(cands), reason=dec.reason)
+            if cands:
+                # 候选生成 ≠ 算成功（采纳仍归门+试跑 ⇒ 不加"成功"语义）
+                # ★ 但**必须记账**: 不记 ⇒ next_action 认该方向"未试过"
+                #   下轮再选它一次（04128 序内不回退被破 — R188 smoke
+                #   抓到: LATERAL 在 r2 生成候选, r3 又从 LATERAL 起跳）
+                attempts.append(DirectionAttempt(
+                    direction=dec.direction, n_candidates=len(cands),
+                    note="R188: %s 生成 %d 候选（入链）"
+                         % (dec.direction.value, len(cands))))
+                return cands
+            # R1 形态③: 本方向无对象 ⇒ 记停滞, 下一跳换向（链不回退）
+            attempts.append(DirectionAttempt(
+                direction=dec.direction, n_candidates=0,
+                note="R188: %s 无候选 ⇒ 换向" % dec.direction.value))
+        # 理论不可达（3 跳 = 三方向全试 → 上面已 terminal）; 留痕不静默
+        self._last_skip = ("三方向均已试且无候选（task=%r — R3 旁路）" % tid)
+        return []
+
+    def _dir_generate(self, direction, sig: Dict[str, str]) -> list:
+        """R188 · 按方向调 evolver 对应入口（表驱动, 防 if-elif 漂移）。
+
+        ★ FORWARD  = diagnose 的签名命中（本 fn 的专有修法）
+        ★ LATERAL  = propose_lateral（同 (c,q) 近亲泛化 — R173 起就在）
+        ★ REVERSE  = reverse_candidates 查"更简单"目标表; **现 RULES
+                     无此类 target ⇒ 如实 []**（不编造候选 — R188
+                     诚实边界: 表驱动登记位, 将来 RULES 长出简化类
+                     target 时这里是唯一入口）
+        """
+        if direction.value == "LATERAL":
+            try:
+                lat = self.evolver.propose_lateral(sig)
+                return [lat] if lat is not None else []
+            except Exception as exc:            # noqa: BLE001 — 留痕不静默
+                self._last_skip = "LATERAL 泛化失败: %s" % exc
+                return []
+        if direction.value == "REVERSE":
+            comps = reverse_candidates(self._dir_rules_index(),
+                                       (sig.get("c") or ""))
+            if not comps:
+                self._last_skip = ("REVERSE: 无更简单 target 可回退"
+                                  "（c=%r; RULES 无简化类 — 如实 []）"
+                                  % sig.get("c"))
+            return []      # 返 [] — 候选位由 RULES 表驱动判"有无";
+                           # 真候选生成仍归 evolver（不在此造 patch）
+        # FORWARD（缺省分支 — 显式三选一, 不猜）
+        try:
+            return list(self.evolver.diagnose([sig]).get("proposals", []))
+        except Exception as exc:                # noqa: BLE001
+            self._last_skip = "diagnose 失败: %s" % exc
+            return []
+
+    def _dir_rules_index(self) -> Dict[str, Dict]:
+        """RULES 表引用（REVERSE 判据的输入 — 不复制, 取真源）。"""
+        ev = self.evolver
+        for attr in ("RULES", "_RULES", "rules"):
+            tbl = getattr(ev, attr, None)
+            if isinstance(tbl, dict):
+                return tbl
+        return {}
+
+    def _dir_ledger_append(self, tid: str, attempts, direction=None,
+                           n_candidates: int = 0, reason: str = "",
+                           terminal: str = "") -> None:
+        """R188 方向台账（观察面 — 自吞异常留痕, 不冒泡断主链）。"""
+        try:
+            import json as _json
+            import os as _os
+            entry = {"gen": "R188",
+                     "task": tid,
+                     "direction": (direction.value if direction is not None
+                                   else "TERMINAL"),
+                     "n_candidates": n_candidates,
+                     "reason": reason,
+                     "terminal": terminal,
+                     "attempts_so_far": [a.direction.value
+                                         for a in attempts]}
+            path = self._dir_archive_path()
+            _os.makedirs(_os.path.dirname(path), exist_ok=True)
+            with io.open(path, "a", encoding="utf-8") as fh:
+                fh.write(_json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:                      # noqa: BLE001 — 观察面自吞
+            pass
+
     def _run_one_task(self, tid: str, round_no: int = 0
                       ) -> Dict[str, Any]:
         from dwc.harness.landing import LandingError
@@ -258,21 +405,15 @@ class Loop:
         except Exception as exc:                    # noqa: BLE001
             self._last_skip = "diagnose 失败: %s" % exc
             return {"chain_verdict": "blocked", "score": score, "landed": False}
+        # ★★★ R188 · DirectionController 接线（R186 搜论文 → R187 A×B 收敛
+        #   → 本处落地）: 上面 try 拿到的 proposals = FORWARD 的候选面;
+        #   空了不直接走 LATERAL 硬编码, 而是沿 fallback 序换向——
+        #   前三次方向尝试各由 evolver 的对应入口生成候选, 停滞即换。
+        #   ★ 分工不变: 本段只决定"试哪个方向"（生成候选）;
+        #     "能不能落地"仍归六门+replay（R174/R181 原样）。
         if not proposals:
-            # ★★★ R173: 无本 fn 规则 ⇒ LATERAL 泛化（同 (c,q) 近亲修法）
-            #   — direction.py R73 边界自己点名的第一落点
-            #   （switch_strategy 语义近似 LATERAL）; 泛化 patch 无效 ⇒
-            #   门/试跑拦 ⇒ 弃权, 不硬过（候选生成 ≠ 采纳）
-            _lat = None
-            try:
-                _lat = self.evolver.propose_lateral(sig)
-            except Exception as exc:            # noqa: BLE001 — 留痕不静默
-                self._last_skip = "LATERAL 泛化失败: %s" % exc
-            if _lat is not None:
-                proposals = [_lat]
-            else:
-                self._last_skip = ("无提案命中（task=%r — 同族泛化也无, "
-                                   "unfixable_now 是一等输出）" % tid)
+            proposals = self._dir_pick_candidates(tid, sig, round_no, score)
+            if not proposals:
                 return {"chain_verdict": "blocked", "score": score,
                         "landed": False}
         # ★★★ R174 · replay 选择面（稿⑥§②+§2.7: 候选集必含 current,

@@ -81,12 +81,24 @@ def test_known_task_lands(loop):
 
 
 def test_unknown_task_abstains(loop):
-    """★★ rules_known=false ⇒ 无提案 ⇒ blocked 弃权（如实, 不编修法）。"""
+    """★★ rules_known=false ⇒ 无提案 ⇒ blocked 弃权（如实, 不编修法）。
+
+    ★★★ R188 改正: 现由 DirectionController 沿 fallback 序试完三方向
+      才 blocked ⇒ _last_skip 文案从「无提案命中（同族泛化也无）」变为
+      「三方向全败（terminal — R3）」。**被测行为语义不变**（landed
+      False + store 未动）, 变的是描述 — 如实更新断言而非改产品迁就
+      旧字面（用户纪律: 实现对齐设计, 不反向）。
+    """
     tid = "code_fix_004"     # fibonacci — RULES 无键
     out = loop._run_one_task(tid, round_no=1)
     assert out["landed"] is False
-    assert "无提案命中" in (loop._last_skip or "")
+    assert "三方向全败" in (loop._last_skip or "")
     assert loop.impl_store[tid] == Loop().impl_store[tid]     # store 未动
+
+    # ★★★ R188 新增断言: 三方向**都真试过**（链被走满 — 不是空转）
+    dirs = [a.direction.value for a in
+            loop._dir_attempts.get(tid, [])]
+    assert set(dirs) == {"FORWARD", "LATERAL", "REVERSE"}, dirs
 
 
 def test_registry_none_falls_back_to_builtin(loop):
