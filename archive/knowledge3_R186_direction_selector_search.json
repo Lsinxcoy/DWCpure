@@ -1,0 +1,66 @@
+{
+ "round": "R186 · direction 选择器前沿论文搜索（本地53篇全grep + arXiv 5组检索; 修 R73 半错判定; 未动代码）",
+ "date": "2026-10-11",
+ "r73_correction": "R73 裁『设计零策略描述』半错 — 本地库 2609.04128 §5.5 原文就有策略（random order + cross-mode fallback + 全败终止）; R73 只核了 EVOLUTION/ALL_REPOS 没核论文正文",
+ "recommended": "方案A（EvoTS×04128 互证）: 停滞判定=无效 或 增益≤噪声带(0.01 同源) ⇒ 换向; 每任务三方向随机序, 全败终止记账。零训练成本, Loop 已有素材齐（score 序列/噪声带/ℒ_t 台账）",
+ "verify": "搜索报告 docs/papers/DIRECTION_SELECTOR_SEARCH_2026-10-11.md; 无代码改动",
+ "inheritance": {
+  "gen": 186,
+  "at": "2026-10-11T23:00:00+08:00",
+  "parent_gen": 185,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 198,
+   "pytest": 1284,
+   "inheritance_gen_prev": 185
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "search report only — no code change",
+   "files": [
+    "docs/papers/DIRECTION_SELECTOR_SEARCH_2026-10-11.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "53 local papers grepped (8 hit, each read) + 5 arXiv query rounds",
+     "claim": "2609.04128 §5.5 (random order + cross-mode fallback + terminate on all-fail); 2608.27287 Astar (S@1 0.6786); 2608.17933 EvoTS (stagnant = invalid or gain<=threshold => switch); 2602.10233/2601.20539/2606.15545 indirect"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "R73 判定复核",
+     "claim": "R73 'design gives zero strategy description' was HALF WRONG — 2609.04128 §5.5 in the local library itself carries the strategy verbatim; R73 only checked EVOLUTION/ALL_REPOS not the paper body"
+    }
+   ],
+   "numbers": {
+    "papers_local": 53,
+    "papers_hit": 8,
+    "arxiv_queries": 5
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "8923669f",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "search report covers local library exhaustively (no sampling)",
+   "verdict": "accepted",
+   "evidence_ref": "report itself is the deliverable; recommended plan A (stagnation detection + fallback chain) awaits user ruling before code",
+   "user_decision": "user ordered the search across local library + all findable papers (2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
