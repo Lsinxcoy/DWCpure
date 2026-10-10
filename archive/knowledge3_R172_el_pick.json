@@ -1,0 +1,75 @@
+{
+ "round": "R172 · task selection upgrade — delta-theta ordering + EL state machine (same-source wiring, not invention)",
+ "date": "2026-10-11",
+ "what": "Loop task pick evolved from mechanical rotation (round_no % n, rules_known first) to weakness.task_delta_map ordering + el_sched.decide_from_rate (2609.04128 eq.2 three-segment state machine) — same-source instance as core.DWC._el_pick (world tree pool), now also on the dev task pool (one mechanism two pools, not a second strategy)",
+ "not_invention": [
+  "R73 boundary kept: evolution-direction 'when to pick which' still has NO design basis (EVOLUTION 8.3 / ALL_REPOS concluded zero strategy) => direction stays enum-only; this round wires TASK SAMPLING (EL) not direction selection — different layers, do not conflate as 'direction done'",
+  "el_sched/weakness already existed and are tested (R70/R77) — R172 is wiring only"
+ ],
+ "bugs_fixed": [
+  "first version fed p-hat = mean of ALL task scores => 002/004/005/006 always-0 => mean <= tau => permanently stalled => 001 idle for 19 rounds (probe caught); correct caliber: p-hat = CURRENT picked env's latest score (EL judges the current environment, paper eq.2 semantics)",
+  "TaskScorePoint has no 'passed' bool — the score field itself is k_passed/n_checks in [0,1] (measured field list)"
+ ],
+ "honest_observation": "20-round probe: EL stalled 9 rounds on 002 (unfixable-now task) before generation advanced — paper eq.2 semantics (stuck => status frozen); R172 does NOT invent a skip-on-stuck rule (no basis) — recorded as real behavior",
+ "verify": "pytest 1189 (1184+5) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 172,
+  "at": "2026-10-11T09:30:00+08:00",
+  "parent_gen": 171,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 180,
+   "pytest": 1184,
+   "inheritance_gen_prev": 171
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Loop._pick_task (delta ordering + EL decide_from_rate) + dev-pool p-hat caliber fix + rules_known mechanical priority retired",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "tests/test_r172_el_task_pick.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r172_el_task_pick.py (5 tests)",
+     "claim": "baseline compat / EL state real / p-hat current-env caliber (stall lock) / stall freezes index / direction boundary kept"
+    },
+    {
+     "type": "test",
+     "ref": "2609.04128 eq.2 (docs/papers) + el_sched.py R70 lock",
+     "claim": "three-segment state machine with cited constants B=8 tau=6/8"
+    }
+   ],
+   "numbers": {
+    "pytest": 1189,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1189 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "20-round probe: delta-order picks, EL stalls per paper",
+   "user_decision": "R171-R173 sequential push (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

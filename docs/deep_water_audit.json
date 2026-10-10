@@ -57,8 +57,8 @@
    "name": "δ_θ 残差难度（weakness 器官⑥）",
    "status": "live",
    "semantic": null,
-   "code_hits": 41,
-   "wire_hits": 12,
+   "code_hits": 46,
+   "wire_hits": 15,
    "code_evidence": [
     "src\\dwc\\core.py:379:from dwc.organs.weakness import task_delta_map",
     "src\\dwc\\core.py:380:self._delta_map = task_delta_map(",

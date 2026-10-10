@@ -84,6 +84,11 @@ class Loop:
         #     task 恒过 ⇒ 闭环空转 — R171 实测 12 轮 n_landed=0 的根因）
         self.impl_store: Dict[str, str] = {}
         self.impl_floor = str(impl_floor or "golden")
+        #: ★ R172: EL 调度状态（与 core.DWC 同款 — 双池共用机制不分裂）
+        self.el = None
+        self._el_last = None
+        self._el_token = -1
+        self._el_last_task: Optional[str] = None    # ★ R172: p̂ 归因环境
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -131,16 +136,18 @@ class Loop:
         tasks = self._dev_tasks()
         if not tasks:
             raise LoopError("dev split 无锚点任务 ⇒ 无任务面可转")
-        # ★ R170: rules_known 优先排（broken_dev 自报的修法覆盖）—
-        #   这不是"发明 direction 选择器"（R73 仍有效: 价值优先/频次优先
-        #   无设计不实现）, 是 **bootstrap 机械默认**: 有 RULES 的排前,
-        #   让闭环先见到"修成功"而非连续弃权。同等 known 内仍机械轮转。
-        if getattr(self, "rules_known", None):
-            _rk = self.rules_known
-            _head = [t for t in tasks if _rk.get(t)]
-            _tail = [t for t in tasks if not _rk.get(t)]
-            tasks = _head + _tail
-        sel = [tasks[round_no % len(tasks)]]    # ★ 机械轮转（R73 裁决）
+        # ★★★ R172: task 选择从「机械轮转」升级为 **δ_θ 排序 + EL 状态机**
+        #   —— **不是发明 direction 选择器**（R73 仍有效: 三方向"何时选
+        #   哪个"的设计判据全文未给 ⇒ 保持不造）; 接的是**已有据实现**:
+        #   · weakness.task_delta_map（残差难度 — 罕见失败签名族优先）
+        #   · el_sched.decide_from_rate（2609.04128 式 2 三段状态机）
+        #   · core.DWC._el_pick 同源实例化（世界树候选池已在用, 本处是
+        #     dev 任务池的同一模式 — 同机制双池, 不另立策略）
+        # ★ 纪律: 无判分历史（δ 全 0 + observed 未动）⇒ 原机械序（接线
+        #   不改变"没数据时"的行为 — core._el_pick 同款保底）; R170 的
+        #   rules_known 机械优先**退役**（EL 上位 — 按观测说话比固定
+        #   排序更论文; rules_known 仍留字段供 broken_dev 自报审计）
+        sel = [self._pick_task(tasks)]
         n_landed = 0
         verdicts: List[str] = []
         score_vals: List[float] = []
@@ -415,6 +422,49 @@ class Loop:
         return None
 
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
+    def _pick_task(self, tasks: List[str]) -> str:
+        """★★★ R172: δ_θ 排序 + EL 状态机的任务采样（core._el_pick 同源）。
+
+        ★ 节律（与 core 同款）: judge 判分点数没变 ⇒ **不重复推进** EL
+          （EL 判定绑定观测变化 — 论文「窗口满 B 判一次」的速率口映射）。
+        ★ δ 排序: 任一 task δ>0 ⇒ 降序（罕见失败任务优先探 — 稳定排序,
+          同 δ 保 candidate 原序）; 全 0/无判分 ⇒ 原序（零历史真保底）。
+        ★ EL index: decide_from_rate(p̂, n) 的 index 取 acts[idx-1];
+          index>n（候选收缩）⇒ 拉回 1（不触发 el_sched 的 k>N raise）。
+        ★ insufficient（无观测）⇒ index 不动 ⇒ 旧机械行为（接线前 compat）。
+        """
+        from dwc.organs.el_sched import ELScheduler
+        from dwc.organs.weakness import task_delta_map
+        if self.el is None:
+            self.el = ELScheduler()
+        pts = self.judge.task_scores(split="dev")
+        dmap = task_delta_map(pts, self.judge.store.evidence) \
+            if pts else {}
+        if any(dmap.get(t, 0.0) > 0.0 for t in tasks):
+            tasks = sorted(tasks, key=lambda t: -dmap.get(t, 0.0))
+        n = len(tasks)
+        if self.el.index > n:
+            self.el.index = 1
+        token = len(pts)
+        if token != self._el_token:
+            # ★★★ p̂ 口径（R172 实测纠偏 — probe 抓到卡死 20 轮 idle）:
+            #   EL 判的是**当前环境**的 pass-rate（式2 三段: p̂≤τ ⇒ 停滞
+            #   不动 / p̂>τ ⇒ index 推进）— 首版我喂**全体判分 mean**
+            #   （002/004/005/006 恒 0 ⇒ mean≤τ ⇒ 永久 stalled ⇒ 001
+            #   idle 19 轮）⇒ 正解: **当前被选 task**（EL index 指向的
+            #   环境）的最近判分; 该 task 无判分 ⇒ None ⇒ insufficient
+            #   （没观测过不冒充 — 与原纪律同; core._el_pick 用了 world
+            #   observed_rate 是**世界树单环境**语义, 不是多环境混 mean）
+            _mine = ([p for p in pts if p.task_id == self._el_last_task]
+                     if self._el_last_task else [])
+            _pr = float(_mine[-1].score) if _mine else None
+            self._el_last = self.el.decide_from_rate(_pr, n)
+            self._el_token = token
+        idx = (self._el_last.index if self._el_last is not None else 1)
+        picked = tasks[(idx - 1) % n]
+        self._el_last_task = picked       # ★ 下一轮 p̂ 的归因环境
+        return picked
+
     def _last_history_score(self) -> Optional[float]:
         """★ R170: score_history 末条 score（score_star 的对照锚）。
 
