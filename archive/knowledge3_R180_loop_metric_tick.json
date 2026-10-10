@@ -1,0 +1,79 @@
+{
+ "round": "R180 · Loop ignites the Metric Loop (observation face — read, select, trace; the criterion tree is NOT swapped this round)",
+ "date": "2026-10-11",
+ "what": "Loop._metric_loop_tick + round-exit wiring: every round now runs dev_points_from_store(self.judge) => select and records {picked_key, s, notes, n_points, a_train} into res['metric_pick']; failures leave a why and return None (observation face never blocks the main chain)",
+ "measured": [
+  "r1: dev face was empty at tick time => picked None + honest 'no dev points' why",
+  "r2 onward: 23 real dev points, labels 2 pass / 21 fail; trees judged three-valued; select returned 'no valid candidate better than current => keep' (honest non-action)",
+  "MEASURED FINDING (not a defect): on the dev surface (criterion projection) the implementation-facing ops nonempty_diff/component_known/golden_leak abstain ALWAYS — evidence stores the criterion projection (diffs/success/k/n per R152: points pair with criteria, not implementations), so those ops have no ctx fields by design; the choice set is the 4 criterion-surface ops + trees",
+  "GAP FOUND AND FIXED: Judge delegated task_scores but NOT evidence => on-disk mode (evidence.jsonl) left store._evidence empty => metric_loop skipped EVERY point (false negative). Added the one-line Judge.evidence delegation (same pattern as task_scores — filling an existing hole, not inventing a surface)"
+ ],
+ "boundary": "swapping the Grader tree (i.e. actually changing gate ③ semantics) is deliberately NOT done — that alters the chain's verdict semantics for every candidate and needs its own round with gate-set regression; R180 only lights the ignition wire (observe + select + trace)",
+ "verify": "pytest 1246 (1241+5) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 180,
+  "at": "2026-10-11T17:30:00+08:00",
+  "parent_gen": 179,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 188,
+   "pytest": 1241,
+   "inheritance_gen_prev": 179
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Loop._metric_loop_tick + round-exit metric_pick + Judge.evidence delegation (gap fill)",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "src/dwc/organs/judge.py",
+    "tests/test_r180_loop_metric_tick.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "two-round live run",
+     "claim": "r1 None (empty dev face), r2 23 real points + honest keep-current select"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r180_loop_metric_tick.py (5 tests)",
+     "claim": "round exposes pick / dev-surface abstain discipline / Judge.evidence delegation / tick failure keeps chain alive"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "Judge.evidence gap found by real run",
+     "claim": "without delegation every point was skipped (false negative) — filled one line"
+    }
+   ],
+   "numbers": {
+    "pytest": 1246,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "95d0d390",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1246 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "live 2-round run with real dev points; tree swap deferred to R181",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

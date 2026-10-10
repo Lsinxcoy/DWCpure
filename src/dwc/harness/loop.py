@@ -95,6 +95,8 @@ class Loop:
         self._last_replay_pick: Optional[Dict] = None    # ★ R174 replay 选择痕迹
         self._last_a_train: Optional[float] = None       # ★ R176 A_train 痕迹
         self._last_a_train_why: str = ""                 # ★ R176 缺席原因
+        self._last_metric_pick: Optional[Dict] = None     # ★ R180 Metric Loop 选优痕迹
+        self._metric_loop_why: str = ""                  # ★ R180 缺席/异常原因
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -190,12 +192,19 @@ class Loop:
                      chain_verdict=cv, landed=n_landed > 0,
                      score=score),
             ledger_entries=self._last_ledger_entries)
+        # ★ R180: Metric Loop tick（观察面 — 只读选+留痕, 不换判据树;
+        #   dev 真数据现在已被本轮判分追加（_run_one_task 内 judge.evaluate
+        #   落点）⇒ 此处读的是"含本轮"的 dev 面 — 顺序不能反]
+        self._metric_loop_tick()
         return {"n_candidates": self._last_n_candidates,
                 "chain_verdict": cv,
                 "blocked": self._last_blocked,
                 "landed": n_landed > 0,
                 "score": score,
                 "tasks": sel,
+                "metric_pick": self._last_metric_pick,
+                "metric_loop_why": (self._metric_loop_why
+                                    if self._metric_loop_why else None),
                 "skipped_reason": (self._last_skip
                                    if self._last_skip else None)}
 
@@ -488,6 +497,39 @@ class Loop:
         return None
 
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
+    def _metric_loop_tick(self) -> Dict[str, Any]:
+        """★★★ R180 · Metric Loop 点火（接 R177 引擎 + R179 数据面 — 只读选+留痕）。
+
+        ★ 边界（精准手术 — 本轮不换判据）: 本方法跑 select 拿选优结果,
+          **不改 Grader 的树**（换树 = 改门③判定语义 = 影响链上所有候选
+          ⇒ 须独立轮次验证门组回归; R181 才做"采纳"面）。
+          本轮交付的是**可观测面**: 每轮 dev 真数据上谁该赢、赢多少 ——
+          痕迹落 self._last_metric_pick（daemon 探针/e2e 可读）。
+        ★ 缺席如实化: 无 dev 点/异常 ⇒ why 留痕, picked=None（不是 raise
+          — 观察面不阻断主链; 引擎侧 fail-closed 已在 metric_loop 内）
+        """
+        try:
+            from dwc.organs.metric_loop import (dev_points_from_store,
+                                                select)
+            # ★ Judge 自身委派 store 的 task_scores/evidence（judge.py
+            #   L979/L981）⇒ duck-typing 直接传 self.judge（R180 实测纠偏:
+            #   首版写 hasattr(judge,"store") 分支 — 多余, Judge 面就够）
+            pts, notes = dev_points_from_store(self.judge, split="dev")
+            _at = self._last_a_train
+            res = select(pts, a_train=_at)
+            self._last_metric_pick = {"picked_key": res["picked_key"],
+                                      "s": res["s"], "notes": res["notes"],
+                                      "n_points": notes["n_points"],
+                                      "n_skipped": notes["n_skipped"],
+                                      "a_train": _at}
+            self._metric_loop_why = ""
+            return self._last_metric_pick
+        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+            self._metric_loop_why = ("Metric Loop tick 缺席: %s: %s"
+                                     % (type(exc).__name__, exc))
+            self._last_metric_pick = None
+            return {"picked_key": None, "why": self._metric_loop_why}
+
     def _a_train(self, component: str, target: str
                  ) -> Tuple[Optional[float], Dict[str, Any]]:
         """★★★ R176 · A_train（2607.12790 式2 的 op 池共识一致度 — DWC 版）。

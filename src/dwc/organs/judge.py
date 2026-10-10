@@ -981,6 +981,19 @@ class Judge:
         """TS3 口①: 逐任务分数序列（第⑦步 / δ_θ 的数据源）。"""
         return self.store.task_scores(split=split, wm_version=wm_version)
 
+    def evidence(self, ref: str) -> Dict[str, Any]:
+        """★★ R180: TS3 口③ evidence 委派（store.evidence 的 Judge 面）。
+
+        ★ 补缺口的动因（实测 — 不是发明新面）: R180 Metric Loop 接真数据
+          面时发现 Judge 委派了 task_scores 但**没委派 evidence** ⇒
+          metric_loop.dev_points_from_store 拿 Judge 用时 evidence(ref)
+          全抛 JudgeError（落盘模式下 store._evidence 内存表是空的 —
+          证据在 evidence.jsonl 里, record() 的 else 分支才进内存表）
+          ⇒ R179 的"点+证据成对"纪律在 Judge 面断了半边。
+        ★ 委派 = 同 task_scores 模式的一行（不重载/不改 store 语义）。
+        """
+        return self.store.evidence(ref)
+
     def group_scores(self, split: str, round_index: Optional[int] = None):
         """TS3 口②: 按能力组聚合（均值; 无条目组不出现 — 不装 0）。"""
         return self.store.group_scores(split=split, round_index=round_index)
