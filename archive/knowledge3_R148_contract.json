@@ -1,0 +1,82 @@
+{
+ "round": "R148 · FGGM 契约检查（门②）— 七字段+性质 4 fallback 必填+两实例逐字映射+一阶面缺口在档",
+ "date": "2026-10-10",
+ "★ 论文口径": [
+  "七字段 Eq.15 BNF: id;GMid;typeSig;(Φ_l,Ψ_l);f_p;f_d;info",
+  "四性质 §4.2: Flexibility(契约由 planner 现场合成)/Parameter-Independent(θ 无关)/Local Objective/fallback 必要性（无它拒绝采样耗尽）",
+  "Alg 4 check = 机械检查器（不理解契约意义 — 理解在验证器, DWC 未接）"
+ ],
+ "★ 实现 organs/contract.py": [
+  "FGGM 声明（七字段 + 确定性 check (x,y)->bool + f_d fallback 必填[性质 4]）— 只认确定性检查器, LLM 自评不进本模块",
+  "ContractRegistry: 注册/注销/check 三值（no_contract[None] ≠ 违规[False] — X2）",
+  "★ 两实例逐字映射: ① boundedParam Ψ_l:(l≤f≤u) + f_d=clamp ② dafnyAnnotate Φ_l:parse(p) + f_d=p（DWC 反射性子集 y==x — RRSI 的『回退到原程序』在纯函数域等价形态）"
+ ],
+ "★ 修实现两处": "① __post_init__ 死循环（for f in FGGM_FIELDS 里找 'check' — check 不在七字段里 ⇒ 永假）⇒ 显式判 f_d/check ② bounded_param fallback 单参 ⇒ 两参 (x,y) 对齐论文 f_d(x,y) 签名（测试抓到 TypeError）",
+ "★ 缺口在档": "一阶验证器（Lemma/Thm 证明面）未接 ⇒ verify_gap not_instrumented（契约检查≠契约证明 — 不假装有 CEGIS 闭环）",
+ "验证": "pytest 1015(1008+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 148,
+  "at": "2026-10-10T16:40:00+08:00",
+  "parent_gen": 147,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 156,
+   "pytest": 1008,
+   "inheritance_gen_prev": 147
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/contract.py 新建(FGGM 七字段+机械 check+fallback 注册+两实例映射)",
+   "files": [
+    "src/dwc/organs/contract.py",
+    "tests/test_r148_contract.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r148_contract.py (7 tests)",
+     "claim": "七字段/f_d 必填/两实例逐字/三值/重注册拒/缺口在档"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2603.25111.md L56-83",
+     "claim": "Eq.15 BNF + 四性质 + 两实例原文"
+    },
+    {
+     "type": "test",
+     "ref": "grep FGGM src/ 零命中（R148 前）",
+     "claim": "门②真缺口坐实"
+    }
+   ],
+   "numbers": {
+    "pytest": 1015,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1015 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续 逐步推进 不再批准』→ 门② contract"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
