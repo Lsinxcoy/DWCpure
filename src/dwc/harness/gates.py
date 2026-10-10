@@ -114,22 +114,29 @@ def _g2_contract(f: TermFacts) -> GateOutcome:
 
 
 def _g3_drawback(f: TermFacts) -> GateOutcome:
-    """③ drawback: judge verdict 投影 (output=pass_rate, ctx=not_evaluated)。"""
+    """★★ ③ drawback: R166 起走 **op 池**（原匿名投影 op 收编为池员）。
+
+    ★ 兼容不变量（实测保旧绿）: pass_rate 在场时池树结论 == 旧匿名版
+      （pass_rate<1 ⇒ drawback; ==1 ⇒ clean）— 因为弱 op 逻辑同源,
+      其余 op 在 run_term 形态 ctx 下全 abstain ⇒ 被树排除。
+    ★ 新增判定面: candidate_diff/vocabulary/edits/leakage 在场时,
+      真检测器（nonempty_diff/component_known/golden_leak/root）开判。
+    """
     if f.pass_rate is None:
         return GateOutcome("drawback", GATE_BLOCKED,
                            {"why": "judge 未判（pass_rate None）⇒ ③不判"})
-    from dwc.organs.drawback import CLEAN, DRAWBACK, Grader, Node, Op
-    # 确定性 op（不引 LLM 判断 — 抗共谋, R149 口径）: 非全过 ⇒ drawback
-    has_fail = f.pass_rate < 1.0
-    op = Op(name="pass-rate-weak", fn=lambda t, y, c: (
-        DRAWBACK if has_fail else CLEAN))
-    g = Grader()
-    g.register_op(op)
-    g.set_tree(Node(kind="leaf", op="pass-rate-weak"))
-    out = g.grade("term", f.pass_rate, {"not_evaluated": f.not_evaluated})
+    from dwc.organs.ops import build_grader, ctx_from_facts, evaluate_pool
+    g, _tree = build_grader()
+    ctx = ctx_from_facts(f)
+    ctx["not_evaluated"] = f.not_evaluated            # 计数面透传
+    rep = evaluate_pool(g, ctx)
+    out_ok = (rep.tree_verdict == "clean")            # 只有 clean 过门
     return GateOutcome("drawback",
-                       GATE_PASSED if out["ok"] else GATE_BLOCKED,
-                       {"grade": out, "not_evaluated": f.not_evaluated,
+                       GATE_PASSED if out_ok else GATE_BLOCKED,
+                       {"grade": {"verdict": rep.tree_verdict, "ok": out_ok},
+                        "per_op": rep.per_op,
+                        "n_nodes": rep.n_nodes,
+                        "not_evaluated": f.not_evaluated,
                         "note": "clean=没找到已知缺点（非认证正确 — §2.1）"})
 
 

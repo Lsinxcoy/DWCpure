@@ -67,8 +67,11 @@ def test_full_round_records_winner():
     p = _FakeProposal("pp")
     cands = [_Cand(patch="clean = 1", component="prompt",
                    grounding=[{"diff_id": "d1"}], dimension="D1")]
+    # ★ R166: vocabulary 须含 component（占位词表与组件不同域 ⇒
+    #   component_known op 真 veto — 门③从投影 op 升级后这是**正确**
+    #   行为: prompt ∉ ("t001",) 就是归属不明的干预）
     r = run_round(cands, t=3, proposal=p, ledger=led,
-                  vocabulary=("t001",), **_full())
+                  vocabulary=("t001", "prompt"), **_full())
     assert isinstance(r, RoundResult)
     assert r.chain["verdict"] == "applicable_passed_with_na"
     assert p.state == "gated"
@@ -203,7 +206,7 @@ def test_pipeline_landing_integration():
     out = run_round([_Cand(patch="clean = 1", component="prompt",
                            grounding=[{"diff_id": "d1"}])],
                     t=3, proposal=p, ledger=CreditLedger(),
-                    vocabulary=("t001",), pass_rate=1.0, score_star=0.5,
+                    vocabulary=("t001", "prompt"), pass_rate=1.0, score_star=0.5,
                     delta_s=0.5, delta_c=0.01, noise_band=0.01,
                     domain_guard_ok=True,
                     baseline={"in_score": 0.5, "held_out_score": 0.5},

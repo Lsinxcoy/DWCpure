@@ -1,0 +1,83 @@
+{
+ "round": "R166 · drawback op pool + fixed root — gate3 from single projection op to six-op pool",
+ "date": "2026-10-11",
+ "design": [
+  "paper evidence: 2607.12790 §2.3 — three cost layers (static/execution/judge ops) + fixed non-evolving root per family + Eq1 tree (R149 already implemented)",
+  "no tree rebuild: add op pool (six ops) + fixed root as conjunction head (construction guarantee, not convention)",
+  "anonymous pass-rate-weak lambda absorbed as named op_pass_rate_weak (lineage explicit: aggregate projection, not paper-defined detector) => chain behavior invariant (old green kept)",
+  "ctx_from_facts projection bridge (no recompute; TermFacts has no top-level component => take from first edit)"
+ ],
+ "six_ops": "root_parse_ok (fixed root) / judge_verdict (judge Verdict) / nonempty_diff (structure) / component_known (vocabulary) / golden_leak (R147 leakage) / pass_rate_weak (R152 absorbed)",
+ "attribution_fix": "op_component_known first version treated EMPTY vocabulary () as 'checked and out-of-vocab' => comp in set() = False => drawback => run_term no-candidate-stream form got wrongly vetoed. Fix: empty vocab => abstain (no vocab to check != out-of-vocab — same family as R153)",
+ "regression_localization": "git stash my changes => old tests 10/10 green => regression in R166 => per-gate print => test_r156 vocabulary=('t001',) placeholder differs from component 'prompt' => gate3 CORRECTLY vetoes => fix TEST (add vocab), implementation right",
+ "cost_correction": "first test expected 5 (leaves only) => actual 9 (5 leaves + 4 and-nodes) => after absorbing 6th op = 11 — paper lambda*C(e) C is expression size => connective nodes count",
+ "observability": "chain detail.per_op six values + n_nodes (gate3 from blackbox to per-op visible)",
+ "verify": "pytest 1148 (1138+10) · gate 8/8 · e2e RC=0",
+ "inheritance": {
+  "gen": 166,
+  "at": "2026-10-11T04:10:00+08:00",
+  "parent_gen": 165,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 174,
+   "pytest": 1138,
+   "inheritance_gen_prev": 165
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "organs/ops.py new (six-op pool + fixed root + ctx projection) + gates._g3_drawback switched to pool",
+   "files": [
+    "src/dwc/organs/ops.py",
+    "src/dwc/harness/gates.py",
+    "tests/test_r166_ops_pool.py",
+    "tests/test_r156_pipeline.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r166_ops_pool.py (9 tests)",
+     "claim": "six ops/root first/three-valued/double report/empty-vocab abstain/chain compat/new detector veto"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2607.12790.md §2.3",
+     "claim": "op pool three cost layers + fixed root paper basis (verbatim)"
+    },
+    {
+     "type": "test",
+     "ref": "R149/R152 old tests 23/23",
+     "claim": "pool replaced anonymous op without breaking old green"
+    }
+   ],
+   "numbers": {
+    "pytest": 1148,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1148 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + chain per_op",
+   "user_decision": "R166 drawback op pool"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
