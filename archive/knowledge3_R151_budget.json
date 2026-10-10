@@ -1,0 +1,79 @@
+{
+ "round": "R151 · 退火编辑预算（门⑥）— 式 4 cos 议程落地; state.b_t 空挂字段找到真议程",
+ "date": "2026-10-10",
+ "★ 起点发现（grep 坐实）": "foundation/state.py L63 有 b_t: int = 0 字段（§9 第2项）但**全仓无写入方**（grep b_t 除定义+注释外零命中）⇒ 空挂字段 — 声称有 vs 实测没有（第七次兑现）",
+ "★ 实现 organs/budget.py": [
+  "schedule: 式 4 逐字 b_t = ⌈b_min + (b_max−b_min)·½(1+cos(πt/T))⌉（t∈[0,T] 议程坐标; ceil 前减 1e-12 防 6.0000000001→7 的浮点误升）",
+  "端点: t=0 ⇒ b_max（最宽）, t=T ⇒ b_min=1（末轮只允许一个可归因编辑 — 原文显式）",
+  "check: (component, hunk) 精确同键去重 + within_budget（对齐 R42 信用日志合并口径 — 不做语义相似合并）",
+  "anneal_report: 全议程展开 + **单调不增结构断言**（议程实现错 ⇒ 抛 BudgetError, 不等测试发现）"
+ ],
+ "★ 边界（与 state.b_t 各司其职）": "议程在本模块; state.b_t 字段仍由调用方按议程填值（本模块不顺手改别的模块字段语义 — 防 R146 顺手牵羊反例）",
+ "★ 论文理由（治什么病）": "不约束的 proposer 会把很多互不相关的修改捆成一个候选 ⇒『any measured change is difficult to attribute to a particular mechanism』（归因链断裂 = 信用分配崩）",
+ "验证": "pytest 1040(1032+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 151,
+  "at": "2026-10-10T18:50:00+08:00",
+  "parent_gen": 150,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 159,
+   "pytest": 1032,
+   "inheritance_gen_prev": 150
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/budget.py 新建(式4 议程+check 判定+结构断言)",
+   "files": [
+    "src/dwc/organs/budget.py",
+    "tests/test_r151_budget.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r151_budget.py (8 tests)",
+     "claim": "式4 逐字/端点/契约/单调结构/去重判定/EditItem/空挂入档/中点数学"
+    },
+    {
+     "type": "test",
+     "ref": "grep b_t src/ 无写入方（R151 前）",
+     "claim": "state.b_t 空挂坐实"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md L240",
+     "claim": "式 4 + b_min=1 原文"
+    }
+   ],
+   "numbers": {
+    "pytest": 1040,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1040 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续 逐步推进 不再批准』→ 门⑥ budget"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
