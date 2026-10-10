@@ -1,0 +1,83 @@
+{
+ "round": "R153 · 候选环入口（Candidate→门组适配器）— 六门全拿真对象; R152 run_term 形态之外的第二条路",
+ "date": "2026-10-10",
+ "★ 取证起点": "candidates.py L57 Candidate（patch/source/grounding/rule/target/m/component/dimension）+ L203 generate(sig, diffs) — **候选对象层早已 live**（三条纪律: 无 diffs 不产候选/必带 grounding/推不出 need_llm）⇒ R153 不重造候选, 只补『Candidate→门组输入』的投影面（缺口坐实: R152 六门在无候选形态下 ①⑥ 常 na/blocked）",
+ "★ 实现 harness/candidate_bridge.py": [
+  "to_facts: Candidate[] → TermFacts（candidate_diff=patch 逐字拼接[不重写] / edits=[EditItem(component, hunk)]）",
+  "hunk 优先级: grounding diff id（可归因到具体证据）> patch 前 80 字符哨兵『…』（**显式降级** — 不假装精确归因）",
+  "vocabulary 外置: 门①词表由调用方给（不从 patch 猜词 — 猜词是语义判断越权, G2）",
+  "run_candidate_gates: 一步到位（Candidate[] + 口径参数 → 门组链 + bridge 元数据）"
+ ],
+ "★ 两形态分工（不是替代）": [
+  "run_term 形态（R152）: 六层因果链无候选 ⇒ ①⑥ na/blocked 如实",
+  "候选形态（R153）: Candidate 在场 ⇒ ①⑥ 可判真过/真否决",
+  "同一门组、两条入口 — 与 R138『remember/dream 双路由』同型的分流纪律"
+ ],
+ "★ 测试": "7 tests: 投影逐字/hunk 降级哨兵/契约三拒/门①⑥ 可判/泄漏一票否决穿过链/20 编辑超 b_max ⇒ ⑥ blocked/降级在档",
+ "验证": "pytest 1057(1050+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 153,
+  "at": "2026-10-10T20:10:00+08:00",
+  "parent_gen": 152,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 161,
+   "pytest": 1050,
+   "inheritance_gen_prev": 152
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/candidate_bridge.py 新建(Candidate→TermFacts 投影+六门候选形态可判)",
+   "files": [
+    "src/dwc/harness/candidate_bridge.py",
+    "tests/test_r153_candidate_bridge.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r153_candidate_bridge.py (7 tests)",
+     "claim": "投影逐字/哨兵降级/契约/①⑥ 可判/泄漏否决/预算超限"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/candidates.py L57/L203",
+     "claim": "Candidate+generate 早已 live ⇒ 不重造, 补投影"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/gates.py（R152）",
+     "claim": "复用门组编排, 只加第二入口"
+    }
+   ],
+   "numbers": {
+    "pytest": 1057,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1057 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ 候选环入口"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
