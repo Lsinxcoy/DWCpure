@@ -1,0 +1,80 @@
+{
+ "round": "R157 · 停滞激活探索编排 — σ_t/𝒰_t/ℰ_t 接候选环（伪码 line 9 三元素齐才激活）",
+ "date": "2026-10-10",
+ "★★ 声称 vs 实测 #10（更正上轮末判断）": "上轮我说『σ_t 停滞检测是 §3.3 正则器(3) 唯一缺口』— **错**: evolver 早有 stall_signal(L773 式13 第一项+≤边界+w/δ 不默认/历史不足不判) + exploration_signal(L811 ℰ_t 三元) + unexplored_components(L582 𝒰_t) + e2e_loop L407/L418/L515 三处消费。**真缺口 = harness 编排面没接**: R156 pipeline 五面跑通但不吃停滞信号 ⇒ 停滞时仍全组件照常选, 违背『仅停滞时保留预算给未探索组件』",
+ "★ 实现 harness/exploration.py": [
+  "plan(): 全问 evolver（σ_t/𝒰_t/m_draft 位）+ 编排输出 ExplorationPlan（active/explore_components/budget/notes）",
+  "★ 三元素齐备才 active: σ_t=1 ∧ 𝒰_t≠∅ ∧ draft 在位（evolver 的 ready 口径透出）",
+  "reserve_fraction ∈ [0,1]（管理参数, 论文不给值 — 显式值域, 非隐式默认）",
+  "tag_candidates: 逐候选打 explore/exploit（组件 ∈ 𝒰_t 才 explore）",
+  "★ 诚实: 未激活 ⇒ notes 带 why_inactive（不报成『没有探索面』 — 与 R142 『未评价≠infra 失败』同族）"
+ ],
+ "★ 边界": "本模块不重算任何信号（σ_t/𝒰_t 真源唯一在 evolver — 判定在 organ / 编排在 harness, G1 分工）; liquidity 真源 vs 近似 T_source 透出（不混报）",
+ "★ 测试坑（1 次）": "accepted_rules 我传 dict ⇒ evolver unexplored_components 期望 List[Dict]（RULES 条目列表）⇒ AttributeError('str' has no get) — **调用方类型口径须先读 evolver 签名**, 改 List[Dict] 后 8/8",
+ "验证": "pytest 1086(1086 即 1078+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 157,
+  "at": "2026-10-10T22:50:00+08:00",
+  "parent_gen": 156,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 165,
+   "pytest": 1078,
+   "inheritance_gen_prev": 156
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/exploration.py 新建(σ_t/𝒰_t 编排+三元素齐备才激活+打标)",
+   "files": [
+    "src/dwc/harness/exploration.py",
+    "tests/test_r157_exploration.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r157_exploration.py (8 tests)",
+     "claim": "停滞激活/历史不足不激活/进展不激活诚实/打标/U 源透出/份额契约/在档"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py L773/L811/L582",
+     "claim": "σ_t/ℰ_t/𝒰_t 早已 live ⇒ 不重造, 补编排"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/pipeline.py（R156）",
+     "claim": "被接线的候选环（本模块补停滞面）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1086,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1086 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续逐项推进』→ 停滞探索编排"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
