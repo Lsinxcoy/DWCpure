@@ -64,7 +64,59 @@ def patch_reflexive_contract() -> FGGM:
     return dafny_annotate_identity()
 
 
-def check_against_facts(reg: ContractRegistry, facts: Any
+def _default_llm():
+    """★ R178: 默认 LLM 客户端（未配置 ⇒ planner.craft 自降 no_llm）。"""
+    from dwc.llm.client import LLMClient
+    return LLMClient()
+
+
+def _task_view(facts: Any) -> Dict[str, Any]:
+    """★ R178: TermFacts ⇒ planner 任务面（白名单投影 — 不搬 evidence 全文）。
+
+    ★★ R178 实测纠偏: TermFacts 是**判据事实投影**（无 task 身份字段 —
+      R170 起该契约面未带任务名/维度）⇒ 任务面如实取 candidate_diff 头
+      + n_edits（本就在场的两个量 — 不发明事实, 也不为 planner 改判据
+      契约）。diff 头是"任务现状"的最真投影（含 fn/函数体片段 ⇒ 判断
+      编辑规模的语义在场）。
+    """
+    edits = getattr(facts, "edits", None) or []
+    return {"n_edits": len(edits),
+            "diff_head": str(getattr(facts, "candidate_diff",
+                                     "") or "")[:80],
+            "vocabulary": list(getattr(facts, "vocabulary",
+                                       ()) or ())[:8],
+            # ★★ R178: 显式靶（否则 LLM 约束错对象 — 实测把 diff_head 当
+            #   enum members ⇒ 回灌两次仍 ⊥）。本次现场层的被约束量 =
+            #   编辑数（与全局 budget_window 同靶, 但现场合成 + 真判）
+            "quantity": {"name": "n_edits", "value": len(edits)}}
+
+
+def _template_params_for(f: Any) -> Tuple[Any, ...]:
+    """★ R178: FGGM ⇒ 该模板的 check 参数组 x（不猜 — 从 id 反解）。
+
+    ★ 为什么不传 (): bounded_param/delta_band 的 check 吃 x[0]/x[1]
+      （=l/u）⇒ () 会 IndexError（实测）; enum_member 吃 x[0]（=members）
+    ★ id 反解: boundedParam(l,u)/deltaBand(l,u) 从逗号分隔取两段;
+      enumMember(n) 无参数内容 ⇒ ()（其 check 吃 members, 但我们不持有
+      原始 members ⇒ 对 ((),y) 会坐 IndexError ⇒ 归 no_input 留痕）
+    """
+    fid = str(getattr(f, "id", ""))
+    if "(" not in fid:
+        return ()
+    inner = fid[fid.index("(") + 1: fid.rindex(")")] if ")" in fid else ""
+    if fid.startswith("enumMember"):
+        return ()                       # members 不在 id 里 ⇒ 交给 no_input
+    parts = [p.strip() for p in inner.split(",") if p.strip()]
+    if len(parts) == 2:
+        try:
+            return (float(parts[0]), float(parts[1]))
+        except ValueError:
+            return ()
+    return ()
+
+
+def check_against_facts(reg: ContractRegistry, facts: Any, *,
+                        planner_layer: bool = False
                         ) -> Dict[str, Any]:
     """★★ TermFacts ⇒ 逐契约 check（门②升级的判定面 — 两层合报）。
 
@@ -111,6 +163,51 @@ def check_against_facts(reg: ContractRegistry, facts: Any
                 out["n_ok"] += 1
             else:
                 out["n_violation"] += 1
+    # ── ★ R178 · planner 现场层（2603.25111 硬规则: 每个 GM 调用必须
+    #    包在已验证 FGGM 内 — 全局表没覆盖的被约束量 ⇒ planner 现场合成
+    #    ⇒ 本地 validate ⇒ 包住该候选判定; 默认关 — 见 _task_view 注释）
+    if planner_layer:
+        try:
+            from dwc.organs.planner import craft as _craft
+            f, tr = _craft(_task_view(facts), _default_llm(), budget=2)
+            if f is None:
+                out["per_contract"]["planner_live"] = {
+                    "status": "no_contract",
+                    "note": ("planner 未合成 ⇒ 现场层缺席（⊥ — 不冒充满足, "
+                            "也不是违规）: %s" % tr.get("why", "")),
+                    "trace": tr.get("trace", [])}
+            else:
+                _y = len(edits)          # ★ 被约束量 = 编辑数（同全局层口径）
+                # ★★ R178 实测纠偏: FGGM.check(x,y) 的 x = **FGGM 自身
+                #   参数组**（contract.bounded_param 的 x[0]/x[1] 就是
+                #   l/u）— 传 () 会 IndexError（实测踩过）。planner 模板的
+                #   参数在 build 时固化成 id/psi, 但 check 仍按 (x,y) 协议
+                #   吃 x ⇒ **把模板参数组回传**: enum_member 的 x=(members,)
+                #   · bounded/delta_band 的 x=(l,u)。无参模板才 ().
+                _px = _template_params_for(f)
+                try:
+                    _r = f.check(_px, _y)
+                except (TypeError, IndexError) as exc:
+                    _r = None
+                    _probe_err = "%s: %s" % (type(exc).__name__, exc)
+                out["per_contract"]["planner_live"] = {
+                    "status": ("checked" if _r is not None
+                               else "no_input"),
+                    "ok": _r, "id": f.id,
+                    "err": (locals().get("_probe_err")
+                            or None),
+                    "note": ("现场层: planner 合成 FGGM 对编辑数 %d 判"
+                            "（attempts=%d, 用完即弃 — 不进全局表; "
+                            "与全局 budget_window 同靶但现场合成 = 论文"
+                            "FGGM 硬规则的 DWC 实例）" % (_y, tr.get(
+                                "attempts", 0)))}
+                if _r is not None:
+                    out["n_checked"] += 1
+                    out["n_ok" if _r else "n_violation"] += 1
+        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+            out["per_contract"]["planner_live"] = {
+                "status": "error",
+                "note": "planner 现场层炸: %s: %s" % (type(exc).__name__, exc)}
     # ── 现场层（反射契约 — 对 diff 本身）──
     if has_diff:
         d = dafny_annotate_identity(diff)          # 现构, 不入全局表

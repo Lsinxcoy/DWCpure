@@ -61,7 +61,13 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
             type_sig="(S: set[str]) -> bool",
             phi_l="", psi_l="y in S",
             info="R175 enum_member 模板（COMPONENT_VOCAB 取值域的形式化）",
-            check=lambda x, y: (str(y) in set(x[0])),
+            # ★★ R178 实测纠偏: 初版 `str(y) in set(x[0])` 吃 **x 参数** 的
+            #   members — 但 FGGM.check(x,y) 的 x 是"契约自身参数组",
+            #   planner 模板的参数在 build 时已固化（id/psi 里的就是）⇒
+            #   构造后 FGGM 不持有原始 members ⇒ x=() 时 IndexError（实测
+            #   踩过）。正确形态: 参数进**闭包**（build 时 captured）, check
+            #   不依赖 x ⇒ 与 bounded_param 的 check(x,y) 协议兼容（x 可 ()）
+            check=lambda x, y: (str(y) in set(p["members"])),
             fallback=lambda x, y: y),
     },
 }
@@ -211,8 +217,20 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
     ★ 实现用 list-join（R175 教训: 字符串拼接里的 \n 经多层转义
       容易断串 — 实测踩过; join 形态无转义层）。
     """
+    q = task_view.get("quantity")
     lines: List[str] = [
         "你是 DWC 的契约合成器（planner）。为下面的任务面现场合成一份判定契约。",
+    ]
+    if q:
+        # ★★ R178 实测纠偏: 不带靶 ⇒ LLM 曾把 diff_head 当 enum_member
+        #   的 members（约束对象错）⇒ 回灌两次仍错 ⇒ ⊥。任务面必须显式
+        #   声明"被约束量是什么、当前值多少"（论文每次调用现场的
+        #   in-context 上下文）— 不给答案, 只给靶
+        lines.append(
+            "★★ 本次被约束量: %r（当前值 %r）— 契约必须约束**这个量**, "
+            "别的字段只是背景, 别把背景当约束对象。"
+            % (q.get("name"), q.get("value")))
+    lines += [
         "★★ 你只能从这些模板里选 kind 并填 params（白名单, 不许发明结构）:",
         json.dumps({k: {"doc": v["doc"], "params": v["params"]}
                     for k, v in TEMPLATES.items()}, ensure_ascii=False,

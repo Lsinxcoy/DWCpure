@@ -1,0 +1,78 @@
+{
+ "round": "R178 · planner live layer wired into gate ② (paper hard rule: every GM call wrapped in a VERIFIED FGGM)",
+ "date": "2026-10-11",
+ "what": "check_against_facts gains planner_layer=False (default — byte-identical old behavior) / True: a third layer that crafts a contract for THIS candidate via planner.craft (err-refeed, budget 2), validates locally, then FGGM.check judges the actual constrained quantity (n_edits, same target as the global budget_window but synthesized on the spot — the paper's per-call FGGM wrapping concretely realized)",
+ "measured": "real endpoint twice: deltaBand(3.0,5.0) and boundedParam(1.0,5.0), both check(n_edits=3) ok=True, verdict passed. Rejection path equally real: no_contract + trace recorded, verdict gets NO new violation from the absent layer (absence is not violation AND not satisfaction)",
+ "bugs_caught_by_running": [
+  "f.check((), y) IndexError — the FGGM check protocol wants x = the contract's own parameter tuple (l,u)/members; passing () only works for no-arg templates. Fixed with _template_params_for (parse back from id) — enum deliberately () because its params live in the closure",
+  "R175 planted defect found in R178: enum_member's check ate x[0] (members) but the template binds params at build time, so x=() crashed. Params must enter the CLOSURE, not x. planner.py enum_member fixed",
+  "LLM constrained the WRONG object (first two attempts: it put diff_head into enum_member members and got rejected twice => honest bottom) — root cause: task view had no declared quantity. Fixed: _task_view now carries quantity={name,value}; prompt states the target explicitly (context, not the answer)"
+ ],
+ "verify": "pytest 1234 (1229+5) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 178,
+  "at": "2026-10-11T15:30:00+08:00",
+  "parent_gen": 177,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 186,
+   "pytest": 1229,
+   "inheritance_gen_prev": 177
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "contracts_builtin.check_against_facts planner_layer (default off) + _task_view/_template_params_for + planner.enum closure fix",
+   "files": [
+    "src/dwc/organs/contracts_builtin.py",
+    "src/dwc/organs/planner.py",
+    "tests/test_r178_planner_live_layer.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "real endpoint two runs",
+     "claim": "deltaBand(3,5)/boundedParam(1,5) both check(3)=ok, verdict passed"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r178_planner_live_layer.py (5 tests)",
+     "claim": "default off identical / quantity carried / params-for-three / real layer / rejection trace"
+    },
+    {
+     "type": "trial_report",
+     "ref": "three bugs caught only by really running",
+     "claim": "check protocol x-arg / R175 enum closure / wrong-quantity prompt"
+    }
+   ],
+   "numbers": {
+    "pytest": 1234,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1234 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "two real-endpoint FGGM syntheses + reject path",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
