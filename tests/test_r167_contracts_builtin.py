@@ -88,11 +88,21 @@ def test_empty_table_verdict():
 
 
 def test_gate2_upgraded():
-    """★★★★ 门②升级: 空表⇒blocked / 对象齐⇒passed / 违反⇒blocked。"""
+    """★★★★ 门②升级: 空表⇒blocked / 对象齐⇒passed / 违反⇒blocked。
+
+    ★★ R170 语义细化: "None（未注入）⇒ 回落 builtin ⇒ passed"（R167
+      裁决落地）; "显式空表 ⇒ blocked"（纪律不变 — 没契约≠契约满足）
+    """
     from dwc.harness.gates import install_registry, run_gates, TermFacts
     from dwc.organs.budget import EditItem as EI
-    # 空表 ⇒ blocked
+    from dwc.organs.contract import ContractRegistry
+    # 未注入 ⇒ 回落 builtin ⇒ 真判 passed（不是"没表就 blocked"假阴性）
     install_registry(None)
+    o_default = run_gates(TermFacts(pass_rate=1.0))
+    g2d = [g for g in o_default["gates"] if g["gate"] == "contract"][0]
+    assert g2d["status"] == "passed"
+    # 显式空表 ⇒ blocked
+    install_registry(ContractRegistry())
     o_empty = run_gates(TermFacts(pass_rate=1.0))
     g2 = [g for g in o_empty["gates"] if g["gate"] == "contract"][0]
     assert g2["status"] == "blocked"

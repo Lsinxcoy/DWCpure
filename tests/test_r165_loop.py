@@ -70,11 +70,17 @@ def test_passed_task_is_idle_not_error():
     """★★ 已过 task ⇒ idle（skipped_reason 有值, chain 不是 error）。"""
     loop = _loop()
     # 直接打 _run_one_task 的内部口径: monkeypatch judge.evaluate ⇒ success
+    # ★★ R170: stub 须带 k_passed/n_checks（pass_rate 微口径 — R160
+    #   stub Verdict 同族教训: 测试 stub 要覆盖生产读的字段, 不让
+    #   getattr 兜假）否则 _pass_rate 取字段 AttributeError
     class _V:
         success = True
         failure_signature = None
+        k_passed = 2
+        n_checks = 2
+        diffs = []
     loop.judge.evaluate = lambda *a, **k: _V()
-    out = loop._run_one_task("code_fix_001")
+    out = loop._run_one_task("code_fix_001", round_no=1)
     assert "已通过" in (loop._last_skip or "")
     assert out["landed"] is False
     assert out["chain_verdict"] != "error"

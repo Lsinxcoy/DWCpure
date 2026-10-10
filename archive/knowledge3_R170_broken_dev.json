@@ -1,0 +1,100 @@
+{
+ "round": "R170 · repairable task face (broken_dev) — agent closed loop first real move (landed; score 0->1)",
+ "date": "2026-10-11",
+ "motive": "R171 probe: dev.json 10 task 8 already-pass at init => daemon x Loop 12 rounds all idle n_landed=0 => engine all live but nothing to do => R170 builds the 'wrong-at-init' face",
+ "deliverables": [
+  "config/anchors/broken_dev.json (6 broken_impl + rules_known self-report + fix not hardcoded — dev.json golden stays pure)",
+  "Loop.impl_store (mutable impl set — the agent's hand; starts broken; landing => writeback => next round evaluates the FIXED impl)",
+  "Loop._trial_run (RULES patch synthesized to full source => judge re-judge — gate5's real delta_s evidence; paper order: verify before adopt)",
+  "Loop splitfeed real source (ends R165 same-observation-both-sides stub — baseline=current impl, current=trial impl, both dev/sealed real runs)",
+  "Loop real ledger (L_t — was None => AttributeError once chain passed; R165 residue: chain was always blocked so never reached accounting)",
+  "gates._g2 registry absent => builtin fallback (R167 decision 'default install everywhere'; first version built empty table => chain always blocked false-negative)",
+  "rules_known first ordering (bootstrap mechanical default — direction selector still no-design-no-invent, R73 discipline kept)"
+ ],
+ "loop_proof": "003(factorial) first landed=True all gates pass => again score 0.0 -> 1.0 skip 'already passed => no proposal (idle)' => L_t 1 entry — the qualia jump 'agent raised the score itself' achieved",
+ "honest_records": [
+  "RULES has only 3 seeds => 002/004/005/006 have no rule => diagnose no proposal => blocked abstain (unfixable_now is first-class output — no fabricated fix, no LLM generation)",
+  "rules_known self-reported not grep-derived (002's broken triggers E_VALUE while RULES key is E_ZERO_DIV — measured caliber, not name match)",
+  "003 initial chosen as n*factorial(n) not return-1 — the former triggers E_NO_RESULT hitting RULES key, the latter E_VALUE miss (tried out, not guessed)"
+ ],
+ "bugs_fixed": [
+  "_run_one_task referenced outer round_no => NameError (latent since R165, daemon first round always crashed)",
+  "cands slot wrongly fed to_facts output (TermFacts as Candidate) => BridgeError; v2 built dict => getattr cannot read component — double-probed: pass Proposal",
+  "_trial_run v1 hardcoded *a,**k signature => n undefined in fragment => fake pass_rate=0 evidence => extracted real signature from current impl first line",
+  "writeback store once used landing.new_value (function-body fragment) => next round compile crash 'return' outside function => changed to the trial's full impl",
+  "single-arg lambda swallowed splitfeed's split => execute_task fell to default dev => sealed KeyError (R169 fixed e2e; R170 loop same fix)"
+ ],
+ "tests": "tests/test_r170_broken_dev.py 8/8 (incl landed-then-idle score really rises / store really written back / no-rule abstains with store untouched / registry None falls to builtin / broken 6 all-fail closure)",
+ "old_test_contract_upgrade": [
+  "test_r152/test_r167 'None => blocked' re-locked as 'None => builtin passed' + 'explicit empty table => blocked' (necessary for R170 chain landing)",
+  "test_r165 stub Verdict gained k_passed/n_checks (pass_rate micro caliber — R160 stub same-family lesson)"
+ ],
+ "verify": "pytest 1178 (1170+8) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 170,
+  "at": "2026-10-11T07:30:00+08:00",
+  "parent_gen": 169,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 178,
+   "pytest": 1170,
+   "inheritance_gen_prev": 169
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "config/anchors/broken_dev.json new + Loop(impl_store/_trial_run/splitfeed real source/ledger/rules_known order) + gates._g2 builtin fallback",
+   "files": [
+    "config/anchors/broken_dev.json",
+    "src/dwc/harness/loop.py",
+    "src/dwc/harness/gates.py",
+    "tests/test_r170_broken_dev.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "Loop._run_one_task code_fix_003 two runs",
+     "claim": "landed=True then again score 1.0 (score really rises = agent really fixes)"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r170_broken_dev.py (8 tests)",
+     "claim": "broken all-fail closure / trial real evidence / landed+writeback / no-rule abstain / builtin fallback"
+    },
+    {
+     "type": "test",
+     "ref": "R171 daemon x Loop 12-round probe",
+     "claim": "n_landed=0 all idle root cause = no wrong-at-init task face"
+    }
+   ],
+   "numbers": {
+    "pytest": 1178,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1178 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "Loop 003 two runs landed + score 1.0",
+   "user_decision": "R170 repairable task face (after user asked 'how far from runnable agent')"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

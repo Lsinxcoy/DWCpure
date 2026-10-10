@@ -81,11 +81,25 @@ def test_leakage_passed_with_clean_diff():
 
 
 def test_contract_empty_registry_blocked():
-    """② 空注册表 ⇒ blocked（没契约≠契约满足）。"""
-    install_registry(None)                    # 空态
+    """② 空注册表 ⇒ blocked（没契约≠契约满足）。
+
+    ★★ R170 语义升级（契约变更 — 旧语义锁的是"None ⇒ blocked"）:
+      · **显式装空表**（ContractRegistry() 空）⇒ blocked（纪律不变）
+      · None（**未注入**）⇒ 回落 builtin（R167 已裁"各处默认装这个";
+        R170 实证: 不回落则 run_round 链恒 blocked「缺契约」假阴性 —
+        闭环永远落不了地）
+      ⇒ 本意（"不许没装表就假 passed"）仍成立: builtin 装了仍真判
+        （逐 check + violation veto — 见 R167 test_gate2_upgraded 三态）
+    """
+    from dwc.organs.contract import ContractRegistry
+    install_registry(None)                    # 未注入 ⇒ 回落 builtin
     r = run_gates(_facts())
     g2 = [g for g in r["gates"] if g["gate"] == "contract"][0]
-    assert g2["status"] == GATE_BLOCKED
+    assert g2["status"] == GATE_PASSED and g2["detail"]["n_registered"] == 1
+    install_registry(ContractRegistry())      # 显式空表（真没契约）
+    r2 = run_gates(_facts())
+    g2b = [g for g in r2["gates"] if g["gate"] == "contract"][0]
+    assert g2b["status"] == GATE_BLOCKED
     # 注册一条 ⇒ passed
     from dwc.organs.contract import ContractRegistry, bounded_param
     reg = ContractRegistry()

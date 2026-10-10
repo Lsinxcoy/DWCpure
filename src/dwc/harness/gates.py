@@ -115,8 +115,18 @@ def _g2_contract(f: TermFacts) -> GateOutcome:
     from dwc.organs.contracts_builtin import check_against_facts
     from dwc.organs.contract import ContractRegistry, ST_NO_CONTRACT
     reg = _registry()
+    # ★★ R170 修: registry 缺席 ⇒ 回落 **builtin**（R167 已裁"各处默认
+    #   装这个" — 首版这里造空表 ⇒ 门② blocked, 于是 run_round 链恒
+    #   blocked「缺契约」的假阴性; 注意 gate_all 复位 install_registry(None)
+    #   后仍回落 builtin = 出厂契约常在, 不是测试特供）
     if reg is None:
-        reg = ContractRegistry()                # 显式空表 ⇒ blocked 路径
+        try:
+            from dwc.organs.contracts_builtin import builtin_registry
+            reg = builtin_registry()
+        except Exception as exc:              # noqa: BLE001 — 留痕不静默
+            return GateOutcome("contract", GATE_BLOCKED,
+                               {"why": "builtin 装载失败: %s: %s"
+                                       % (type(exc).__name__, exc)})
     rep = check_against_facts(reg, f)
     if rep["verdict"] == "no_contracts":
         return GateOutcome("contract", GATE_BLOCKED,

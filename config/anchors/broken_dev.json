@@ -1,0 +1,53 @@
+{
+ "_provenance": "R170 · 可修任务面（broken_dev）— DWC agent 的『初值错误』集。判据源不动: dev.json(held-in golden) 保持纯净, 本文件只供 Loop 开局载入（agent 把它当自己的初始实现）。修法不写死 — 由 RULES/提案现场产; 本文件只提供 buggy 初值 + 每条期望达到的目标（target 与 dev.json 的 checks 同源, 不自造验收标准）。",
+ "_split": "broken_dev（非判据 split — 不参与 judge.evaluate 的 split 归属; 只作 Loop 的初始实现面）",
+ "code_fix_001": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def sum_first_n(n):\n    return sum(range(n))",
+  "impl_note": "range(n) 少算 n（off-by-one）— judge 真判 E_VALUE:wrong_magnitude — **命中 RULES**（修法=range(n+1)）",
+  "fn": "sum_first_n",
+  "rules_known": true
+ },
+ "code_fix_002": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def average(xs):\n    return sum(xs) / (len(xs) + 1)",
+  "impl_note": "分母 +1（off-by-one）— judge 真判 E_VALUE:wrong_magnitude; **RULES 无此键** ⇒ rules_known=false（弃权是一等输出, 不编修法）",
+  "fn": "average",
+  "rules_known": false
+ },
+ "code_fix_003": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def factorial(n):\n    return n * factorial(n)",
+  "impl_note": "缺递归基 ⇒ stack overflow ⇒ judge 真判 E_NO_RESULT:abstained_or_missing — **命中 RULES**（修法=补基: if n<=1: return 1）",
+  "fn": "factorial",
+  "rules_known": true
+ },
+ "code_fix_004": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def fibonacci(n):\n    return 0",
+  "impl_note": "恒返 0（无递推）— 无 RULES 条目 ⇒ agent 应当提案或弃权（如实）",
+  "fn": "fibonacci",
+  "rules_known": false
+ },
+ "code_fix_005": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def is_palindrome(s):\n    return len(s) >= 0",
+  "impl_note": "恒真（无回文比较）— 无 RULES 条目",
+  "fn": "is_palindrome",
+  "rules_known": false
+ },
+ "code_fix_006": {
+  "category": "code_repair",
+  "verifier_kind": "behavior",
+  "broken_impl": "def reverse_string(s):\n    return s",
+  "impl_note": "恒原串（未反转）— 无 RULES 条目",
+  "fn": "reverse_string",
+  "rules_known": false
+ },
+ "_reasoning_excluded": "reasoning_001..004 是 keyword_match 形态, execute_task 目前只支持 behavior（R171 接线 — 不编造非 behavior 判据的执行面）"
+}
