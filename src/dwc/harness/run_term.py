@@ -222,6 +222,8 @@ class TermReport:
     router: Dict[str, Any] = field(default_factory=dict)
     #: ★ R144 · 四量度量（2609.11873; 缺埋点量显式 not_instrumented）
     measure4: Dict[str, Any] = field(default_factory=dict)
+    #: ★ R152 · 门组链（V2 §5.4 六门三态; verdict=blocked ⇒ 不许落地）
+    gate_chain: Dict[str, Any] = field(default_factory=dict)
     #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
     judgement: Optional[Dict[str, Any]] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
@@ -517,6 +519,31 @@ class TermRunner:
             measure_info = {"instrumented_count": 0,
                             "error": "%s: %s" % (type(exc).__name__, exc)}
         rep.measure4 = measure_info
+
+        # ── 4.7 ★ 门组入链（R152 · V2 §5.4 六门顺序 — 编排+口径桥）──
+        #   ★ 原则: 不替代各门（R147-R151 独立可测模块）; 这里只按论文
+        #     顺序问一遍, 每门三态（passed/blocked/not_applicable）。
+        #   ★★ 链 verdict=blocked ⇒ 不许落地（非补偿贯到链级 — 门间不可
+        #     互偿; not_applicable 单列不算 blocked — 无对象≠有对象且过）。
+        #   ★ 诚实边界: run_term 非候选环 ⇒ ①（无 diff）/④（无候选对）/
+        #     ⑥（无申报编辑）当前拿不到真输入 ⇒ 显式三态, 不造假过。
+        try:
+            from dwc.harness.gates import TermFacts, run_gates
+            v = rep.judgement or {}
+            facts = TermFacts(
+                pass_rate=(float(v["pass_rate"])
+                           if v.get("pass_rate") is not None else None),
+                score_star=None,                 # 无跨轮 S* ⇒ ⑤ blocked
+                delta_s=None, delta_c=None,       # 同上（口径不在本层）
+                noise_band=None, domain_guard_ok=None,
+                not_evaluated=int(v.get("not_evaluated", 0) or 0),
+                candidate_diff=None,              # run_term 非候选环
+                edits=None,
+                split_verdict=None)
+            rep.gate_chain = run_gates(facts)
+        except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7）
+            rep.gate_chain = {"verdict": "error",
+                              "error": "%s: %s" % (type(exc).__name__, exc)}
 
         # ── 5. ★ 生成下一轮任务源（不是"结算"）──
         # ★★ 依据 §9 缺口 (bz): "Measurement thereby becomes the trigger

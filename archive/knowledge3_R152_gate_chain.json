@@ -1,0 +1,87 @@
+{
+ "round": "R152 · 门组入链 — 六门三态编排（V2 §5.4）+ 口径桥 + 链级非补偿; run_term gate_chain 接线",
+ "date": "2026-10-10",
+ "★ 定位（不替代只编排）": "R147-R151 六门仍是独立可测模块; harness/gates.py 只按论文顺序问一遍 + 把 run_term 已判事实（judge verdict/cost）投影成各门输入（口径桥）",
+ "★★ 三态裁决（DWC 当前形态的诚实边界）": [
+  "passed — 门拿到输入且判过",
+  "blocked — 缺输入口径（δ 缺/守卫缺/候选 diff 缺/契约表空 — 不猜值不硬跑）",
+  "not_applicable — 该门在 DWC 当前形态**无对象**（④ split 要候选对 — run_term 是六层链非候选环; ⑥ budget 要申报编辑 — run_term 不产编辑）",
+  "★ 关键纪律: not_applicable ≠ blocked（无对象vs有对象但缺口径 — 两者不同因, 不可混列）"
+ ],
+ "★ 链级非补偿": "verdict = 一门 blocked ⇒ 全链 blocked（门间不可互偿 — blocked 段是留痕不是'其余都好'的缓冲）; stop_at_first_block=True 时前门 blocked 即停（§5.4『每步建立在前步结论上』的严格执行）",
+ "★ 各门口径桥": [
+  "③ drawback: 投影 judge pass_rate + 确定性 op（has_fail ⇒ DRAWBACK — R149 抗共谋口径, 不引 LLM 判断）; not_evaluated 带进链（9/10 未判仍如实）",
+  "④ split: **引用** evolver.evaluate_candidate 结论（不重造第二份 split 逻辑 — G1 不抢位; adopted_not_implemented 才 passed）",
+  "⑤ noncomp: ΔS/ΔC/δ 缺 ⇒ blocked（不硬设 0 — R150 纪律链级保持）",
+  "② contract: 共享注册表 install_registry() 注入（进程内可装可卸; 空表 ⇒ blocked『没契约≠契约满足』）"
+ ],
+ "★ 端到端冒烟（run_term 注入 judge）": "verdict=blocked · leakage/contract/noncomp blocked（缺口径）· drawback passed（全过）· split/budget not_applicable（无对象）— 六门如实, 无一假过",
+ "★ 测试案例自纠": "①『全 applicable passed』案例先 pass_rate=0.95 ⇒ ③ has_fail ⇒ drawback（有 fail=有缺点, 合理判据）⇒ 改 1.0 全过才 passed（我的案例设定错, 实现对）② test_contract 跨用例污染 ⇒ install_registry(None) 复位每例",
+ "验证": "pytest 1050(1040+10) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 152,
+  "at": "2026-10-10T19:30:00+08:00",
+  "parent_gen": 151,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 160,
+   "pytest": 1040,
+   "inheritance_gen_prev": 151
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/harness/gates.py 新建(六门三态编排+口径桥+链级非补偿) + run_term gate_chain 接线",
+   "files": [
+    "src/dwc/harness/gates.py",
+    "src/dwc/harness/run_term.py",
+    "tests/test_r152_gate_chain.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r152_gate_chain.py (10 tests)",
+     "claim": "六门顺序/三态/链级非补偿/stop 短路/各门口径桥/④引用不重造"
+    },
+    {
+     "type": "test",
+     "ref": "run_term 冒烟（脚本已删, 结果入档）",
+     "claim": "端到端六门如实: 3 blocked/1 passed/2 na, 无一假过"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py evaluate_candidate",
+     "claim": "④引用对象（split 判定唯一真源）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1050,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1050 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + run_term smoke",
+   "user_decision": "『继续推进』→ 门组入链"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
