@@ -24,6 +24,17 @@ from dwc.harness.loop import Loop                       # noqa: E402
 from dwc.organs.judge import Judge                      # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _reset_tree_table():
+    """★★ 注入表是进程内全局（_CURRENT_TREE）— 任何真跑 round 的测试
+    （R183 起 round 会真 adopt）都必须前后复位, 否则污染同 session 后续
+    文件（实测: R181/R166 的"未注入⇒出厂"断言被 R180/R183 的 round 打爆）。
+    """
+    yield
+    from dwc.harness import gates as _g
+    _g.set_current_tree(None)
+
+
 @pytest.fixture()
 def clean_loops():
     lp = Loop()

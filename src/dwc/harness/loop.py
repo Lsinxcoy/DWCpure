@@ -97,6 +97,8 @@ class Loop:
         self._last_a_train_why: str = ""                 # ★ R176 缺席原因
         self._last_metric_pick: Optional[Dict] = None     # ★ R180 Metric Loop 选优痕迹
         self._metric_loop_why: str = ""                  # ★ R180 缺席/异常原因
+        self._last_adopt: Optional[Dict] = None          # ★ R183 adopt 痕迹
+        self._adopt_why: str = ""                        # ★ R183 不采纳原因
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -203,6 +205,8 @@ class Loop:
                 "score": score,
                 "tasks": sel,
                 "metric_pick": self._last_metric_pick,
+                "metric_adopt": self._last_adopt,
+                "adopt_why": (self._adopt_why if self._adopt_why else None),
                 "metric_loop_why": (self._metric_loop_why
                                     if self._metric_loop_why else None),
                 "skipped_reason": (self._last_skip
@@ -496,6 +500,117 @@ class Loop:
             self._last_skip = "patch 写回取失败（store 不动）: %s" % exc
         return None
 
+    def _a_train_weighted(self, pts: List[Dict[str, Any]]
+                          ) -> Optional[float]:
+        """★★★ R183 · A_train（κ=10 加权 — R182 的 Loop 侧适配）。
+
+        ★ train verdicts = 每个 dev 点 ctx 上**逐 op** 三态判定（与
+          _eval 同路径 — 不另造口径）; m_o = 各 op 在**当前注入树**上的
+          LOO marginal（R182）。缺席（无 pts/无 op 票）⇒ None。
+        ★ 为什么是 dev 面而不是 rules.json learned（R176 的口径）:
+          R176 的 learned 只有 1-2 条 ⇒ 共识面太薄; dev 判据点 23+ 条是真
+          产出 ⇒ 论文"无标注 train 输出"的 DWC 在场形态。R176 口径保留
+          在 _a_train（审计面）, 本面是喂给 S(e) 的那个。
+        """
+        if not pts:
+            return None
+        try:
+            from dwc.organs.drawback import Node as _N, _eval as _ev
+            from dwc.organs.metric_loop import (_POOL_OPS, _current_tree,
+                                                a_train_weighted,
+                                                loo_marginal_dev)
+            names = sorted(_POOL_OPS)
+            tv = [{n: _ev(_N(kind="leaf", op=n), _POOL_OPS, None, None,
+                          (p.get("ctx") or {})) for n in names} for p in pts]
+            inc = _current_tree()
+            marg = {n: loo_marginal_dev(pts, n, inc) for n in names
+                    if n != "root_parse_ok"}
+            return a_train_weighted(tv, inc, marg)
+        except Exception as exc:              # noqa: BLE001 — 留痕不静默
+            self._last_a_train_why = ("a_train 加权失败: %s: %s"
+                                      % (type(exc).__name__, exc))
+            return None
+
+    def _facts_from_dev_surface(self) -> List[Any]:
+        """★★★ R183 · dev 真判据点 ⇒ 门组回归用的事实组（TermFacts 投影）。
+
+        ★ 为什么这样做（深度思考记录 — 不造数据）: R172 EL 单任务每轮
+          只产 1 个候选 ⇒ 1 条事实的回归快照**强度不足**（一条不变就说
+          "没变严"是自证）。dev 面上全部历史判分点是**真判据投影**（evidence
+          已落盘 — success/k/n/diffs 全真）⇒ 每点转成 TermFacts 给门③用
+          是"把已判事实搬成门输入形态"（转换, 不是发明）。
+        ★ 投影口径（与 e2e/_g3 判据源同源 — 不造第二口径）:
+          pass_rate=v.k_passed/v.n_checks（微口径）; candidate_diff 不在
+          evidence 判据面（R180 实测纪律: 判据与实现分离存储）⇒ None
+          ⇒ 吃实现的 op 在回归里 abstain（如实 — 回归只覆盖判据面树）。
+        ★ evidence 不可解析 ⇒ 跳过并留痕（不猜那点）。
+        """
+        from dwc.harness.gates import TermFacts
+        out: List[Any] = []
+        try:
+            pts = self.judge.task_scores(split="dev")
+        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+            self._adopt_why = ("dev 面读取失败: %s: %s"
+                               % (type(exc).__name__, exc))
+            return out
+        for p in pts:
+            try:
+                evi = self.judge.evidence(p.evidence_ref)
+            except Exception as exc:              # noqa: BLE001 — 留痕不静默
+                self._adopt_why = ("evidence %r 不可解析: %s"
+                                   % (p.evidence_ref, exc))
+                continue
+            k = evi.get("k_passed")
+            n = evi.get("n_checks")
+            if not n or k is None:
+                continue                          # None 不记（同 judge 纪律）
+            out.append(TermFacts(pass_rate=float(k) / float(n),
+                                 candidate_diff=None,
+                                 not_evaluated=0))
+        return out
+
+    def _try_adopt_metric_tree(self) -> Dict[str, Any]:
+        """★★★ R183 · Metric Loop 自进化闭环: select ⇒ 门组回归 ⇒ adopt 注入。
+
+        ★ 触发纪律（不震荡）: picked ≠ 现任 **且** S 差 > noise_band(0.01,
+          与 e2e 同源口径）⇒ 才尝试 adopt; 否则留痕"不折腾"。
+        ★ 回归事实组 = _facts_from_dev_surface（dev 真判据点 — 23 条级,
+          不是单候选 1 条的弱回归）。
+        ★ adopt 结果落 self._last_adopt（daemon/e2e 可读）; 任何异常 ⇒
+          留痕 + 当前树保持（不半吊 — G7 纪律）。
+        """
+        from dwc.organs.metric_loop import (_current_tree, _tree_key,
+                                            adopt, mechanical_candidates)
+        self._last_adopt = None
+        mp = self._last_metric_pick
+        if not mp or not mp.get("picked_key"):
+            self._adopt_why = ((mp or {}).get("notes")
+                               or "无选优痕迹 ⇒ 不动")
+            return {"adopted": False, "why": self._adopt_why}
+        cur_key = _tree_key(_current_tree())
+        picked = mp["picked_key"]
+        if picked == cur_key:
+            self._adopt_why = "选优=现任 ⇒ 无需换（%s）" % cur_key
+            return {"adopted": False, "why": self._adopt_why}
+        s_new = mp.get("s")
+        cand_s = [c.get("s") for c in mp.get("candidates", [])
+                  if c.get("key") == cur_key and c.get("s") is not None]
+        s_cur = cand_s[0] if cand_s else None
+        if s_new is None or s_cur is None or (s_new - s_cur) <= 0.01:
+            self._adopt_why = ("S 差未超噪声带（new=%s cur=%s band=0.01）"
+                               "⇒ 不折腾" % (s_new, s_cur))
+            return {"adopted": False, "why": self._adopt_why}
+        new_tree = next((t for t in mechanical_candidates()
+                         if _tree_key(t) == picked), None)
+        if new_tree is None:
+            self._adopt_why = "picked=%r 不在候选族（不注入）" % picked
+            return {"adopted": False, "why": self._adopt_why}
+        facts = self._facts_from_dev_surface()
+        res = adopt(new_tree, lambda: facts)
+        self._last_adopt = res
+        self._adopt_why = res.get("why", "")
+        return res
+
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
     def _metric_loop_tick(self) -> Dict[str, Any]:
         """★★★ R180 · Metric Loop 点火（接 R177 引擎 + R179 数据面 — 只读选+留痕）。
@@ -515,14 +630,32 @@ class Loop:
             #   L979/L981）⇒ duck-typing 直接传 self.judge（R180 实测纠偏:
             #   首版写 hasattr(judge,"store") 分支 — 多余, Judge 面就够）
             pts, notes = dev_points_from_store(self.judge, split="dev")
-            _at = self._last_a_train
+            # ★★ R183: A_train 用 R182 的 κ=10 加权共识（不是 R176 的
+            #   component 出现率 — train verdicts = dev 面 ctx 上逐 op 的
+            #   三态判定; marginal = 各 op 在现任树上的 LOO）
+            _at = self._a_train_weighted(pts)
+            self._last_a_train = _at
             res = select(pts, a_train=_at)
             self._last_metric_pick = {"picked_key": res["picked_key"],
                                       "s": res["s"], "notes": res["notes"],
                                       "n_points": notes["n_points"],
                                       "n_skipped": notes["n_skipped"],
-                                      "a_train": _at}
+                                      "a_train": _at,
+                                      # ★ R183: candidates 随痕迹带出
+                                      #   （_try_adopt_metric_tree 要按
+                                      #   key 查现任的 S 比噪声带 — 不带
+                                      #   就恒 "cur=None" 假阴性）
+                                      "candidates": res.get("candidates",
+                                                           [])}
             self._metric_loop_why = ""
+            # ★ R183: 选优后尝试采纳（触发纪律 — S 差 > 噪声带才动;
+            #   异常自吞留痕 — 采纳面不许阻断观察面/主链）
+            try:
+                self._try_adopt_metric_tree()
+            except Exception as exc:          # noqa: BLE001 — 留痕不静默
+                self._adopt_why = ("adopt 尝试炸: %s: %s"
+                                   % (type(exc).__name__, exc))
+                self._last_adopt = None
             return self._last_metric_pick
         except Exception as exc:                  # noqa: BLE001 — 留痕不静默
             self._metric_loop_why = ("Metric Loop tick 缺席: %s: %s"

@@ -1,0 +1,83 @@
+{
+ "round": "R183 · Metric Loop self-evolution loop closes (select => gate-set regression => adopt — really ran)",
+ "date": "2026-10-11",
+ "what": [
+  "Loop._a_train_weighted: A_train now fed by R182's kappa=10 weighting (train verdicts = per-op three-valued judgments on each dev point's ctx; m_o = per-op LOO on the current injected tree) — replaces R176's thin component-rate for the S(e) input",
+  "Loop._facts_from_dev_surface: dev真判据点 => TermFacts regression fact set (23+ items — not the single-candidate weak regression; a projection of judged facts, not invented data)",
+  "Loop._try_adopt_metric_tree: picked != current AND S delta > 0.01 noise band (same caliber as e2e) => find tree in mechanical family => adopt (regression gate inside); otherwise honest 'don't touch' with reason",
+  "round exit gains metric_adopt/adopt_why traces"
+ ],
+ "measured": "6-round live run: r1 adopted=True — gate ③ tree really swapped to pass_rate_weak single leaf, stable through r6 (S 0.3813 -> 0.3584 as dev points accumulate)",
+ "honest_records": [
+  "MEASURED: on this dev surface and(13) vs pass_rate_weak verdicts are IDENTICAL (judge_verdict/pass_rate_weak same-source domination — R166's compatibility invariant) => the switch is an EMPTY OPERATION (safe, no benefit); the S advantage comes purely from lambda*C (12 fewer nodes) — the mechanical-variation min-tree bias reappears on real data (foreseen in R177)",
+  "TEST-INFRA REGRESSION FOUND AND FIXED: _CURRENT_TREE is a process-global table; R183's round really adopts => any test running round leaks the injection into later tests (r165/r180's rounds broke r166/r181's 'no injection => factory' assertions — 2 reds). Root fix: tests/conftest.py autouse reset per test (R180/R183's per-file resets were not enough — old files like r165 missed it); conftest is now the registration point for new process-global state"
+ ],
+ "verify": "pytest 1268 (1261+7) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 183,
+  "at": "2026-10-11T20:30:00+08:00",
+  "parent_gen": 182,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 191,
+   "pytest": 1261,
+   "inheritance_gen_prev": 182
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Loop a_train_weighted/facts_from_dev_surface/try_adopt_metric_tree + conftest global reset",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "tests/conftest.py",
+    "tests/test_r183_self_evolution_loop.py",
+    "tests/test_r180_loop_metric_tick.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "6-round live daemon-style run",
+     "claim": "r1 adopted=True, gate ③ tree really swapped to pass_rate_weak, stable through r6"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r183_self_evolution_loop.py (7 tests)",
+     "claim": "a_train weighted / real fact set / noise band blocks / adopt injects / empty-op record / fields exposed"
+    },
+    {
+     "type": "test",
+     "ref": "test-infra regression (2 reds) located and fixed",
+     "claim": "process-global _CURRENT_TREE leaked across test files; conftest autouse reset root-fixes it"
+    }
+   ],
+   "numbers": {
+    "pytest": 1268,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "95d0d390",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1268 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "self-evolution loop demonstrably adopted on real rounds",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
