@@ -1,0 +1,84 @@
+{
+ "round": "R146 · 九维分类 + 三维声明校验 — 语义查重降为属性冲突检测（HarnessX D1-D9 · V2 §4.2）",
+ "date": "2026-10-10",
+ "★ 论文口径": [
+  "九维 = HarnessX §3.3: D1 model_selection / D2 context_assembly / D3 memory_management / D4 tool_ecosystem / D5 execution_env / D6 evaluation / D7 control_safety / D8 observability / D9 training_bridge（与 ARSI c1-c9 同构）",
+  "V2 原文用法: 每个新增模块必须声明 (dimension∈{D1..D9}, hook∈八hook, singleton_group) ⇒ 把重复检测从语义理解变成**属性冲突检测**"
+ ],
+ "★ 实现 organs/dimension.py": [
+  "DIMENSIONS 九维值枚举（id+英文名+中文标签）— 未知维度显式拒绝",
+  "ModuleDeclaration 三维声明契约（三字段非空; 组件含中文标签可读）",
+  "find_conflicts 两类冲突: ① duplicate_module 重名 ② duplicate_dimension_hook 同(维,hook,组)三元全同抢位",
+  "★ 宽松面（防误伤）: 跨维复用组（如 memory 组被 D1/D3 都消费）**不算冲突** — 论文只禁同组同 hook 点 ⇒ cross_dimension_group_reuse 单独列",
+  "declares_valid_hook: hook 枚举唯一真源=hook.HOOKS（本模块不重抄 — 防两份真相）",
+  "dimension_index: 九维覆盖计数 + empty_dimensions（哪个维没挂模块一目了然）"
+ ],
+ "★ 边界决策(最小手术)": "不接线现有器官（回填声明要动多文件）⇒ 作为**新模块注册机制**存在; 接线欠账入档: 下一个新器官必须带三维声明（R146 机制自此生效）",
+ "★ 坑(R145 同款第二次 — 应升级为铁律)": "测试助手 `group or ('g_'+m)` 兜底吃掉空串 ⇒ 契约测试 DID NOT RAISE（实现是对的）; 本轮第二次踩 ⇒ 铁律: 测试构建助手对**判违规的参数**必须原样透传, 不许任何 or/默认值兜底",
+ "验证": "pytest 1000(992+8) · gate 8/8 · e2e RC=0 — 三层全绿（整数关口 1000）",
+ "inheritance": {
+  "gen": 146,
+  "at": "2026-10-10T15:20:00+08:00",
+  "parent_gen": 145,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 154,
+   "pytest": 992,
+   "inheritance_gen_prev": 145
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/dimension.py 新建(九维枚举+三维声明+属性冲突检测+索引)",
+   "files": [
+    "src/dwc/organs/dimension.py",
+    "tests/test_r146_dimension.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r146_dimension.py (8 tests)",
+     "claim": "九维逐字/契约/两类冲突/跨维复用不算/hook 单一真源/索引覆盖"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md §4.2 L193-203",
+     "claim": "三维声明用法原文"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_DIMENSIONS_TABLE.md",
+     "claim": "34 对象总表（R145 纠偏后实况）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1000,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1000 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续』→ 队列③对象层 dimension"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

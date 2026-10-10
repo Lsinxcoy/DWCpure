@@ -50,25 +50,25 @@
    "dim": "Meta-recursion",
    "status": "live",
    "measure": "六段链档案统计(链深/验收/复用) + 换代账本(stop 决策) ★ R125 move_on 五判据判决表（continue/move_on/insufficient + decision_record 留痕）",
-   "reading": "链深=36 gen[109, 144] 验收={'accepted': 36} 复用状态={'pending': 36} 换代决策=99条 — 最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标",
+   "reading": "链深=37 gen[109, 145] 验收={'accepted': 37} 复用状态={'pending': 37} 换代决策=101条 — 最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标",
    "cmd": "python scripts/table8_status.py",
    "since": "R109 六段 + R120 账本 + R125 move-on 五判据"
   }
  ],
  "meta_recursion_detail": {
-  "chain_depth": 36,
+  "chain_depth": 37,
   "gen_range": [
    109,
-   144
+   145
   ],
   "supersedes_uses": 0,
   "acceptance_verdicts": {
-   "accepted": 36
+   "accepted": 37
   },
   "subsequent_use_statuses": {
-   "pending": 36
+   "pending": 37
   },
-  "duel_regime_decisions": 99,
+  "duel_regime_decisions": 101,
   "caveat": "最小代理: 从六段档案统计, 非综述原测法; goal 停止决策的完整形态(期望收益<成本时停) = move-on 停止判据轮的义务, 未建如实标"
  },
  "caveats": [
