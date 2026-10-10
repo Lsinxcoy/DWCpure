@@ -1,0 +1,84 @@
+{
+ "round": "R159 · split 门三态精化 — 引用深化为调用（真调 Evolver.accept）+ blocked⇒na 族属裁决",
+ "date": "2026-10-10",
+ "★ 起因（R158 留的缺口）": "e2e 真跑时 split 恒 na — 因为 _g4_split 只吃**预置** split_verdict dict, 从不调 evolver.accept()。『引用不重造』的纪律做了一半: 逻辑没重造, 但也没真跑",
+ "★ 改动（gates.py 两处）": [
+  "TermFacts 加 baseline/current 两份判分口径（in_score/held_out_score）",
+  "_g4_split 两路: ① pair 在场 ⇒ **真调 Evolver.accept(None, baseline, current)**（判定真源唯一, G1 从『引用』深化为『调用』）② 只给 split_verdict ⇒ 原预置路（e2e R158 已通车轨不破坏）",
+  "★ pair 优先于 preset（真源 > 快照 — 测试坐实: pair=adopted 覆盖 preset=rejected）"
+ ],
+ "★★★ 关键裁决（blocked ⇒ na 的三态精化）": [
+  "accept 判 blocked 的原因是 held_out 面未落地（DWC 系统级形态 — test split 自 R141/R28 时代就缺）",
+  "判 na 不判 blocked: 调用方再尽责也给不出 held_out（构造期缺对象, 非本轮口径疏忽）— 与⑥『无申报编辑』同族",
+  "★ 若记 blocked 会把系统级缺对象误报成『本轮调用方没喂够』——归因错位比漏判更危险",
+  "三态语义自此完整: blocked=缺口径（可补救）/ na=缺对象（要建设）『split 的 held_out 面建设』成为显式 backlog"
+ ],
+ "★ accept 是 Evolver 静态方法（不吃实例态 — R28 定）": "初版我写 `from dwc.organs.evolver import accept` ⇒ ImportError 坐实 + `_FakeProposal()` 我编的 ⇒ 改 `Evolver.accept(None, ...)`（baseline/current 两份自足, 不造假实例）",
+ "★ 四决策映射": "adopted_not_implemented⇒passed / rejected⇒blocked（含 Δ=0 空过拒 — max>0 第三条件）/ blocked⇒na / 缺 pair⇒na",
+ "验证": "pytest 1093(1086+7) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 159,
+  "at": "2026-10-10T23:55:00+08:00",
+  "parent_gen": 158,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 167,
+   "pytest": 1086,
+   "inheritance_gen_prev": 158
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "gates.py: _g4_split 真调 Evolver.accept() + TermFacts 加 baseline/current; blocked(held_out 缺)⇒na 族属精化",
+   "files": [
+    "src/dwc/harness/gates.py",
+    "tests/test_r159_split_gate.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r159_split_gate.py (7 tests)",
+     "claim": "真调 accept/四决策映射/blocked⇒na/preset 保留/pair 优先/空过拒"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py Evolver.accept",
+     "claim": "判定真源（R28 静态方法 — baseline/current 自足）"
+    },
+    {
+     "type": "test",
+     "ref": "e2e step 7d（R158 真跑）",
+     "claim": "split 恒 na 的缺口起点"
+    }
+   ],
+   "numbers": {
+    "pytest": 1093,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1093 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ split 门真判"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

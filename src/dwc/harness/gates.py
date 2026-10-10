@@ -79,6 +79,11 @@ class TermFacts:
     vocabulary: Tuple[str, ...] = ()
     edits: Any = None      # Sequence[EditItem]（budget.check 的输入）
     split_verdict: Optional[Dict[str, Any]] = None     # evolver 的判定引用
+    #: ★ R159 · split 门真判输入: evolver.accept(baseline, current) 的两份
+    #   判分口径（in_score / held_out_score — 缺 held_out 面是系统级形态,
+    #   非调用方疏忽 ⇒ 映射 na 而非 blocked, 见 _g4_split 裁决）
+    baseline: Optional[Dict[str, float]] = None
+    current: Optional[Dict[str, float]] = None
 
 
 def _g1_leakage(f: TermFacts) -> GateOutcome:
@@ -129,17 +134,51 @@ def _g3_drawback(f: TermFacts) -> GateOutcome:
 
 
 def _g4_split(f: TermFacts) -> GateOutcome:
-    """④ split: **引用** evolver 判定（不重造第二份 split 逻辑 — G1）。"""
-    if f.split_verdict is None:
-        return GateOutcome("split", GATE_NOT_APPLICABLE,
-                           {"why": "无候选对可判（split 判据要 baseline/"
-                                   "current 对 — run_term 无候选对, evolver "
-                                   "面才有）⇒ ④在此形态无对象"})
-    sv = f.split_verdict
-    ok = sv.get("decision") == "adopted_not_implemented"
-    return GateOutcome("split",
-                       GATE_PASSED if ok else GATE_BLOCKED,
-                       {"split": sv})
+    """④ split: **调用** evolver.accept() 真判（R159 — 不再只吃预置 dict）。
+
+    ★ 两路输入（优先级按序）:
+      ① baseline/current 两份判分在场 ⇒ 真调 evolver.accept()
+        （真源唯一 — 不重造第二份 split 判定, G1 的"引用"深化为"调用"）
+      ② 只给 split_verdict（预置判定）⇒ 原引用路（e2e 已跑的形态保留）
+    ★★ R159 三态精化（关键裁决）:
+      · accept 判 rejected/adopted_no_impl ⇒ passed/blocked（按 decision）
+      · accept 判 blocked（held_out 面缺）⇒ **not_applicable**（不是
+        blocked!）— 理由: DWC 全系统无 held_out 数据面（构造期缺对象,
+        非调用方口径疏忽 ⇒ 属"无对象"族, 与⑥"无申报编辑"同族; 若记为
+        blocked 会把系统级形态误报成"本轮调用方没喂够")
+      · 两份判分都缺 ⇒ not_applicable（连判据输入都没有 — 无对象）
+    """
+    # ★ accept 是 Evolver 的静态方法（R28 时期定的 — 判定不吃实例态,
+    #   baseline/current 两份判分自足 ⇒ 不造假实例喂它）
+    from dwc.organs.evolver import Evolver
+
+    if f.baseline is not None and f.current is not None:
+        sv = Evolver.accept(None, dict(f.baseline), dict(f.current))
+        d = sv.get("decision")
+        if d == "blocked":
+            # ★★ 系统级缺 held_out ⇒ na（上面论证 — 不挤占 blocked 语义）
+            return GateOutcome("split", GATE_NOT_APPLICABLE,
+                               {"split": sv,
+                                "why": "accept 判 blocked: held_out 面在"
+                                       " DWC 未落地（系统级缺对象, 非调用"
+                                       "方口径疏忽 ⇒ na, 不记 blocked）"})
+        return GateOutcome("split",
+                           GATE_PASSED if d == "adopted_not_implemented"
+                           else GATE_BLOCKED,
+                           {"split": sv})
+    if f.split_verdict is not None:
+        sv = f.split_verdict
+        d = sv.get("decision")
+        if d == "blocked":
+            return GateOutcome("split", GATE_NOT_APPLICABLE,
+                               {"split": sv,
+                                "why": "预置判定 = blocked（held_out 缺）⇒ na"})
+        ok = d == "adopted_not_implemented"
+        return GateOutcome("split", GATE_PASSED if ok else GATE_BLOCKED,
+                           {"split": sv})
+    return GateOutcome("split", GATE_NOT_APPLICABLE,
+                       {"why": "无 baseline/current 判分对（split 判据要"
+                               "两份判定口径 — 都没给）⇒ ④无对象"})
 
 
 def _g5_noncomp(f: TermFacts) -> GateOutcome:
