@@ -36,9 +36,13 @@ class _Cand:
 
 @dataclass
 class _FakeProposal:
+    """最小 Proposal 替身（adoption + landing 面 — R163 补 patch/layer）。"""
+
     proposal_id: str
     state: str = "draft"
     gate_verdict: Any = None
+    patch: str = "noop"
+    target_layer: str = ""
 
 
 from dwc.organs.credit import CreditLedger
@@ -177,3 +181,58 @@ def test_mechanics_documented():
     """顺序/短路/陪跑标注/均摊口径在档。"""
     assert "缺≠赢" not in PIPELINE_MECHANICS["winner_only"]
     assert "均摊" in PIPELINE_MECHANICS["delta_split"]
+
+
+def test_pipeline_landing_integration():
+    """★★★ R163 × R156 合流: run_round 六面（含落地面）。"""
+    from dwc.harness.gates import install_registry
+    from dwc.harness.pipeline import run_round
+    from dwc.organs.applier import Applier, Target
+    from dwc.organs.contract import ContractRegistry, bounded_param
+    from dwc.organs.credit import CreditLedger
+    reg = ContractRegistry()
+    reg.register(bounded_param(0.0, 1.0))
+    install_registry(reg)
+    box = {"v": "old"}
+    tgt = Target(getter=lambda: box.get("v"),
+                 setter=lambda x: box.__setitem__("v", x),
+                 has_fn=lambda: "v" in box)
+    # ★ 真链路里 Proposal.patch 即候选 patch 同源 ⇒ 替身同步给同值
+    p = _FakeProposal("pp_land", patch="clean = 1", target_layer="architecture")
+    # 先让层② chain passed 才能 gated ⇒ baseline/current 齐
+    out = run_round([_Cand(patch="clean = 1", component="prompt",
+                           grounding=[{"diff_id": "d1"}])],
+                    t=3, proposal=p, ledger=CreditLedger(),
+                    vocabulary=("t001",), pass_rate=1.0, score_star=0.5,
+                    delta_s=0.5, delta_c=0.01, noise_band=0.01,
+                    domain_guard_ok=True,
+                    baseline={"in_score": 0.5, "held_out_score": 0.5},
+                    current={"in_score": 1.0, "held_out_score": 1.0},
+                    applier=Applier(window=2), target=tgt,
+                    evidence={"success": True, "reason": "judge v2"})
+    # ★ R163 六面合流: 链 passed ⇒ adoption gated ⇒ landing ⇒ adopted
+    assert out.landing is not None                     # ★ 落地留痕
+    assert out.landing["method"] == "commit"
+    assert box["v"] == "clean = 1"                     # 真写进可写面
+    assert p.state == "adopted"                        # ★ 第五态反面
+    assert out.adoption.state_after == "gated"         # adoption 层迁到 gated
+    install_registry(None)
+
+
+def test_pipeline_no_landing_without_three_parts():
+    """★★ 缺 applier/target/evidence 任一件 ⇒ 不落且 notes 如实。"""
+    from dwc.harness.gates import install_registry
+    from dwc.harness.pipeline import run_round
+    from dwc.organs.contract import ContractRegistry, bounded_param
+    from dwc.organs.credit import CreditLedger
+    reg = ContractRegistry()
+    reg.register(bounded_param(0.0, 1.0))
+    install_registry(reg)
+    p = _FakeProposal("pp_noland")
+    out = run_round([_Cand(patch="clean = 1", component="prompt")],
+                    t=1, proposal=p, ledger=CreditLedger(),
+                    pass_rate=1.0, score_star=0.5, delta_s=0.5,
+                    delta_c=0.01, noise_band=0.01, domain_guard_ok=True)
+    assert out.landing is None
+    assert any("未齐" in n for n in out.notes)          # 缺席在 notes, 不静默
+    install_registry(None)

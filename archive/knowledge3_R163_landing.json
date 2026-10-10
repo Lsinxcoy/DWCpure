@@ -1,0 +1,83 @@
+{
+ "round": "R163 · 采纳后自动落地（landing 分发器）— gated/adopted ⇒ applier 真写; R14 第五态闭环",
+ "date": "2026-10-11",
+ "★ 深度设计五裁决（动手前想透）": [
+  "① 分发器不重造: 落地原语全在 applier（commit/land_rule — R30-R33 四代打磨）; landing.py 只做四道闸+分派+留痕",
+  "② state 终态: 落成 ⇒ adopted（R14 立的第五态反面 — adopted_not_implemented『过门未落地』⇄ adopted『过门且落地』）**不造第六态**",
+  "③ 落地失败不退化 rejected（判决与落地分离 — 门过了就是过了, 落地单记 LandingRecord）",
+  "④ 分派: target_layer=assets+rule_key ⇒ land_rule(schema+evidence+读回三闸); 其余 ⇒ commit(读回)",
+  "⑤ 触发点在 harness.landing（非 evolver.accept — accept 是纯函数, 判据与副作用分离: 三分离纪律）"
+ ],
+ "★★ 实测抓到的接缝洞（R162×R163 schema 分裂）": "gate_verdict 有**两种合法报告形态**: R162 gate_all 写 {proposal_gate, six_gate_chain, layer2} / R154 adoption 写 {chain, via}。首版闸②只认前者 ⇒ pipeline 形态永远落不了地（实测 LandingError）。修: 闸②收两种（任一有链结论即归因可查）, 拒的是无链结论的裸 gated。**教训: 跨模块契约接缝必须先列全部写方 schema, 不能只对着一方写校验**",
+ "★ 四道闸": "①state ∈ {gated, adopted_not_implemented} ②链结论在场（两种 schema 任一）③分派 ④读回（applier AppliedResult 构造期硬 raise + 分发器存在性确认双重保险）",
+ "★ R156 pipeline 升六面": "run_round(applier=, target=, evidence=) — 三件齐才落; 缺 ⇒ notes 留痕不落（缺落地三件≠可落 — 缺席在 notes 不静默）; 落成 chain passed ⇒ gated ⇒ adopted 全链真跑（box 写进断言坐实）",
+ "★ 测试自纠 4 处": "① stub applier 假写（target._set 忘了）⇒ 补真写 ② _FakeP 名字错（先读再写家族第6次）③ _FakeProposal 缺 patch/target_layer ⇒ 补同构字段 ④ land 后 state 已 adopted 而断言顺序还是 gated ⇒ 调序",
+ "验证": "pytest 1121(1109+12) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 163,
+  "at": "2026-10-11T02:00:00+08:00",
+  "parent_gen": 162,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 171,
+   "pytest": 1109,
+   "inheritance_gen_prev": 162
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "harness/landing.py 新建（四道闸+分派+第五态闭环）+ pipeline 升六面（applier/target/evidence）",
+   "files": [
+    "src/dwc/harness/landing.py",
+    "src/dwc/harness/pipeline.py",
+    "tests/test_r163_landing.py",
+    "tests/test_r156_pipeline.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r163_landing.py (10 tests)",
+     "claim": "四闸/终态 adopted/不退化/分派/两种 schema 收编/batch 不跳过"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r156_pipeline.py (2 新 tests)",
+     "claim": "六面合流: 链 passed⇒gated⇒adopted 真写进 box; 缺三件不落"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/applier.py L243/L414",
+     "claim": "commit/land_rule 落地原语（不重造 — 分派对象）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1121,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1121 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『按顺序逐步推进 每步先深度思考』R163 自动落地"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

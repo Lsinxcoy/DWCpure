@@ -45,6 +45,7 @@ class RoundResult:
     adoption: Optional[AdoptionRecord]
     credit_entries: List[Dict[str, Any]]
     components: List[str]
+    landing: Optional[Dict[str, Any]] = None     # ★ R163 land 留痕
     notes: List[str] = field(default_factory=list)
 
     def as_dict(self) -> Dict[str, Any]:
@@ -55,6 +56,7 @@ class RoundResult:
                              else None),
                 "credit_entries": self.credit_entries,
                 "components": self.components,
+                "landing": self.landing,
                 "lost_not_recorded": True,
                 "notes": self.notes}
 
@@ -72,8 +74,11 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
               nu_str: Optional[float] = None,
               split_verdict: Optional[Dict[str, Any]] = None,
               baseline: Optional[Dict[str, float]] = None,
-              current: Optional[Dict[str, float]] = None) -> RoundResult:
-    """★ 一次候选环（五面合流 — 编排, 不新增判定）。
+              current: Optional[Dict[str, float]] = None,
+              applier: Optional[Any] = None,
+              target: Optional[Any] = None,
+              evidence: Optional[Dict[str, Any]] = None) -> RoundResult:
+    """★ 一次候选环（六面合流 — R163 加落地面; 编排, 不新增判定）。
 
     ★ 顺序: bridge → gates → adoption → credit（chain blocked 时 credit
       不记 — 没赢家可记; 但 adoption 仍迁移 rejected, 留痕完整）。
@@ -136,10 +141,27 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
                             adopted=adopted_flag(True, "winner"))
         ledger.record(entry)
         credit_entries.append(entry.as_dict())
+
+    # ⑤ 落地（R163 · applier/target/evidence 三件齐才落 — 缺 ⇒ 留痕不落）
+    landing: Optional[Dict[str, Any]] = None
+    if applier is None or target is None or evidence is None:
+        notes.append("applier/target/evidence 未齐 ⇒ 本轮不落地（state 保持"
+                     " gated/adopted_not_implemented — 缺落地三件≠可落）")
+    elif proposal.state != "gated":
+        notes.append("proposal.state=%r 非 gated ⇒ 不落" % (proposal.state,))
+    else:
+        from dwc.harness.landing import LandingError, land
+        try:
+            rec = land(proposal, applier, evidence, target=target)
+            landing = rec.as_dict()
+            notes.append("落地成功 ⇒ state=adopted（%s）" % rec.method)
+        except LandingError as exc:
+            notes.append("落地闸拒绝: %s（state 保持 gated — 不退化 rejected）"
+                         % (exc,))
     return RoundResult(chain=chain, adoption=adoption,
                        credit_entries=credit_entries,
                        components=sorted({e.component for e in facts.edits}),
-                       notes=notes)
+                       landing=landing, notes=notes)
 
 
 PIPELINE_MECHANICS: Dict[str, str] = {
