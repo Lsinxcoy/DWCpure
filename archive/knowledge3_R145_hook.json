@@ -1,0 +1,86 @@
+{
+ "round": "R145 · 八 hook + 互斥类 — 2606.14249 Table 1 落地（违规即抛不用日志; 治抢位冲突）",
+ "date": "2026-10-10",
+ "★★ 对象层盘点纠偏(先取证再动手)": [
+  "vocab **已 live** — evolver.py L49 COMPONENT_VOCAB(9 项)+L55 STRUCTURAL(4 项)+L59 𝒦_meta(5 项)+L237 NOVELTY_ELIGIBLE（队列③的 vocab 不是缺口, 差点重造）",
+  "dimension（D1-D9 九维/21 维/34 对象）**零实现** — src/ 里 D1 只以因果链 stage 名出现（同形不同物）⇒ 剩项",
+  "hook **零实现** — 八 hook 名全零命中; causal_chain.trace_hook 是不同物 ⇒ R145 就做它",
+  "★ 我的旧记忆『21 维』也已过时: EVOLUTION_DIMENSIONS_TABLE.md 实为 **34 对象**（1-28 对象层）— 声称 vs 实测第六次"
+ ],
+ "★ 实现 organs/hook.py": [
+  "HOOKS 八点名与 Table 1 逐字一致 + READ_ONLY 原文明列(step_end/task_end)",
+  "ProcessorSpec 契约: 未知 hook 名不宽容拼写 / order∈ORDERS / singleton_group 非空 / _after 自指即拒（防环）",
+  "HookRegistry 互斥类: 同组第二个注册即抛（论文『每组至多一个』= 治抢位冲突 — 母巢域两个器官都自称记忆底座就是这形态）",
+  "★ 只读违规即抛: 只读 hook 上 declared writes ⇒ 立即抛 HookViolation.paper_error()（V2 采原文异常派, 不用日志）",
+  "fire 三段序 PRE→NORMAL→POST 同段按名稳定（可复现触发序列）+ 无逻辑注册返回 None 占位可审计",
+  "unregister 不存在即 KeyError（不猜注没注册过）"
+ ],
+ "★ 边界(不越位)": "本模块只协议+注册+校验, **不实现任何具体 Processor**（防万能钩子堆 — G1 定位声明写明）",
+ "★ 坑(测试助手吃违规)": "_spec 助手 group: str=None + `group or ...` 兜底 ⇒ 空串测试被助手吃掉（实现是对的）⇒ 改 group=None 三态（None=默认唯一组/''=显式空串透传/值=透传）; 教训同 R136 放水守卫: 测试辅助层不许比实现更宽容",
+ "验证": "pytest 992(984+8) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 145,
+  "at": "2026-10-10T14:40:00+08:00",
+  "parent_gen": 144,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 153,
+   "pytest": 984,
+   "inheritance_gen_prev": 144
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/hook.py 新建(八 hook+ProcessorSpec 契约+HookRegistry 互斥/只读校验)",
+   "files": [
+    "src/dwc/organs/hook.py",
+    "tests/test_r145_hook.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r145_hook.py (8 tests)",
+     "claim": "八 hook 逐字/互斥抛/重名不覆盖/只读即抛/契约四拒/三段序/unregister/汇总"
+    },
+    {
+     "type": "test",
+     "ref": "grep 八 hook 名 src/ 零命中（R145 前）",
+     "claim": "hook 真缺口坐实"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/evolver.py L49/55/59",
+     "claim": "vocab 已 live = 队列③第一项非缺口（防重造）"
+    }
+   ],
+   "numbers": {
+    "pytest": 992,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 992 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续推进』→ 队列③对象层（vocab 已 live ⇒ 改做 hook）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
