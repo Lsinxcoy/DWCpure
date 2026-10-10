@@ -1,0 +1,85 @@
+{
+ "round": "R144 · 四量度量落地 — 写了≠用了（2609.11873 §3.3; ①可算 ②③④未埋点显式 not_instrumented）",
+ "date": "2026-10-10",
+ "★ 可算性审计（先取证再设计, 逐条有依据）": [
+  "① update quality **可算** ← judge.score 三数口径（现成; not_evaluated 不进分母 — R14 血缘）",
+  "② activation **未埋点** — memory.py L405 recall_search『未记 access』是 R22 语义（access_count 归 recall() 专有）⇒ 不许破坏 ⇒ not_instrumented",
+  "③ faithful use **未埋点** — 无『检索到⇒按 method 执行』痕迹面 ⇒ not_instrumented",
+  "④ downstream benefit **部分可算** — 双侧 quality 齐才可算; 单侧 None ⇒ not_instrumented（不拿 0 顶替『照做没用』）"
+ ],
+ "★ 实现 organs/measure.py": [
+  "四量 dataclass 契约位（UpdateQuality/Activation/FaithfulUse/DownstreamBenefit）— 每类 __post_init__ 值域校验 + 空分母 raise（0% 命中≠空库）",
+  "measure() 汇总: instrumented_count + health 话术（health=1 = 『母巢那个病』数字说话）",
+  "★ 位置即口径: 四量输入按位 isinstance 校验（把 Activation 喂给 update 位 ⇒ 显式拒绝 — v1 只查四类并集漏了错配, 测试抓到后收紧）"
+ ],
+ "★ 接线 run_term（4.6 段）": "TermReport.measure4 字段 + verdict 三数投 UpdateQuality ⇒ instrumented_count=1（只有①）+ ②③④ not_instrumented; 无 judge ⇒ ①也 not_instrumented（未判≠0 分）",
+ "★ 坑(R143 同款第三次)": "execute_code cell 内 patch 后面跟了带三引号嵌套的 terminal 语句 ⇒ 整 cell SyntaxError ⇒ 前两个 patch **未执行**（cell 级原子失败）⇒ 教训: patch 调用与验证语句分 cell; patch 后必须 search_files 复核落盘计数",
+ "验证": "pytest 984(975+9) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 144,
+  "at": "2026-10-10T14:00:00+08:00",
+  "parent_gen": 143,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 152,
+   "pytest": 975,
+   "inheritance_gen_prev": 143
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/measure.py 新建(四量 dataclass+measure 汇总) + run_term measure4 接线字段",
+   "files": [
+    "src/dwc/organs/measure.py",
+    "src/dwc/harness/run_term.py",
+    "tests/test_r144_measure.py",
+    "tests/test_r143_router_wiring.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r144_measure.py (7 tests)",
+     "claim": "①三数口径/②③契约/④单侧缺席/①唯一=母巢病/位置即口径/值枚举"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r143_router_wiring.py +2 条",
+     "claim": "measure4 接线: count=1 + ②③④ not_instrumented + 无 judge 不造假"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/organs/memory.py L405",
+     "claim": "R22 语义（检索不记 access）= ②未埋点的实测依据"
+    }
+   ],
+   "numbers": {
+    "pytest": 984,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 984 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续』→ 队列②四量度量"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

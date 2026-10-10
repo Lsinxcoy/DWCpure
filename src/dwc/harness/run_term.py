@@ -220,6 +220,8 @@ class TermReport:
     #: ★ R143 · 七桶路由结果（2609.14857 Table 8; judge 未注入时
     #:   {"routed": False, "why": ...} — 不猜桶）
     router: Dict[str, Any] = field(default_factory=dict)
+    #: ★ R144 · 四量度量（2609.11873; 缺埋点量显式 not_instrumented）
+    measure4: Dict[str, Any] = field(default_factory=dict)
     #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
     judgement: Optional[Dict[str, Any]] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
@@ -496,6 +498,25 @@ class TermRunner:
                            "why": "judge 未注入或无 verdict ⇒ 无已判事实"
                                   "可分桶（不猜桶 — 0 事实≠infra 失败）"}
         rep.router = router_info
+
+        # ── 4.6 ★ 四量度量投影（R144 · 2609.11873 §3.3「写了≠用了」）──
+        #   ★ ① 可算: verdict 三数 ⇒ UpdateQuality（not_evaluated 不进分母）
+        #   ★ ②③④ **未埋点**（recall_search R22 不记 access; 无执行痕迹面）
+        #     ⇒ 显式 not_instrumented（不编 0.0 — 缺席≠0）
+        measure_info: Dict[str, Any] = {"instrumented_count": 0}
+        try:
+            from dwc.organs.measure import UpdateQuality, measure
+            uq = (UpdateQuality(
+                      n_pass=int((rep.judgement or {}).get("pass", 0) or 0),
+                      n_fail=int((rep.judgement or {}).get("fail", 0) or 0),
+                      not_evaluated=int((rep.judgement or {}).get(
+                          "not_evaluated", 0) or 0))
+                  if rep.judgement is not None else None)
+            measure_info = measure(update=uq)
+        except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7）
+            measure_info = {"instrumented_count": 0,
+                            "error": "%s: %s" % (type(exc).__name__, exc)}
+        rep.measure4 = measure_info
 
         # ── 5. ★ 生成下一轮任务源（不是"结算"）──
         # ★★ 依据 §9 缺口 (bz): "Measurement thereby becomes the trigger

@@ -103,3 +103,23 @@ def test_judgeless_report_still_valid():
     assert rep.valid is True
     assert rep.judgement is None
     assert rep.router["routed"] is False
+
+
+def test_measure4_wired_not_instrumented_not_zero():
+    """★ R144 接线: measure4 在场 + ②③④ 显式 not_instrumented（不编 0.0）。"""
+    rep = TermRunner(db_path=":memory:", judge=Judge()).run_term(
+        "t", n_steps=3)
+    m = rep.measure4
+    assert m["instrumented_count"] == 1          # 只有①（judge 三数）
+    assert m["quantities"]["update_quality"]["instrumented"] is True
+    for k in ("activation", "faithful_use", "downstream_benefit"):
+        assert m["quantities"][k]["status"] == "not_instrumented"
+    assert "母巢那个病" in m["health"]
+
+
+def test_measure4_no_judge_no_fake_quality():
+    """★ 无 judge ⇒ ①也 not_instrumented（未判≠0 分 — R14 血缘）。"""
+    rep = TermRunner(db_path=":memory:").run_term("t", n_steps=2)
+    assert rep.measure4["quantities"]["update_quality"]["status"] == \
+        "not_instrumented"
+    assert rep.measure4["instrumented_count"] == 0
