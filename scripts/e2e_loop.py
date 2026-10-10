@@ -443,6 +443,79 @@ with open(_HISTORY, "a", encoding="utf-8") as _f:
 print("  → 跨轮序列已记: %d 轮（文件 %s）"
       % (len(_hist), os.path.basename(_HISTORY)))
 
+# ── 7d · ★★★★★ R158 · 候选环五面合流（pipeline 真接线）──
+#   ★ R153-R157 六面（投影/门组/采纳/记账/合流/探索）在 pytest 全绿,
+#     但 **e2e 从来没跑过真候选环** ⇒ 本轮接: 把 R31 生成器的产出
+#     （r_gen[\"candidates\"]）+ 7c 的 ℰ_t 一起喂进 pipeline.run_round。
+#   ★★ 三条口径纪律:
+#     ① winner 恒 True 只记 passed — 链 blocked ⇒ 不记账（R156 口径,
+#        DWC 无对手方面 ⇒ lost_not_recorded 显式标, 不冒充全账）
+#     ② σ_t/ℰ_t 真源 = 7c 刚算的 _ev（本段不重算 — 判定在 evolver）
+#     ③ 𝒰_t 空而 ℰ_t active 不许发生（三元素齐备 — evolver 已保证, 复验）
+step(7, "候选环五面合流（R158 · pipeline)＋ℰ_t 探索打标")
+from dwc.harness.gates import install_registry
+from dwc.organs.contract import ContractRegistry, bounded_param
+# ② contract 门要注册表 — e2e 现场装一个 DWC 真契约实例
+_reg = ContractRegistry()
+_reg.register(bounded_param(0.0, 1.0))       # Ψ_l 边界 + f_d=clamp
+install_registry(_reg)
+from dwc.harness.exploration import plan as explore_plan, tag_candidates
+from dwc.harness.pipeline import run_round
+from dwc.organs.credit import CreditLedger
+from dwc.organs.evolver import Mutator, Proposal
+
+# ★ 候选流（R31 生成器产物 — trace-grounded, 早已 live）
+_cands = list(r_gen.get("candidates") or [])
+print("  候选流: R31 生成器 n=%d need_llm=%s"
+      % (len(_cands), r_gen.get("need_llm")))
+# ★ 探索打标（ℰ_t 真源 = 7c 的 _ev/σ_t; 本段只编排不重算）
+_ex_p = explore_plan([h["score"] for h in _hist[:-1]], _W,
+                     float(_sd["delta"]), accepted_rules=Mutator.RULES,
+                     liquidity=_liq_now)
+print("  探索编排: active=%s · 预算份额=%d%% · 打标=%s"
+      % (_ex_p.active, _ex_p.explore_budget,
+         dict(tag_candidates(_cands, _ex_p)) if _cands else "(无候选)"))
+# ★★ 五面合流（投影→六门→采纳→ℒ_t — 只编排不新增判定）
+_led = CreditLedger()
+# ★ pass_rate 源: 7c 已真判 4 task ⇒ _ov（overall_score 的 k/n 细粒度）
+#   —— 不拿 v1.success 的二进制冒充 pass_rate（那是 1 个 task 的成败）
+_pr = None
+if _ov:
+    _pr = float(_ov["score"])
+_rr = run_round(_cands, t=len(_hist) - 1,
+                proposal=(props[0] if props else Proposal(
+                    proposal_id="e2e_synth_%d" % (len(_hist) - 1),
+                    failure_signature=dict(v1.failure_signature or {}),
+                    component=(props[0].component if props else "prompt"),
+                    target=(props[0].target if props else "unknown"),
+                    patch=(_cands[0].patch if _cands else "noop"),
+                    rationale="R158 e2e 管线合成提案（无查表命中时占位 — "
+                              "显式标注, 不冒充有提案）")),
+                ledger=_led,
+                vocabulary=tuple(_ALL),
+                pass_rate=_pr,
+                score_star=(_hist[0]["score"] if _hist else None),
+                delta_s=max(0.0, _THIS_SCORE - (_hist[0]["score"] if _hist else 0.0)),
+                delta_c=0.01, noise_band=0.01, domain_guard_ok=True)
+print("  链裁决: verdict=%s · blocked=%s · na=%s"
+      % (_rr.chain["verdict"], _rr.chain.get("blocked"),
+         _rr.chain.get("not_applicable")))
+print("  采纳: %s → %s" % (_rr.adoption.state_before if _rr.adoption else None,
+                           _rr.adoption.state_after if _rr.adoption else None))
+print("  ℒ_t 记账: %d 笔（%s）· lost_not_recorded=%s"
+      % (len(_rr.credit_entries),
+         [e["edit"][:28] for e in _rr.credit_entries],
+         _rr.as_dict()["lost_not_recorded"]))
+# ★★ R158 三条断言（防假接通 — 白屏绿≠跑通）
+assert _rr.chain["verdict"] in ("applicable_passed_with_na", "blocked"), \
+    "链裁决必须三终态（空链=没跑通）"
+if _cands:
+    # 有候选 ⇒ 六门都给过结论（含 na/blocked — 每门真判过）
+    _per_gate = [g["status"] for g in _rr.chain["gates"]]
+    assert len(_per_gate) == 6, "六门必须在场（%r）" % _per_gate
+    print("  ✓ 六门结论: %s" % _per_gate)
+install_registry(None)      # 复位（防跨步污染 — R152 铁律同款）
+
 # ★★★★★ R55 断言: **分数必须自然涨过**（不是构造的）
 #   ⚠ R51/R54 我一直在构造波动（轮换 base/cur）⇒ 那是**编排**不是演化
 #   ⇒ 这条锁: ① 序列里至少有一次 **严格上涨**（下一版分数 > 上一版）

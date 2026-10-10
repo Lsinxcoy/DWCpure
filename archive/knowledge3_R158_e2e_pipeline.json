@@ -1,0 +1,89 @@
+{
+ "round": "R158 · 五面合流真接线 e2e — 候选环从 pytest 绿走到端到端真跑（R153-R157 六面的跑通证明）",
+ "date": "2026-10-10",
+ "★ 接线内容": [
+  "e2e step 7d（score_history 写回后）: R31 生成器 candidates + 7c 的 ℰ_t/σ_t 真源 → pipeline.run_round",
+  "pass_rate 源: 7c 的 _ov['score']（4 task k/n 细粒度 — 不拿 v1.success 二进制冒充 R158 纪律）",
+  "Proposal 落点: props[0]（查表命中）或合成占位 Proposal（显式标『e2e 管线合成提案, 不冒充有提案』）",
+  "contract 门注册表现场装 bounded_param(Ψ_l+f_d=clamp) — DWC 真契约实例; 用完 install_registry(None) 复位",
+  "assert 三条: 链三终态 / 六门在场 / （非放水 — 接空链会炸）"
+ ],
+ "★★ 真跑输出（e2e RC=0, 不是 mock）": [
+  "候选流: R31 生成器 n=4 need_llm=False",
+  "探索编排: active=True · 预算份额=50% · 打标 {'control_flow': 'exploit'}",
+  "链裁决: applicable_passed_with_na · blocked=[] · na=['split']",
+  "采纳: draft → gated",
+  "ℒ_t 记账: 4 笔 · lost_not_recorded=True",
+  "六门结论: ['passed','passed','passed','not_applicable','passed','passed']"
+ ],
+ "★ 诚实边界（两处）": [
+  "打标全 exploit: 4 候选取 component=control_flow 且已探索 ⇒ exploit 合理（探索编排如实, 不是 bug — 没凑 explore 标签）",
+  "split 门恒 na: run_round 无对手对（evolver.accept 的 baseline/current 在 step6 keep 判定侧, 未接进来 — 留待 evolver 接线轮）"
+ ],
+ "★ 编辑纪律复现": "插入段自纠 3 处（① print `]]` 多余括号 ② `_SynthProposal`/`_FN_TASK_NAME`/`v1.score` 三个我编的名字 ⇒ 用真的 Proposal/_ov ③ `'assets_guard' if False else` 死代码 ⇒ 删）— R144『先核实再写』家族第 4 次",
+ "验证": "pytest 1086（无回归 — e2e 脚本改动不进 pytest）· gate 8/8 · e2e RC=0（7d 真跑通）",
+ "inheritance": {
+  "gen": 158,
+  "at": "2026-10-10T23:30:00+08:00",
+  "parent_gen": 157,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 166,
+   "pytest": 1086,
+   "inheritance_gen_prev": 157
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "scripts/e2e_loop.py step 7d 新增（候选环五面合流 + ℰ_t 打标真跑通）",
+   "files": [
+    "scripts/e2e_loop.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "e2e RC=0 + 7d 段真输出（log 入档）",
+     "claim": "六门结论 5 passed+1 na / draft→gated / ℒ_t 4 笔 — 真跑非 mock"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r156_pipeline.py",
+     "claim": "被接线的五面合流逻辑（pytest 已绿, e2e 复用）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/exploration.py（R157）",
+     "claim": "σ_t/𝒰_t 编排面（e2e 7c 的 _ev 真源）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1086,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1086 + gate 8/8 + e2e rc=0（7d 真输出）",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e log RC=0 + 7d 段输出",
+   "user_decision": "『继续推进』→ e2e 接 pipeline"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
