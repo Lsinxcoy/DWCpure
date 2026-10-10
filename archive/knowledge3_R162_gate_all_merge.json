@@ -1,0 +1,87 @@
+{
+ "round": "R162 · gate_all 两层并轨 — 静态门先/运行时六门链后, 二元⇒三元分流（演化生产路径并入链）",
+ "date": "2026-10-11",
+ "★ 深度设计的五个裁决（动手前想透）": [
+  "① 并轨形态选 C 串层（非替换/非旁挂）: 层① ProposalGate 静态 → 层② 六门链; 单入口, 旧调用方零改",
+  "② 层②输入: Proposal[patch/component/failure_signature] 经 bridge 投影 TermFacts（hunk=target 哨兵; edits=Proposal 本身一处干预[约束4]）",
+  "③ ★★★ 归因分流（本轮核心）: 链 blocked 分两种 — 有输入且真判挂(如 leakage veto)⇒ rejected（非补偿）; 缺输入(noncomp/drawback/contract 无注册表)⇒ pending_runtime **不降级**（缺输入≠提案坏 — 与 R159 blocked/na 族属裁决同源）",
+  "④ 兼容铁律: 旧二元键 n_gated/n_rejected 语义不变 ⇒ pending 提案仍计 n_gated（静态过了）; 旧测 36/36 不破坏",
+  "⑤ gate_verdict 双报告: {proposal_gate(层①), six_gate_chain(层②逐门), layer2}"
+ ],
+ "★ 实现（evolver.py gate_all 重写 + __init__ 加 registry）": [
+  "Evolver(registry=...) 常驻契约表注入点 ⇒ contract 门从 pending 转真判（测试坐实: 注入后 per[contract]=passed, pending 收窄到 noncomp/drawback）",
+  "NO_INPUT_GATES={noncomp,drawback,contract} — 实测先只列 2 个 ⇒ good 提案被误降级 n_gated=1→0（诊断: contract blocked 是注册表未注入, 非提案坏）⇒ 第3个补入后旧测回绿",
+  "install_registry 前后装/复位（R152 防跨实例污染铁律）"
+ ],
+ "★★ 两个诚实记录": [
+  "① 层② `except BridgeError` 是**防御性死代码** — Proposal 构造期拦空 patch/空 component/空候选三个 BridgeError 前提 ⇒ 层②不可达; 保留（防未来契约放宽）但测试显式断言『当前不可达』（如实记录, 不是每条 except 都有活路径）",
+  "② leakage veto 在 gate_all 里 vocabulary=() 不判（to_facts 词表由 caller 收）⇒ 单测链路本身（to_facts+run_gates 带词表）验证 veto 穿链 ⇒ rejected 分流判据在"
+ ],
+ "★ 一次代码卫生自纠": "实现里误写中文变量名 `口径外` ⇒ AST 扫描确认清零改 NO_INPUT_GATES（DWC 全英文命名惯例 — 虽然 Py3 合法但不合惯例）",
+ "验证": "pytest 1109(1102+7) · gate 8/8 · e2e RC=0 — 三层全绿; 旧测 test_evolver.py 36/36 兼容",
+ "inheritance": {
+  "gen": 162,
+  "at": "2026-10-11T01:10:00+08:00",
+  "parent_gen": 161,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 170,
+   "pytest": 1102,
+   "inheritance_gen_prev": 161
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "evolver.py gate_all 两层串接（静态门→六门链+三元分流+双报告）+ Evolver registry 注入点",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "tests/test_r162_gate_all_merge.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r162_gate_all_merge.py (7 tests)",
+     "claim": "静态挂跳过/pending 不降级/registry 注入真判/泄漏 veto 穿链/死代码可达性记录/双报告/旧键兼容"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_evolver.py 36/36",
+     "claim": "旧二元契约零破坏（兼容性实测）"
+    },
+    {
+     "type": "test",
+     "ref": "src/dwc/harness/gates.py（R152）+candidate_bridge（R153）",
+     "claim": "被并轨的六门链与投影面（不重造, 串接）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1109,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1109 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『按顺序逐步推进 每步先深度思考』R162 gate_all 并轨"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

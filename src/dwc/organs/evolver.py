@@ -1691,11 +1691,15 @@ class Evolver:
     """
 
     def __init__(self, mutator: Optional[Mutator] = None,
-                 gate: Optional[ProposalGate] = None):
+                 gate: Optional[ProposalGate] = None,
+                 registry: Optional[Any] = None):
         self.mutator = mutator or Mutator()
         self.gate = gate or ProposalGate()
         self.proposals: List[Proposal] = []
         self._seen: Set[str] = set()
+        #: ★ R162 · 共享契约注册表（层② contract 门的输入; None=未注入
+        #   ⇒ contract 落 pending 族, 不误判提案坏）
+        self.registry = registry
 
     # ══════════════════════════════════════════════
     # 诊断 → 提案
@@ -1756,21 +1760,95 @@ class Evolver:
     # 门（约束 1）
     # ══════════════════════════════════════════════
     def gate_all(self, proposals: List[Proposal]) -> Dict[str, Any]:
-        """★ 全部提案过门 ⇒ 分为 gated / rejected。"""
-        passed, rejected = [], []
+        """★★ 两层门串接（R162 · 静态 ProposalGate → 运行时六门链）。
+
+        ★ 层① 静态门 ProposalGate.check（构造期可判: target/词表/维度/
+          禁触判据）— 不过即 rejected, 不进层②（顺序不可换 — 静态层天然先）。
+        ★ 层② 运行时六门链（R152: leakage→contract→drawback→split→
+          noncomp→budget, 经 R162 bridge 适配 Proposal ⇒ TermFacts）:
+          · 链判 passed（全 applicable 过/含 na）⇒ gated
+          · 链判 blocked ⇒ **按 blocked 归因分两种**（关键裁决 3）:
+            (a) 有运行口径且真判挂（如 leakage 命中/预算超）⇒ rejected
+                — 非补偿: 有输入且挂 = 提案坏
+            (b) 缺运行口径（gate_all 无 ΔS/δ ⇒ noncomp blocked; 无
+                baseline/current ⇒ split na）⇒ **pending_runtime** —
+                不降级 rejected（缺输入 ≠ 提案坏 — 与 R159 blocked/na
+                族属裁决同源, 归因不错位）
+        ★★ gate_verdict 双报告留痕: {"proposal_gate": 层①, "six_gate_chain":
+           层②（含 blocked/na 逐门明细）, "layer2": status}
+        ★★ 返回键**: gated / rejected / **pending_runtime**（新三元;
+           旧二元键保留且语义兼容 — 静态过的提案无论层② pending 还是
+           passed 都计 gated, 只有层②真判挂才进 rejected; 旧测
+           n_gated/n_rejected 语义不破坏）。
+        """
+        from dwc.harness.candidate_bridge import BridgeError, to_facts
+        from dwc.harness.gates import install_registry, run_gates
+
+        passed, rejected, pending = [], [], []
+        # ★ R162: 层②前装共享注册表（self.registry 常驻注入点 —
+        #   装了就真判 contract 门; 未注入 ⇒ contract 落 pending 族）
+        _prev_reg = getattr(self, "registry", None)
+        install_registry(_prev_reg)
         for p in proposals:
-            r = self.gate.check(p)
-            p.gate_verdict = r
-            if r["pass"]:
-                p.state = "gated"
-                passed.append(p)
-            else:
+            r = self.gate.check(p)                     # ── 层① 静态 ──
+            if not r["pass"]:
+                p.gate_verdict = {"proposal_gate": r, "layer2": "skipped",
+                                  "six_gate_chain": None}
                 p.state = "rejected"
                 rejected.append(p)
+                self.proposals.append(p)
+                continue
+            # ── 层② 运行时链（R162 适配: Proposal ⇒ TermFacts）──
+            chain = None
+            layer2 = "error"
+            try:
+                facts = to_facts([p], vocabulary=())
+                chain = run_gates(facts)
+                cverdict = chain.get("verdict")
+                if cverdict in ("applicable_passed_with_na",
+                                "all_applicable_passed"):
+                    layer2 = "passed"
+                elif cverdict == "error":
+                    layer2 = "error"                    # 链执行异常 ≠ 通过
+                else:
+                    # blocked: 按归因分 (a) 真判挂 / (b) 缺口径
+                    blocked = set(chain.get("blocked") or [])
+                    # ★ gate_all 形态天然缺输入的面（缺输入≠提案坏 —
+                    #   归因不降级; contract 在此族: 注册表未注入时判不了,
+                    #   注入则真判, 见 self.registry）
+                    NO_INPUT_GATES = {"noncomp", "drawback", "contract"}
+                    layer2 = ("pending_runtime"
+                              if blocked and blocked <= NO_INPUT_GATES
+                              else "rejected")
+            except BridgeError as exc:
+                # 空 patch/无 component（静态层未拦的形态）⇒ 单条记错,
+                # 不炸全批（G7 留痕 + D2: 一条坏不拖垮整轮）
+                chain = {"verdict": "error", "error": str(exc),
+                         "blocked": [], "not_applicable": [], "gates": []}
+                layer2 = "error"
+            p.gate_verdict = {"proposal_gate": r, "layer2": layer2,
+                              "six_gate_chain": chain}
+            if layer2 == "rejected":
+                p.state = "rejected"
+                rejected.append(p)
+            else:
+                # passed / pending_runtime / error 都算"静态过了"⇒ gated
+                # （error 单列由 layer2 字段可查 — gated 不是"全绿"）
+                p.state = "gated"
+                passed.append(p)
+                if layer2 == "pending_runtime":
+                    pending.append(p)
             self.proposals.append(p)
-        return {"gated": passed, "rejected": rejected,
+        out = {"gated": passed, "rejected": rejected,
+                "pending_runtime": pending,
                 "n_gated": len(passed), "n_rejected": len(rejected),
-                "★": "约束 1: 先过门，后落地"}
+                "n_pending_runtime": len(pending),
+                "★": ("约束 1: 先过门，后落地 · R162 两层串接（静态→运行时六门）;"
+                      " pending_runtime = 层②缺口径（非提案坏 — 归因不降级）"),
+                "★★": ("gate_verdict 双报告: proposal_gate(层①) +"
+                       " six_gate_chain(层②逐门明细)")}
+        install_registry(None)      # 复位（防跨实例污染 — R152 铁律）
+        return out
 
     # ══════════════════════════════════════════════
     # ★★★ 关键: 采纳必须同时过**两组 split**（约束 3）
