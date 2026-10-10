@@ -1,0 +1,72 @@
+{
+ "round": "R176 · train split semantics landed (2607.12790 eq.2 A_train — DWC structural translation)",
+ "date": "2026-10-11",
+ "paper_reading": "2607.12790 read word by word: train = LARGE UNLABELED (not a second gold set); purpose = expose when candidates disagree or abstain; A_train(e) = agreement with the op pool's consensus verdict on unlabeled train outputs; hard rule: dev/test are audit and NEVER a training signal",
+ "dwc_translation": [
+  "train outputs = LANDED historical fixes (rules.json learned — accepted by gates = process artifacts WITHOUT gold pass/fail labels; L_t adopted=False entries are labeled negatives and are excluded)",
+  "agreement caliber = proposal (component,target) occurrence rate among historical clean fixes — decidable, reproducible, no LLM (k=10 reliability weighting belongs to R177 Metric Loop recombination)",
+  "None (no history) vs 0.0 (history but no same family): absence is not zero — A_train enters A_dev multiplicatively, so None keeps A_dev sole judge instead of faking 1.0"
+ ],
+ "not_landed": "S(e) = A_dev*A_train^w - lambda*C recombination itself is R177 (paper formula not changed); this round only BUILDS AND TRACES A_train",
+ "verify": "pytest 1217 (1212+5) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 176,
+  "at": "2026-10-11T13:30:00+08:00",
+  "parent_gen": 175,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 184,
+   "pytest": 1212,
+   "inheritance_gen_prev": 175
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Loop._a_train/_learned_attempts (train=rules.json learned) + round-path tracing",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "tests/test_r176_train_split.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "2607.12790 L50/L108/L127/L157 (doc read)",
+     "claim": "train=large unlabeled; A_train=op-pool consensus agreement; dev/test never training signal"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r176_train_split.py (5 tests)",
+     "claim": "cold None / warm no-family 0.0 / same-family rate / learned-only source / round trace"
+    }
+   ],
+   "numbers": {
+    "pytest": 1217,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1217 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "three-state test (None/0.0/rate) all pass",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

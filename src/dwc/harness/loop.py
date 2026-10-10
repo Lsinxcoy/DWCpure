@@ -93,6 +93,8 @@ class Loop:
         self._el_last_task: Optional[str] = None    # ★ R172: p̂ 归因环境
         self._last_consolidation: Optional[Dict] = None  # ★ R173 固化痕迹
         self._last_replay_pick: Optional[Dict] = None    # ★ R174 replay 选择痕迹
+        self._last_a_train: Optional[float] = None       # ★ R176 A_train 痕迹
+        self._last_a_train_why: str = ""                 # ★ R176 缺席原因
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -270,6 +272,13 @@ class Loop:
         # ★★ R170: 提案在手 ⇒ 试跑（把 RULES patch 合成新源码 ⇒ judge
         #   复判 — 门⑤的真 ΔS 证据只从这出; 合成失败 ⇒ None ⇒ ⑤拒）
         _trial = self._trial_run(tid, proposals[0])
+        # ★ R176: A_train（train = 历史落地 attempt 无标签集; op 池共识面
+        #   以 κ=10 reliability 接入属 R177 Metric Loop 重组 — 本轮只采集
+        #   留痕, 不动 S(e) 公式（论文式不改 — memory 铁律））
+        _at, _at_why = self._a_train(proposals[0].component,
+                                     str(getattr(proposals[0], "target", "")))
+        self._last_a_train = _at
+        self._last_a_train_why = json.dumps(_at_why, ensure_ascii=False)
         _v = {"__current__": _cur_score}
         if _trial is not None and _trial.get("pass_rate") is not None:
             _v["prop"] = float(_trial["pass_rate"])
@@ -479,6 +488,54 @@ class Loop:
         return None
 
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
+    def _a_train(self, component: str, target: str
+                 ) -> Tuple[Optional[float], Dict[str, Any]]:
+        """★★★ R176 · A_train（2607.12790 式2 的 op 池共识一致度 — DWC 版）。
+
+        ★ 论文语义: A_train(e) = e 与"opining pool ops 在**无标注 train
+          输出**上的共识判定"的一致度; train = 大、无标签（不是第二套 gold）
+        ★ DWC 同构翻译（不发明）: train outputs = **已落地的历史修法**
+          （rules.json learned + 本进程 ℒ_t 记账）— 它们是"没有 gold 判定
+          标签的过程产物"（judge 没给它们任何 pass/fail 标签, 它们只是
+          被 op 池/门收下过）⇒ op 池对这些 attempt 的判定 = 伪标签源
+        ★ 一致度口径（可判定可复现 — 无 LLM）: 提案 (component, target)
+          在历史 clean 修法中的出现率（clean = 门收下 = 真共识的反面证据
+          不存在; 没被收的（门拦过的）不进 train 集 — 那是"有标签"的）
+        ★ 无历史 train ⇒ None（A_train 缺席不是 0 — fail-closed: S(e) 里
+          A_train 乘性进 A_dev ⇒ None 时保持 A_dev 单独裁决, 不伪造 1.0）
+        """
+        learned = self._learned_attempts()      # [(component,target,clean)]
+        if not learned:
+            return None, {"n_train": 0, "why": "无历史 attempt ⇒ 缺席"}
+        hits = [t for t in learned if t[0] == component]
+        if not hits:
+            return 0.0, {"n_train": len(learned), "why":
+                         "train 中无同 component 历史（冷启动 ⇒ 0, 非 None）"}
+        clean_rate = sum(1 for t in hits if t[2]) / float(len(hits))
+        return clean_rate, {"n_train": len(learned),
+                            "n_same_component": len(hits),
+                            "component": component}
+
+    def _learned_attempts(self) -> List[Tuple[str, str, bool]]:
+        """★ train 集 = rules.json learned 条目（cross-process — R173 落盘面）。
+
+        ★ clean 口径: 该键能被门收下过（进 rules.json = 过三闸 = clean）;
+          ℒ_t 里 adopted=False 的记账（landed 后被拒/回滚）是**有标签**
+          负面 ⇒ 不进 train（train 只装"无 gold 判定标签的" attempt）。
+        """
+        out: List[Tuple[str, str, bool]] = []
+        try:
+            from dwc.organs.evolver import Mutator
+            if os.path.exists(Mutator.LEARNED_PATH):
+                d = json.load(io.open(Mutator.LEARNED_PATH, encoding="utf-8"))
+                for k, v in (d.get("learned") or {}).items():
+                    out.append((str(v.get("component", "")),
+                                str(v.get("target", "")), True))
+        except (OSError, ValueError, KeyError) as exc:   # noqa: BLE001 留痕
+            self._last_a_train_why = "train 读取失败: %s" % exc
+            return []
+        return out
+
     def _consolidate_rule(self, tid: str, sig: Dict[str, str],
                           proposal: Any, trial: Optional[Dict],
                           res: Any) -> Optional[Dict[str, Any]]:
