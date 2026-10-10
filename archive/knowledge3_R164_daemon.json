@@ -1,0 +1,81 @@
+{
+ "round": "R164 · 常驻循环引擎 daemon.py — 轮转/checkpoint/四熔断; DWC 的『活着』那一面",
+ "date": "2026-10-11",
+ "★ 深度设计四裁决": [
+  "① 不重造引擎: round_fn 注入（单轮逻辑用现有器官 propose/gate_all/judge/accept/pipeline）; daemon 只驱动+记账+熔断",
+  "② 四熔断（母巢教训直搬, 每条有出处）: llm_timeout(跳过≠中断)/consecutive_idle(连空转停机)/stop_file(一次性消费)/SIGINT(收尾后退出)",
+  "③ checkpoint: daemon_state.json **原子写**（tmp+os.replace）+ rounds.jsonl 追加 ⇒ 崩溃可查可续",
+  "④ 形态: CLI 前台循环, **不做 HTTP**（无需求证据 — G4 不扩权）; 常驻由 cron 包装（母巢既有监控面复用）"
+ ],
+ "★★ 实测抓到的真 bug（测试逼出来）": "异常轮**未推进 round_no** ⇒ 下一轮 n 不变 ⇒ 同一轮无限重试直到空转熔断（实测: r=2 连炸 3 次, rounds_run 卡在 1, n_error=3）。修: except 分支也写 round_no=n。**这是 agent『活着』最致命的形态 — 死循环空转烧 quota**",
+ "★ stop_file 语义裁决": "stop = 『别再开新轮』⇒ 轮前检查（一轮不跑即停, 消费即删）— 不是『本轮做完再停』（那会让 stop 慢一轮; 测试断言随语义修正 1→0）",
+ "★ 跳过≠空转": "skipped_reason 在场不计 consecutive_idle（有原因的跳过与无可落地动作是两种状态 — 熔断计数分开）",
+ "★ G7 静默门真实拦我": "signal 注册失败/stop 删除失败两处 `except(...): pass` ⇒ gate FAIL（不许合入 src/dwc/）⇒ 留痕位 _sig_errors/_stop_unlink_error 记录（不是吞异常 — 是记账）⇒ gate 回 8/8",
+ "★ CLI 冒烟": "python -m dwc.daemon --demo --rounds 2（PYTHONPATH=src）真跑: rounds_run=2/n_skipped=2/state+log 落盘",
+ "验证": "pytest 1131(1121+10) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 164,
+  "at": "2026-10-11T02:50:00+08:00",
+  "parent_gen": 163,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 172,
+   "pytest": 1121,
+   "inheritance_gen_prev": 163
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/daemon.py 新建（轮转+checkpoint+四熔断+CLI）",
+   "files": [
+    "src/dwc/daemon.py",
+    "tests/test_r164_daemon.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r164_daemon.py (10 tests)",
+     "claim": "循环/checkpoint/异常轮推进/四熔断/跳过≠空转/stop 语义/CLI/契约"
+    },
+    {
+     "type": "test",
+     "ref": "gate G7 真实拦截+修复",
+     "claim": "静默 except 两处留痕 ⇒ gate 8/8（不许吞异常铁证）"
+    },
+    {
+     "type": "test",
+     "ref": "CLI --demo 真跑",
+     "claim": "循环本身运维可验（非只 pytest 绿）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1131,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1131 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + CLI demo",
+   "user_decision": "『按顺序逐步推进 每步先深度思考』R164 常驻循环"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
