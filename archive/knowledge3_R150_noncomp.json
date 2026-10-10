@@ -1,0 +1,92 @@
+{
+ "round": "R150 · 非补偿门三步（门⑤）— 噪声地板→成本规则/整形→领域守卫; 独立否决不可互偿",
+ "date": "2026-10-10",
+ "★ 论文口径（§3.3 原文 顺序不可换）": [
+  "① noise floor: Ŝ ≥ S* − δ",
+  "②a cost rule (ΔS>δ): ΔC ≤ β₀ + β₁·ΔS（缺省 β₀=0/β₁=1 ⇒ ΔC≤ΔS, 标注口径）",
+  "②b shaped (ΔS≤δ): ws·ΔS − wc·ΔC + wn·ν_str > 0（ν_str=结构新颖度奖励通道）",
+  "③ domain guards（守卫放行权在调用方表 — 缺判定⇒blocked）",
+  "★ 非补偿: 每步独立否决, 别的步骤好不能补偿（与 seesaw 加权门根本差别）"
+ ],
+ "★ 实现 organs/noncomp.py": [
+  "GateInput（全已算数值 — TRUTH_SOURCE: 本模块不算分, 防第二个 judge）",
+  "evaluate 短路链: 任一步败 ⇒ 后续不跑（不可互偿的机器形态）",
+  "★ blocked 三态: δ 缺 / 守卫缺 ⇒ blocked（**不硬设默认值** = 静默放行禁; None≠False 与 X2 纪律同族）",
+  "权重分层: 构造层值域校验 / 求值层权重语义（2b 分支才用到 ⇒ 全 0/负权在 evaluate 拒 — 与 R142『构造期不预判分支』同口径）"
+ ],
+ "★ 门组盘点(R147→R150 的姿势: 先 grep 再动手)": [
+  "门① leakage R147 新建（字面子集+critic 缺口）",
+  "门② contract R148 新建（FGGM+fallback）",
+  "门③ drawback R149 新建（op 三值+表达式树）",
+  "门④ split **早已 live**（evolver L1795-1845: Δ_in≥0∧Δ_ho≥0∧max>0+blocked+第五态 — 比设计稿还细, 又防一次重造）",
+  "门⑤ noncomp R150 新建（本轮）",
+  "门⑥ 退火预算 b_t（式 4= proposer 侧约束, 设计稿列门⑥ — 下一步候选）"
+ ],
+ "★ 测试坑(我的算术错×2)": "① 100×0.005=0.5 恰被 ΔC=0.5 抵消 ⇒ shaped=0 不>0 ⇒ 改 200 同时把边界(=0 拒)加成正案例 ② batch/守卫案例忘给 ΔS ⇒ ②b shaped=0 被拦 ⇒ 统一补 delta_s=0.005",
+ "验证": "pytest 1032(1023+9) · gate 8/8 · e2e RC=0 — 三层全绿",
+ "inheritance": {
+  "gen": 150,
+  "at": "2026-10-10T18:10:00+08:00",
+  "parent_gen": 149,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 158,
+   "pytest": 1023,
+   "inheritance_gen_prev": 149
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "src/dwc/organs/noncomp.py 新建(§3.3 非补偿三步+blocked 三态+短路链)",
+   "files": [
+    "src/dwc/organs/noncomp.py",
+    "tests/test_r150_noncomp.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r150_noncomp.py (9 tests)",
+     "claim": "三步顺序/地板拒/blocked/2a2b 分支/守卫拒/契约/batch"
+    },
+    {
+     "type": "test",
+     "ref": "docs/EVOLUTION_CORE_V2.md §3.3 L228-236",
+     "claim": "判据原文+顺序不可换"
+    },
+    {
+     "type": "test",
+     "ref": "grep noncomp src/ 零命中（R150 前）",
+     "claim": "门⑤真缺口坐实；门④ split 已 live 防重造"
+    }
+   ],
+   "numbers": {
+    "pytest": 1032,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1032 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0",
+   "user_decision": "『继续 逐步推进 不再批准』→ 门⑤ noncomp"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
