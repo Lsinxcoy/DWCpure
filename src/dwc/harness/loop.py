@@ -52,6 +52,7 @@ class Loop:
     def __init__(self, *, anchors_dir: Optional[str] = None,
                  registry: Optional[Any] = None,
                  use_llm: bool = False,
+                 planner_live: bool = False,
                  max_tasks_per_round: int = 8,
                  impl_floor: str = "broken",
                  impl_source: Optional[str] = None):
@@ -59,6 +60,12 @@ class Loop:
         impl_source: 开局实现文件（缺省 anchors_dir/broken_dev.json）."""
         self.registry = registry
         self.use_llm = use_llm
+        # ★★ R185 · planner 现场层（门②的 FGGM 现场合成 — 默认关同
+        #   use_llm 纪律: LLM 有成本且非确定, 调用方显式开）
+        self.planner_live = bool(planner_live)
+        # ★ 痕迹字段常驻初始化（否则 round 从 replay/kept_current 等
+        #   早退路径返回时属性不存在 ⇒ 读方 AttributeError — 实测两红）
+        self._last_planner_trace = None
         # ★ src/dwc/harness/loop.py ⇒ 上溯**4**层 = repo root（src/dwc/harness/loop
         #   — 3 层只到 src/ ⇒ judge 会指到 src/config/anchors 空目录炸
         #   FileNotFound — R165 实测层数错, 按文件真位置固定）
@@ -309,8 +316,38 @@ class Loop:
             self.impl_store[tid] = _cur_impl or ""
             return {"chain_verdict": "kept_current", "score": _cur_score,
                     "landed": False, "blocked": []}
-        gated = self.evolver.gate_all(proposals)     # R162 两层并轨
+        # ★★ R185 · planner 现场层装表（R178 裁决的 Loop 端落实 — 门②
+        #   读共享开关; 装前记原值 ⇒ 用完复位: 本循环的开关不泄漏给
+        #   其它调用方/测试（与 R181 探针 finally 复位同纪律））
+        from dwc.harness import gates as _gates_mod
+        _prev_pl = _gates_mod.planner_layer_injection()
+        if self.planner_live:
+            _gates_mod.set_planner_layer(True)
+        try:
+            gated = self.evolver.gate_all(proposals)   # R162 两层并轨
+        finally:
+            if self.planner_live:
+                _gates_mod.set_planner_layer(_prev_pl)
         self._last_n_candidates = len(proposals)
+        # ★★ R185: planner 现场层痕迹（只摘最新 gated 提案的 per_contract —
+        #   诚实原则: 现场层是 per-candidate 的, 不汇总成"这一轮过了"的
+        #   单值。缺席 ⇒ None（planner_live=False 或层①全拦时如实）
+        self._last_planner_trace = None
+        if self.planner_live:
+            for _p in gated.get("gated", []) or []:
+                _gv = getattr(_p, "gate_verdict", None) or {}
+                _pc = ((_gv.get("six_gate_chain") or {}).get("gates")
+                       or [])
+                for _g in _pc:
+                    if _g.get("gate") == "contract":
+                        _ppc = (_g.get("detail") or {}).get(
+                            "per_contract") or {}
+                        if "planner_live" in _ppc:
+                            self._last_planner_trace = _ppc[
+                                "planner_live"]
+                            break
+                if self._last_planner_trace is not None:
+                    break
         if not gated["gated"]:
             self._last_skip = "全提案被层①拦（无 gated）"
             self._last_blocked = ["gate_all:no_gated"]

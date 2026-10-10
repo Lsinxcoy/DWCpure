@@ -12,6 +12,9 @@
   conftest 才是正解 — 新全局态接入时的注册点也应在此登记）。
 ★ 不动被测产品的复位语义: 这是**测试隔离**（默认被测码不带全局态）,
   产品里 adopt 是持久进程内生效（daemon 重启才复位 — R181 设计如此）。
+★ R185 登记: planner 现场层开关 _SHARED_PLANNER_LAYER 同族（进程内
+  全局 — Loop(planner_live=True) 的 round 会装表; 门②读表 ⇒ 同样
+  必须前后复位, 否则泄漏给后续文件的"缺省 off"断言）。
 """
 from __future__ import annotations
 
@@ -20,8 +23,10 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _reset_process_global_state():
-    """每个测试前后复位 gates._CURRENT_TREE（③门注入表 — 进程内全局）。"""
+    """每个测试前后复位两个进程内全局表（③门树注入 + 门②planner 开关）。"""
     from dwc.harness import gates as _gates
     _gates.set_current_tree(None)
+    _gates.set_planner_layer(False)
     yield
     _gates.set_current_tree(None)
+    _gates.set_planner_layer(False)

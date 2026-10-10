@@ -1,0 +1,81 @@
+{
+ "round": "R185 · Loop 启用 planner 现场层（门②的 FGGM 现场合成真正进主链 — 用户四项清算的第③项收官）",
+ "date": "2026-10-11",
+ "paper": "2603.25111 hard rule: '每个 GM 调用必须包在已验证 FGGM 内'; DWC form: Loop.planner_live=True => gate_all 期间装共享开关 => 门②对每个带对象的候选现构 FGGM（LLM 取参 + 本地 validate + 现场 check）, 用完即弃不进全局表",
+ "what": [
+  "gates.set_planner_layer/planner_layer_injection: 进程内共享开关（与 _SHARED_REGISTRY/_CURRENT_TREE 同族模式 — 最小手术, 不动 run_gates/六门签名）",
+  "_g2_contract 消费共享开关: check_against_facts(reg, f, planner_layer=_SHARED_PLANNER_LAYER)",
+  "Loop(planner_live=False) 缺省 ⇒ 旧行为逐字节不变（R178 默认关裁决的 Loop 端落实）; gate_all 前后装表+finally 复位回原值（不泄漏给其它调用方）",
+  "Loop._last_planner_trace: per-candidate 摘录（不汇总成单值 — 现场层是 per-candidate 的）; __init__ 常驻初始化（早退路径也诚实 None）",
+  "tests/conftest.py 登记新全局态（R185 同 R183 教训: 进程内表必须前后复位, 否则泄漏给后续文件的缺省-off断言）"
+ ],
+ "measured": "真端点实测: LLM ping ok（'OK'）; Loop(planner_live=True) 两轮 round 的 per_contract['planner_live'] 两种形态都真实出现: (a) no_contract + err 回灌 trace（attempt1 区间退化 l=1>=u=1 被本地拦 ⇒ attempt2 仍不过 ⇒ 预算 δ=2 耗尽 ⇒ ⊥ 诚实缺席 — 校验非摆设的又一证据）; (b) checked ok=true id=deltaBand(0.0,2.0)（真合成真判过）",
+ "verify": "pytest 1284 (1277+7) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 185,
+  "at": "2026-10-11T22:20:00+08:00",
+  "parent_gen": 184,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 193,
+   "pytest": 1277,
+   "inheritance_gen_prev": 184
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "gates set_planner_layer/_g2_contract reads it + Loop(planner_live)装表+trace",
+   "files": [
+    "src/dwc/harness/gates.py",
+    "src/dwc/harness/loop.py",
+    "tests/conftest.py",
+    "tests/test_r185_planner_layer_live.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r185_planner_layer_live.py (7 tests)",
+     "claim": "default off byte-identical / gate reads shared switch / round restores / trace present / off leaves none / llm ping / shared semantics"
+    },
+    {
+     "type": "trial_report",
+     "ref": "live Loop(planner_live=True) x2 rounds",
+     "claim": "planner_live trace both forms seen: no_contract+err feedback (delta exhausted => bottom) and checked ok=true id=deltaBand(0.0,2.0)"
+    },
+    {
+     "type": "test",
+     "ref": "full-suite red then fix",
+     "claim": "_last_planner_trace AttributeError on early-return paths (replay kept_current) => moved to __init__; conftest registered the new global"
+    }
+   ],
+   "numbers": {
+    "pytest": 1284,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "8923669f",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1284 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "planner live layer demonstrably runs inside the main chain",
+   "user_decision": "user ordered R185 push (2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

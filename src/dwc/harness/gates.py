@@ -127,7 +127,10 @@ def _g2_contract(f: TermFacts) -> GateOutcome:
             return GateOutcome("contract", GATE_BLOCKED,
                                {"why": "builtin 装载失败: %s: %s"
                                        % (type(exc).__name__, exc)})
-    rep = check_against_facts(reg, f)
+    # ★★ R185: planner 现场层开关（共享表 — Loop 端 set_planner_layer;
+    #   缺省 False ⇒ 下面这行与 R184 之前逐字节相同）
+    rep = check_against_facts(reg, f,
+                              planner_layer=_SHARED_PLANNER_LAYER)
     if rep["verdict"] == "no_contracts":
         return GateOutcome("contract", GATE_BLOCKED,
                            {"why": rep["why"], "n_registered": 0})
@@ -292,6 +295,12 @@ def set_current_tree(node) -> None:
 #: 契约注册表的进程内共享表（②查它 — 空表 = 未注册面在档）
 _SHARED_REGISTRY: Optional[Any] = None
 
+#: ★★ R185 · planner 现场层开关（进程内共享表 — 与 _SHARED_REGISTRY/
+#   _CURRENT_TREE 同族模式）。缺省 False = **旧行为逐字节不变**
+#   （R178 裁决: LLM 有成本且非确定 — 默认关才安全）。Loop 端按预算/
+#   策略显式开（set_planner_layer(True)）, 门②读表消费。
+_SHARED_PLANNER_LAYER: bool = False
+
 
 def _registry():
     return _SHARED_REGISTRY
@@ -301,6 +310,23 @@ def install_registry(reg: Any) -> None:
     """安装共享契约表（调用方注入 — 本模块不自造契约, G2）。"""
     global _SHARED_REGISTRY
     _SHARED_REGISTRY = reg
+
+
+def set_planner_layer(on: bool) -> None:
+    """★★ R185 · planner 现场层开关（Loop 端注入 — 门②读表）。
+
+    ★ False（缺省）= 门②不走现场合成 ⇒ _g2_contract 旧行为逐字节不变
+      （R178 的默认关裁决在共享表上的落实）。
+    ★ True = 每个带对象的候选在门②多一次 planner 现场合成（LLM 成本
+      + 非确定 ⇒ 调用方按策略显式开, 不默认开）。
+    """
+    global _SHARED_PLANNER_LAYER
+    _SHARED_PLANNER_LAYER = bool(on)
+
+
+def planner_layer_injection() -> bool:
+    """★ 当前 planner 现场层开关（供审计/测试读）。"""
+    return _SHARED_PLANNER_LAYER
 
 
 def run_gates(facts: TermFacts, *, stop_at_first_block: bool = False
