@@ -1699,7 +1699,17 @@ class Evolver:
         self._seen: Set[str] = set()
         #: ★ R162 · 共享契约注册表（层② contract 门的输入; None=未注入
         #   ⇒ contract 落 pending 族, 不误判提案坏）
+        #: ★ R167: 未注入时**出厂装 builtin**（budget_window 值域契约 —
+        #   DWC 自己的真实约束注册为 FGGM; 此前全仓只有测试装过表 ⇒
+        #   生产路径门②恒"表非空即过"或 blocked, 两种虚判都终结）
+        if registry is None:
+            try:
+                from dwc.organs.contracts_builtin import builtin_registry
+                registry = builtin_registry()
+            except Exception as exc:              # noqa: BLE001 — 留痕不静默
+                self.registry_error = "%s: %s" % (type(exc).__name__, exc)
         self.registry = registry
+        self.registry_error = None
 
     # ══════════════════════════════════════════════
     # 诊断 → 提案

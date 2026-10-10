@@ -102,15 +102,36 @@ def _g1_leakage(f: TermFacts) -> GateOutcome:
 
 
 def _g2_contract(f: TermFacts) -> GateOutcome:
-    """② contract: 契约注册表在场性（无候选 diff ⇒ 只查注册面）。"""
+    """★★ ② contract: R167 起**真判**（原"表非空即过"升级为逐 check）。
+
+    · 空表 ⇒ blocked（缺对象要建设 — 不是"没契约就是契约满足"）
+    · 表非空 + 无对象（edits 空）⇒ passed（只报注册面 — 没对象不判,
+      R152 语义守恒）
+    · 表非空 + 对象齐 ⇒ 逐契约 check（R148 FGGM 三值）:
+        违反 ⇒ blocked（**真 veto** — 不是存在性检查了）
+    ★ 判定源 = contracts_builtin（R167: budget_window 值域契约 +
+      dafny 现场反射层 — 被测约束量与 budget 门同源）。
+    """
+    from dwc.organs.contracts_builtin import check_against_facts
     from dwc.organs.contract import ContractRegistry, ST_NO_CONTRACT
     reg = _registry()
-    if reg is None or reg.summary()["n_registered"] == 0:
+    if reg is None:
+        reg = ContractRegistry()                # 显式空表 ⇒ blocked 路径
+    rep = check_against_facts(reg, f)
+    if rep["verdict"] == "no_contracts":
         return GateOutcome("contract", GATE_BLOCKED,
-                           {"why": "无契约注册（空表）⇒ ②不判 — 没契约≠"
-                                   "契约满足（三值纪律, X2 同族）"})
+                           {"why": rep["why"], "n_registered": 0})
+    if rep["verdict"] == "violation":
+        return GateOutcome("contract", GATE_BLOCKED,
+                           {"n_violation": rep["n_violation"],
+                            "n_checked": rep["n_checked"],
+                            "per_contract": rep["per_contract"],
+                            "why": "契约违反 ⇒ ② veto（R167 真判 — "
+                                   "不再是存在性检查）"})
     return GateOutcome("contract", GATE_PASSED,
-                       {"n_registered": reg.summary()["n_registered"]})
+                       {"n_registered": rep["n_contracts"],
+                        "n_checked": rep["n_checked"],
+                        "per_contract": rep["per_contract"]})
 
 
 def _g3_drawback(f: TermFacts) -> GateOutcome:

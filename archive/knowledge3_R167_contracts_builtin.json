@@ -1,0 +1,80 @@
+{
+ "round": "R167 · contract builtin registration + gate2 real judging (existence check to per-check)",
+ "date": "2026-10-11",
+ "design": [
+  "gate2 was existence check (n_registered>0) — R148 FGGM registry live but no production registrar (only tests installed one bounded_param)",
+  "gate2 upgraded: empty table=>blocked; table non-empty + no object(edits empty)=>passed (registry face); object ready=> per-contract check, violation => blocked (real veto)",
+  "two-layer contract split (honest landing of paper Flexibility): global static layer (budget_window value-range) / candidate live layer (dafny reflexive, NOT in global table)",
+  "Flexibility honesty: paper says planner LLM synthesizes FOL on-site; DWC has no planner (no verifier loop) => static registration face, synthesis stays backlog"
+ ],
+ "attribution_correction": "first version fed diff CHAR COUNT as boundedParam's y (len('clean = 1')=9>8 => false violation) — invented measurement caliber, not paper 'holds for all parameters'. Fixed: constrained quantity = EDITS COUNT (same source as budget gate R151)",
+ "builtin_installed": "Evolver() no-inject now factory-installs builtin (budget_window) — production path gate2 no longer vacuous; registry_error slot records load failure (no silent except)",
+ "verify": "Evolver() factory ids ['boundedParam(1.0,8.0)'] real-run confirmed; pytest 1156 (1148+8) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 167,
+  "at": "2026-10-11T04:50:00+08:00",
+  "parent_gen": 166,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 175,
+   "pytest": 1148,
+   "inheritance_gen_prev": 166
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "organs/contracts_builtin.py new (builtin registry + two-layer check) + gates._g2 real judging + Evolver factory install",
+   "files": [
+    "src/dwc/organs/contracts_builtin.py",
+    "src/dwc/harness/gates.py",
+    "src/dwc/organs/evolver.py",
+    "tests/test_r167_contracts_builtin.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r167_contracts_builtin.py (8 tests)",
+     "claim": "builtin one global/two-layer/edits-constrained/no-input/over-agenda veto/empty-table/gate2 upgraded"
+    },
+    {
+     "type": "test",
+     "ref": "Evolver() factory registry",
+     "claim": "production path builtin installed (boundedParam(1.0,8.0))"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2603.25111.md §4.2",
+     "claim": "FGGM four properties + two instances (boundedParam/dafnyAnnotate)"
+    }
+   ],
+   "numbers": {
+    "pytest": 1156,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ba8aaeba",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1156 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "gate_trace.jsonl + e2e RC=0 + Evolver factory ids",
+   "user_decision": "R167 contract builtin registration"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
