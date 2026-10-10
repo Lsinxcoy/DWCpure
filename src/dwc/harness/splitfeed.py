@@ -79,7 +79,13 @@ def _aggregate(judge: Any, split: str, tasks: Sequence[str],
     verdicts = []
     for tid in tasks:
         try:
-            out = run_impl(tid)                      # 实现跑出的 observation
+            # ★ R169: split 透传给 run_impl（双参 lambda 收; 单参 lambda
+            #   走 TypeError 回落 — splitfeed 的调用方（e2e/loop）都是
+            #   新双参形; 旧单参形向后兼容）
+            try:
+                out = run_impl(tid, split)
+            except TypeError:
+                out = run_impl(tid)                  # 旧形参 impl 兼容
             v = judge.evaluate(tid, split, observed=out)
         except Exception as exc:                     # noqa: BLE001 — 留痕不静默
             raise SplitFeedError(

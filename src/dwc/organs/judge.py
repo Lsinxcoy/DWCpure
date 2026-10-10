@@ -87,7 +87,10 @@ TRUTH_SOURCE: Tuple[str, ...] = (
 
 #: ★★ 未落地的真值源（判据: 声明了但文件不存在 ⇒ 启动必须 raise）
 #:   这是"诚实"的一部分 —— 而不是留空文件假装合法
-TRUTH_NOT_BUILT = {"test_sealed"}
+#: ★★ R169 清算: test_sealed **已落地**（R28 · config/anchors/test_sealed.json
+#:   11 条 locked split — eval_built 在场核验过）⇒ 从白名单**移除**;
+#:   白名单机制保留（声明了却丢 ⇒ raise 的纪律不减）, 只是当前无未落地项。
+TRUTH_NOT_BUILT: set = set()
 
 #: ★ judge 的三 split（2607.12790 §2.2: 三个互不相交的 split）
 SPLIT_DEV = "dev"        # 锚点集，恒小，每条带 golden reference

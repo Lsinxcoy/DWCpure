@@ -1,0 +1,91 @@
+{
+ "round": "R169 · judge unwired-face clearing — test_sealed connected + actor split routing + e2e ho real judging (R161 gap closed)",
+ "date": "2026-10-11",
+ "取证": [
+  "16 处 grep 全量归类: 全部属同一族 = test split 故意未落地（TRUTH_NOT_BUILT 白名单机制）— 不是烂摊子, 是 R24 立的诚实纪律",
+  "真缺口发现: config/anchors/test_sealed.json 早由 R28 落地（10 条 locked split）; judge 装载逻辑本就按 os.path.exists 在场载入 — 只是 TRUTH_NOT_BUILT 还列着它 ⇒ 自检报告虚列 not_built"
+ ],
+ "三个真接线": [
+  "TRUTH_NOT_BUILT 清空（R28 已落地）; 自检 verified 归位（白名单机制保留 — 声明了却丢仍 raise）",
+  "actor.execute_task 加 split 参数（此前硬读 judge.anchors ⇒ sealed task 一律 KeyError）— split 错配显式 ActorError（不跨 split 顶替 — 论文 locked 纪律）",
+  "沙箱白名单: 静态 6 ∪ split 注入（_src 全部 checks 的 fn — 只收两 split 真校验里出现的 fn, 不开任意 fn; 沙箱性质不变）"
+ ],
+ "e2e ho 真判（本轮最大产出）": "baseline ho=0.5714 → current ho=1.0000; split 门 na ⇒ passed（decision=adopted_not_implemented）; R161 的 ho=None（演示集未覆盖 test）缺口正式关闭 — e2e 演示集接入 7 个 dev 未覆盖 code_repair（_HO_BUGGY/_HO_FIX 同族手写 fixture, checks 是 R28 locked 真校验 ⇒ 不是编 golden 骗判）",
+ "如实记录": "test_list_001 的 checks 不查保序 ⇒ buggy set()==fix 保序等价（ho 该条不贡献涨面 — 真覆盖面, 不造假; ho 涨来自另外 6 条）",
+ "踩坑": [
+  "e2e lambda 单参 ⇒ splitfeed TypeError 回落吃掉 split ⇒ execute_task 落默认 dev ⇒ ActorError; 修: e2e 双参 lambda（收 splitfeed 透传 split）",
+  "我 patch actor docstring 时旧正文被留在三引号外 ⇒ SyntaxError（invalid character '★'）",
+  "splitfeed patch 吞掉 v=judge.evaluate 行 ⇒ NameError",
+  "ids 数: dict len=11（含元键）⇒ 真任务 10（先数再断言 — 我照 len 断言 11 被打回）",
+  "e2e 子进程测试 vs pytest 进程写 anchors 运行产物串扰 ⇒ 子进程前清（score_history 污染 Ŝ 序列）"
+ ],
+ "验证": "pytest 1170(1164+6) · gate 8/8 · e2e RC=0 · split 门 ho 真 passed",
+ "inheritance": {
+  "gen": 169,
+  "at": "2026-10-11T06:30:00+08:00",
+  "parent_gen": 168,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 177,
+   "pytest": 1164,
+   "inheritance_gen_prev": 168
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "TRUTH_NOT_BUILT 清空 + actor.execute_task split 路由 + 沙箱白名单 split 注入 + e2e 演示集接入 sealed 7 件套",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "src/dwc/organs/actor.py",
+    "src/dwc/harness/splitfeed.py",
+    "scripts/e2e_loop.py",
+    "tests/test_r169_sealed_wireup.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r169_sealed_wireup.py (6 tests)",
+     "claim": "白名单清空/白名单自检/sealed 载入 10/split 路由/沙箱 union/e2e ho 真判"
+    },
+    {
+     "type": "test",
+     "ref": "e2e 真跑 stdout",
+     "claim": "ho=0.5714→1.0000 split 门 passed（R161 缺口关闭）"
+    },
+    {
+     "type": "test",
+     "ref": "docs/papers/2607.12790.md §2.2",
+     "claim": "test locked split『no part of metric evolution reads it』"
+    }
+   ],
+   "numbers": {
+    "pytest": 1170,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1170 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "e2e stdout ho 0.5714→1.0000 + gate_trace",
+   "user_decision": "R169 judge unwired-face clearing"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

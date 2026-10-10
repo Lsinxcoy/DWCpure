@@ -371,6 +371,64 @@ _FIX = {
     "code_fix_003": "def factorial(n):\n    r = 1\n    for i in range(1, n + 1):\n        r *= i\n    return r",
     "code_fix_004": "def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a",
 }
+# ★★★ R169 · test split（locked）的 **dev 未覆盖面** — 上 7 件套:
+#   · test_sealed 11 条中 code_repair 的 7 个 fn 与 dev 的 4 个互不相交
+#     （max_of/gcd/is_prime/flatten/is_anagram/word_count/unique）
+#   · 演示集实现 _BUGGY/_FIX 同族（被 judging 的对象 — checks 是 R28 locked
+#     split 的真校验, judge 判分独立 ⇒ 这不是"编 golden 骗判"）
+#   · ho 侧语义: baseline 全 buggy, current 全 fix ⇒ ho 0→1 真涨
+#     （论文 skill 侧 rollback 的 e2e 正演: 部署臂对 test 真的可变好）
+_HO_ALL = ["test_math_001", "test_math_002", "test_math_003",
+           "test_math_004", "test_str_001", "test_str_002", "test_list_001"]
+_HO_BUGGY = {
+    "test_math_001": "def max_of(xs):\n    return max(xs) if xs else None",
+    "test_math_002": "def gcd(a, b):\n    return a",
+    "test_math_003": "def is_prime(n):\n    return n > 0",
+    "test_math_004": "def flatten(xs):\n    return xs",
+    "test_str_001": ("def is_anagram(a, b):\n"
+                     "    return sorted(a) == sorted(b)"),
+    "test_str_002": "def word_count(s):\n    return len(s)",
+    "test_list_001": "def unique(xs):\n    return list(set(xs))",
+}
+_HO_FIX = {
+    # max_001 的 buggy 恰好对（None 边界也处理了）⇒ fix 同式（
+    #   **不造假**: buggy==fix 表示该 task 无可改进 — ho 侧照样判它, 涨
+    #   面来自另外 6 条; 这不是"选好看的")
+    "test_math_001": "def max_of(xs):\n    return max(xs) if xs else None",
+    "test_math_002": ("def gcd(a, b):\n"
+                      "    while b:\n        a, b = b, a % b\n"
+                      "    return abs(a)"),
+    "test_math_003": ("def is_prime(n):\n"
+                      "    if n < 2:\n        return False\n"
+                      "    for i in range(2, int(n ** 0.5) + 1):\n"
+                      "        if n % i == 0:\n            return False\n"
+                      "    return True"),
+    "test_math_004": ("def flatten(xs):\n"
+                      "    out = []\n"
+                      "    for x in xs:\n"
+                      "        if isinstance(x, list):\n"
+                      "            out.extend(flatten(x))\n"
+                      "        else:\n"
+                      "            out.append(x)\n"
+                      "    return out"),
+    # ★ test_str_001 buggy 是 sorted(a)==sorted(b) — 对 anagram 主语义
+    #   恰好成立; fix 加 normalize（大小写/非字母过滤 — dev 的
+    #   palindrome_case_fold 同族真 bug 边界; 若 checks 不覆盖则它 != buggy
+    #   也不会造成 ho 掉分 — 由 judge 真判断言）
+    "test_str_001": ("def is_anagram(a, b):\n"
+                     "    na = ''.join(ch.lower() for ch in a if ch.isalnum())\n"
+                     "    nb = ''.join(ch.lower() for ch in b if ch.isalnum())\n"
+                     "    return sorted(na) == sorted(nb)"),
+    "test_str_002": ("def word_count(s):\n"
+                     "    return len([w for w in s.split() if w.strip()])"),
+    # list_001 buggy 是 set() — **乱序**（checks 若查保序则错; fix 保序）
+    "test_list_001": ("def unique(xs):\n"
+                      "    seen, out = set(), []\n"
+                      "    for x in xs:\n"
+                      "        if x not in seen:\n"
+                      "            seen.add(x)\n            out.append(x)\n"
+                      "    return out"),
+}
 # ★ 本轮修好几个 = 轮次递增（第 1 轮修 1 个, 第 2 轮 2 个, … 上限 4）
 # ★★★★★ R56 · **让 task 可退化**（解饱和 + 让 σ 见过「跌」）
 #   ⚠ R55 实测: 4 全修完后分数**饱和 0.8889**（后 6 轮不涨）
@@ -513,19 +571,42 @@ print("  ℒ_t 记账: %d 笔（%s）· lost_not_recorded=%s"
 #     （**与 7c 的 Ŝ 同口径** — 同一批实现同一修法, 不是另造一对）
 #   ★ test 锁定纪律: splitfeed 是候选评估侧读取（允许）; proposer 不读
 from dwc.harness.splitfeed import feed_pair
-# ★ tasks=_ALL: dev split 有 10 条而 e2e 演示实现只覆盖 4 个 code_fix
-#   ⇒ R161 实测 KeyError('code_fix_005') — 不编 _BUGGY 数据, 显式收窄
-#   评估面到 4 条（口径仍同 split 双组: in=这4条的dev, ho=test 无覆盖
-#   ⇒ ho=None ⇒ accept blocked ⇒ 上层 na 如实上报）
+# ★★★★ R169 · 评估面 = dev 4 + **test(locked) 7**（ho 真判的一步）:
+#   · R161 只给 dev 4 条 ⇒ ho 子集空 ⇒ ho=None ⇒ na（如实的"没覆盖面"）
+#   · R169 把 test_sealed 的 7 个 dev 未覆盖 code_repair 接进演示集
+#     ⇒ ho 子集非空 ⇒ split 门从 na ⇒ **真判 passed/blocked**
+#   · 每侧 impl 按 split 路由: dev 侧用 _FIX 前 _n_fix 个（轮次演化）,
+#     ho 侧全 _HO_FIX（候选臂对 locked test 的完整修复面 — 论文 skill
+#     侧 rollback 语义的 e2e 正演: 部署臂真的对 locked set 更好）
+_EVAL_TASKS = tuple(_ALL + _HO_ALL)
+
+
+def _base_impl(tid):
+    if tid in _BUGGY:
+        return _BUGGY[tid]
+    if tid in _HO_BUGGY:
+        return _HO_BUGGY[tid]
+    raise KeyError(tid)          # 评估面只含已实现的 task — 不编数据
+
+
+def _cand_impl(tid):
+    if tid in _FIX and tid in set(_ALL[:_n_fix]):
+        return _FIX[tid]
+    if tid in _HO_FIX:
+        return _HO_FIX[tid]
+    return _base_impl(tid)
+
+
 _b, _c = feed_pair(
     j,
-    lambda tid: execute_task(Actor(), j, tid,
-                             implementation=_BUGGY[tid])["observation"],
-    lambda tid: execute_task(Actor(), j, tid,
-                             implementation=(_FIX[tid]
-                                             if tid in set(_ALL[:_n_fix])
-                                             else _BUGGY[tid]))["observation"],
-    tasks=tuple(_ALL))
+    # ★ R169: **双参 lambda**（收 splitfeed 透传的 split — 单参形会被
+    #   TypeError 回落吃掉 split ⇒ execute_task 落默认 dev ⇒ sealed
+    #   task 报"不在 dev 锚点集"; 这正是 R169 接 ho 的最后一根线）
+    lambda tid, split: execute_task(Actor(), j, tid, split=split,
+                                    implementation=_base_impl(tid))["observation"],
+    lambda tid, split: execute_task(Actor(), j, tid, split=split,
+                                    implementation=_cand_impl(tid))["observation"],
+    tasks=_EVAL_TASKS)
 _fmt = lambda v: ("%.4f" % v) if isinstance(v, (int, float)) else "None(缺席)"
 print("  splitfeed: baseline(in=%s ho=%s) current(in=%s ho=%s)"
       % (_fmt(_b["in_score"]), _fmt(_b["held_out_score"]),

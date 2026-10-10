@@ -450,8 +450,15 @@ class PureFunctionExecutor:
         "reverse_string": "def reverse_string(s):\n    return s[::-1]",
     }
 
-    def __init__(self, fn_name: str, source: Optional[str] = None):
+    def __init__(self, fn_name: str, source: Optional[str] = None,
+                 allowed: Optional[Any] = None):
         """★ source 缺省用 REFERENCE（基准）；可传入**待评的实现**。
+
+        ★★ R169: `allowed` 可选注入（split 驱动的白名单收敛面）。
+          静态 `ALLOWED` 只有 dev 的 6 个 fn ⇒ sealed split（R28 落地）
+          的 7 个 fn 一律 ActorError ⇒ ho 面跑不了。注入口径:
+          **只收 split 校验里真实出现的 fn**（task spec 的 checks）—
+          不开"任意 fn"（沙箱性质: 无参纯函数 + 来源锁定, 不破）。
 
         ★★★★ R30 端到端实测发现的断点①:
           execute_task 此前只跑 REFERENCE ⇒ 带 bug 的实现**跑不了**
@@ -462,10 +469,11 @@ class PureFunctionExecutor:
         ⇒⇒ ⇒★ 但 `source_from` 必须记下这次跑的是谁的实现 ——
           否则"评测的是哪个实现"又变成不可审计（原则 3/7）
         """
-        if fn_name not in self.ALLOWED:
+        _pool = set(self.ALLOWED) | set(allowed or ())
+        if fn_name not in _pool:
             raise ActorError(
-                "函数 %r 不在沙箱白名单 %r 内"
-                % (fn_name, list(self.ALLOWED)))
+                "函数 %r 不在沙箱白名单 %r 内（静态 ∪ split 注入）"
+                % (fn_name, sorted(_pool)))
         self.fn_name = fn_name
         self.source_from = "reference" if source is None else "provided"
         body = self.REFERENCE[fn_name] if source is None else source
@@ -581,8 +589,15 @@ def build_implementation(fn_name: str, base_source: str,
 def execute_task(actor: "Actor", judge: Any, task_id: str,
                  decision_source: str = "heuristic",
                  trace_hook=None,
-                 implementation: Optional[str] = None) -> Dict[str, Any]:
-    """★ 执行一个 dev 任务，产出 **judge 的观测契约**格式。
+                 implementation: Optional[str] = None,
+                 split: str = "dev") -> Dict[str, Any]:
+    """★ 执行一个 split 任务，产出 **judge 的观测契约**格式。
+
+    ★★ R169: 加 `split` 参数（默认 "dev" — 向后兼容）。此前硬读
+      `judge.anchors[task_id]` ⇒ sealed split 的 task 一律 KeyError
+      （splitfeed 的 ho 面因此跑不起来 — R161 e2e ho=None 的**另一
+      个因**: 不止评估面没覆盖, actor 也没有 split 路由能力）。
+      取任务 spec 按 split 走 judge 的同款装载面。
 
     ★★★★ R26 实测发现的契约洞 —— 这次矛盾的根因:
       judge 的观测契约要求覆盖该任务的**全部** checks，
@@ -595,7 +610,18 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
 
     ★★ 返回: {"task_id", "observation", "traces", "n_checks"}
     """
-    rec = judge.anchors[task_id]
+    # ★ R169 split 路由: dev ⇒ judge.anchors; test ⇒ judge.sealed
+    #   （缺 split 的 spec ⇒ KeyError 如实抛 — 不拿 dev 顶替, 那会把
+    #    locked test 变成训练可见集）
+    _src = judge.anchors if split == "dev" else getattr(judge, "sealed",
+                                                       None) or {}
+    if task_id not in _src:
+        raise ActorError(
+            "task %r 不在 split=%r 的锚点集（dev=%d/sealed=%d）— "
+            "不跨 split 顶替（R169）"
+            % (task_id, split, len(judge.anchors),
+               len(getattr(judge, "sealed", None) or {})))
+    rec = _src[task_id]
     if rec.get("verifier_kind") != "behavior":
         raise ActorError(
             "execute_task 只支持 behavior 形态（%r 是 %r）"
@@ -609,7 +635,17 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
     fn_name = checks[0]["fn"]
 
     # ★★★ R30 断点①的修法: 实现可传入（缺省仍是 REFERENCE）
-    ex = PureFunctionExecutor(fn_name, source=implementation)
+    # ★ R169: 注入 split 的 fn 池（= _src 全部 task 的 checks fn —
+    #   白名单收敛: 只有两 split 真校验里出现的 fn 可跑）
+    _fn_pool = set()
+    for _tid, _rec in _src.items():
+        if _tid.startswith("_") or not isinstance(_rec, dict):
+            continue
+        for _c in _rec.get("checks", []) or []:
+            if isinstance(_c, dict) and _c.get("fn"):
+                _fn_pool.add(_c["fn"])
+    ex = PureFunctionExecutor(fn_name, source=implementation,
+                              allowed=_fn_pool)
     traces = []
     calls: List[List[Any]] = []
     for c in checks:                 # ★★★ 全部断言，不只第一条
