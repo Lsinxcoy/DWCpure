@@ -1,0 +1,68 @@
+{
+ "round": "R174 · replay selection face wired into Loop (candidate set contains current — the component-tree⑥ note landed)",
+ "date": "2026-10-11",
+ "evidence_lead": "R73 note said replay.py 'still not built' — MEASURED: src/dwc/organs/replay.py EXISTS and core.py already uses ReplaySimulator/select_with_val_fallback (evaluation side live). The real gap = the other half of its own honesty boundary: 'this round only landed the EVALUATION side (give a set of V and it can pick); the PRODUCTION side awaits wiring' — the candidate set (where V^m comes from)",
+ "what": "Loop candidate set = {proposal, __current__} with V from the SAME _trial_run judge re-verify path (no second caliber); shortlist_candidates(top-K ∪ {current}) + select_policy argmax; m*==current (ties broken by dict order — '__current__' < 'prop') => kept_current, no landing (paper §2.7 not-worse guarantee: no benefit => don't move); m*==prop => continue through the six gates (replay picks, gates judge quality — two layers, no bypass)",
+ "deviation_note": "R173 test lock updated: 002's lateral probe now stops at replay-select (kept_current) instead of reaching the gates — same outcome (no landing, no free pass for borrowed fixes), earlier interception point, which is more paper-faithful (selection before quality gates)",
+ "verify": "pytest 1200 (1195+5) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 174,
+  "at": "2026-10-11T11:30:00+08:00",
+  "parent_gen": 173,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 182,
+   "pytest": 1195,
+   "inheritance_gen_prev": 173
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Loop replay pick (candidate set incl current + shortlist + select_policy) + _CurrentProposal/_CurProbe",
+   "files": [
+    "src/dwc/harness/loop.py",
+    "tests/test_r174_replay_select.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "replay.py honesty boundary (production side awaits wiring)",
+     "claim": "real gap identified by measurement, not the stale R73 note"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r174_replay_select.py (5 tests)",
+     "claim": "candidate set contains current / prop wins => lands / tie keeps current / worse prop / same judge path"
+    }
+   ],
+   "numbers": {
+    "pytest": 1200,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "ae6e22e1",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1200 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "003 prop=1.0 => lands; 002 tie => kept_current",
+   "user_decision": "sequential push (user 2026-10-11, deep-think before every step)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

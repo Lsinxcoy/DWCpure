@@ -65,8 +65,13 @@ def test_lateral_proposal_does_not_force_pass(loop):
     """
     out = loop._run_one_task("code_fix_002", round_no=1)
     assert out["landed"] is False
-    # 链走到了门（不是"无提案"早退）⇒ 泛化候选真生成过
-    assert out["chain_verdict"] == "blocked"
+    # ★★ R174 起路径细化: 泛化候选生成 ⇒ 试跑无效（prop=0.0 平 current）
+    #   ⇒ replay 选择面**更早一步**拦（kept_current — §2.7 不劣于保证）
+    #   ⇒ 语义同向（都不落地, 都不给借来的修法免费过）, 但拦点从
+    #   "六门"前移到"replay select"——这更论文（选择面先判, 门再审质量）
+    assert out["chain_verdict"] in ("blocked", "kept_current")
+    if out["chain_verdict"] == "kept_current":
+        assert loop._last_replay_pick["picked"] == "__current__"
     assert out.get("score") == 0.0
 
 

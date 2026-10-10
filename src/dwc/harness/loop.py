@@ -36,6 +36,8 @@ from dwc.organs.applier import Applier
 from dwc.organs.evolver import Evolver
 from dwc.organs.judge import Judge
 from dwc.harness.pipeline import run_round
+from dwc.organs.replay import (no_worse_than_current, select_policy,
+                               shortlist_candidates)
 from dwc.harness.splitfeed import feed_pair
 from dwc.harness.candidate_bridge import BridgeError
 
@@ -90,6 +92,7 @@ class Loop:
         self._el_token = -1
         self._el_last_task: Optional[str] = None    # ★ R172: p̂ 归因环境
         self._last_consolidation: Optional[Dict] = None  # ★ R173 固化痕迹
+        self._last_replay_pick: Optional[Dict] = None    # ★ R174 replay 选择痕迹
         self._load_impl_floor(impl_source)
 
     def _load_impl_floor(self, impl_source: Optional[str]) -> None:
@@ -250,9 +253,40 @@ class Loop:
                                    "unfixable_now 是一等输出）" % tid)
                 return {"chain_verdict": "blocked", "score": score,
                         "landed": False}
+        # ★★★ R174 · replay 选择面（稿⑥§②+§2.7: 候选集必含 current,
+        #   argmax V(m*) ≥ V(current) ⇒ 不劣于当前的保证）:
+        #   v_search = {提案: 试跑分, "__current__": 当前实现分}
+        #   ⇒ shortlist_candidates(top-K ∪ {current}) + select_policy(argmax)
+        #   ⇒ m* == "__current__" ⇒ **不落地**（保持更好 — 没好处不动）;
+        #   m* == 提案 ⇒ 继续走链（六门复试 — 选择面只判"选谁", 质量仍归门）
+        #   ★ 分工: replay 管"选哪个"（历史分 argmax）; gates 管"能不能用"
+        #     （六门）— 两层都过才落（不拿 replay 分绕过门 — 边界）
+        _cur_impl = self.impl_store.get(tid)
+        _cur_trial = self._trial_run(tid, _CurrentProposal(tid, _cur_impl)) \
+            if _cur_impl else None
+        _cur_score = (float(_cur_trial["pass_rate"])
+                      if _cur_trial and _cur_trial.get("pass_rate")
+                      is not None else 0.0)
         # ★★ R170: 提案在手 ⇒ 试跑（把 RULES patch 合成新源码 ⇒ judge
         #   复判 — 门⑤的真 ΔS 证据只从这出; 合成失败 ⇒ None ⇒ ⑤拒）
         _trial = self._trial_run(tid, proposals[0])
+        _v = {"__current__": _cur_score}
+        if _trial is not None and _trial.get("pass_rate") is not None:
+            _v["prop"] = float(_trial["pass_rate"])
+        short = shortlist_candidates(_v, current="__current__", k=2)
+        _pick = select_policy(_v, current="__current__")
+        self._last_replay_pick = {
+            "v": _v, "shortlist": short, "picked": _pick[0],
+            "argmax_score": _pick[1],
+            "no_worse": no_worse_than_current(_v, current="__current__")}
+        if _pick[0] == "__current__":
+            # ★ current 赢（含平手 — argmax tie-break 取字典序小者,
+            #   "__current__" < "prop" ⇒ 平手即 current）= 不落地
+            self._last_skip = ("replay 选择: current 不劣于提案（%r）⇒ "
+                               "不落地（没好处不动）" % _v)
+            self.impl_store[tid] = _cur_impl or ""
+            return {"chain_verdict": "kept_current", "score": _cur_score,
+                    "landed": False, "blocked": []}
         gated = self.evolver.gate_all(proposals)     # R162 两层并轨
         self._last_n_candidates = len(proposals)
         if not gated["gated"]:
@@ -584,6 +618,30 @@ class Loop:
     def _dev_tasks(self) -> List[str]:
         return sorted(k for k in self.judge.anchors
                       if not k.startswith("_"))
+
+
+class _CurrentProposal:
+    """★★ R174: 伪提案 — 」当前实现」当候选（replay shortlist 的 current 项）。
+
+    ★ 为什么需要它: _trial_run 吃 Proposal 接口（.patch/.target）— 当前
+      实现的"修法"就是它自己（保持现状 = 恒等 patch）⇒ 用同一试跑面
+      拿 V(current)（不另造口径 — 复用 judge 复验路径）。
+    """
+
+    def __init__(self, tid: str, impl: str):
+        self.tid = tid
+        self.impl = impl or ""
+        # _trial_run keyword 分支吃 proposal.patch（答案文本）
+        # behavior 分支吃 target（当前实现的 fn 名）
+
+    def __getattr__(self, name):
+        return getattr(_CurProbe(self.tid, self.impl), name)
+
+
+class _CurProbe:
+    def __init__(self, tid, impl):
+        self.patch = impl or ""
+        self.target = tid
 
 
 class _RuleTarget:
