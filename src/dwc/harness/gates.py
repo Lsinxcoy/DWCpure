@@ -157,7 +157,18 @@ def _g3_drawback(f: TermFacts) -> GateOutcome:
         return GateOutcome("drawback", GATE_BLOCKED,
                            {"why": "judge 未判（pass_rate None）⇒ ③不判"})
     from dwc.organs.ops import build_grader, ctx_from_facts, evaluate_pool
+    # ★★ R181 · 当前生效树注入面（Metric Loop 采纳面 — 同 G2 契约表模式）
+    #   表有树 ⇒ 用注入树（Metric Loop 选优采纳的）; 无 ⇒ 出厂全池树
+    #   （旧行为逐字节不变 — 没接 Metric Loop 时一切照旧）
+    _cur = _current_tree_injection()
     g, _tree = build_grader()
+    if _cur is not None:
+        try:
+            g.set_tree(_cur)
+        except Exception as exc:              # noqa: BLE001 — 留痕不静默
+            return GateOutcome("drawback", GATE_BLOCKED,
+                               {"why": "注入树非法 ⇒ ③不判: %s: %s"
+                                       % (type(exc).__name__, exc)})
     ctx = ctx_from_facts(f)
     ctx["not_evaluated"] = f.not_evaluated            # 计数面透传
     rep = evaluate_pool(g, ctx)
@@ -258,6 +269,25 @@ def _g6_budget(f: TermFacts) -> GateOutcome:
 _DISPATCH = {"leakage": _g1_leakage, "contract": _g2_contract,
              "drawback": _g3_drawback, "split": _g4_split,
              "noncomp": _g5_noncomp, "budget": _g6_budget}
+
+#: ★★★ R181 · ③门的当前生效树注入表（Metric Loop 采纳面 — 同契约表模式）
+#:   None = 未注入（出厂全池树 — 旧行为）; Node = 生效中的检测树
+_CURRENT_TREE: List[Any] = [None]
+
+
+def _current_tree_injection():
+    """★ 读当前注入树（None = 未注入 ⇒ 出厂树）。"""
+    return _CURRENT_TREE[0]
+
+
+def set_current_tree(node) -> None:
+    """★★ Metric Loop 采纳入口: 注入生效树（None = 复位到出厂树）。
+
+    ★ 调用方责任（R181 纪律）: 采纳前必须过**门组回归**（换树前后同候选
+      集判定对比 —"更优树"不许把坏候选放进来）; 本函数只做注入, 不审。
+    """
+    _CURRENT_TREE[0] = node
+
 
 #: 契约注册表的进程内共享表（②查它 — 空表 = 未注册面在档）
 _SHARED_REGISTRY: Optional[Any] = None

@@ -130,6 +130,67 @@ def dev_points_from_store(store: Any, *, split: str = "dev",
 
 
 # ══════════════════════════════════════════════════════════
+# R181 · 采纳面（选优 ⇒ 换 ③门树 + 门组回归快照 — 前置闸）
+# ══════════════════════════════════════════════════════════
+
+def regression_probe(facts_factory: Any, *, new_tree: Any) -> Dict[str, Any]:
+    """★★★ R181 门组回归快照: 同一组 TermFacts 在旧树/新树下的 ③门判定对比。
+
+    ★ 纪律（采纳的前置闸 — 论文 fail-closed 同族）:
+      · 任何一条 fact 在新树下**变严**（blocked）而旧树放行 ⇒ adopt=False
+        （"更优树"不许把原本能过的候选拦了 — 那是回退不是进化）
+      · 任何一条 fact 在新树下**变松**（passed）而旧树拦 ⇒ 记 relaxed
+        条目（不自动拒 — 放行是进化方向; 但必须逐条可审计）
+      · 完全一致 ⇒ adopt=True（空操作也如实: 没变化 = 没风险 = 没价值）
+    ★ facts_factory: () => Iterable[TermFacts]（调用方的事实例 — 本函数
+      不猜面）; 返回 {adopt, relaxed, blocked_more, n}（+ 每条的 diff）
+    """
+    from dwc.harness import gates as _gates
+    out = {"adopt": True, "relaxed": [], "blocked_more": [], "n": 0}
+    try:
+        facts_iter = list(facts_factory())
+    except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+        return {"adopt": False, "why": "facts_factory 失败: %s: %s"
+                                      % (type(exc).__name__, exc), "n": 0}
+    old = _gates._current_tree_injection()
+    for i, f in enumerate(facts_iter):
+        try:
+            _gates.set_current_tree(None)          # 出厂树 = 旧判据
+            o_old = _gates._g3_drawback(f)
+            _gates.set_current_tree(new_tree)      # 新树
+            o_new = _gates._g3_drawback(f)
+        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+            out["blocked_more"].append({"i": i, "why": str(exc)})
+            out["adopt"] = False
+            continue
+        finally:                                   # 复位置换态 — 不污染后续
+            _gates.set_current_tree(old)
+        out["n"] += 1
+        if o_old.status == "passed" and o_new.status != "passed":
+            out["blocked_more"].append({"i": i, "old": o_old.status,
+                                        "new": o_new.status})
+            out["adopt"] = False
+        elif o_old.status != "passed" and o_new.status == "passed":
+            out["relaxed"].append({"i": i, "old": o_old.status,
+                                   "new": o_new.status})
+    return out
+
+
+def adopt(new_tree: Any, facts_factory: Any) -> Dict[str, Any]:
+    """★★★ R181 采纳: 回归快照过 ⇒ 注入 ③门; 不过 ⇒ 拒绝 + 原因（不半吊）。"""
+    rep = regression_probe(facts_factory, new_tree=new_tree)
+    if not rep.get("adopt", False):
+        return {"adopted": False, "regression": rep,
+                "why": rep.get("why") or "回归快照: 新树拦了旧树放行的候选"
+                                       "（更优树不许是回退）"}
+    from dwc.harness import gates as _gates
+    _gates.set_current_tree(new_tree)
+    return {"adopted": True, "regression": rep,
+            "why": "回归过（n=%d, relaxed=%d）⇒ 注入生效树"
+                   % (rep.get("n", 0), len(rep.get("relaxed", [])))}
+
+
+# ══════════════════════════════════════════════════════════
 # A_dev（recall-weighted — 论文 §4 逐字）
 # ══════════════════════════════════════════════════════════
 

@@ -1,0 +1,79 @@
+{
+ "round": "R181 · criterion-tree adoption surface (Metric Loop's final link: select => swap gate ③ tree + gate-set regression snapshot as the pre-gate)",
+ "date": "2026-10-11",
+ "what": "gates._CURRENT_TREE injection table (None = factory tree, byte-identical old behavior) + set_current_tree + _g3_drawback reading the injected tree; metric_loop.regression_probe (same facts under old/new trees — every diff recorded) + adopt (probe passes => inject; fails => refuse, no half state)",
+ "pre_gate_discipline": [
+  "new tree BLOCKS a candidate the factory tree passed => adopt=False (a 'better' tree must not be a regression)",
+  "new tree PASSES one the factory blocked => recorded per-item as relaxed (evolution direction allowed, but fully auditable)",
+  "identical verdicts => adopt=True with explicit 'empty operation' honesty",
+  "probe always restores the prior injection state in finally (no cross-contamination of subsequent gate behavior)"
+ ],
+ "measured": "isomorphic tree: adopt=True 0 diffs; root-only tree: relaxed=[i=1] recorded (a BAD fact would flow through) then adopted — exactly the audit trail the regression snapshot exists for; reset restores factory behavior",
+ "verify": "pytest 1253 (1246+7) gate 8/8 e2e RC=0",
+ "inheritance": {
+  "gen": 181,
+  "at": "2026-10-11T18:30:00+08:00",
+  "parent_gen": 180,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 189,
+   "pytest": 1246,
+   "inheritance_gen_prev": 180
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "gates._CURRENT_TREE injection + metric_loop.regression_probe/adopt",
+   "files": [
+    "src/dwc/harness/gates.py",
+    "src/dwc/organs/metric_loop.py",
+    "tests/test_r181_adopt_tree.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r181_adopt_tree.py (7 tests)",
+     "claim": "factory default / injected verdict change / isomorphic empty-op / relaxed recorded / reset in finally / adopt injects / refuse leaves no half state"
+    },
+    {
+     "type": "trial_report",
+     "ref": "live probe run",
+     "claim": "root-only adoption recorded relaxed=[i=1] — the audit trail in action"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "full suite + gates + e2e",
+     "claim": "no regression from the injection surface on the existing 1253 tests"
+    }
+   ],
+   "numbers": {
+    "pytest": 1253,
+    "gate": "8/8",
+    "e2e_rc": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "95d0d390",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1253 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "adoption surface with auditable regression snapshot",
+   "user_decision": "sequential push with deep-think before every step (user 2026-10-11)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
