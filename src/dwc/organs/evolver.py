@@ -1492,6 +1492,70 @@ class Mutator:
                       "范围扫描。"),
             "rationale": "答案缺 索引/B+树/平衡/磁盘 全部关键词 ⇒ 补完整"
                          "解释"},
+        # ★★★★ R200 · E_VALUE/E_OFF_BY_ONE 的 expected_values 族
+        #   （rung3 数值容差题 — 修法 = **该任务的完整正确答案文本**）
+        #   ★ 与 E_MISMATCH 族同一合法性论证（R171 逐字）: 这不是"编答案
+        #     骗判" — 修法本身就是任务相关知识（均值/极差/幂的正确计算
+        #     值 = 任务要的全部内容; 规则库随任务集增长 = 2606.09498 语义）。
+        #   ★ 键口径: judge 对 expected_values 的失败签名 fn = **key 名**
+        #     （R199 _diff: mean/median/std/range/pow2/pow3）⇒ 键 = c:q:key。
+        #   ★★★ 撞键事实（R200 施工中实测）: "mean" 同时是 reproduce_001
+        #     与 002 的失败 key（键空间 c:q:fn **不含任务维度**）⇒ 该键只
+        #     登记 001（先见者）; 002 的修复走它的独有键 range —— loop 侧
+        #     R200 撞键守卫（文本任务提案按 target==tid 过滤）保证 002 绝不
+        #     试 001 的答案文本。
+        #   ★ target = **task_id**（文本族口径, 与 behavior 族 target=fn
+        #     不同 — R171 定的, _trial_run docstring 逐字）。
+        "E_OFF_BY_ONE:off_by_one_in_range:mean": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_001",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "mean=6.00, std=2.83, median=6.00",
+            "rationale": "[2,4,6,8,10] 均值=30/5=6.00, 总体标准差=sqrt(8)≈2.83,"
+                         " 中位数=6.00 — 补完整正确答案（judge 按容差逐 key 判）"},
+        "E_OFF_BY_ONE:off_by_one_in_range:median": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_001",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "mean=6.00, std=2.83, median=6.00",
+            "rationale": "同 reproduce_001 完整答案（median 键命中同任务）"},
+        "E_VALUE:wrong_magnitude:std": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_001",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "mean=6.00, std=2.83, median=6.00",
+            "rationale": "总体标准差=sqrt(((4+0+4+16+36)/5))=sqrt(8)≈2.83 — 同任务完整答案"},
+        "E_VALUE:wrong_magnitude:range": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_002",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "mean=6.00, range=10.00",
+            "rationale": "[1,3,5,7,9,11] 均值=36/6=6.00, 极差=11-1=10.00 — 补完整"
+                         "正确答案（mean 撞键被 001 占, 本任务经 range 键修复）"},
+        "E_VALUE:wrong_magnitude:pow2": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_003",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "pow2=1024.00, pow3=243.00",
+            "rationale": "2^10=1024, 3^5=243 — 补完整正确答案"},
+        "E_VALUE:wrong_magnitude:pow3": {
+            "component": "prompt",
+            "dimension": "D3",
+            "target": "reproduce_003",
+            "m": "value_completion",
+            "m_source": "rule",
+            "patch": "pow2=1024.00, pow3=243.00",
+            "rationale": "同 reproduce_003 完整答案（pow3 键命中同任务）"},
     }
 
     # ★★★★ R37 · 模块加载即给种子补 target_layer（数据迁移）

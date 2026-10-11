@@ -89,13 +89,22 @@ def test_unknown_task_abstains(loop):
       False + store 未动）, 变的是描述 — 如实更新断言而非改产品迁就
       旧字面（用户纪律: 实现对齐设计, 不反向）。
     """
-    tid = "code_fix_004"     # fibonacci — RULES 无键
+    tid = "code_fix_004"     # fibonacci — RULES 无本 fn 键
     out = loop._run_one_task(tid, round_no=1)
     assert out["landed"] is False
-    assert "三方向全败" in (loop._last_skip or "")
+    # ★★ R200 改正（同 R188 纪律: 行为语义不变, 描述如实更新）:
+    #   R200 给 (E_OFF_BY_ONE, off_by_one_in_range) 族加了 expected_values
+    #   kin（mean/median 键）⇒ LATERAL 现在**有**同 (c,q) 近亲（借的是
+    #   answer-text patch — R173 设计: 候选生成不问有效性, 试跑拦）⇒
+    #   链在 LATERAL 停（一方向一跳, 出候选即止）⇒ 泛化 patch 试跑必炸
+    #   （文本不是函数体）⇒ replay 选 current ⇒ kept_current。
+    #   ★ landed False + store 未动**不变**（弃权语义完好）。
+    assert "不落地" in (loop._last_skip or "")
     assert loop.impl_store[tid] == Loop().impl_store[tid]     # store 未动
 
-    # ★★★ R188 新增断言: 三方向**都真试过**（链被走满 — 不是空转）
+    # ★ 链被走满到**出候选为止**: 本 (round,tid) 的 fallback 序是
+    #   FORWARD(空) → REVERSE(无更简单 target, 空) → LATERAL(泛化候选)
+    #   ⇒ 三方向**都真试过**（序由 sha256(round|tid) 派生 — 确定性）
     dirs = [a.direction.value for a in
             loop._dir_attempts.get(tid, [])]
     assert set(dirs) == {"FORWARD", "LATERAL", "REVERSE"}, dirs
@@ -122,15 +131,15 @@ def test_rules_known_from_file():
     """★ rules_known 自报标（001/003=true, 002/004/005/006=false）。"""
     lp = Loop()
     # ★★ R171 起含 reasoning 4 条（全 true — RULES E_MISMATCH 族已补）
-    # ★ R199: +3 条 rung3（rules_known=false — RULES 无 expected_values
-    #   修法族, 弃权是一等输出（论文 unfixable_now））
+    # ★ R200: +3 条 rung3 自报 true（RULES 已落 expected_values 族 —
+    #   自报标随规则库演化更新, 不留过期 false; R199 期曾为 false）
     assert lp.rules_known == {"code_fix_001": True, "code_fix_002": False,
                               "code_fix_003": True, "code_fix_004": False,
                               "code_fix_005": False, "code_fix_006": False,
                               "reasoning_001": True, "reasoning_002": True,
                               "reasoning_003": True, "reasoning_004": True,
-                              "reproduce_001": False, "reproduce_002": False,
-                              "reproduce_003": False}
+                              "reproduce_001": True, "reproduce_002": True,
+                              "reproduce_003": True}
 
 
 def test_known_first_ordering():

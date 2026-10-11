@@ -59,7 +59,11 @@ def test_tie_keeps_current(loop):
     assert out["landed"] is False
     pk = loop._last_replay_pick
     assert pk["picked"] == "__current__"
-    assert pk["v"]["prop"] <= pk["v"]["__current__"]
+    # ★★ R200 改正: kin 集被 expected_values 族拓宽后, 002 的 LATERAL kin
+    #   从 sum_first_n（可编译但语义错 ⇒ trial 出 0.0 分）变为 pow2（答案
+    #   文本 ⇒ 编译炸 ⇒ trial None ⇒ _v 无 prop 键）。**语义不变**: 无
+    #   试跑证据 = 0 贡献 ⇒ current 更稳（§2.7 不劣于保证, 只是更彻底）。
+    assert pk["v"].get("prop", 0.0) <= pk["v"]["__current__"]
 
 
 def test_worse_prop_keeps_current(loop):

@@ -95,4 +95,5 @@ def test_broken_dev_has_10_tasks():
     ★ R199: +3 rung3（reproduce×3 — rules_known 全 false ⇒ true 计数仍 6）。"""
     lp = Loop()
     assert len(lp.impl_store) == 13
-    assert sum(1 for v in lp.rules_known.values() if v) == 6
+    # ★ R200: true 计数 6→9（+3 rung3 — RULES expected_values 族已落）
+    assert sum(1 for v in lp.rules_known.values() if v) == 9

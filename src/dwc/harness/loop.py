@@ -453,6 +453,20 @@ class Loop:
         except Exception as exc:                    # noqa: BLE001
             self._last_skip = "diagnose 失败: %s" % exc
             return {"chain_verdict": "blocked", "score": score, "landed": False}
+        # ★★★ R200 · 文本任务撞键守卫（RULES 键 = c:q:fn **不含任务维度**
+        #   ⇒ 跨任务撞键真实存在: "mean" 同时是 reproduce_001/002 的失败
+        #   key（R171 keyword 族当年 kw 恰好逐任务唯一, 才没暴露）。
+        #   文本族 RULES 的 target = **task_id**（R171 语义, _trial_run
+        #   docstring 逐字）⇒ 按 target==tid 过滤, 否则:
+        #     ① 拿别任务的答案文本试跑（浪费一轮）
+        #     ② 更糟: 部分 key 恰好同值时（001/002 的 mean 都是 6.00）
+        #        半对答案可能赢 replay 选择 ⇒ 把别任务知识落进本任务。
+        #   ★ behavior 族不滤（其 target = fn 名, 不是 task_id — 语义
+        #     不同, 只在文本分支生效）。
+        if ((self.judge.anchors.get(tid) or {}).get("verifier_kind")
+                in ("keyword_match", "expected_values")):
+            proposals = [pp for pp in proposals
+                         if str(getattr(pp, "target", "")) == tid]
         # ★★★ R188 · DirectionController 接线（R186 搜论文 → R187 A×B 收敛
         #   → 本处落地）: 上面 try 拿到的 proposals = FORWARD 的候选面;
         #   空了不直接走 LATERAL 硬编码, 而是沿 fallback 序换向——

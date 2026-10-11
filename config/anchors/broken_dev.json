@@ -86,25 +86,26 @@
   "category": "paper_reproduction",
   "verifier_kind": "expected_values",
   "broken_impl": "mean=5.00, std=1.00, median=5.00",
-  "impl_note": "三项全错（真值 6.00/2.83/6.00, tol=0.1; 初值差 1.0/1.83/1.0 全在容差外）— judge 真判 fail; 修法=RULES 尚无 expected_values 族 ⇒ rules_known=false（弃权是一等输出）",
+  "impl_note": "三项全错（真值 6.00/2.83/6.00, tol=0.1; 初值差 1.0/1.83/1.0 全在容差外）— judge 真判 fail; 修法=RULES 尚无 expected_values 族 ⇒ rules_known=true(R200 起)（弃权是一等输出）★ R200: E_VALUE/E_OFF_BY_ONE 的 expected_values 族已落（修法=完整正确答案文本; mean 撞键归 001, 002 经 range 键修）",
   "fn": "",
-  "rules_known": false
+  "rules_known": true
  },
  "reproduce_002": {
   "category": "paper_reproduction",
   "verifier_kind": "expected_values",
   "broken_impl": "mean=5.00, range=8.00",
-  "impl_note": "两项全错（真值 6.00/10.00, tol=0.1; 差 1.0/2.0）— judge 真判 fail; RULES 无此族 ⇒ rules_known=false",
+  "impl_note": "两项全错（真值 6.00/10.00, tol=0.1; 差 1.0/2.0）— judge 真判 fail; RULES 无此族 ⇒ rules_known=true(R200 起)★ R200: E_VALUE/E_OFF_BY_ONE 的 expected_values 族已落（修法=完整正确答案文本; mean 撞键归 001, 002 经 range 键修）",
   "fn": "",
-  "rules_known": false
+  "rules_known": true
  },
  "reproduce_003": {
   "category": "paper_reproduction",
   "verifier_kind": "expected_values",
   "broken_impl": "pow2=1000, pow3=200",
-  "impl_note": "两项全错（真值 1024/243, tol=0.5; 差 24/43）— judge 真判 fail; RULES 无此族 ⇒ rules_known=false",
+  "impl_note": "两项全错（真值 1024/243, tol=0.5; 差 24/43）— judge 真判 fail; RULES 无此族 ⇒ rules_known=true(R200 起)★ R200: E_VALUE/E_OFF_BY_ONE 的 expected_values 族已落（修法=完整正确答案文本; mean 撞键归 001, 002 经 range 键修）",
   "fn": "",
-  "rules_known": false
+  "rules_known": true
  },
- "_r199_note": "R199: rung3 面（expected_values）接通 — 3 条错答案初值。rules_known=false 是诚实状态: RULES 无 expected_values 修法族（论文 unfixable_now — 弃权是一等输出, 不编修法）。"
+ "_r199_note": "R199: rung3 面（expected_values）接通 — 3 条错答案初值。rules_known=false 是诚实状态: RULES 无 expected_values 修法族（论文 unfixable_now — 弃权是一等输出, 不编修法）。",
+ "_r200_note": "R200: expected_values 修法族落 RULES（6 键）⇒ 3 条 rung3 自报 rules_known=true（与 RULES 现实一致 — 自报标随规则库演化更新, 不留过期 false）。"
 }
