@@ -113,7 +113,7 @@
    "name": "器官间耦合机制",
    "status": "live",
    "semantic": null,
-   "code_hits": 14,
+   "code_hits": 15,
    "wire_hits": 1,
    "code_evidence": [
     "src\\dwc\\foundation\\eq10.py:134:#: 耦合判定阈值（稿⑤ §⑥ |ρ|>0.8 ⇒ 标 coupled 警示伪多目标）",

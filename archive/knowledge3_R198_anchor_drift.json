@@ -1,0 +1,113 @@
+{
+ "round": "R198（anchor 漂移观察面 — Stage 2 真身的**观察层**, 换代权留系统外）",
+ "date": "2026-10-12",
+ "定位": "DWC-AUTO·只观察+记账+列建议; 不自动换代（G10 grounded② base 在 agent 外 + judge 逐字'epoch 点界流程'）",
+ "模块": {
+  "harness/anchor_drift.py": [
+   "epoch_of/read_epochs — archive/anchor_epochs.jsonl 账本（坏行 raise 拒绝猜）",
+   "record_epoch — 换代记账: epoch 只能前进 + added_tasks 必须非空（守门人单调性两道闸, 违反 ValueError）",
+   "drift_signals — 只读既有产物（evidence.jsonl+dev.json）零新采样零新判据: dev/val pass_rate, per_task_pass, rung_mix",
+   "SUGGESTION_RULES 3 条 + _suggestions 实现（防幻影规则: 测试锁每个登记键都有实现）"
+  ]
+ },
+ "实测信号": {
+  "epoch": 1,
+  "rung_mix": {
+   "1": 10
+  },
+  "suggestions": [
+   "rung_monotone"
+  ],
+  "dev_pass_rate": 0.2917,
+  "per_task_worst": [
+   "code_fix_002: 0.0",
+   "code_fix_003: 0.0"
+  ],
+  "读法": "rung 结构单一（10/10 全 rung1）是真信号; 但 dev 尚未学穿（最低 0.000）⇒ 换代时机未到, 建议层如实不触发 dev_saturated"
+ },
+ "论文依据": "2608.10299 §2.3 逐字'static counterpart'判据 + Stage2 递推 (A^{t+1},E^{t+1})=Ω(A^t,E^t,τ^t); anchor 静态是比机制不互调更硬的 static counterpart",
+ "自抓": [
+  "rung_monotone 规则登记了但 _suggestions 没实现 ⇒ 幻影规则, 补实现+测试锁",
+  "断言禁词太粗: 'dev.json' 误伤 docstring 说明文字 ⇒ 改为禁写动作(shutil.copy/os.replace/write_text/open w) + 函数级检查唯一追加写出口必须是 EPOCH_LEDGER（第一版还要求同行, join 前几行是正常写法 ⇒ 收紧到函数体级）"
+ ],
+ "verify": "pytest 1382→1389(+7) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 198,
+  "at": "2026-10-12T07:00:00+08:00",
+  "parent_gen": 197,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 208,
+   "pytest": 1389,
+   "inheritance_gen_prev": 197
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "anchor 漂移观察面 harness/anchor_drift.py: drift_signals(读 evidence+dev.json 零新采样) + epoch 账本(只增不改, 前进不回退, 空 added_tasks 拒) + 3 条建议规则(dev_saturated/val_degraded/rung_monotone); 只观察+记账+列建议, 不自动换代",
+   "files": [
+    "src/dwc/harness/anchor_drift.py",
+    "tests/test_r198_anchor_drift_observation.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "2608.10299 §2.3 (Stage 2) 逐字",
+     "claim": "'Co-evolution begins when an agent no longer learns against a static counterpart' + '(A^{t+1}, E^{t+1}) = Ω(A^t, E^t, τ^t)' ⇒ DWC 的 environment=judge 锚点; anchor 永不变是更硬的 static counterpart"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "judge.py TRUTH_SOURCE 模块注释",
+     "claim": "'agent 仍不可改判分, 换代只能走 epoch 点界流程' ⇒ 换代是点界人为裁决, 不是连续量自动判定 ⇒ 模块只把'该换了'变成可数事实"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "GAI grounded §2.2 双条件",
+     "claim": "①内容来自系统外 ②base 在 agent 外 ⇒ 若 DWC 自己改 anchor 则②破 ⇒ 换代权必须在系统外（人）"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "dev.json _provenance 逐字",
+     "claim": "'只增不改'（守门人单调性 2606.14249）⇒ record_epoch 单调检查: epoch 前进+added_tasks 非空两道闸, 违反 raise"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "实测锚点结构 drift_signals(ROOT)",
+     "claim": "epoch=1; rung_mix={1:10} 全 rung1 ⇒ rung_monotone 建议亮起（真实信号非演示）; dev_pass_rate 0.29, per_task code_fix_002/003 = 0.000（还没学穿, dev_saturated 不亮）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1389,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 7,
+    "suggestion_rules": 3,
+    "anchor_tasks": 10,
+    "anchor_rung_levels": 1
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "e7604666",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": "epoch 由人点界; 本模块不自动换代"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1389(+7) + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r198_anchor_drift_observation.py + drift_signals(ROOT) 实测输出",
+   "user_decision": "用户'先做1+3'后追问 anchor 漂移风险收益→'继续推进'(2026-10-12)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
