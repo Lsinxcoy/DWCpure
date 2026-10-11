@@ -62,7 +62,13 @@ def test_facts_from_dev_surface_is_real(loop_clean):
     assert len(facts) >= 1
     for f in facts:
         assert f.pass_rate is not None and 0.0 <= f.pass_rate <= 1.0
-        assert f.candidate_diff is None      # 判据面投影（非实现面）
+        # ★★ R193 修正: 旧口径"candidate_diff is None（判据面没 diff）"是
+        #   R180 的**半错注释** — 实测 evidence 49/49 条有 diffs, 缺的是
+        #   投影层。现在该层已补（R179 桥 + R193 投影）⇒ 断言改为:
+        #   diff 在场（非 None）且**来自判据面**（diffs 逐 check 落,
+        #   不是实现面反推）; 判据面全 ok 的点仍可为 None（判过无差异）。
+        if f.candidate_diff is not None:
+            assert "→" in f.candidate_diff     # expected → actual 形态
 
 
 def test_noise_band_blocks_trivial_switch(loop_clean):

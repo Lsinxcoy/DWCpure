@@ -45,14 +45,14 @@ TRUTH_SOURCE = {
     "★ 约束 2": "判据在可写面之外 ⇒ evolver 只读失败签名，不改判据",
 }
 
-#: ★★ RRSI 组件词表（2609.24972 式 12 原文 · EVOLUTION_CORE §3.1）
-COMPONENT_VOCAB = frozenset({
-    "prompt", "control_flow", "config", "output_plumbing",
-    "context_mgmt", "client_tool", "skill", "memory", "subagent",
-})
-
-#: ★★ 结构型组件（式 15: 取新颖度奖励 ν_str）
-STRUCTURAL = frozenset({"client_tool", "skill", "memory", "subagent"})
+#: ★★★ R193 · 词表收口至**单一真源** foundation/vocabulary.py（债 X4）
+#:   ★ 为什么不是"另建一张表": 本文件原持两张字面量（𝒦9 + 𝒦_meta5）, 与
+#:     docs/COMPONENT_VOCABULARY.md 构成"代码/文档双源"; 收口后代码层只有
+#:     vocabulary.py 一处, 本文件改为**引用同一对象**（不是复制值 —
+#:     测试锁 `is` 同一性, 防"看起来收口了其实两套值"）。
+#:   ★ 值一字不动（转抄）— 收口是位置手术, 不是语义手术（R193 计划 §四）。
+from dwc.foundation.vocabulary import (COMPONENT_VOCAB, K_META,  # noqa: F401
+                                       K_META_READONLY, STRUCTURAL)
 
 # ═══════════════════════════════════════════════════════════
 # ★★★★ R37 · 𝒦_meta（系统层 5 项）—— 实现 docs/COMPONENT_VOCABULARY §二
@@ -62,21 +62,10 @@ STRUCTURAL = frozenset({"client_tool", "skill", "memory", "subagent"})
 #     ⇒ 塞进 𝒦 会让 proposer 尝试改评估器
 #       ⇒ ⇒ 那正是 GAI Dial 2 说的 "base that the agent may rewrite"
 #         （破坏 grounded 的第二条件）
+#   ★★★ R193 · 该表（连同上面的 R37 注释）已**原样搬至**
+#     foundation/vocabulary.py — 见本文件 import 区; 这里不再自持字面量
+#     （唯一性验收: evolver.COMPONENT_VOCAB is vocabulary.COMPONENT_VOCAB）
 # ═══════════════════════════════════════════════════════════
-K_META: Dict[str, bool] = {
-    # name → editable（**K4: 必填无默认** —— 每项都要明写）
-    "code": True,           # §3.1 可编辑，但 ν_t=0（不给新颖度奖励）
-    "architecture": True,   # §3.2 可编辑，但**须人工批准**（G3 人类主权）
-    "meta_evolution": True, # §3.3 定义性组件（m 改 m ⇒ 递归闭合在 m）
-    "evaluator": False,     # §3.4 ★ 不可编辑（G10 密封 + grounded 第二条件）
-                            #   ★★ K3: **必须在表里** 标 false ——
-                            #     "不在表里" 与 "在表里但禁止" 是两种保证
-    "external_source": False,  # §3.5 只读登记（须 provenance）
-}
-
-#: ★★ K3 · 两项必须 editable: False（机械可查）
-K_META_READONLY = ("evaluator", "external_source")
-
 # ═══════════════════════════════════════════════════════════
 # ★★★★★ R38 · **逐项映射**（用户 2026-10-06 裁决「D」）
 #   原 §四① 是「表 ⇒ 层」一刀切: 𝒦⇒assets · 𝒦_meta⇒architecture

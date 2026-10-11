@@ -61,21 +61,38 @@ def test_second_round_selects_or_stays(clean_loops):
 
 
 def test_criterion_surface_ops_abstain_on_dev(clean_loops):
-    """★★★ R180 实测纪律: dev 面（判据投影）上实现类 op 恒 abstain。
+    """★★★ dev 面 op 三态（R180 初版口径 → R193 修正, 如实标注推翻）。
 
-    ★ 非缺陷 — evidence 存的是判据投影（diffs/success/k/n, R152 约定:
-      点与证据成对存判据不存实现）⇒ 吃 candidate_diff/component 的 op 在
-      dev 面**天然**第三态（三值协议的诚实 — 不造值喂 op）
+    ★★ R180 原文口径（已被 R193 推翻, 保留记录）:
+      "实现类 op 恒 abstain — evidence 存判据不存实现, 吃 candidate_diff 的
+       op 天然第三态"。
+    ★★★ R193 实测: 该口径**半错** — evidence 存 `diffs`（逐 check 的
+      expected/actual/ok/reason, judge 判据面字段, 49/49 条在场）; 缺的
+      是"投影成 op 吃的 diff 文本"这一层, **不是数据**。补上投影后:
+        nonempty_diff — 从"恒 abstain"变"多数 clean"（判据面真能判了）
+        component_known / golden_leak — 仍 abstain（判据面**不落**
+          component/vocabulary/leakage_hits; 补它要从实现面反推 ⇒
+          R152/R180"判据与实现分离"纪律禁的那步 ⇒ **如实保持第三态**）
+    ★ 本测试现在的断言 = R193 修正后的口径（防回退: 再有人说
+      "dev 面零信号"时, 机器会告诉他哪两个 op 真的判不了、为什么）。
     """
     from dwc.organs.metric_loop import (dev_points_from_store,
                                         mechanical_candidates)
     clean_loops.round(1)
     pts, notes = dev_points_from_store(clean_loops.judge, split="dev")
     assert notes["n_points"] >= 1
-    impl_ops = ("nonempty_diff(1)", "component_known(1)", "golden_leak(1)")
-    for key in impl_ops:
+    # component_known/golden_leak: 判据面无字段 ⇒ 仍恒 abstain（R152 纪律）
+    for key in ("component_known(1)", "golden_leak(1)"):
         vals = {p["tree_verdicts"].get(key) for p in pts}
         assert vals <= {"abstain", None}, (key, vals)
+    # nonempty_diff: R193 投影层补上后, 有判据面 diff 的点必 clean
+    #   （全 ok 的点 diff=None ⇒ abstain — 判过无差异）
+    nv = [p["tree_verdicts"].get("nonempty_diff(1)") for p in pts]
+    assert set(nv) <= {"clean", "abstain", None}, (
+        "nonempty_diff 出现 drawbeck ⇒ 投影层的 diff 文本被判'空'"
+        "（diffs 非空却投影失败 — 检查 _ctx_from_evidence）")
+    assert any(v == "clean" for v in nv), (
+        "nonempty_diff 全 abstain ⇒ R193 投影层没生效（dev 面零信号复发）")
 
 
 def test_judge_evidence_delegation():

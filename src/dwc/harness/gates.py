@@ -84,6 +84,15 @@ class TermFacts:
     #   非调用方疏忽 ⇒ 映射 na 而非 blocked, 见 _g4_split 裁决）
     baseline: Optional[Dict[str, float]] = None
     current: Optional[Dict[str, float]] = None
+    #: ★★★ R193 · 判据点自带的两个 op 口粮（dev 回归面 — R180 旧注释
+    #   "candidate_diff 不在 evidence 判据面"半错的连带修正: 判据面**还有**
+    #   success 与"解析过"两桩事实, 一并投影, 否则 judge_verdict /
+    #   root_parse_ok 在回归里恒 abstain ⇒ 门③只用一棵叶子, 信号密度
+    #   1/6）。**None/缺 = 没判/没解析 ⇒ abstain**（缺席≠0 纪律）:
+    #     judge_success — judge 自己的成否判定（True ⇒ pass / False ⇒ fail）
+    #     parsed_ok     — 判据点是否被成功解析（有 evidence = True）
+    judge_success: Optional[bool] = None
+    parsed_ok: Optional[bool] = None
 
 
 def _g1_leakage(f: TermFacts) -> GateOutcome:

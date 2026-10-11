@@ -120,13 +120,28 @@ def _ctx_from_evidence(evi: Dict[str, Any]) -> Dict[str, Any]:
       · candidate_diff / vocabulary = evidence 里的对应字段（缺 ⇒ None）
       · parsed_ok  = verdict 在场即结构解析过（judge 只记 success 非 None
                      的点 ⇒ 恒 True, 与 ctx_from_facts 同口径）
+    ★★★ R193 · `candidate_diff` 键名 vs `diffs` 落盘字段的**错位修正**（X1 的真根因）:
+      R180 记"candidate_diff 不在 evidence 判据面" — 半错。实测
+      evidence.jsonl **49/49 条都有 `diffs`**（judge 逐 check 落的
+      {index,kind,fn,kw,args,expected,actual,ok,reason}）; 缺的只是
+      "把 diffs 列表投影成 op 吃的 diff 文本"。⇒ 本桥补该投影:
+      首个 **notok** check 的 `fn(args): expected → actual（reason）`;
+      全 ok ⇒ None（判过、无差异 ⇒ 该点没有可 diff 的内容）。
     ★ 缺字段 ⇒ None/不进（op 对该 ctx 面 abstain — 三值协议的第三态）
     """
     k = evi.get("k_passed")
     n = evi.get("n_checks")
+    diff_txt: Optional[str] = None
+    for d in (evi.get("diffs") or []):
+        if isinstance(d, dict) and not d.get("ok", True):
+            diff_txt = "%s(%s): %s → %s（%s）" % (
+                d.get("fn") or "?", d.get("args"),
+                d.get("expected"), d.get("actual"),
+                d.get("reason") or "值不匹配")
+            break
     return {"judge_success": evi.get("success"),
             "pass_rate": (None if not n else (float(k) / float(n))),
-            "candidate_diff": evi.get("candidate_diff"),
+            "candidate_diff": diff_txt,
             "vocabulary": evi.get("vocabulary"),
             "component": (evi.get("component")
                           or (evi.get("checks") or [{}])[0].get("component")),

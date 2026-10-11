@@ -1,0 +1,116 @@
+{
+ "round": "R194（X1+X3+X4 施工 + X2/Y1 结案 — 用户令先把X+Y做掉）",
+ "date": "2026-10-12",
+ "X1_dev_projection": {
+  "root_cause": "R180注释candidate_diff不在evidence判据面是半错 — 实测evidence.jsonl 49/49条有diffs字段(judge逐check落expected/actual/ok/reason), 缺的是投影层不是数据",
+  "three_layers": [
+   "补投影: _ctx_from_evidence(R179桥) 加 diffs→candidate_diff 文本(首个notok check的 fn(args): expected→actual(reason); 全ok⇒None=判过无差异≠没判过)",
+   "第二口径自纠: 首版我在loop._facts_from_dev_surface重拼了一份diff ⇒ 正是R183自己禁的第二口径 ⇒ 收敛为全部键走R179桥, loop只做ctx⇒TermFacts一次搬运",
+   "TermFacts加judge_success/parsed_ok两键(gates.py, 缺省None⇒老调用方行为不变)"
+  ],
+  "measured": "dev回归面op信号密度 1/6→4/6(26 facts: root_parse_ok 26clean / judge_verdict 24d+2c / nonempty_diff 24clean+2abstain / pass_rate_weak 24d+2c); component_known/golden_leak如实仍abstain(判据面不落component/vocabulary/leakage_hits, 补它=从实现面反推⇒R152/R180纪律禁的那步, F2单独立项)"
+ },
+ "X2_closed": "R192表判的债已做完: Δ_in/Δ_ho判定只在evolver.py:1969 Evolver.accept(R27打磨三代, 判据2606.09498 Alg.1 L13逐字); gates._g4_split是调用方(R159已收敛引用为调用) ⇒ 零代码只记账",
+ "Y1_closed": "二选一是R189造的岔路: credit.py=证据感知信用分配ℒ_t(2609.24972 §3.3归因台账)/budget.py=退火编辑预算b_t(式4预算约束) — 同一论文两个不同机制两个不同门 ⇒ 无需二选一无需统一; CreditLedger即组件树budget_ledger的对应物(R189判ABSENT是错判的文件级表现); 真问题只有将来若加固定四资源台账须先裁分工不许并列",
+ "X3_consume_points": {
+  "file": "src/dwc/harness/consume_points.py",
+  "why": "R189判consume ABSENT是半错: 五元组schema早在applier.py:75(TARGETS consumer/path/attr/verify), 只是覆盖1条(mutation_rule); Loop侧16条事实消费点零登记",
+  "entries": "last_skip/last_blocked/last_n_candidates/last_p0_patch/last_a_train/last_a_train_why/last_metric_pick/last_adopt/last_planner_trace/last_dir_decision/last_consolidation/last_ledger_entries/last_replay_pick/last_floor_n/dir_attempts/dir_ledger(文件型)",
+  "test": "test_consume_points_cover_loop_traces: Loop.__init__的vars(Loop)逐属性比对登记表, 漏一个即红(注释会漂, __init__真身不漂); range与None声明自洽(opt==has_none)"
+ },
+ "X4_vocabulary": {
+  "file": "src/dwc/foundation/vocabulary.py",
+  "single_source": "evolver.COMPONENT_VOCAB/STRUCTURAL/K_META is vocabulary.*(同一对象, 测试锁is不锁==防看起来收口其实两套值)",
+  "values_unchanged": "𝒦9/𝒦_meta5/structural4/readonly2 一个不动; 测试锁: COMPONENT_VOCAB=={9项字面量}/K_META[evaluator]is False/STRUCTURAL<COMPONENT_VOCAB",
+  "R189_misrecognition_fixed": "DIMENSIONS(模块声明维度)不并入𝒦(组件词表) — 测试锁 set(DIMENSION_IDS)&COMPONENT_VOCAB==空集",
+  "guard": "test_evolver_no_longer_declares_literal_tables锁evolver.py不再有COMPONENT_VOCAB字面量(防双源复辟)"
+ },
+ "self_caught_by_gates": [
+  "A1红: 收口第一版在vocabulary.is_component另写判词表 ⇒ A1逮为多来源 ⇒ 改为evolver.check_component薄包装(函数内import避循环依赖); A1正则同时逮了我docstring里的反例文字, 措辞规避",
+  "G8红: evolver搬走K_META后gate K3正则仍盯evolver.py ⇒ 报𝒦_meta定义找不到假红 ⇒ 修gate跟真源走(vocabulary优先, evolver兜底) — 门的落后也会造红灯, 不都是产品错"
+ ],
+ "old_assertions_updated": [
+  "R180 test_criterion_surface_ops_abstain_on_dev: 旧口径实现类op恒abstain被R193推翻 ⇒ 更新为component_known/golden_leak仍abstain(判据面无字段)+nonempty_diff必多数clean(投影生效), docstring保留R180原口径记录",
+  "R183 test_facts_from_dev_surface_is_real: assert candidate_diff is None ⇒ 改为非None时含箭头形态(diffs投影的证据)"
+ ],
+ "verify": "pytest 1324→1339(+15本批新测试) gate 8/8(修gate K3后) e2e rc=0",
+ "inheritance": {
+  "gen": 194,
+  "at": "2026-10-12T04:10:00+08:00",
+  "parent_gen": 192,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 204,
+   "pytest": 1339,
+   "inheritance_gen_prev": 192
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "X1 dev面判据投影层修复(三层递进: R180半错→投影补洞→第二口径自纠收敛单一真源) + X3 consume五元组登记面(16条) + X4 词表收口至foundation/vocabulary.py(值不动, is同一性) + X2/Y1 结案(取证证明均非债) + gate K3 跟真源修 + 3个旧测试断言随实现更新",
+   "files": [
+    "src/dwc/organs/metric_loop.py",
+    "src/dwc/harness/loop.py",
+    "src/dwc/harness/gates.py",
+    "src/dwc/harness/consume_points.py",
+    "src/dwc/foundation/vocabulary.py",
+    "src/dwc/organs/evolver.py",
+    "scripts/gate.py",
+    "tests/test_r193_dev_surface_projection.py",
+    "tests/test_r180_loop_metric_tick.py",
+    "tests/test_r183_self_evolution_loop.py",
+    "docs/CODE_DEBT_RECONCILIATION_R193.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "gate_trace",
+     "ref": "X1 实测（dev 回归面 op 信号密度）",
+     "claim": "修前 26 facts 上 6 op 仅 1 个说话(pass_rate_weak); 修后 4 个说话(root_parse_ok 26clean / judge_verdict 24d+2c / nonempty_diff 24clean+2abstain / pass_rate_weak 24d+2c); component_known/golden_leak 仍 abstain = 判据面不落该字段(R152纪律如实保持)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "X2/Y1 取证（R192 表两条被推翻）",
+     "claim": "X2 split: Δ_in/Δ_ho 判定只在 evolver.py:1969 Evolver.accept 一处, gates._g4_split 是调用方(R159已收敛) ⇒ 债已做完; Y1 budget: credit.py CreditLedger(归因ℒ_t)与budget.py(退火b_t)是同一论文两个不同机制 ⇒ 二选一是R189造的岔路, 结案无需统一"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "A1/G8 两个红灯当场抓自己",
+     "claim": "收口第一版在vocabulary.is_component里另写判词表⇒A1逮为多来源(改走evolver.check_component薄包装); evolver搬走K_META后gate K3正则报无表⇒门的落后(改盯vocabulary.py)⇒改一处必查全链路"
+    }
+   ],
+   "numbers": {
+    "pytest_before": 1336,
+    "pytest": 1339,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "dev_facts": 26,
+    "ops_speaking_before": 1,
+    "ops_speaking": 4,
+    "consume_points": 16
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1339(含本批15个新测试) + gate 8/8(修gate K3后) + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "docs/CODE_DEBT_RECONCILIATION_R193.md + tests/test_r193_dev_surface_projection.py",
+   "user_decision": "用户令先逐步把X+Y类做掉（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

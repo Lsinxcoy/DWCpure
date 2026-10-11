@@ -501,13 +501,27 @@ def gate8_contract() -> dict:
                                "detail": "固化侧没调 check_pairing"})
 
     # ── K3: evaluator / external_source 必须 editable: False，且**在表里** ──
-    m = re.search(r"K_META\s*:\s*Dict\[str, bool\]\s*=\s*\{(.*?)\n\}", ev_s, re.S)
+    # ★★★ R193 · 𝒦_meta 的真源已收口至 foundation/vocabulary.py（债 X4,
+    #   单一真源 — evolver.py 只 import 同一对象）。门的正则若继续盯
+    #   evolver.py 会把"收口"误报成"无表"（门跟着落后代码走 ⇒ 报假红）。
+    #   ⇒ 改盯 vocabulary.py; 兜底再查 evolver.py（防将来又搬回去）。
+    _voc_s = ""
+    for _f in ("foundation/vocabulary.py", "organs/evolver.py"):
+        _p = os.path.join(SRC, _f)
+        if os.path.exists(_p):
+            _t = io.open(_p, encoding="utf-8").read()
+            if re.search(r"K_META\s*[:=]\s*", _t):
+                _voc_s = _t
+                break
+    m = re.search(r"K_META\s*:\s*Dict\[str, bool\]\s*=\s*\{(.*?)\n\}",
+                  _voc_s, re.S)
     if not m:
-        m = re.search(r"K_META\s*=\s*\{(.*?)\n\}", ev_s, re.S)
+        m = re.search(r"K_META\s*=\s*\{(.*?)\n\}", _voc_s, re.S)
     if not m:
-        violations.append({"file": "organs/evolver.py",
+        violations.append({"file": "foundation/vocabulary.py",
                            "rule": "K3 无表",
-                           "detail": "𝒦_meta 定义找不到 ⇒ 5 个系统层对象无登记"})
+                           "detail": "𝒦_meta 定义找不到（vocabulary.py 与 "
+                                     "evolver.py 都没有）⇒ 5 个系统层对象无登记"})
     else:
         body = m.group(1)
         for name in ("evaluator", "external_source"):

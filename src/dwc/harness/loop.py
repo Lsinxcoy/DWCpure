@@ -902,9 +902,16 @@ class Loop:
             n = evi.get("n_checks")
             if not n or k is None:
                 continue                          # None 不记（同 judge 纪律）
-            out.append(TermFacts(pass_rate=float(k) / float(n),
-                                 candidate_diff=None,
-                                 not_evaluated=0))
+            # ★★★ R193 · 单一真源: 全部键从 R179 桥（_ctx_from_evidence）
+            #   取 — 本函数只做"ctx ⇒ TermFacts"的一次搬运, 不重拼
+            #   diff 文本（重拼 = 第二口径, R183 自己禁的）。
+            from dwc.organs.metric_loop import _ctx_from_evidence
+            ctx = _ctx_from_evidence(evi)
+            out.append(TermFacts(pass_rate=ctx["pass_rate"],
+                                 candidate_diff=ctx.get("candidate_diff"),
+                                 not_evaluated=0,
+                                 judge_success=ctx.get("judge_success"),
+                                 parsed_ok=ctx.get("parsed_ok")))
         return out
 
     def _try_adopt_metric_tree(self) -> Dict[str, Any]:
