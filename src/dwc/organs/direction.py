@@ -248,7 +248,31 @@ def stagnant_of(attempt: DirectionAttempt) -> bool:
       ② gain ≤ NOISE_BAND  — 有效果但不够看（或退步）
       ③ n_candidates == 0  — 无对象可试（unfixable_now 的一等输出）
     ★ 三者全不成立 ⇒ False —— 包括**首试**（gain None ⇒ 不下"无增益"判）
+
+    ★★★ R195 · EvoTS 2608.17933 §4.2 伪代码 L20 **逐字口径**落地:
+        z_k ← (op = Revision) ∧ (q_k is invalid ∨ q_k − q_(prev) ≤ ϵ)
+      ⇒ 停滞是**前进类（Revision）专属**的判定。DWC 的算子分工
+        （R188 方向语义 + 本篇 EvoTS 落档 §2.3 的映射表）:
+          FORWARD  = Revision（同 component 签名精化）
+          LATERAL  = Alternative Strategy（换一个方向 — **停滞触发它**,
+                     它自己失败不是"停滞"）
+          REVERSE  = 后退（DWC 特有, 见 R188 已记的与 EvoTS 第三算子差异）
+      ⇒⇒ LATERAL/REVERSE 的失败 = **该方向本身失败**, 不记"停滞"
+        （两个布尔位独立, 与 EvoTS 原文 "Acceptance and stagnation are
+         intentionally independent" 同构）。
+    ★★★ 零链行为变更的机器依据（R195 实测, 纠正 R192"风险>收益"的误判）:
+        grep 全库: stagnant_of 的**生产调用数 = 0**（只有 tests/r188 用）;
+        `next_action` 用 tried_all（"试过"≠"停滞", 链不回退照样成立）;
+        loop._dir_pick_candidates 直接记 DirectionAttempt 不调本函数
+        ⇒ 本改动只把**判据面**对齐论文, 不动链条一行行为。
+
+    ★ 未声明方向的 attempt（direction=None 不可能 — DirectionAttempt
+      构造即 ensure_direction 精确校验; 此处是为将来加了新方向的调用方
+      准备的**保守默认**: 新方向默认不当 Revision ⇒ 不记停滞, 与其显式
+      归入 FORWARD 族。
     """
+    if attempt.direction not in (EvolutionDirection.FORWARD,):
+        return False
     return (attempt.is_invalid()
             or attempt._gain_in_band()
             or attempt.has_no_candidate())

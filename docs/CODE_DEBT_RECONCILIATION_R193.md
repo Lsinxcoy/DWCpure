@@ -147,6 +147,41 @@ R189 把它们列成"budget_ledger vs budget.py 二选一"是**把不同物当�
 
 ---
 
+## 二之一、Y2/Y3 结案（R195 — 用户令"你来深度思考 做出最好的决策"）
+
+### Y2 granularity — **不新造, 收口成查询面**（R189 第二次同款误判修正）
+
+R189 判 ABSENT 的依据是 `(def|class)(Granularit|turn_boundary)` 0 hits。实测：**三层一直在场**，
+只是散在 `Proposal` 字段里（没有一个叫 granularity 的函数而已）:
+
+```text
+L1 = Proposal.direction            （R78 加 · ensure_direction 校验 · R188 补控制器）
+L2 = Proposal.component + target_layer（A1 唯一入口 check_component · layer_of — R38 逐项）
+L3 = Proposal.target + patch       （约束 4: 一处干预）
+```
+
+与 Astar 2608.27287 §2.2.1 三级 taxonomy（Coarse-Grained Direction / Fine-Grained Action /
+Concrete Plan）**逐层同构**。⇒ 落地 `foundation/granularity.py`：**零常量、零新判据、纯查询**
+（`granularity_of` / `level_of` / `is_coarser` / `coarsest`）。诚实边界: Astar 全文**未给完整
+类别表**（只一个 MoE 实例）⇒ DWC 不虚构类别枚举。
+
+### Y3 停滞只对前进类 — **R192 的"风险>收益"预估错了, 如实记账**
+
+R192 写"默认不动 — 改它=动已绿链行为"。实测 grep 全库: **`stagnant_of` 生产调用数 = 0**
+（只有 tests/r188 用）; `next_action` 用的是 `tried_all`（"试过"≠"停滞"）⇒ 不动链条。
+⇒ 它是一个**已定义已测试却从未被消费**的判据函数, 改它 = 纯判据面对齐论文, 零链行为变更。
+
+落地: `stagnant_of` 加 `direction == FORWARD` 前提（EvoTS 2608.17933 §4.2 L20 逐字:
+`z_k ← (op=Revision) ∧ (q_k invalid ∨ q_k−q_prev ≤ ϵ)`）。LATERAL/REVERSE 失败 =
+"该方向本身失败", **不记停滞**（对应 EvoTS 的 Alternative Strategy — 被停滞触发的算子,
+它自己失败不是停滞）。测试锁 `next_action` 仍把 LATERAL 计入 tried_all（不回退不循环）
++ `test_zero_production_call_sites_for_stagnant_of` 防将来接线时忘重评。
+
+### 两次误判的共同根因（第三次不会再栽）
+
+**用函数名 grep 代替打开文件**。gdi/split（R189）与 granularity（R195）三次同款。
+纪律已固化: 判"有没有"必须答出**宿主文件:行号 + 符号名**（不是关键词命中数）。
+
 ## 三、对用户问题的正面回答
 
 > **「究竟有多少代码债务」**：**4 项能直接做**（X1–X4，都是小手术，不碰判据语义）；**3 项等你裁定**（Y1 可能是我造的岔路、Y2 要定类别表、Y3 默认不动）。

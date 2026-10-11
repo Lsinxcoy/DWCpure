@@ -1,0 +1,81 @@
+{
+ "round": "R195（Y2/Y3 做掉 — 用户令'你来深度思考 做出最好的决策'）",
+ "date": "2026-10-12",
+ "Y2_decision": "不新造granularity组件, **收口成查询面**。R189判ABSENT的依据是(def|class)(Granularit|turn_boundary) 0 hits — 第三次同款误判(前两次gdi/split): 三层一直在场只是散在Proposal字段(L1 direction[R78+R188] / L2 component+target_layer[A1+layer_of R38] / L3 target+patch[约束4]), 与Astar三级taxonomy逐层同构。新造=第二真源(A1病翻版); R194的vocabulary.py已示范正确做法=收口",
+ "Y2_landed": "foundation/granularity.py 零常量零新判据纯查询(granularity_of/level_of/is_coarser/coarsest); L1未声明⇒undeclared字符串(不用None冒充); L2层经layer_of(A1族唯一入口); L3=target@patch摘要24字符(防账本膨胀); 锁3层不加第四(与direction锁3同纪律); 防漂移锁文件内不含COMPONENT_VOCAB/常量表; Astar出处在docstring",
+ "Y3_decision": "采纳EvoTS L20逐字口径: 停滞只对**前进类(FORWARD)**记。LATERAL失败=该方向本身失败(它对应Alternative Strategy—被停滞触发的算子); REVERSE同理。**R192'默认不动风险>收益'的预估错了** — 实测stagnant_of零生产调用(除direction.py自身), next_action用tried_all(试过≠停滞) ⇒ 纯判据面变更零链行为",
+ "Y3_landed": "stagnant_of加 direction==FORWARD 前提; 测试: FORWARD三形态仍True(回归保护)/LATERAL+REVERSE即使invalid也False(新口径)/next_action仍把LATERAL计入tried_all(不回退不循环)/test_zero_production_call_sites_for_stagnant_of防将来接线忘重评(行遍历排除注释与direction.py自身)",
+ "misjudgment_third": "第三次'用函数名grep代替打开文件'(gdi/split/granularity)。纪律固化: 判'有没有'必须答宿主文件:行号+符号名, 不是关键词命中数",
+ "verify": "pytest 1339→1355(+16) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 195,
+  "at": "2026-10-12T05:00:00+08:00",
+  "parent_gen": 194,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 205,
+   "pytest": 1355,
+   "inheritance_gen_prev": 194
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "Y2 granularity三层收口(foundation/granularity.py 零常量纯查询, 不新造组件) + Y3 stagnant_of 加 FORWARD 前提(EvoTS L20逐字口径, 零链行为变更已实测) + 16测试",
+   "files": [
+    "src/dwc/foundation/granularity.py",
+    "src/dwc/organs/direction.py",
+    "tests/test_r195_granularity_and_stagnation.py",
+    "docs/R195_Y2Y3_DECISIONS.md",
+    "docs/CODE_DEBT_RECONCILIATION_R193.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/papers/2608.27287.md（R192 落档）",
+     "claim": "Astar三级taxonomy逐字(L1 Coarse-Grained Direction/L2 Fine-Grained Modification Action/L3 Concrete Modification Plan)与DWC Proposal 三组字段逐层同构 ⇒ Y2 的正确形态是收口不是新造; 论文未给完整类别表⇒不虚构"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/papers/2608.17933.md（R192 落档）",
+     "claim": "EvoTS §4.2 L20 逐字 z_k←(op=Revision)∧(q_k invalid∨q_k−q_prev≤ϵ) ⇒ 停滞是Revision(前进类)专属; DWC映射 FORWARD=Revision/LATERAL=Alternative(被停滞触发, 自身失败不是停滞)/REVERSE=后退"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "stagnant_of 零生产调用实测",
+     "claim": "grep全库+行遍历: src/下(除direction.py自身)零调用; next_action用tried_all(试过≠停滞) ⇒ R192'改它=动已绿链'的预估错了, 实为纯判据面变更"
+    }
+   ],
+   "numbers": {
+    "pytest": 1355,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 16,
+    "granularity_levels": 3,
+    "prod_call_sites_stagnant_of": 0
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1355(+16) + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "docs/R195_Y2Y3_DECISIONS.md + tests/test_r195_granularity_and_stagnation.py",
+   "user_decision": "用户令'把Y2 Y3做掉 你来深度思考 做出最好的决策'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
