@@ -56,6 +56,48 @@ SEMANTICS: Dict[EvolutionDirection, str] = {
     EvolutionDirection.REVERSE: "后退 (回退到更简单的方案)",
 }
 
+# ════════════════════════════════════════════════════════════════════
+# ★★★ R191 · REVERSE 语义**辨析**（用户令"深度思考REVERSE属于哪个类型"后裁决）
+#
+#   裁决: REVERSE = **类型一「简化 target（提案侧）」**;
+#        「回退到更弱验收（类型二）」在 DWC **禁行**。
+#
+#   为什么类型二禁行（机器可判的三条, 不是品味）:
+#     ① G2 判据在系统外 — TRUTH_SOURCE=config/anchors/*.json; R189-B 刚把
+#        "train 带 label ⇒ raise" 焊死。降 verifier_rung / 改 checks 是
+#        同一个洞的另一个入口（数据面→强度面）, 不许从旁门绕过。
+#     ② 门⑥账本只认"落地了" — 松标准 +1 分 = 奖励放水 = fake-success 形态,
+#        污染 fitness。
+#     ③ R184/R161 的 split 分离纪律 — 验收标准不可被进化面改写; 否则 e2e
+#        数字仍好看, 但不再意味着同一件事。
+#
+#   本地库论文反例（2603.25111 · FGGM 的 f_d fallback, 门②同源）:
+#     原话 "f_d 可能缺乏 GM 的解题能力（低任务性能）, 它阻止候选 agent
+#           进入不安全的程序状态（高约束满足）"
+#     实例 boundedParam: f_d(l,u,y)=min(max(l,y),u)（clamp）
+#     ⇒ "退一步"退的是**能力**（提案侧 target）, 契约 Φ_l/Ψ_l 一步不让
+#     ⇒ 论文性质② Parameter-Independent Correctness: 契约对任意 θ 成立
+#     ⇒ 照类型二做 = 让拒绝采样器自己改验收公式 = 反对该论文的全部意义
+#
+#   诚实的现状面（R188 实测 + R191 摊开 RULES 复核）:
+#     RULES 7 条（prompt×4 / control_flow×3）无一条是"更简单"类
+#       · prompt 答案写短 = 丢关键词 ⇒ keyword_match 必 fail（无收益）
+#       · 代码修法只有对/错（range(n)↔range(n+1) 无"半对"中间态）
+#       · 同 component 备选修法已在 R173 LATERAL（propose_lateral）里
+#     ⇒ 本面 REVERSE 实际可行度 0 = **如实 []**, 不是缺陷、不是 backlog。
+#     硬造候选 = 为填满三方向而生成注定 fail 的 patch ⇒ 违反 R188
+#     "None 是合法结果"纪律。
+# ════════════════════════════════════════════════════════════════════
+#: ★★★ R191 · REVERSE 辨析的**机器可读**形态（语义声明, 不是第二份语义 —
+#:   与 SEMANTICS 同存同源: 只回答"REVERSE 允许动什么/禁止动什么"）。
+REVERSE_SCOPE: Dict[str, object] = {
+    #: 允许动的一侧（提案侧 — 能力的退一步, 2603.25111 的 f_d 形状）
+    "allowed": ("target", "patch", "proposal"),
+    #: 禁止动的一侧（判据侧 — G2/门⑥账本/split 三条纪律）
+    "forbidden": ("verifier_rung", "checks", "anchor", "acceptance",
+                  "threshold", "golden", "split"),
+}
+
 #: 方向总数 —— 锁 3（DEDUP L254: 旧报告的 4 种是错的, 3 是校正后口径）
 N_DIRECTIONS = 3
 
@@ -258,8 +300,25 @@ def reverse_candidates(rules_index: Optional[Dict[str, Dict]] = None,
     rules = dict(rules_index or {})
     if not component:
         return []
+    # ★★★ R191 · 类型二防御（禁行判据侧降阶）: 调用方若把"降 verifier_rung /
+    #   改 checks / 动 golden"这类**判据侧**条目塞进 rules_index 想让 REVERSE
+    #   挑 ⇒ 大声报错, 不静默返候选（REVERSE 只允许动提案侧 target/patch）。
+    #   ⇒ 与 G2（判据在系统外）/ R189-B（train 带 label ⇒ raise）同族。
+    for key, rule in sorted(rules.items()):
+        if not isinstance(rule, dict):
+            continue
+        leaked = sorted(set(REVERSE_SCOPE["forbidden"]) & set(rule))
+        if leaked:
+            raise DirectionError(
+                "RULES %r 带了判据侧字段 %r ⇒ REVERSE 禁行类型二"
+                "（回退到更弱验收 — 通不过 G2 判据在系统外 / 门⑥账本只认"
+                "「落地了」/ split 分离纪律; 依据 2603.25111 性质②: 契约对"
+                "任意 θ 成立, 2603.25111 的 f_d 退的是能力不是契约）"
+                % (key, leaked))
     simplifiable = []
     for key, rule in sorted(rules.items()):      # 排序 ⇒ 输出确定
+        if not isinstance(rule, dict):
+            continue
         if rule.get("component") != component:
             continue
         patch_text = str(rule.get("patch", "") or "")

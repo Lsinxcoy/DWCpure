@@ -64,7 +64,21 @@ def test_planner_layer_real_endpoint():
     """
     if not _default_llm().configured:
         pytest.skip("llm 未配置")
-    rep = check_against_facts(REG, FACTS, planner_layer=True)
+    # ★★★ R191 · 端点偶发空响应（实测 12 次里 1 次 ok=False/err=None/
+    #   text=''）⇒ 与 R185/R188 同族的漏修: 单次失败会造误报红灯
+    #   ⇒ 3 次重试 + 仍未通则 skip 留痕（不用网络抖动造红灯噪声;
+    #   真端点路径本身由 assert 钉死 — 重试只是抗抖动, 不放水）
+    rep = None
+    for _attempt in range(3):
+        rep = check_against_facts(REG, FACTS, planner_layer=True)
+        pl = rep["per_contract"]["planner_live"]
+        if pl["status"] in ("checked", "no_contract"):
+            break
+        _empty = pl.get("err") or pl.get("note") or ""
+        if "空" not in str(_empty) and "empty" not in str(_empty).lower():
+            break                       # 非空响应类失败 ⇒ 不重试, 如实判红
+    else:
+        pytest.skip("llm 端点连续空响应（网络抖动 — 留痕不假过）")
     pl = rep["per_contract"]["planner_live"]
     assert pl["status"] in ("checked", "no_contract")
     if pl["status"] == "checked":

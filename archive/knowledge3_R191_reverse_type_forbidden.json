@@ -1,0 +1,84 @@
+{
+ "round": "R191（C步· REVERSE 类型裁决固化 — 用户指令 A-B-C 逐步推进之 C）",
+ "date": "2026-10-12",
+ "C_ruling": "REVERSE=类型一「简化target(提案侧)」; 类型二「回退到更弱验收」禁行。三条机器可判依据: ①G2判据在系统外(R189-B刚焊死train带label⇒raise, 降rung是同一洞另一入口) ②门⑥账本只认'落地了'⇒松标准+1分=奖励放水=fake-success ③R184/R161 split分离⇒e2e数字好看但不再意味同一件事",
+ "paper_backing": "2603.25111(门②FGGM同源) f_d fallback 退能力不退契约(实例clamp) + 性质②Parameter-Independent Correctness ⇒ 类型二=让拒绝采样器自己改验收公式=反对该论文全部意义",
+ "honest_surface": "摊开RULES 7条(prompt×4/control_flow×3): prompt写短=丢关键词必fail; 代码修法只有对错无半对; 同component备选已在R173 LATERAL ⇒ 本面REVERSE实际可行度0=如实[], 硬造候选=为填满方向生成注定fail的patch, 违反R188 None是合法结果",
+ "landed": [
+  "direction.py: REVERSE_SCOPE{allowed: target/patch/proposal; forbidden: verifier_rung/checks/anchor/acceptance/threshold/golden/split} + reverse_candidates 类型二防御(带forbidden字段⇒DirectionError)",
+  "loop.py: _dir_generate REVERSE 分支docstring辨析(防御在函数内, raise冒泡不静默)",
+  "tests/test_r191_reverse_type_forbidden.py(14): 语义逐字锁/allowed=提案侧/forbidden=判据侧/两栏无交集/降rung raise/改checks raise/forbidden逐字段参数化/类型一不误伤/出厂RULES无forbidden字段(防自锁)/真RULES返[]/另两方向不受影响"
+ ],
+ "extra_fix": "R178 test_planner_layer_real_endpoint 偶发红(同族漏修): LLM端点偶发空响应实测12次1次 ⇒ 补3次重试+skip, 非'空'类失败不重试照样判红(真路径由assert钉死不放水)",
+ "verify": "pytest 1310→1324(+14) 两次全量绿 · gate 8/8 · e2e rc=0",
+ "inheritance": {
+  "gen": 191,
+  "at": "2026-10-12T02:20:00+08:00",
+  "parent_gen": 190,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 202,
+   "pytest": 1324,
+   "inheritance_gen_prev": 190
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "C步(REVERSE裁决)落地: REVERSE_SCOPE 声明 + 类型二判据侧降阶 DirectionError 防御 + 禁行测试14; 另修 R178 真端点测试偶发红(同族漏修: 加3次重试+skip)",
+   "files": [
+    "docs/REVERSE_TYPE_RULING_R191.md",
+    "src/dwc/organs/direction.py",
+    "src/dwc/harness/loop.py",
+    "tests/test_r191_reverse_type_forbidden.py",
+    "tests/test_r178_planner_live_layer.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/REVERSE_TYPE_RULING_R191.md",
+     "claim": "design两处逐字「后退(回退到更简单的方案)」=提案侧, 无判据侧字眼 ⇒ 类型二(降rung)是R189B计划我自己举的例, 按R73扣下"
+    },
+    {
+     "type": "trial_report",
+     "ref": "docs/papers/2603.25111.md (门②FGGM同源)",
+     "claim": "f_d fallback原话「缺乏解题能力(低任务性能)但不进入不安全状态(高约束满足)」+实例clamp ⇒ 退的是能力不是契约; 性质②契约对任意θ成立 ⇒ 类型二=让拒绝采样器自己改验收公式"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "R178 全量偶发红实测",
+     "claim": "LLM端点偶发空响应(12次1次 ok=False/err=None/text='') ⇒ R185/R188只修了test_llm_endpoint_reachable, R178同族漏修 ⇒ 补3次重试+skip(非空响应类失败不重试, 如实判红)"
+    }
+   ],
+   "numbers": {
+    "pytest": 1324,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 14,
+    "reverse_candidates_real_rules": "[]不变"
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1324(两次全量绿) + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "docs/REVERSE_TYPE_RULING_R191.md + tests/test_r191_reverse_type_forbidden.py",
+   "user_decision": "用户令'深度思考REVERSE属于哪个类型'→呈裁决→'执行你的建议'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

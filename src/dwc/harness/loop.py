@@ -344,6 +344,11 @@ class Loop:
                      无此类 target ⇒ 如实 []**（不编造候选 — R188
                      诚实边界: 表驱动登记位, 将来 RULES 长出简化类
                      target 时这里是唯一入口）
+        ★★★ R191 · REVERSE 只动**提案侧**（target/patch — 能力的退一步,
+          2603.25111 的 f_d 形状）; 降 verifier_rung / 改 checks 这类
+          **判据侧**降阶由 reverse_candidates 里 DirectionError 挡住
+          （G2 判据在系统外 / 门⑥账本只认"落地了" / split 分离 — 见
+          direction.py REVERSE_SCOPE 与 R191 裁决文档）
         """
         if direction.value == "LATERAL":
             try:
