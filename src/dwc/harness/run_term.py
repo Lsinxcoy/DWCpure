@@ -455,6 +455,11 @@ class TermRunner:
         #   编排六层链）⇒ π 的填值语义=**角色已实现**（盘点面, 不是运行
         #   时接线面）; U 的 select_winner(evolver.py L449) 已实现但**本
         #   盘点不接** ⇒ 如实 partial（不是 None 假装没有）。
+        # ★★★ R196: 本处是五元盘点（π,V,m,U,ρ）的**唯一出口** ——
+        #   Quintet.to_dict() 的 unimplemented/partial 双列表（R141）由 tests/
+        #   test_r196_z_class_landing.py::test_quintet_u_is_the_only_partial
+        #   **机械锁死**; 若需改盘点口径, 先改那个测试再改这里（不许另起
+        #   第二盘点面 ⇒ 第二口径禁, 同 R183）。
         q = Quintet(
             m="wire_and_memory（已实现）",
             rho="config/dials.yaml（已实现）",

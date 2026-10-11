@@ -1,0 +1,120 @@
+{
+ "round": "R196（Z类6项全落地 — 用户令'我想把这六类全部落地'','继续'）",
+ "date": "2026-10-12",
+ "R193_corrections": "R193判Z类6项'有据不做', R196打开57篇woff逐篇regex发现**两处出处错**: ①dual←2606.06350 public-private 实为该论文privacy=Private-Science数据集许可, 57篇grep public[- ]private=0命中; ②state←2609.06396 (𝒟,θ,𝒽)三元组 实为该论文𝒟=dev数据集(𝒢_fixed(ℳ⁺;x,𝒟_dev)), world state=0命中该语义; ③coupling←2608.10299 ✅引用正确(§2.3三阶段+§5.1 Stage3判据逐字在场)",
+ "landed_甲2": null,
+ "A1_coupling": {
+  "file": "src/dwc/harness/coupling.py",
+  "basis": "2608.10299 §2.3 三阶段taxonomy（Stage1 Agent-Agent/Stage2 Agent-Environment/Stage3 Meta）+ §5.1判据（机制修订须由联合轨迹诱导且反过来改变后续条件）逐字在场",
+  "edges": "出厂4条(metric_loop→direction op_verdicts_changed / direction→metric_loop direction_switched / evolver→judge proposal_landed / judge→evolver verdict_distribution_shifted); pressures_from/pressures_to/declared_pairs/decoupled_pairs 查询",
+  "stage": "stage_of 记账判定(0空/1非空无跨/2跨无meta/3有meta); 出厂=Stage2; 全12边仍Stage2(论文判据是meta边不是边多); DWC实测在Stage 0(四机制互不触发)如实暴露(decoupled_pairs=8)",
+  "boundaries": "只记账不触发(不import任何dwc模块—测试锁); 边表是登记不是判据; stage报账不报能力"
+ },
+ "A2_quintet": {
+  "change": "run_term.py:458加唯一出口注释 + 机械锁 test_quintet_u_is_the_only_partial(空构造五字段全None不假装已接线; 出厂填值形态 partial==['U']且U含select_winner)",
+  "what": "不新写盘点面(第二口径禁)— R141双列表(unimplemented/partial)已有, R196只锁它不变"
+ },
+ "landed_乙3": {
+  "common_discipline": "三模块 docstring 首段必写'无论文依据'+'出处错'记账, 禁半角\"论文说\"字样(禁令句用全角「」)—测试锁; 冒充论文机制=G5假声称"
+ },
+ "B1_trajectory": {
+  "file": "src/dwc/harness/trajectory.py",
+  "why": "DWC有'点'(R194登记16条_last_*)没有'状态序列'⇒跨轮问题(如R190的洞在R194如何被证伪)只能翻人写文档, 无机器轨迹",
+  "api": "snapshot(只读已登记键, keys⊆CONSUME_POINTS测试锁)/append(jsonl+原子写+fsync)/read(逐行json, 坏行raise不跳)/",
+  "none_is_first_class": "缺席痕迹如实记None不填0/{}; 不可序列化值str()兜底不静默丢"
+ },
+ "B2_freshness": {
+  "api": "age_rounds(gen): 距近几轮; 空序列/未见gen⇒-1(不返0冒充就在本轮)",
+  "boundary": "**不设阈值**(无陈旧判据的论文据)—测试锁文件内无FRESH/STALE/MAX_AGE/_THRESHOLD常量; 判'算不算陈旧'是调用方语义(G2)"
+ },
+ "B3_attestation": {
+  "file": "src/dwc/harness/attestation.py",
+  "api": "claim(幂等—同(gen,subsystem,text)返同id)/attest(孤儿evidence raise)/unattested(观察面不抛不拦, 只投影5字段)",
+  "boundaries": "不是门(拦合入是gate的活—再造门=第三口径); 无auto声称入口(防自证预言R188坑); 原子写(tmp+replace)防半截坏账"
+ },
+ "landed_丙1": {
+  "C1_autonomy": "不建autonomy模块(描述词不是模块—R195同款判例第二次); autonomy_markers只从已登记痕迹派生4个布尔(direction_switched/all_failed_bookkept/adopted/consolidation_done), 零新判据; 测试锁标记集⊆这4个"
+ },
+ "self_caught_by_tests": [
+  "5个初版测试失败全是断言自身问题(产品对): coupling逐字被换行拆断⇒归一化空白; Quintet()空构造U=None不是'未接'串⇒改锁R141双列表+空构造不假装已接线; '论文说'禁令句自命中⇒禁令句改全角「」+断言查半角带引号形态; 'auto'命中attestation词根⇒收紧查by=\"auto\"",
+  "★ 一度在attestation写了NotImplementedError占位⇒即时改为真实现(禁幻影声明)"
+ ],
+ "what_NOT_done": "不自动触发跨机制调用(Stage1行为, 须先跑够Stage0账+用户拍板); 不设freshness阈值(无据); 不新建autonomy模块; 不写Quintet第二盘点(唯一出口已在run_term.py:458)",
+ "verify": "pytest 1355→1373(+18) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 196,
+  "at": "2026-10-12T05:30:00+08:00",
+  "parent_gen": 195,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 206,
+   "pytest": 1373,
+   "inheritance_gen_prev": 195
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "Z类6项全落地（用户令'我想把这六类全部落地'→'继续'）: 甲类2项有据照搬(A1 coupling 2608.10299三阶段/A2 quintuple唯一出口机械锁) + 乙类3项无论文据自定义(B1 trajectory/B2 age_rounds/B3 attestation, docstring禁冒充) + 丙类1项纪律显式化(C1 autonomy不建模块) + R193两处出处错更正",
+   "files": [
+    "src/dwc/harness/coupling.py",
+    "src/dwc/harness/trajectory.py",
+    "src/dwc/harness/attestation.py",
+    "src/dwc/harness/run_term.py",
+    "tests/test_r196_z_class_landing.py",
+    "docs/R196_Z_CLASS_PLAN.md",
+    "docs/CODE_DEBT_RECONCILIATION_R193.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "gate_trace",
+     "ref": "57篇woff逐篇regex取证",
+     "claim": "R193判dual←2606.06350 public-private 与 state←2609.06396 (𝒟,θ,𝒽) **两处出处错**: 前者privacy指数据集许可(57篇grep public[- ]private=0命中), 后者𝒟是dev数据集(world state=0命中) ⇒ 只能作DWC自定义能力, 禁冒充论文机制"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/papers/2608.10299.md（R192 woff）",
+     "claim": "coupling 依据 §2.3 三阶段taxonomy + §5.1 Stage3判据逐字在场; DWC 实测在 Stage 0（四机制互不触发, metric选op不通知direction重排fallback序）⇒ 出厂 4 边 = Stage 2（有跨机制边无meta边）"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "run_term.py:458 Quintet 填值盘点",
+     "claim": "五元 m/rho/pi/V 已填已实现, U=select_winner 已实现但未接本盘点 ⇒ 唯一partial=U; R196加机械锁 test_quintet_u_is_the_only_partial + 唯一出口注释（防第二口径）"
+    }
+   ],
+   "numbers": {
+    "pytest": 1373,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 18,
+    "z_items": 6,
+    "coupling_edges": 4,
+    "decoupled_pairs": 8,
+    "paper_basis_true": 2,
+    "paper_basis_wrong": 2
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1373(+18) + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "docs/R196_Z_CLASS_PLAN.md + tests/test_r196_z_class_landing.py",
+   "user_decision": "用户令'我想把这六类全部落地 深度思考 给我一个方案'→'继续'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
