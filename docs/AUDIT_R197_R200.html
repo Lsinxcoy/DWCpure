@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC 深度严格工程化审计 · R197–R200</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--txt:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--bad:#f85149}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.7 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:24px}
+nav{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 24px;z-index:9}
+nav a{color:var(--dim);text-decoration:none;margin-right:16px;font-size:13px}
+nav a:hover{color:var(--acc)}
+h1{font-size:24px;margin:18px 0 6px}
+h2{font-size:19px;margin:34px 0 12px;border-left:4px solid var(--acc);padding-left:10px}
+h3{font-size:16px;margin:20px 0 8px;color:var(--acc)}
+.sub{color:var(--dim);font-size:13px;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin:12px 0}
+.ok{border-left:4px solid var(--ok)}.warn{border-left:4px solid var(--warn)}.bad{border-left:4px solid var(--bad)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128}
+code{background:#1c2128;border-radius:4px;padding:1px 5px;font-size:12.5px}
+.tag{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:600}
+.p1{background:#3d1d1f;color:#ff7b72}.p2{background:#33271a;color:#e3b341}.p3{background:#1c2128;color:var(--dim)}
+.g{color:var(--ok);font-weight:700}.r{color:var(--bad);font-weight:700}.y{color:var(--warn);font-weight:700}
+.num{font-size:30px;font-weight:700;color:var(--acc)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.grid .card{text-align:center;padding:12px}
+ul{padding-left:22px}li{margin:5px 0}
+.small{font-size:12.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+<nav>
+<a href="#scope">范围</a><a href="#a1">A1 空壳</a><a href="#a2">A2 接线</a><a href="#a3">A3 契约</a>
+<a href="#a4">A4 判据</a><a href="#a5">A5 声称vs实测</a><a href="#a6">A6 数据面</a>
+<a href="#find">发现清单</a><a href="#fix">补救</a><a href="#open">悬置裁决</a>
+</nav>
+<div class="wrap">
+
+<h1>深度严格工程化审计 · R197–R200</h1>
+<div class="sub">DWC (E:/Divine Wisdom Core) · 2026-10-12 · 审计对象 = 最近四轮改动 + 集成缝 · 方法 = codebase-hollowing-audit 适配版（7 维度, 逐项非抽样）</div>
+
+<h2 id="scope">审计范围与方法</h2>
+<div class="card">
+<b>改动面（git diff --stat HEAD~4..HEAD — 机器清单, 非抽样）</b>：42 文件 · +1,950 / −248 行。
+核心源码 6 件：anchor_drift.py(新,171行) / judge.py(+101) / evolver.py(+64) / loop.py(+40) / actor.py(+15) / coupling.py(±20)；
+数据 2 件（dev.json / broken_dev.json）；新测试 4 件（+561 行）；脚本 2 件。
+<table>
+<tr><th>维度</th><th>方法</th><th>可靠性</th></tr>
+<tr><td>A1 空壳化</td><td>AST 扫 6 个改动源文件全部 151 个函数（pass/ellipsis/return常量/return空容器）</td><td>机器, 高</td></tr>
+<tr><td>A2 接线分类</td><td>新公共符号 5-way verdict（生产外接线计数 grep 全 src+scripts+tests）</td><td>机器+人工, 高</td></tr>
+<tr><td>A3 契约审计</td><td>target 语义分布实测 / epoch 双口径核对 / sigs 消费面全 grep</td><td>机器, 高</td></tr>
+<tr><td>A4 判据自身</td><td>4 个新测试文件全扫: 条件守卫断言/恒真/or True/吞异常/纯文本锁（AST If 体断言检测）</td><td>机器+人工, 高</td></tr>
+<tr><td>A5 声称vs实测</td><td>四轮知识档的 6 项承重断言逐条机器复核</td><td>机器, 高（含 1 次假红排雷）</td></tr>
+<tr><td>A6 数据面</td><td>dev/broken_dev 集合·split 覆盖·金标独立复算 7 项·broken 容差·账本单调·自报一致性</td><td>机器, 高</td></tr>
+</table>
+</div>
+
+<h2 id="a1">A1 · 空壳化扫描</h2>
+<div class="card ok">
+<div class="grid">
+<div><div class="num">151</div>函数扫描</div>
+<div><div class="num">0</div>空壳确认</div>
+<div><div class="num">3</div>候选→全排雷</div>
+</div>
+6 个改动源文件全量 AST 扫描。首版判据报 3 个候选（actor._signature / evolver.noise_delta / judge.to_dict）——逐一读体后全部为<b>误报</b>：我的判据把<b>任意</b> dict/list 字面量返回当"空容器"（实际三者都返回多键 dict）。按 Layer 22 纪律<b>修判据不修实现</b>（只把真·空容器计入），重跑 = 0。
+<div class="small">★ 审计自坑 #1：判据比实现窄的典型形态 — 已写回本报告留痕。</div>
+</div>
+
+<h2 id="a2">A2 · 接线分类（5-way）</h2>
+<div class="card bad">
+<h3>★ P1 发现：anchor_drift 全模块 = 仅测试接线</h3>
+<p>9 个新公共符号（drift_signals / record_epoch / epoch_of / read_epochs / _rung_mix / _suggestions / SUGGESTION_RULES / EPOCH_LEDGER / ANCHOR_DRIFT_MECHANICS）逐个 grep 全仓：<b>生产外接线 = 0</b>（src+scripts 零消费, 仅测试引用）。</p>
+<ul>
+<li><b>定性</b>：设计内但未完成 — R198 落地报告的选项②（drift_signals 接监控 cron, 触发即飞书推送）未被选择；观察面目前是<b>手工触发</b>不是<b>常驻</b>。</li>
+<li><b>后果</b>：rung_monotone 这类信号在 R199 被行动消解是<b>因为我恰好在做这一系列轮次</b>——若换代信号在无人翻仓时触发, 无任何生产路径会报告它。</li>
+<li><b>epoch 账本</b>同理: record_epoch 仅在 R199 由会话调用过一次, 无生产写入方/读取方。</li>
+</ul>
+<p>其余 5 个改动源文件的接线均生产在环（judge/actor/loop/evolver 是主链; coupling 被 R196 接入 gate）。</p>
+</div>
+
+<h2 id="a3">A3 · 契约审计</h2>
+<div class="card warn">
+<h3>P2 发现①：RULES target 语义双载 — 活陷阱（审计中实证抓到我自己）</h3>
+<table>
+<tr><th>语义</th><th>条数</th><th>例</th></tr>
+<tr><td>target = <b>fn 名</b>（behavior 族）</td><td>3</td><td>E_VALUE:wrong_magnitude:<code>sum_first_n</code></td></tr>
+<tr><td>target = <b>task_id</b>（文本族, R171 起）</td><td>10</td><td>E_MISMATCH:extra_content:pivot → <code>reasoning_001</code></td></tr>
+</table>
+<p>同一字段两种语义, 靠调用方按 verifier_kind 分辨。实证：R200 的撞键守卫<b>必须</b>依赖该分辨（behavior 不滤/文本滤）; 且本审计写"自报一致性核对式"时<b>第一版就掉进陷阱</b>（用 task_id 比对 behavior 规则 → 误报 code_fix_001/003 过期自报, 修正后为 0）。</p>
+<p class="small">修复留裁决（见悬置#2）：不动 R173/R171 既有语义, 候选 = check_entry 加 target 语义分类校验。</p>
+</div>
+<div class="card warn">
+<h3>P1 发现②：epoch 双真源无机器守卫</h3>
+<p>epoch 有两条口径：<code>archive/anchor_epochs.jsonl</code>（record_epoch 机器写）vs 知识档 <code>evaluation_config.epoch_id</code>（提交流程手打）。R197–R200 四档核对：R197/R198=1（当时历史正确）, R199/R200=2 — <b>当前一致, 但一致性靠人手不靠机器</b>。将来 record_epoch 后忘改知识档 ⇒ 审计链静默说谎。→ 补救锁已落（见补救#1）。</p>
+</div>
+<div class="card ok">
+<h3>sigs 契约一致性 — 通过</h3>
+消费面全 grep：judge 产（L931）→ loop 读（L450, <code>or []</code> 兜底）→ 透传 _dir_generate/_dir_pick_candidates（L317/L478/L375）。R199 修复（pass ⇒ []）后链路上不再有 [None] 流动；pass 路径在 diagnose 前早退, 无 None 进 diagnose 的可能。</div>
+
+<h2 id="a4">A4 · 判据自身审计（Layer 22/23 纪律）</h2>
+<div class="card ok">
+<p>4 个新测试文件（561 行）全扫：<b>条件守卫断言 0 · 恒真断言 0 · or True 0 · 吞异常 0</b> — R197 弱断言教训（<code>if v.success:</code> 守卫致断言从未执行）在后续轮次无复发。</p>
+<h3>纯文本锁 9 处 — 逐处核背书</h3>
+<table>
+<tr><th>位置</th><th>断言</th><th>行为级背书</th><th>判定</th></tr>
+<tr><td>r197 L70</td><td>to_dict 含 "sigs"</td><td><b>无</b></td><td class="r">→ 补救#2</td></tr>
+<tr><td>r197 L77-79,87,125</td><td>diagnose(sigs) 接线/透传签名/metric 面常开</td><td>有（e2e + drift 实测 + 端到端链）</td><td class="g">✓</td></tr>
+<tr><td>r198 L48,62</td><td>幻影规则锁/禁写锁</td><td>有（合成夹具信号测试 + record_epoch 行为测试）</td><td class="g">✓</td></tr>
+<tr><td>r200 L71</td><td>撞键守卫在文本分支</td><td>有（端到端 002 落自己答案 + behavior target 语义锁）</td><td class="g">✓</td></tr>
+</table>
+<p class="small">Layer 18.4 判据：文本断言只可作结构锁<b>叠在</b>行为断言之上。8/9 合规; 1 处（to_dict 序列化）无行为背书 → 已补。</p>
+</div>
+
+<h2 id="a5">A5 · 声称 vs 实测（四轮知识档承重断言逐条复核）</h2>
+<div class="card ok">
+<table>
+<tr><th>#</th><th>声称（知识档/提交信息）</th><th>机器复核</th><th>结果</th></tr>
+<tr><td>1</td><td>R199 规模推翻①: dream 穷举性破（exhausted=False, max=20 &lt; 可揭示 24）</td><td>读探针产物 verdict</td><td class="g">✓</td></tr>
+<tr><td>2</td><td>探针 reading 模板改条件句（False 时不再念"穷举到底"）</td><td>reading 文本无正句</td><td class="g">✓</td></tr>
+<tr><td>3</td><td>R198 信号消解（rung_mix={1:10,3:3}, rung_monotone 灭）</td><td>drift_signals 实跑</td><td class="g">✓</td></tr>
+<tr><td>4</td><td>R200 撞键（002 的 mean sig → propose target=reproduce_001）</td><td>propose 实跑</td><td class="g">✓</td></tr>
+<tr><td>5</td><td>R197/R199 契约（pass.sigs=[], fail 多签名）</td><td>kernel 首跑报 <code>[None]</code></td><td class="y">假红→排雷✓</td></tr>
+<tr><td>6</td><td>容差边界（0.4≤0.5 过 / 0.6&gt;0.5 不过）</td><td>judge 实跑双态</td><td class="g">✓</td></tr>
+</table>
+<div class="small">★ 排雷记录（审计自坑 #3）：#5 首跑在 execute_code kernel 报 pass.sigs=[None] —— 该 kernel 在 R199 修复<b>之前</b> import 过 judge, sys.modules 留旧版（记忆中已有的坑, 审计时仍踩）。全新解释器复核 = <code>[]</code> 修复在位。⇒ 审计探针一律 fresh interpreter。<b>这不是产品缺陷, 是审计流程缺陷</b> — 若未排雷会得出"修复丢失"的错误结论。</div>
+</div>
+
+<h2 id="a6">A6 · 数据面完整性（全机器, 非抽样）</h2>
+<div class="card ok">
+<table>
+<tr><th>检查项</th><th>结果</th></tr>
+<tr><td>dev(13) 与 broken_dev(13) 任务集合一致</td><td class="g">✓</td></tr>
+<tr><td>_split 覆盖全集 · search/val 互斥（10/3）</td><td class="g">✓</td></tr>
+<tr><td>金标<b>独立复算</b> 7 项（不信 R199 手算, 重算: mean/std总/median/range/pow）</td><td class="g">7/7 全对</td></tr>
+<tr><td>3 条 broken 答案全 key 在容差外（judge 必 fail）</td><td class="g">✓（7/7 key 超容差）</td></tr>
+<tr><td>epoch 账本单调 · 每条加题非空</td><td class="g">✓</td></tr>
+<tr><td>rules_known 自报 vs RULES 现实</td><td class="g">无过期自报（首版核对式掉 target 陷阱误报 2 条, 修正后 0 — 见 A3①）</td></tr>
+</table>
+<div class="small">★ 审计自坑 #2：自报一致性核对式用 task_id 比对 behavior 规则（target=fn 名）→ 误报 code_fix_001/003。修判据（按 verifier_kind 分流比对）后为 0。target 双载陷阱在本次审计中<b>两次</b>实证（R200 守卫 + 本核对式）。</div>
+</div>
+
+<h2 id="find">发现清单（按严重度）</h2>
+<div class="card">
+<table>
+<tr><th>级别</th><th>发现</th><th>证据</th><th>处置</th></tr>
+<tr><td><span class="tag p1">P1</span></td><td>anchor_drift 全模块仅测试接线（零生产消费）— 信号触发无常驻报告路径</td><td>9 符号全 grep 生产外=0</td><td>→ 悬置#3（接监控 cron 需你拍板）</td></tr>
+<tr><td><span class="tag p1">P1</span></td><td>epoch 双真源无机器守卫（账本 vs 知识档手打）</td><td>四档核对（当前一致但无守卫）</td><td><b>已补救#1</b>（standing test）</td></tr>
+<tr><td><span class="tag p2">P2</span></td><td>RULES target 语义双载 = 活陷阱（审计中两次实证抓到我）</td><td>3 fn名 vs 10 task_id; 自核对式误报</td><td>→ 悬置#2（schema 校验需设计裁决）</td></tr>
+<tr><td><span class="tag p2">P2</span></td><td>to_dict 的 sigs 序列化仅文本锁（Layer 18.4 风险）</td><td>A4 背书核对 8/9</td><td><b>已补救#2</b>（行为级锁）</td></tr>
+<tr><td><span class="tag p3">悬置</span></td><td>LATERAL 跨组件 kin（behavior 任务借 answer-text kin ⇒ 每轮一次必败试跑）</td><td>R200 实测（outcome 安全, kept_current）</td><td>→ 悬置#1（同组件优先 = 设计变更）</td></tr>
+<tr><td><span class="tag p3">流程</span></td><td>审计自身三连坑（空壳判据误报 / target 陷阱 / kernel 陈旧假红）</td><td>A1/A3/A5 留痕</td><td>已写回本报告（Layer 22/23 教材）</td></tr>
+</table>
+<p><b>未发现</b>：空壳函数 · 孤儿接线（改动源码内）· 条件守卫断言 · 金标错误 · 数据面失配 · sigs 契约破坏 · 金标/容差判据错误。</p>
+</div>
+
+<h2 id="fix">补救（本轮落地）</h2>
+<div class="card ok">
+<ol>
+<li><b>test_latest_knowledge_epoch_matches_ledger</b> — 最新知识档 epoch_id 必须 == 账本机器值, 失配即红（历史档是时间胶囊不改）。</li>
+<li><b>test_verdict_to_dict_serializes_sigs_behaviorally</b> — to_dict 的 sigs 行为级证据: fail 态 list[dict] 与内存值逐项相等 + pass 态 []。</li>
+</ol>
+两锁 2/2 过; 全量三层随后验证（见提交）。
+</div>
+
+<h2 id="open">悬置设计裁决（需你拍板, 不擅自改）</h2>
+<div class="card warn">
+<ol>
+<li><b>LATERAL 跨组件 kin</b>：现在 behavior 任务会借到 answer-text kin（必败试跑, outcome 安全但每轮浪费一次试跑 + 方向记账噪音）。R173 语义是"取近亲的 component 可归因" — 改成"同 component 优先"是设计变更。<b>选项：(a) 保持现状 (b) 同 component 优先, 无则回落跨组件</b>。</li>
+<li><b>RULES target 语义双载</b>：审计中两次实证它是活陷阱。<b>选项：(a) 保持现状（注释+测试锁分辨） (b) check_entry 加语义分类校验（behavior target 必须∈dev fn 集 / 文本 target 必须∈task_id 集）</b>。</li>
+<li><b>anchor_drift 接常驻</b>：drift_signals 进监控 cron（触发建议即飞书推送）— R198 就提供过的选项②。<b>选项：(a) 接入 (b) 维持手工触发</b>。</li>
+</ol>
+</div>
+
+<div class="small" style="margin-top:30px;border-top:1px solid var(--border);padding-top:10px">
+DWC AUDIT · R197–R200 · 7 维度 · 改动面 42 文件全量 · 新测试 4 件 561 行全扫 · 数据面 6 项全机器 · 承重断言 6 项逐条复核 · 审计自坑 3 处全部留痕
+</div>
+</div>
+</body>
+</html>
