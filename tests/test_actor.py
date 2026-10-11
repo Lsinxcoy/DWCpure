@@ -333,9 +333,12 @@ def test_dev_suite_produces_real_observations(a, j):
 def test_pass_rate_uses_only_graded(a, j):
     """★★★★ 意图: 分母只算判过的（not_evaluated 不进分母）。"""
     sc = run_dev_suite(Actor(), j)["score"]
-    assert sc["n_tasks"] == 10
+    # ★ R199: dev 13 条（+3 rung3; run_dev_suite 只跑 behavior ⇒ pass+fail 仍 6）
+    assert sc["n_tasks"] == 13
     assert sc["pass"] + sc["fail"] == 6
-    assert sc["not_evaluated"] == 4
+    # ★ R199: not_evaluated 4→7（+3 expected_values — run_dev_suite 只跑
+    #   behavior; 13 = 6 graded + 7 未评, 分母只算判过的意图不变）
+    assert sc["not_evaluated"] == 7
     assert sc["pass_rate"] == 1.0
     # ★ 若把 not_evaluated 当 fail ⇒ 0.6；这里必须是 1.0
 

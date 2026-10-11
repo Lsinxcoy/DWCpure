@@ -44,6 +44,7 @@ from __future__ import annotations
 import ast
 import io
 import json
+import re
 import os
 import time
 from dataclasses import asdict, dataclass, field
@@ -712,10 +713,37 @@ class Judge:
             #   ⇒⇒ 真值源该有的是"可执行的判据"，我要求错了
             kind = rec.get("verifier_kind")
             checks = rec.get("checks")
+            # ★★★ R199: 第三种判据形态 expected_values（rung3 · 数值容差
+            #   比对 — ACTOR_TASK_SOURCE L85-86 逐字: "rung=3 数值容差比对
+            #   最强, 有唯一正确答案"）。ARSI 源 reproduce_001-003 即此形态。
+            #   ★ 它的"可执行判据"= expected_values + tolerance（**不是**
+            #     checks 字段）⇒ checks 必填对它豁免（原则 1 不破: 判据仍
+            #     在系统外的文件里且可自动执行）。
+            if kind == "expected_values":
+                ev = rec.get("expected_values")
+                tol = rec.get("tolerance")
+                if not isinstance(ev, dict) or not ev:
+                    raise JudgeError(
+                        "真值源 %s 的 %r 没有 expected_values 判据"
+                        " —— 判不了就别混进真值源（原则 1）" % (path, tid))
+                if not isinstance(tol, (int, float)) or isinstance(tol, bool) \
+                        or tol <= 0:
+                    raise JudgeError(
+                        "真值源 %s 的 %r 的 tolerance=%r 必须为正数"
+                        "（容差比对无容差 = 判据不可执行）" % (path, tid, tol))
+                for k, v in ev.items():
+                    try:
+                        float(v)
+                    except (TypeError, ValueError):
+                        raise JudgeError(
+                            "真值源 %s 的 %r 的 expected_values[%r]=%r 非数值"
+                            "（数值容差比对要数值）" % (path, tid, k, v))
+                continue                      # ★ 跳过 checks 必填检查
             if kind not in ("behavior", "keyword_match"):
                 raise JudgeError(
                     "真值源 %s 的 %r 判据形态 %r 不合法"
-                    "（应为 behavior / keyword_match）" % (path, tid, kind))
+                    "（应为 behavior / keyword_match / expected_values）"
+                    % (path, tid, kind))
             if not checks:
                 raise JudgeError(
                     "真值源 %s 的 %r 没有可执行判据"
@@ -873,7 +901,15 @@ class Judge:
         #   · 其余 notok checks 各产一条签名（同构造逻辑, 逐条产）
         #   · 去重（同 (c,q,fn) 多条 check 撞车 = 同签名族, 只留一条）
         #   ⇒ 消费者按需取用; failure_signature 的行为**逐字节不变**
-        _sigs: List[Dict[str, str]] = [sig]
+        # ★★★ R199 冒烟抓的真 bug: pass 路径 sig=None ⇒ 原 [sig] 变
+        #   [None] — 违反 R197 契约"pass 时 []（不造空签名）"。
+      #   实测害处: evidence 的 sigs 长度统计把 pass 算成 1 条（[None]
+        #   len=1 ⇒ 污染 drift 信号的簇计数）; Loop 现流程 pass 不进
+        #   diagnose 所以没炸 — 但契约就是契约（R197 docstring 逐字
+        #   "pass 时 []"）。
+        #   ★ R197 测试为何没逮到: `if v2.success:` 守卫 — 那次实测
+        #     verdict 恰为 fail ⇒ 断言从未执行（弱断言, G4 族）。
+        _sigs: List[Dict[str, str]] = [sig] if sig is not None else []
         if len(bad) > 1:
             _seen = {(sig.get("c"), sig.get("q"), sig.get("fn"))}
             for d in bad[1:]:
@@ -925,6 +961,40 @@ class Judge:
           ⇒ reason 是**c 的原料**（"verifier 拒绝了什么"）
         """
         kind = golden.get("verifier_kind")
+        # ★★★ R199: expected_values 分支（rung3）— 观测=答案文本,
+        #   解析 key=value 数值对, 逐 key 与 expected 比, |差| <= tolerance
+        #   ⇒ 过。缺 key / 非数值 ⇒ fail（fail-closed, 不许判通过）。
+        #   ★ 必须在 checks 空判**之前**: 该形态的判据在 expected_values
+        #     字段里, 无 checks — 否则会先撞"无 checks ⇒ 不许判通过"。
+        #   ★ fn=key 名 ⇒ 失败签名定位维度直接可用（classify_c 同源）。
+        if kind == "expected_values":
+            text = str(observed.get("answer", observed.get("text", "")))
+            tol = float(golden.get("tolerance") or 0.0)
+            parsed: Dict[str, float] = {}
+            for _m in re.finditer(r"(\w+)\s*=\s*(-?\d+(?:\.\d+)?)", text):
+                try:
+                    parsed[_m.group(1)] = float(_m.group(2))
+                except ValueError:            # 理论不可达（正则已限数值）
+                    continue
+            out2: List[Dict[str, Any]] = []
+            for i, (key, want_raw) in enumerate(
+                    sorted((golden.get("expected_values") or {}).items())):
+                want = float(want_raw)
+                if key not in parsed:
+                    out2.append({"index": i, "kind": kind, "fn": key,
+                                 "expected": want, "actual": None,
+                                 "ok": False,
+                                 "reason": "答案里缺 %r= 数值对" % key})
+                    continue
+                got = parsed[key]
+                okk = abs(got - want) <= tol
+                out2.append({"index": i, "kind": kind, "fn": key,
+                             "expected": want, "actual": got, "ok": okk,
+                             "reason": "命中" if okk else
+                             "差 %.6g > tolerance %.6g" % (abs(got - want),
+                                                           tol)})
+            return out2
+
         checks = golden.get("checks") or []
         if not checks:
             # ★ 没有可执行判据 ⇒ 不许判通过（原则 1）

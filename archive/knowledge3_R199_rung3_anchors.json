@@ -1,0 +1,110 @@
+{
+ "round": "R199（rung3 锚点落地 — R198 rung_monotone 信号的行动闭环）",
+ "date": "2026-10-12",
+ "judge": {
+  "形态": "expected_values + tolerance（rung3 · 数值容差比对）",
+  "_load": "白名单第三形态; 校验 expected_values 非空/tolerance 正数/值可 float; checks 必填对它豁免（判据=expected_values+tolerance 不是 checks — 原则1不破）",
+  "_diff": "观测=答案文本, 正则解析 key=value 数值对, |差|<=tol 过; 缺key/非数值 fail-closed; fn=key 名 ⇒ 签名定位维度直接可用"
+ },
+ "路由": "actor.execute_task 白名单+文本执行器复用(R171 answer 契约); loop._trial_keyword 同款路由; hce_split_report build_observed 补 golden-faithful 答案文本",
+ "锚点": "dev 10→13(ARSI reproduce_001-003 逐字复制, 金标手算核验); _split 机械规则重算 8/2→10/3(reproduce_003 进 val); broken_dev +3 错答案初值(全在容差外); rules_known=false(RULES 无 expected_values 族 — 弃权一等输出)",
+ "epoch": "record_epoch(2, by=developer(R199)) — R198 机制**首次真实使用**; 数字断裂有账可审计",
+ "rung2": "无任何既有定义(ARSI 源无/docs 无) ⇒ R73『无设计不发明』不造, 如实登记缺位",
+ "自抓": [
+  "冒烟抓 pass 路径 sigs=[None] 真 bug(违反 R197 契约'pass⇒[]') — R197 测试 if v.success 弱守卫致断言从未执行(G4 族); 修 judge+重写为无条件断言",
+  "我先误把 r134 饱和值 12→16(以为随树) — 实测 12 是 probe_k2 空树自建口径, 回退; 随后真失败暴露'饱和点右移'(k2=4 揭12未饱和/k2=8 揭16=全树) 才是新态",
+  "probe reading 模板无论布尔真伪都念'穷举到底'正句 ⇒ False 时成谎话, 改条件句"
+ ],
+ "规模推翻": [
+  "dream 穷举性破: '与起底量无关'是 10 任务树假象(13 任务树 k2_max=4 预算 max=20<可揭示24) — 穷举性规模相关, 如实锁 False 态",
+  "k2 饱和点右移: 边界随树规模移动, '存在饱和区'仍坐实"
+ ],
+ "verify": "pytest 1396+7failed→1403 全绿 gate 8/8 e2e rc=0; 测试锁更新 9 处(n_tasks 10→13/rung_mix/{1:10,3:3}/拓扑17节点/轮转13/not_evaluated 7)",
+ "inheritance": {
+  "gen": 199,
+  "at": "2026-10-12T09:00:00+08:00",
+  "parent_gen": 198,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 209,
+   "pytest": 1403,
+   "inheritance_gen_prev": 198
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "rung3 锚点落地: judge 加 expected_values 判据形态(_load校验+_diff容差比对) + actor/loop 文本路路由 + dev.json 加 ARSI reproduce×3 + broken_dev 配套错答案 + epoch2 记账(R198机制首次真实使用) + rung2 无定义不发明(R73); 顺手修 pass 路径 sigs=[None] 真bug + R197 弱断言重写",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "src/dwc/organs/actor.py",
+    "src/dwc/harness/loop.py",
+    "config/anchors/dev.json",
+    "config/anchors/broken_dev.json",
+    "scripts/hce_split_report.py",
+    "scripts/probe_tree_expansion.py",
+    "archive/anchor_epochs.jsonl",
+    "tests/test_r199_rung3_anchors.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "gate_trace",
+     "ref": "docs/ACTOR_TASK_SOURCE.md L84-87 逐字",
+     "claim": "'rung=1 关键词匹配最弱 / rung=3 数值容差比对最强, 有唯一正确答案' ⇒ rung3 判据形态=expected_values+tolerance; rung2 无任何定义(ARSI源/docs 全无) ⇒ R73 不造"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "ARSI sealed_tasks.yaml reproduce_001-003 逐字复制",
+     "claim": "金标手算核验: [2,4,6,8,10] mean=6.00/总体std=sqrt(8)≈2.83/median=6.00; [1,3,5,7,9,11] mean=6.00/range=10.00; 2^10=1024/3^5=243 全对; 源仍是系统外文件(GAI grounded①)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "judge 冒烟五态",
+     "claim": "正确pass(k/n=3/3)/错答案fail+签名(fn=key)/缺key fail-closed/容差内0.4<=0.5过/容差外0.6>0.5不过"
+    },
+    {
+     "type": "test",
+     "ref": "冒烟抓的真bug",
+     "claim": "pass 路径 sigs=[None](非契约的[]) — _sigs=[sig] 无条件包裹 sig=None; 实测害处=evidence sigs 长度统计把 pass 算1条污染 drift 簇计数; R197 测试因 if v.success 守卫从未真跑该断言(G4 族弱断言) ⇒ 修 judge + 重写测试为无条件断言"
+    },
+    {
+     "type": "report_html",
+     "ref": "epoch2 规模推翻两性质",
+     "claim": "dev 13 任务(树 12→17节点/可揭示16→24)后: ①dream穷举性破(k2_max=4 预算不再覆盖全树 max=20<24 ⇒ '与起底量无关'是小规模假象,穷举性规模相关) ②k2 饱和点右移(旧 k2=4 即饱和12; 新 k2=4 揭12未饱和,k2=8 揭16=全树才饱和) — probe reading 模板同步改条件句(False 时不再念'穷举到底'正句)"
+    }
+   ],
+   "numbers": {
+    "pytest": 1403,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 15,
+    "dev_tasks": 13,
+    "search_val": "10/3",
+    "tree_nodes": 17,
+    "epoch": 2
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_frozen": true,
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_note": "epoch 2 = rung3 加题(ARSI reproduce×3); 旧10条逐字节不动(守门人只增不改); 数字断裂有账(archive/anchor_epochs.jsonl)"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1403 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r199_rung3_anchors.py(15测试) + 旧测试锁更新9处 + 探针产物 docs/tree_expansion_probe.json 重生成",
+   "user_decision": "用户选 R198 选项①'补 rung2-3 锚点'后令'推进1'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

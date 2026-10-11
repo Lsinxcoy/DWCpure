@@ -1,0 +1,1 @@
+{"epoch": 2, "prev_epoch": 1, "by": "developer(R199)", "why": "R198 rung_monotone 信号 → 补 rung3 锚点（ARSI reproduce×3 复制, expected_values+tolerance 形态）; rung2 无定义不发明(R73); dev 10→13, _split 按机械规则重算 8/2→10/3", "added_tasks": ["reproduce_001", "reproduce_002", "reproduce_003"]}

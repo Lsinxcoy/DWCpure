@@ -603,9 +603,9 @@ def _run_keyword_task(judge: Any, task_id: str, split: str,
     """
     if implementation is None or not str(implementation).strip():
         raise ActorError(
-            "keyword_match 任务 %r 的 implementation（答案文本）缺 ⇒ "
+            "%s 任务 %r 的 implementation（答案文本）缺 ⇒ "
             "无可执行物（文本任务无 REFERENCE — 初值须由调用方给）"
-            % task_id)
+            % (rec.get("verifier_kind"), task_id))
     return {"task_id": task_id, "split": split,
             "observation": {"answer": implementation,
                             "text": implementation},
@@ -654,11 +654,14 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
             % (task_id, split, len(judge.anchors),
                len(getattr(judge, "sealed", None) or {})))
     rec = _src[task_id]
-    if rec.get("verifier_kind") not in ("behavior", "keyword_match"):
+    if rec.get("verifier_kind") not in ("behavior", "keyword_match",
+                                        "expected_values"):
         raise ActorError(
-            "execute_task 只支持 behavior/keyword_match 形态（%r 是 %r）"
-            % (task_id, rec.get("verifier_kind")))
-    if rec.get("verifier_kind") == "keyword_match":
+            "execute_task 只支持 behavior/keyword_match/expected_values"
+            " 形态（%r 是 %r）" % (task_id, rec.get("verifier_kind")))
+    # ★ R199: expected_values（rung3）走**同款答案文本执行器** —
+    #   观测契约一致（answer/text 文本; judge 侧解析 key=value 数值对）
+    if rec.get("verifier_kind") in ("keyword_match", "expected_values"):
         # ★★ R171: keyword_match 路由（judge 早支持 — observed["answer"]
         #   含全部 expected_keywords ⇒ pass; 此前 actor 硬卡 behavior
         #   ⇒ reasoning 4 条永远 execute fail ⇒ R170 实测 blocked 的

@@ -9,10 +9,11 @@
   "max_gen": 4,
   "tournament_k": 2,
   "current": "π0",
-  "n_d_search": 8,
+  "n_d_search": 10,
   "d_val": [
    "code_fix_006",
-   "reasoning_004"
+   "reasoning_004",
+   "reproduce_003"
   ]
  },
  "delta_convention": "Δ_gain=V(个体)−V(π0); Δ_cost=0(每V同价1单位—对打搜索效率非任务成本); Δ_retention=0(V不回退即保护组不掉)",

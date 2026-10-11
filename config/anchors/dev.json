@@ -232,7 +232,8 @@
    "code_fix_006 第二段 expected 为 \"'\"（引号未闭合 ⇒ 字符串残缺）⇒ 判定方式: 引号数为奇数 ⇒ 不可执行 ⇒ 剔除"
   ],
   "n_excluded": 0,
-  "excluded_ids": []
+  "excluded_ids": [],
+  "★ R199 增补": "2026-10-12 加 rung3 锚点 3 条（reproduce_001/002/003, expected_values + tolerance 形态）—— 源仍是 E:/ARSI/config/sealed_tasks.yaml（同前 10 条的复制纪律: GAI §2.2 grounded① 内容来自系统外）。守门人单调性（2606.14249 只增不改）: 旧 10 条逐字节不动, 只追加。金标手算核验（mean/std总)/median/range/pow 全对）。rung2 无任何既有定义（ARSI 源无、docs 无）⇒ 依 R73『无设计不发明』不造 — rung_mix 从 {1:10} 变 {1:10,3:3}。 epoch 2（anchor_epochs.jsonl 已记账 — 数字断裂有界可审计）。"
  },
  "_split": {
   "search": [
@@ -243,14 +244,51 @@
    "code_fix_005",
    "reasoning_001",
    "reasoning_002",
-   "reasoning_003"
+   "reasoning_003",
+   "reproduce_001",
+   "reproduce_002"
   ],
   "val": [
    "code_fix_006",
-   "reasoning_004"
+   "reasoning_004",
+   "reproduce_003"
   ],
   "rule": "分层(verifier_kind) + 层内字典序末位进val（稿⑥§③机械规则,可复算）",
   "hce": "2603.26499 §3.3 Hidden Consistent Evaluation",
-  "note": "8/2 = DWC 10任务适配比例, 非 HCE 原 80/10/10（val=1抛硬币不可取,如实标注）"
+  "note": "10/3 = R199 起 dev 13任务适配比例（原 8/2 为 10任务期）;非 HCE 原 80/10/10（val=1抛硬币不可取,如实标注）"
+ },
+ "reproduce_001": {
+  "category": "paper_reproduction",
+  "verifier_rung": 3,
+  "prompt": "计算数据集 [2,4,6,8,10] 的均值、总体标准差、中位数。输出格式: mean=X, std=Y, median=Z",
+  "verifier_kind": "expected_values",
+  "expected_values": {
+   "mean": 6.0,
+   "std": 2.83,
+   "median": 6.0
+  },
+  "tolerance": 0.1
+ },
+ "reproduce_002": {
+  "category": "paper_reproduction",
+  "verifier_rung": 3,
+  "prompt": "计算数据集 [1,3,5,7,9,11] 的均值和极差（max-min）。输出格式: mean=X, range=Y",
+  "verifier_kind": "expected_values",
+  "expected_values": {
+   "mean": 6.0,
+   "range": 10.0
+  },
+  "tolerance": 0.1
+ },
+ "reproduce_003": {
+  "category": "paper_reproduction",
+  "verifier_rung": 3,
+  "prompt": "计算 2 的 10 次方和 3 的 5 次方。输出格式: pow2=X, pow3=Y",
+  "verifier_kind": "expected_values",
+  "expected_values": {
+   "pow2": 1024.0,
+   "pow3": 243.0
+  },
+  "tolerance": 0.5
  }
 }

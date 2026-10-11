@@ -43,11 +43,13 @@ def test_topology_account():
     d = _base_dwc()
     topo = tree_topology(d)
     dev = topo["dev"]
-    assert dev["n_nodes"] == 13 and dev["root_id"] == "root"
+    # ★ R199 实测: 17 节点（+g_paper_reproduction 组根 +3 rung3 叶）
+    assert dev["n_nodes"] == 17 and dev["root_id"] == "root"
     assert dev["group_roots"] == {"g_code_repair": 6,
-                                  "g_knowledge_reasoning": 4}
-    assert dev["n_leaves"] == 10
-    assert dev["n_revealable_excl_root"] == 12
+                                  "g_knowledge_reasoning": 4,
+                                  "g_paper_reproduction": 3}
+    assert dev["n_leaves"] == 13
+    assert dev["n_revealable_excl_root"] == 16
 
 
 def test_expansion_follows_pool_size():
@@ -78,12 +80,22 @@ def test_expansion_does_not_separate_strategies():
 
 
 def test_dream_exhausts_every_tier():
-    """每档梦想穷举到底 ⇒ 与起底量无关（R133/R134 同款机制）。"""
+    """★ R199 修订: 原锁"每档穷举到底（与起底量无关）" — **被规模推翻**。
+
+    dev 10→13（树可揭示 12→24 档）后, k2_max=4 固定预算不再穷举全树。
+    现锁**新态**: 未穷举（max=20 < 24）+ 机制读法（规模相关性）。"""
     ROOT = r"E:/Divine Wisdom Core"
     p = os.path.join(ROOT, "docs", "tree_expansion_probe.json")
     d = json.load(open(p, encoding="utf-8"))
-    assert d["verdict"]["dream_exhausts_tree_every_tier"] is True
+    # ★★★ R199 实测**推翻**原性质（"穷举到底与起底量无关"）:
+    #   dev 13 任务（树可揭示 16→24）后, k2_max=4 固定预算不再穷举全树
+    #   （max_n_revealed=20 < 24）⇒ 穷举性是**规模相关**的 — 这是
+    #   epoch 2 暴露的真实机制边界, 如实锁新态（粉饰旧态=谎）。
+    #   若将来提 k2 预算后重新穷举 ⇒ 本断言翻 True 时更新并记录依据。
     assert d["verdict"]["max_n_revealed"] == 20
+    assert d["verdict"]["last_tree_revealable"] == 24
+    assert d["verdict"]["dream_exhausts_tree_every_tier"] is False, (
+        "若变 True = 预算调整后重新穷举 ⇒ 更新本断言并记录新预算依据")
 
 
 def test_add_child_enum_compliance():

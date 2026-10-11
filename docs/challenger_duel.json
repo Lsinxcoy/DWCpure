@@ -1,6 +1,6 @@
 {
  "protocol": "E2 首次对拍: challenger=regression ε 0→0.02（稿§④策略键）; 准入=meta-F1 同锚对拍; 裁决=平票判在位者(RQGM字面); 行为差异=描述性证据不裁决",
- "at": 1791740357.0040517,
+ "at": 1791747313.4415374,
  "duel": {
   "incumbent_macro_f1": 1.0,
   "challenger_macro_f1": 1.0,
@@ -21,20 +21,20 @@
  },
  "epoch_guard": {
   "epoch_id": 1,
-  "judge_fingerprint": "e7604666",
+  "judge_fingerprint": "bce27408",
   "n_transitions": 0,
   "transitions": []
  },
  "dep_scan_after": {
-  "active": 79,
+  "active": 0,
   "deprecated_by_evaluator": 0,
-  "deprecated_by_split_change": 4,
+  "deprecated_by_split_change": 84,
   "pre_depz_legacy": 121
  },
  "regime_change_happened": false,
  "historical_comparability": {
   "broken_since": null,
-  "reason": "换代未发生 ⇒ 分数链连续（judge 指纹未变 e7604666）"
+  "reason": "换代未发生 ⇒ 分数链连续（judge 指纹未变 bce27408）"
  },
  "challenger_archive": {
   "proposal": {

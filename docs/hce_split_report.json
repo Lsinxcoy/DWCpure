@@ -1,10 +1,11 @@
 {
  "protocol": "HCE 拆分读数: 同批golden三口径(legacy/search/select), gap=mean(search集)−mean(val集); 只报方向(n=8/2无方差)",
  "split": {
-  "search": 8,
+  "search": 10,
   "val": [
    "code_fix_006",
-   "reasoning_004"
+   "reasoning_004",
+   "reproduce_003"
   ]
  },
  "legacy": {
@@ -17,7 +18,10 @@
   "reasoning_001": true,
   "reasoning_002": true,
   "reasoning_003": true,
-  "reasoning_004": true
+  "reasoning_004": true,
+  "reproduce_001": true,
+  "reproduce_002": true,
+  "reproduce_003": true
  },
  "search_mode": {
   "code_fix_001": true,
@@ -29,11 +33,15 @@
   "reasoning_001": true,
   "reasoning_002": true,
   "reasoning_003": true,
-  "reasoning_004": null
+  "reasoning_004": null,
+  "reproduce_001": true,
+  "reproduce_002": true,
+  "reproduce_003": null
  },
  "select_val": {
   "code_fix_006": true,
-  "reasoning_004": true
+  "reasoning_004": true,
+  "reproduce_003": true
  },
  "means": {
   "search_set_legacy": 1.0,

@@ -55,7 +55,7 @@ def test_dev_tasks_are_rotated_not_hardcoded():
     """★★★★ 任务面来自 judge.anchors（dev 10 条）— 非 e2e 写死单 task。"""
     loop = _loop()
     tasks = loop._dev_tasks()
-    assert len(tasks) == 10
+    assert len(tasks) == 13    # ★ R199: +3 rung3
     assert not any(t.startswith("_") for t in tasks)
     # ★ 轮转真断言（G4 放水门教训 — R165 我写了 or True 恒真式被
     #   test_no_watering 抓回, 换成取模回环证据: round 1 与 round 11

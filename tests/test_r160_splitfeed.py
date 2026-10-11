@@ -56,7 +56,7 @@ def test_tasks_of_real_judge():
     j = Judge()
     dev = _tasks_of(j, "dev")
     tst = _tasks_of(j, "test")
-    assert len(dev) == 10 and len(tst) == 10, (len(dev), len(tst))
+    assert len(dev) == 13 and len(tst) == 10, (len(dev), len(tst))  # R199: dev+3
     assert not any(t.startswith("_") for t in dev + tst)   # 元键排除
     assert set(dev) & set(tst) == set()                   # 互不相交
 

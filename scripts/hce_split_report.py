@@ -42,6 +42,12 @@ def build_observed(task: Dict[str, Any]) -> Dict[str, Any]:
     if kind == "keyword_match":
         kws = [c.get("kw") for c in (task.get("checks") or []) if c.get("kw")]
         return {"answer": " ".join(kws)}
+    if kind == "expected_values":
+        # ★ R199: rung3 的 golden-faithful 观测 = 正确答案文本
+        #   （key=expected 逐项拼 — 与 prompt 声明的输出格式一致）
+        ev = task.get("expected_values") or {}
+        return {"answer": ", ".join("%s=%.2f" % (k, float(v))
+                                    for k, v in sorted(ev.items()))}
     obs: Dict[str, Any] = {}
     for c in task.get("checks", []):
         if "fn" not in c:
@@ -67,7 +73,7 @@ def main() -> int:
     task_ids = sorted(k for k in anchors
                       if not k.startswith("_")
                       and anchors[k].get("verifier_kind") in
-                      ("behavior", "keyword_match"))
+                      ("behavior", "keyword_match", "expected_values"))
     assert set(task_ids) == set(val_ids) | set(search_ids), "split 不覆盖全集"
 
     j = DWC(3, 50, executor=None, db_path=":memory:").judge

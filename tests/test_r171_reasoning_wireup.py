@@ -90,7 +90,9 @@ def test_signature_fn_is_first_failed_kw():
 
 
 def test_broken_dev_has_10_tasks():
-    """★ broken_dev 10 条（6 behavior + 4 keyword_match — reasoning 面接通）。"""
+    """★ broken_dev 13 条（6 behavior + 4 keyword_match + 3 expected_values）。
+
+    ★ R199: +3 rung3（reproduce×3 — rules_known 全 false ⇒ true 计数仍 6）。"""
     lp = Loop()
-    assert len(lp.impl_store) == 10
+    assert len(lp.impl_store) == 13
     assert sum(1 for v in lp.rules_known.values() if v) == 6

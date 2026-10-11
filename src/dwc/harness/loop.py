@@ -673,7 +673,8 @@ class Loop:
         #   target 已按 task_id 记）⇒ 直接当文本试跑, 不包 def
         _rec = (self.judge.anchors.get(tid) or
                 (getattr(self.judge, "sealed", None) or {}).get(tid) or {})
-        if _rec.get("verifier_kind") == "keyword_match":
+        # ★ R199: expected_values 同走文本试跑（观测契约一致 — 答案文本）
+        if _rec.get("verifier_kind") in ("keyword_match", "expected_values"):
             return self._trial_keyword(tid, frag)
         # 片段已是完整函数体（含 return/多行）⇒ 直接包 def; 若是单行
         # 表达式（RULES 的风格）也兼容 — 只是缩进 4

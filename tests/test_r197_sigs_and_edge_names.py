@@ -46,17 +46,20 @@ def test_multi_check_fail_produces_sig_cluster(j):
 
 
 def test_pass_verdict_has_no_sigs(j):
-    """★★ pass 时 sigs = []（pass 无签名可产 — 不造空签名）。"""
-    # 正确的观测 ⇒ pass（anchors 期望值）
-    from dwc.organs.actor import PureFunctionExecutor as PE
-    ref = PE.REFERENCE.get("sum_first_n")
-    # REFERENCE 形态: dict fn->impl（不是可调集合）⇒ 取 sum_first_n 的引用实现
-    impl = (ref or {}).get("sum_first_n") if isinstance(ref, dict) else None
-    if callable(impl):
-        obs = {"sum_first_n": [[3, impl(3)]]}
-        v = j.evaluate("code_fix_001", "dev", observed=obs)
-        if v.success:
-            assert v.sigs == [] and v.failure_signature is None
+    """★★ pass 时 sigs = []（pass 无签名可产 — 不造空签名）。
+
+    ★★ R199 重写（原版是**双重弱断言**, R199 冒烟抓的真 bug 正是它漏的）:
+      ① PE.REFERENCE 查找姿势错（非 dict fn->impl）⇒ 分支从未执行
+      ② `if v.success:` 守卫 — 那次实测 verdict 恰 fail ⇒ 断言从未跑
+      ⇒⇒ 而 pass 路径真实行为是 sigs=[None]（R197 契约写的是 []）
+      ⇒⇒ ⇒★ G4 族教训: 有条件执行的断言 = 没有断言
+    现用 expected_values pass 态（R199 起可稳定构造）**无条件**断言。
+    """
+    v = j.evaluate("reproduce_001", "dev",
+                   observed={"answer": "mean=6.00, std=2.83, median=6.00"})
+    assert v.success is True, "前置: 正确答案必须 pass"
+    assert v.sigs == [], "pass 路径 sigs 必须 []（实测曾为 [None] — R199 修）"
+    assert v.failure_signature is None
 
 
 def test_sigs_serialized_to_evidence():

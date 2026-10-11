@@ -43,7 +43,8 @@ def test_split_rule_recomputes():
     assert sorted(sp["val"]) == expect_val, "规则复算 ≠ 落盘"
     assert set(sp["search"]) | set(sp["val"]) == set(ids)
     assert set(sp["search"]) & set(sp["val"]) == set()
-    assert len(sp["search"]) == 8 and len(sp["val"]) == 2
+    # ★ R199: 8/2 → 10/3（epoch 2 — +3 rung3; 机械规则复算三条不变）
+    assert len(sp["search"]) == 10 and len(sp["val"]) == 3
 
 
 def test_legacy_zero_regression():

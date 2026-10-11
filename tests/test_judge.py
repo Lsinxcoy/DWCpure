@@ -370,6 +370,13 @@ def test_truth_source_records_no_broken_assertions():
     for tid, rec in data.items():
         if tid.startswith("_"):
             continue
+        # ★ R199: expected_values（rung3）的可执行判据 = expected_values
+        #   + tolerance（**不是** checks 字段）⇒ 意图（每条有可执行判据）
+        #   不变, 形态按 kind 分流（残缺断言检查只适用字符串型 expected）
+        if rec.get("verifier_kind") == "expected_values":
+            ev = rec.get("expected_values")
+            assert ev and rec.get("tolerance", 0) > 0,                 "%s 没有可执行判据（expected_values+tolerance）" % tid
+            continue
         assert rec["checks"], "%s 没有可执行判据" % tid
         for c in rec["checks"]:
             e = str(c.get("expected", c.get("kw", "")))
@@ -379,5 +386,6 @@ def test_truth_source_records_no_broken_assertions():
 def test_dev_has_no_metadata_counted_as_task(j):
     """★★ 意图: _provenance 等元数据不得被当成任务（R24 修的 bug）。"""
     sc = j.score(SPLIT_DEV, {})
-    assert sc["n_tasks"] == 10, "实际 10 条任务（不是 11）"
-    assert j.self_check()["dev_tasks"] == 10
+    # ★ R199: dev 10→13（epoch 2 — 加 rung3 锚点×3, 守门人只增不改）
+    assert sc["n_tasks"] == 13, "实际 13 条任务（元数据不计入 — 意图不变）"
+    assert j.self_check()["dev_tasks"] == 13

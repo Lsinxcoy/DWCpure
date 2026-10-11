@@ -150,10 +150,19 @@ def main() -> int:
                                if tiers_out[-1]["per_world"] else None),
             "expansion_unlocks_separation": bool(sep_tiers),
             "reading": (
-                "扩池(%s 叶)后 n_revealed 上限 %d(= 该档树可揭示节点总数) "
-                "且每档 dream 都穷举到底; 策略区分 %s — %s"
-                % (tiers, tiers_out[-1]["per_world"][3],
-                   "已出现" if sep_tiers else "仍未出现",
+                # ★ R199: 穷举性改按布尔条件句（原模板**无论 exhausted 真假
+                #   都念"穷举到底"** — R199 加 rung3 锚点后树变大,
+                #   k2_max=4 预算不再覆盖全树 ⇒ False 时旧模板成谎话）
+                ("扩池(%s 叶)后每档 dream 都穷举到底(n_revealed=%d); "
+                 if exhausted else
+                 "扩池(%s 叶)后 dream **未**穷举全树(末档 n_revealed=%d < "
+                 "可揭示 %d — k2_max=4 固定预算随树变大不再全覆盖, "
+                 "穷举性是**规模相关**而非与起底量无关); ")
+                % ((tiers, tiers_out[-1]["per_world"][3]) if exhausted else
+                   (tiers, tiers_out[-1]["per_world"][3],
+                    last_tree_revealable)) +
+                "策略区分 %s — %s"
+                % ("已出现" if sep_tiers else "仍未出现",
                    ("⇒ 扩池确实能造出 N 差异, 但 dream 每轮上限仍受 "
                     "k2_max=4 约束 ⇒ 若区分源于 k2 内的选择顺序, 扩池"
                     "是出路; 若仍聚合饱和, 还须配合 R128/R129 口径")

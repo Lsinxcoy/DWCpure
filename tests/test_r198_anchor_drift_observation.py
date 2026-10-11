@@ -26,14 +26,18 @@ from dwc.harness.anchor_drift import (EPOCH_LEDGER, SUGGESTION_RULES,  # noqa: E
 def test_drift_signals_from_real_products():
     """★★★ 信号全部来自既有产物（evidence.jsonl + dev.json）— 实测一次。"""
     sig = drift_signals(ROOT)
-    assert sig["epoch"] == 1                          # R141 出厂口径（无账本）
+    # ★ R199 后: epoch=2（rung3 加题已记账 — R198 机制首次真实使用）
+    #   出厂口径（无账本⇒1）的覆盖在 test_r198_epoch_ledger... 与 tmp_path 测试
+    assert sig["epoch"] == 2, sig["epoch"]
     assert sig["n_dev"] >= 1, "e2e 跑过 ⇒ dev 证据在场"
     assert sig["dev_pass_rate"] is not None
     assert 0.0 <= sig["dev_pass_rate"] <= 1.0
-    # ★ 实测锚点难度结构单一（rung 全 1）⇒ 建议规则必须亮了
-    assert sig["rung_mix"] == {"1": 10}, sig["rung_mix"]
-    assert "rung_monotone" in sig["suggestions"], (
-        "rung 全 1 却没亮 rung_monotone ⇒ 规则登记了不执行（幻影规则）")
+    # ★★ R199 后事实: rung3 锚点×3 落地 ⇒ rung_mix 不再单调
+    #   ⇒ rung_monotone 信号**消解**（信号亮→行动→信号灭 = R198 闭环）
+    #   规则本身的覆盖移到 test_r198_rung_rule_still_fires（合成夹具）
+    assert sig["rung_mix"] == {"1": 10, "3": 3}, sig["rung_mix"]
+    assert "rung_monotone" not in sig["suggestions"], (
+        "rung 已有 3 档却还亮 rung_monotone ⇒ 规则实现错了")
 
 
 def test_suggestion_rules_all_implemented():
@@ -102,6 +106,25 @@ def test_epoch_ledger_bad_line_raises(tmp_path):
 def test_drift_signals_absent_evidence_is_none(tmp_path):
     """★★★ 缺席如实化: 无 dev 证据 ⇒ None（"没测过"≠"全错"）。"""
     sig = drift_signals(str(tmp_path))
+    assert sig["epoch"] == 1, "无账本 ⇒ 出厂口径 epoch=1（R141）"
     assert sig["n_dev"] == 0 and sig["dev_pass_rate"] is None
     assert sig["val_pass_rate"] is None
     assert sig["suggestions"] == [], "没数据却给建议 ⇒ 无据触发"
+
+
+def test_r198_rung_rule_still_fires(tmp_path):
+    """★★ 合成夹具: rung 全 1 的锚点面 ⇒ rung_monotone 仍亮（规则覆盖保留）。
+
+    ★ R199 动 dev.json 后, 真实面不再单调 ⇒ 真实断言翻转（见
+      test_drift_signals_from_real_products）; 但规则本身必须仍有测试
+      证明它会响（否则规则死了都没人知道 — 幻影规则防线上移）。"""
+    import json
+    anchor_dir = tmp_path / "config" / "anchors"
+    anchor_dir.mkdir(parents=True)
+    (anchor_dir / "dev.json").write_text(json.dumps({
+        "t_a": {"verifier_kind": "behavior", "verifier_rung": 1},
+        "t_b": {"verifier_kind": "keyword_match", "verifier_rung": 1},
+    }, ensure_ascii=False), encoding="utf-8")
+    sig = drift_signals(str(tmp_path))
+    assert sig["rung_mix"] == {"1": 2}, sig["rung_mix"]
+    assert "rung_monotone" in sig["suggestions"], "全 rung1 时规则必须亮"

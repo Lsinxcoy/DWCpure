@@ -81,5 +81,30 @@
   "fn": "",
   "rules_known": true
  },
- "_reasoning_note": "R171: keyword_match 任务面接通（execute_task 加文本执行器; judge 早支持 — judge L844-853 expected_keywords 逐条判）。修法=RULES 新族 E_KEYWORD（答案模板 — 任务相关知识, 规则库随任务集增长 = 论文语义）"
+ "_reasoning_note": "R171: keyword_match 任务面接通（execute_task 加文本执行器; judge 早支持 — judge L844-853 expected_keywords 逐条判）。修法=RULES 新族 E_KEYWORD（答案模板 — 任务相关知识, 规则库随任务集增长 = 论文语义）",
+ "reproduce_001": {
+  "category": "paper_reproduction",
+  "verifier_kind": "expected_values",
+  "broken_impl": "mean=5.00, std=1.00, median=5.00",
+  "impl_note": "三项全错（真值 6.00/2.83/6.00, tol=0.1; 初值差 1.0/1.83/1.0 全在容差外）— judge 真判 fail; 修法=RULES 尚无 expected_values 族 ⇒ rules_known=false（弃权是一等输出）",
+  "fn": "",
+  "rules_known": false
+ },
+ "reproduce_002": {
+  "category": "paper_reproduction",
+  "verifier_kind": "expected_values",
+  "broken_impl": "mean=5.00, range=8.00",
+  "impl_note": "两项全错（真值 6.00/10.00, tol=0.1; 差 1.0/2.0）— judge 真判 fail; RULES 无此族 ⇒ rules_known=false",
+  "fn": "",
+  "rules_known": false
+ },
+ "reproduce_003": {
+  "category": "paper_reproduction",
+  "verifier_kind": "expected_values",
+  "broken_impl": "pow2=1000, pow3=200",
+  "impl_note": "两项全错（真值 1024/243, tol=0.5; 差 24/43）— judge 真判 fail; RULES 无此族 ⇒ rules_known=false",
+  "fn": "",
+  "rules_known": false
+ },
+ "_r199_note": "R199: rung3 面（expected_values）接通 — 3 条错答案初值。rules_known=false 是诚实状态: RULES 无 expected_values 修法族（论文 unfixable_now — 弃权是一等输出, 不编修法）。"
 }
