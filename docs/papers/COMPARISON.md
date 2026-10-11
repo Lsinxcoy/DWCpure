@@ -1,7 +1,7 @@
-# 19篇 RSI 论文 · 横向对比表
+# 26 篇报告 · 横向对比表（24 RSI + 2 direction 选择器专项）
 
 > 全部基于**全文**深读（`papers_txt/`，共 178 万字符）。每篇报告见同目录 `<arXivID>.md`。
-> 数字溯源核验见 `VERIFICATION.md`。19/19 通过。
+> 数字溯源核验见 `VERIFICATION.md`。RSI 24 篇通过; **2608.27287 / 2608.17933 是 2026-10-12 补入的专项（R188 DirectionController 的两条规则出处）**, 未走 VERIFICATION.md 的原始流程 — 数字直接摘自本次抓取的全文缓存（已在各篇报告注明缓存路径）。
 
 ---
 
@@ -16,6 +16,8 @@
 | **harness 正则** | `2609.24972` RRSI | 把过拟合拆成三个具名机制，L₀/L₁/L₂ 变可执行门 |
 | **探索策略** | `2609.14858` Dream-RSI | 发现历史本身即仿真器，离线评估替换策略 |
 | **环境难度** | `2609.04128` Environment Evolution | 残差难度公式，沿谱系逐代加难度 |
+| **进化方向提出** | `2608.27287` Astar（Lazada） | 学专用模型提方向（SFT+RL）; 三级 taxonomy + reward model 代理评估; S@1=0.6786 vs 人类 0.3229 |
+| **停滞判据 / 三算子** | `2608.17933` EvoTS-Agent | z_k=(op=Revision)∧(invalid∨gain≤ϵ) — **停滞与接受独立**; Revision/Alternative/Recombination |
 | **评估函数** | `2607.12790` Who Grades the Grader | 进化"打分函数"本身，防塌缩成 always-pass |
 | **agent 程序** | `2609.26457` AIDE² | 8 天 100 节点改写 agent 本身 |
 | **世界模型** | `2607.27201` MWM / `2607.27924` ODEWorld | 建模世界与自我 |

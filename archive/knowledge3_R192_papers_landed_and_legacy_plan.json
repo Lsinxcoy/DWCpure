@@ -1,0 +1,116 @@
+{
+ "round": "R192（①论文落档 + ②老账总规划）",
+ "date": "2026-10-12",
+ "papers_landed": [
+  "2608.27287 Astar(50,072字符全文): 四挑战C1-C4逐条; 三级taxonomy(L1方向/L2动作/L3计划); S@1=0.6786 vs 人类0.3229 vs GPT-5.5 0.3071; RM AUC 0.8487; 20轮两周+Hitrate@200 23.6%; 训练路径R188已排除(无算力), 只留结构与surrogate思想",
+  "2608.17933 EvoTS(48,393字符全文): 停滞公式逐字 z_k←(op=Revision)∧(q_k invalid∨q_k−q_prev≤ϵ)+停滞与接受独立(小改进既Accept又stagnant); 三算子 Revision/AlternativeStrategy(停滞触发)/Recombination(末步); incumbent严格大于才换",
+  "README 24→26 + COMPARISON两行; papers_txt本地留存(50172/49492)但.gitignore已排除⇒不入库(README读法表已注明)"
+ ],
+ "new_facts_beyond_R186": [
+  "EvoTS停滞只对Revision算子记 — R188 stagnant_of 三方向一视同业是实际差距(R192默认不动: 改它=动已绿链行为, 风险>收益)",
+  "R186报告据alphaXiv摘要漏了(op=Revision)前提 — '报告摘要≠全文逐字'又一实例已记账",
+  "ar5iv镜像对EvoTS首抓也返回abs页3.2K ⇒ 全文字符量必须核(本次stagnat9处/F6命中核过)"
+ ],
+ "dev_surface_audit": {
+  "measured": "29条dev facts上 component_known/golden_leak/judge_verdict/nonempty_diff/root_parse_ok 全abstain, 唯pass_rate_weak说话(27drawback/2clean)",
+  "root_cause": "R180注释'candidate_diff不在evidence判据面'半错 — evidence.jsonl条条有diffs字段(逐check expected/actual/ok/reason); 缺的是投影层不是数据",
+  "fix_options": "F1补投影层(从diffs生成候选diff文本, 推荐)/F2补judge_success/vocabulary/component键(涉判据实现耦合边界需单独裁)/F3如实记录不修"
+ },
+ "legacy_14_graded": {
+  "A_now": [
+   "vocab收口(dimension九维+evolver:58两处⇒单一KB_VOCABULARY, 值不变)",
+   "consume显式化(五元组注册表+现有3处消费点登记)",
+   "gdi补计算(DB列causal_chain:72在但无四信号函数⇒补gdi_signals)",
+   "split独立面(抽harness/split_gate.py的Δ_in/Δ_ho accept, gates.py:188改调用)"
+  ],
+  "B_need_user": [
+   "budget_ledger vs budget.py 二选一/双轨裁决",
+   "granularity三层树是否采纳Astar蓝图(direction=L1/component+target_layer=L2/patch=L3)",
+   "dev面F1投影是否按我判执行"
+  ],
+  "C_skip_with_reason": [
+   "dual单主体无场景",
+   "state三元组无对应物",
+   "freshness依赖state",
+   "coupling单链无协同对象",
+   "quintuple主体大件",
+   "autonomy需用户外部裁决定级"
+  ],
+  "D_debt": [
+   "core.py注释冒充(已在R190对账点名的逐处处理)",
+   "EvoTS停滞只对Revision(默认不动)"
+  ]
+ },
+ "plan_file": "docs/LEGACY_WORK_PLAN_R192.md",
+ "verify": "零代码 ⇒ 三层沿用R191实测(pytest 1324/gate 8/8/e2e rc=0); 文档以逐字引用可验(两篇报告均注明全文缓存路径与核过关键词计数)",
+ "inheritance": {
+  "gen": 192,
+  "at": "2026-10-12T03:00:00+08:00",
+  "parent_gen": 191,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 203,
+   "pytest": 1324,
+   "inheritance_gen_prev": 191
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "① 论文落档: 2608.27287(Astar)+2608.17933(EvoTS) 全文级报告入 docs/papers + README/COMPARISON 24→26; ② LEGACY_WORK_PLAN_R192: R189账14项裁决分级(A/B/C/D) + DEV面老账取证与修法定级; 零代码改动",
+   "files": [
+    "docs/papers/2608.27287.md",
+    "docs/papers/2608.17933.md",
+    "docs/papers/README.md",
+    "docs/papers/COMPARISON.md",
+    "docs/LEGACY_WORK_PLAN_R192.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/papers/2608.17933.md",
+     "claim": "全文48,393字符(ar5iv, stagnat 9处核过); §4.2伪代码L20逐字 z_k←(op=Revision)∧(q_k invalid∨q_k−q_prev≤ϵ) — R186报告据alphaXiv摘要漏了(op=Revision)前提, 这是新事实: DWC stagnant_of 对三方向一视同仁是实际差距"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/papers/2608.27287.md",
+     "claim": "全文50,072字符; 三级taxonomy逐字(L1 Coarse-Grained Direction/L2 Fine-Grained Modification Action/L3 Concrete Modification Plan)给ABSENT组件granularity提供蓝图; 论文未列完整类别表⇒DWC须自定"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "dev facts 逐op三态实测(3轮后29条)",
+     "claim": "component_known/golden_leak/judge_verdict/nonempty_diff/root_parse_ok 全abstain×29, 只有pass_rate_weak 27drawback/2clean; 根因=R180注释'判据面没diff'半错—evidence.jsonl条条有diffs字段(逐check expected/actual/ok/reason), 缺的只是投影层"
+    }
+   ],
+   "numbers": {
+    "pytest": 1324,
+    "papers_total": 26,
+    "dev_facts": 29,
+    "abstain_ops": 5,
+    "speaking_ops": 1
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "零代码 ⇒ pytest/gate/e2e 沿用R191实测(1324/8-8/0); 文档以逐字引用可验",
+   "verdict": "accepted",
+   "evidence_ref": "docs/papers/{2608.17933,2608.27287}.md + docs/LEGACY_WORK_PLAN_R192.md",
+   "user_decision": "用户令'先做1 然后深度思考 规划R189账上+DEV面老账所有的工作'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}
