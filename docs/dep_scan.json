@@ -1,8 +1,8 @@
 {
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
- "current_judge_fingerprint": "a4a9d96e",
+ "current_judge_fingerprint": "e7604666",
  "counts": {
-  "active": 77,
+  "active": 78,
   "deprecated_by_evaluator": 0,
   "deprecated_by_split_change": 4,
   "pre_depz_legacy": 121
@@ -773,40 +773,48 @@
    "status": "active",
    "judge_fingerprint": "a4a9d96e",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R191_reverse_type_forbidden.json",
    "status": "active",
    "judge_fingerprint": "a4a9d96e",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R192_papers_landed_and_legacy_plan.json",
    "status": "active",
    "judge_fingerprint": "a4a9d96e",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R194_legacy_x_landed.json",
    "status": "active",
    "judge_fingerprint": "a4a9d96e",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R195_y2y3_landed.json",
    "status": "active",
    "judge_fingerprint": "a4a9d96e",
    "split_fingerprint": "e61f2cef",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R196_z_class_landed.json",
+   "status": "active",
+   "judge_fingerprint": "a4a9d96e",
+   "split_fingerprint": "e61f2cef",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R1_audit.json",

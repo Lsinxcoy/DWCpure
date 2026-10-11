@@ -131,6 +131,13 @@ class Verdict:
     #       ⇒⇒ ⇒★ 被迫手填 ⇒ 与 RULES 键不匹配 ⇒ 端到端断
     #   ⇒ ⇒★ 所以这是补**根因**，不是加功能
     failure_signature: Optional[Dict[str, str]] = None
+    #: ★★★ R197 · **多失败签名清单**（① 数据面改进 — 不是新接口）
+    #:   failure_signature = 首个 notok check 的签名（R30 原口径, 不变）;
+    #:   sigs = 该 verdict 上**全部** notok check 的签名（去重; 单失败时相同）
+    #:   ⇒ Loop→evolver.diagnose 可一次拿全簇; diagnose 已按 (c,q,m) 聚类
+    #     ⇒ 传多个不会重复提案（约束 4 逐字）。
+    #:   ★ fail 时非空 / pass 时 []（pass 无签名可产 — 不造空签名）。
+    sigs: Optional[List[Dict[str, str]]] = None
     #: ★★★★ R54 · **k/n 的分母/分子**（细粒度分数的原料）
     #:   ⚠ 背景: `diffs` 字段存的是 **失败条目**（`bad`，成功时 = []）
     #:     ⇒ 我第一版 `pass_rate` 拿 `len(v.diffs)` 当分母 = **完全错**
@@ -166,6 +173,7 @@ class Verdict:
                 "missing": self.missing,
                 # ★ R72 补齐 —— 否则 z 投影 / k-n 审计在 evidence 侧全断
                 "failure_signature": self.failure_signature,
+                "sigs": self.sigs,
                 "n_checks": self.n_checks,
                 "k_passed": self.k_passed,
                 "diffs": self.diffs}
@@ -860,10 +868,31 @@ class Judge:
                    "q_note": first.get("reason", ""),
                    "n_failed": str(len(bad)),
                    "split": split, "task": task_id}
+        # ★★★ R197 · sigs = bad 全量签名（① 数据面改进）
+        #   · 主签名（上）保持 R30 原口径 = **首个** notok check —— 不变
+        #   · 其余 notok checks 各产一条签名（同构造逻辑, 逐条产）
+        #   · 去重（同 (c,q,fn) 多条 check 撞车 = 同签名族, 只留一条）
+        #   ⇒ 消费者按需取用; failure_signature 的行为**逐字节不变**
+        _sigs: List[Dict[str, str]] = [sig]
+        if len(bad) > 1:
+            _seen = {(sig.get("c"), sig.get("q"), sig.get("fn"))}
+            for d in bad[1:]:
+                _fn = d.get("fn") or d.get("kw") or ""
+                _key = (classify_c(d.get("expected"), d.get("actual")),
+                        classify_q(d.get("expected"), d.get("actual")), _fn)
+                if _key in _seen:
+                    continue
+                _seen.add(_key)
+                _sigs.append({
+                    "c": _key[0], "q": _key[1], "fn": _fn, "m": "",
+                    "q_note": d.get("reason", ""),
+                    "n_failed": str(len(bad)), "split": split,
+                    "task": task_id})
         v = Verdict(task_id, split, ok,
                     "按 %s 的 golden reference 比较实测%s" % (cat, note),
                     cat,
                     failure_signature=sig,
+                    sigs=_sigs,
                     # ★ 逐条差异（判 fail 时**必须**说哪条、差在哪）
                     #   ⇒ 此前 reason 是通用文案 ⇒ 等于没说
                     diffs=[{k: d.get(k) for k in DIFF_FIELDS}

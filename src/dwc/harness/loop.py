@@ -280,7 +280,8 @@ class Loop:
             return None
 
     def _dir_pick_candidates(self, tid: str, sig: Dict[str, str],
-                             round_no: int, score: Optional[float]) -> list:
+                             round_no: int, score: Optional[float],
+                             sigs: Optional[List[Dict[str, str]]] = None) -> list:
         """FORWARD 空 ⇒ 沿 fallback 序换向生成候选（R188 R1/R2/R3）。
 
         ★ 三条规则的在此的形态:
@@ -313,7 +314,7 @@ class Loop:
                                    "%s" % (tid, exc))
                 return []
             self._last_dir_decision = dec
-            cands = self._dir_generate(dec.direction, sig)
+            cands = self._dir_generate(dec.direction, sig, sigs=sigs)
             self._dir_ledger_append(
                 tid, attempts, direction=dec.direction,
                 n_candidates=len(cands), reason=dec.reason)
@@ -335,7 +336,8 @@ class Loop:
         self._last_skip = ("三方向均已试且无候选（task=%r — R3 旁路）" % tid)
         return []
 
-    def _dir_generate(self, direction, sig: Dict[str, str]) -> list:
+    def _dir_generate(self, direction, sig: Dict[str, str],
+                      sigs: Optional[List[Dict[str, str]]] = None) -> list:
         """R188 · 按方向调 evolver 对应入口（表驱动, 防 if-elif 漂移）。
 
         ★ FORWARD  = diagnose 的签名命中（本 fn 的专有修法）
@@ -368,7 +370,10 @@ class Loop:
                            # 真候选生成仍归 evolver（不在此造 patch）
         # FORWARD（缺省分支 — 显式三选一, 不猜）
         try:
-            return list(self.evolver.diagnose([sig]).get("proposals", []))
+            # ★★ R197 ①: 与主路径同口径吃全量签名簇; 未传 ⇒ 回退 [sig]
+            #   （旧调用方行为逐字节不变 — 单签名等价）
+            return list(self.evolver.diagnose(list(sigs or []) or [sig])
+                        .get("proposals", []))
         except Exception as exc:                # noqa: BLE001
             self._last_skip = "diagnose 失败: %s" % exc
             return []
@@ -437,9 +442,14 @@ class Loop:
             self._last_skip = "task %r 已通过 ⇒ 无提案（idle≠error）" % tid
             return {"chain_verdict": "all_applicable_passed",
                     "score": score, "landed": False}
+        # ★★★ R197 ① · diagnose 入参从 [主签名] 扩为 **全量签名簇**
+        #   （judge 已产 Verdict.sigs — 每个 notok check 一条, 去重）。
+        #   · diagnose 已按 (c,q,m) 聚类 ⇒ 传多个**不会重复提案**（约束 4 逐字）
+        #   · 旧行为: 单签名时 `sigs=[sig]` ⇒ 与旧 `[sig]` **等价**（回退保底）
         sig = dict(v.failure_signature or {})
+        sigs = list(getattr(v, "sigs", None) or []) or [sig]
         try:
-            proposals = self.evolver.diagnose([sig]).get("proposals", [])
+            proposals = self.evolver.diagnose(sigs).get("proposals", [])
         except Exception as exc:                    # noqa: BLE001
             self._last_skip = "diagnose 失败: %s" % exc
             return {"chain_verdict": "blocked", "score": score, "landed": False}
@@ -450,7 +460,8 @@ class Loop:
         #   ★ 分工不变: 本段只决定"试哪个方向"（生成候选）;
         #     "能不能落地"仍归六门+replay（R174/R181 原样）。
         if not proposals:
-            proposals = self._dir_pick_candidates(tid, sig, round_no, score)
+            proposals = self._dir_pick_candidates(tid, sig, round_no, score,
+                                                  sigs=sigs)
             if not proposals:
                 return {"chain_verdict": "blocked", "score": score,
                         "landed": False}

@@ -1,0 +1,91 @@
+{
+ "round": "R197（①数据面改进 + ③边表命名修正 — 用户令'先做1+3'→'继续推进'）",
+ "date": "2026-10-12",
+ "①_sigs_cluster": {
+  "change": "Verdict 加 sigs（多失败签名清单）: 每个 notok check 一条签名（同构造逻辑）, 按 (c,q,fn) 去重; 主签名 failure_signature 仍是首个（R30 原口径逐字节不变）",
+  "consumers": "Loop 主路径 diagnose(sigs) + 换向路径 _dir_generate(sigs=)（透传链: _run_one_task→_dir_pick_candidates→_dir_generate 三段都带默认 None ⇒ 旧调用方回退 [sig] 行为等价）",
+  "why_zero_new_api": "diagnose 早就吃 List[Dict] 且按 (c,q,m) 聚类（约束4逐字）⇒ 传多个不重复提案; ① 是纯数据面改进零接口",
+  "measured": "e2e evidence.jsonl 36 条全部含 sigs; 7 条多签名簇（每条 cluster=2）⇒ 旧行为只产 1 条主签名的 7 个场景现在多喂一路诊断"
+ },
+ "③_edge_rename": {
+  "old_names": "op_verdicts_changed / direction_switched / verdict_distribution_shifted",
+  "why_wrong": "R196 边名是事件式误导 — 实测三条边根本没有事件可接（fallback_order 纯输入派生 / select 判据面不接受 direction 输入 / judge 无写入入口）",
+  "new_names": "metric_surface_refreshed_every_round（loop.py:972 每轮无条件跑）/ direction_switches_do_not_enter_select / landing_enters_next_round_data（轮间非轮内）/ failure_signature_clusters_fed（唯一真接通=①）",
+  "unchanged": "stage_of 判据 + pressur��_from/to 查询语义与 R196 完全一致（改名不改判 — 测试锁）"
+ },
+ "auto_trigger_ruling": "不做事件总线。四条边逐条取证: ①无处可接（硬接破R188可复现）②能接即改门③语义（R181判高危）③轮间耦合已由R196 markers记账生效 ④唯一可接=①多签名簇。真 Stage1 判据(2608.10299)'static counterpart' 的 DWC 对应=judge 锚点 ⇒ 下一步是 anchor 漂移检测（需用户裁决）, 不是机制互调",
+ "self_caught": "首层验证 20 个测试 NameError: name 'sigs' is not defined — _dir_generate 加了形参但调用方 _dir_pick_candidates 的 sigs 未定义（链断在中段; 我不在函数内 import 兜底而是补透传链三段 + 默认None）; 另修 3 个测试自身错: diagnose 键名是 n_clusters 不是 clusters / 需要 fn 才不 raise / PE.REFERENCE 是 dict 非可调集合",
+ "verify": "pytest 1373→1382(+9) gate 8/8 e2e rc=0",
+ "inheritance": {
+  "gen": 197,
+  "at": "2026-10-12T06:00:00+08:00",
+  "parent_gen": 196,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 207,
+   "pytest": 1382,
+   "inheritance_gen_prev": 196
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "① 数据面: Verdict.sigs 多签名簇(每notok check一条, (c,q,fn)去重) + Loop主路径/换向路径同口径吃sigs; ③ coupling 边名事件式→事实形态(三条边实测没有事件可接); 自抓sigs透传链断裂",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "src/dwc/harness/loop.py",
+    "src/dwc/harness/coupling.py",
+    "tests/test_r197_sigs_and_edge_names.py",
+    "tests/test_r196_z_class_landing.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "gate_trace",
+     "ref": "e2e evidence.jsonl 实测（36条）",
+     "claim": "含sigs字段36/36; sigs>1的多签名簇7条(旧行为只产1条主签名) ⇒ ①真生效不是测试层摆设; R30主签名口径(首个notok)不变"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "四条边的接收端取证",
+     "claim": "边1 metric→direction: fallback_order=sha256(round_no|task_id)纯输入派生不看机制状态 ⇒ 无处可接(硬接=破R188可复现铁律); 边2 direction→metric: 能接的只有trees=候选族提示=改门③语义⇒R181判高危; 边3 evolver→judge: judge无写入入口, 落地效应走下一轮自然数据(轮间非轮内); 边4 judge→evolver: propose只吃签名⇒唯一可接=多签名簇(①)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "auto-trigger 提法裁决",
+     "claim": "Stage 1 真判据(2608.10299 §2.3)是'an agent no longer learns against a static counterpart' — DWC的静态对应方=judge锚点 ⇒ 真问题是anchor漂移(需用户裁决), 不是事件总线"
+    }
+   ],
+   "numbers": {
+    "pytest": 1382,
+    "gate": "8/8",
+    "e2e_rc": 0,
+    "new_tests": 9,
+    "evidence_rows": 36,
+    "sigs_multi": 7,
+    "renamed_edges": 3
+   }
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "74951bcd",
+   "judge_frozen": true,
+   "judge_fingerprint": "e7604666",
+   "split_fingerprint": "e61f2cef",
+   "epoch_id": 1,
+   "epoch_note": null
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1382(+9) + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r197_sigs_and_edge_names.py + e2e evidence.jsonl(36条, 7条多签名簇)",
+   "user_decision": "用户令'先做1+3'→'继续推进'（2026-10-12）"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "recall/record_effect 生产喂数未接线 + 默认 :memory: 不落盘（R106 双缺口）⇒ 本段尚无数据"
+  }
+ }
+}

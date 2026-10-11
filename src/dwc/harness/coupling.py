@@ -44,10 +44,22 @@ from typing import Dict, List, Tuple
 #:   (from_subsystem, to_subsystem, pressure_name)
 #:   第一版 4 条 = R196 方案 §五.1 经用户默许的出厂集（用户 2026-10-12 令"继续"）。
 COUPLING_EDGES: Tuple[Tuple[str, str, str], ...] = (
-    ("metric_loop", "direction", "op_verdicts_changed"),
-    ("direction", "metric_loop", "direction_switched"),
-    ("evolver", "judge", "proposal_landed"),
-    ("judge", "evolver", "verdict_distribution_shifted"),
+    # ★★★ R197 · 命名修正（我 R196 的边名是**事件式误导** — 实测三条边
+    #   根本没有事件可接, 但有真实的**耦合形态**; 按事实重命名）:
+    #   "metric 面每轮常开" ⇒ 不是"op 判定变了才触发": loop.py:972-977
+    #     每轮无条件跑 dev_points_from_store ⇒ metric 的新鲜度**已经**是
+    #     每轮级别。旧名 op_verdicts_changed 暗示事件驱动 ⇒ 错。
+    #   "换向只改尝试序不改选优口径" ⇒ select(dev_points, a_train=) 的
+    #     判据面（judge/a_train）**不接受** direction 输入; 能接的只有
+    #     `trees=` 候选族提示 = 改门③语义 ⇒ R181 判高危不进链 ⇒ 旧名
+    #     direction_switched 暗示 metric 会因换向而变 ⇒ 错。
+    #   "judge 面无写入入口" ⇒ evaluate() 只读; 落地的效应走**下一轮**的
+    #     自然数据（轮间耦合, 非轮内调用）⇒ 旧名 verdict_distribution_shifted
+    #     暗示 judge 会推分布给 evolver ⇒ 错。
+    ("metric_loop", "direction", "metric_surface_refreshed_every_round"),
+    ("direction", "metric_loop", "direction_switches_do_not_enter_select"),
+    ("evolver", "judge", "landing_enters_next_round_data"),
+    ("judge", "evolver", "failure_signature_clusters_fed"),
 )
 
 #: ★ DWC 的四个机制子系统（harness/organs 的已登记结构 — 不自造第五个）

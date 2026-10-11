@@ -79,9 +79,9 @@ def test_coupling_edges_are_registered_not_triggering():
 
 def test_coupling_pressures_queries_are_deterministic():
     """★ 查询输出确定（排序）— 同一输入同一输出, 测试可断言。"""
-    assert pressures_from("metric_loop") == [("direction",
-                                              "op_verdicts_changed")]
-    assert pressures_to("judge") == [("evolver", "proposal_landed")]
+    assert pressures_from("metric_loop") == [
+        ("direction", "metric_surface_refreshed_every_round")]
+    assert pressures_to("judge") == [("evolver", "landing_enters_next_round_data")]
     assert declared_pairs() == sorted(set(declared_pairs()))
     assert len(COUPLING_EDGES) == 4                       # 出厂集（R196 §五.1）
 
