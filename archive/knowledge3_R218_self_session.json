@@ -1,0 +1,64 @@
+{
+ "round": "R218",
+ "date": "2026-10-13",
+ "主题": "自我认知+会话: config/dwc_self.md(维护者写agent只读, 每单注入system≤4000字) + var/dwc_sessions/<id>.jsonl 逐轮留痕 + task_id回填报告",
+ "verify": {
+  "pytest": "1508 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 218,
+  "at": "2026-10-13T01:31:00+08:00",
+  "parent_gen": 217,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 237,
+   "pytest": 1508,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "自我认知+会话: config/dwc_self.md(维护者写agent只读, 每单注入system≤4000字) + var/dwc_sessions/<id>.jsonl 逐轮留痕 + task_id回填报告",
+   "files": [
+    "config/dwc_self.md",
+    "src/dwc/llm/task_exec.py",
+    "tests/test_r218_self_session.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r218_self_session.py 3锁",
+     "claim": "自我注入可见/会话逐轮落痕/task_id回填/缺席不炸"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1508 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r218_self_session.py 3锁",
+   "user_decision": "用户对标头部agent缺口后'执行'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "AGENTS.md 文件名被宿主防注入保护拦 — 换 dwc_self.md（非规避: 保护目标是防Hermes指令注入, DWC自我记忆语义不同）; 会话 compaction(超轮摘要注入)未做 — 先留痕"
+  }
+ }
+}

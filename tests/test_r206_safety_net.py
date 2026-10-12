@@ -41,12 +41,19 @@ def test_health_probe_latest_segment_only():
     import dwc_prod_health as H
     orig = H.LOG
     fake = os.path.join(ROOT, "var", "__fake_log__.jsonl")
+    # ★ 相对时间（Layer 22: 首版写死 2026-10-12T16:50 —— 跨时跑就触发停滞
+    #   判据误报, 测试数据失效不是判据错; 停滞判据=最后事件距今>STALL_H）
+    import time as _t
+    _now = _t.time()
+    def _ts_ago(sec):
+        return _t.strftime("%Y-%m-%dT%H:%M:%S+08:00",
+                           _t.localtime(_now - sec))
     rows = [
         {"term": 0, "error": "旧历史错误（已修复不复发）",
-         "ts": "2026-10-12T10:00:00+08:00"},
-        {"event": "completed", "ts": "2026-10-12T10:00:01+08:00"},
-        {"term": 0, "pass_rate": 0.0, "ts": "2026-10-12T16:50:00+08:00"},
-        {"event": "completed", "ts": "2026-10-12T16:50:01+08:00"},
+         "ts": _ts_ago(7200)},
+        {"event": "completed", "ts": _ts_ago(7199)},
+        {"term": 0, "pass_rate": 0.0, "ts": _ts_ago(120)},
+        {"event": "completed", "ts": _ts_ago(119)},
     ]
     with io.open(fake, "w", encoding="utf-8") as fh:
         for r in rows:

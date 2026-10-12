@@ -1,0 +1,63 @@
+{
+ "round": "R220",
+ "date": "2026-10-13",
+ "主题": "权限三态ask级: _ASK表(git push/curl/pip install/rm单文件等)→动作不执行+明确'需人工授权'提示(LLM换路或final说明) — deny黑名单仍优先硬拒; G7修_sess静默加计数",
+ "verify": {
+  "pytest": "1508 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 220,
+  "at": "2026-10-13T01:31:00+08:00",
+  "parent_gen": 219,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 237,
+   "pytest": 1508,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "权限三态ask级: _ASK表(git push/curl/pip install/rm单文件等)→动作不执行+明确'需人工授权'提示(LLM换路或final说明) — deny黑名单仍优先硬拒; G7修_sess静默加计数",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "tests/test_r220_ask.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r220_ask.py 3锁",
+     "claim": "三态分级/ask不执行带授权提示/deny优先"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1508 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r220_ask.py 3锁",
+   "user_decision": "用户对标头部agent缺口后'执行'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "ask的'真审批'形态(飞书问用户等回复接回线程)未做 — 现为'拒+提示'诚实形态; 台账实证: R216 demote生效79terms(demote×60/drop×19), wta活60/79, GDI 0.40→0.11"
+  }
+ }
+}
