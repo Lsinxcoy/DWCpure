@@ -1380,7 +1380,39 @@ class Mutator:
         return "%s:%s:%s" % (sig["c"], sig["q"], sig["fn"])
 
     @classmethod
-    def check_entry(cls, key: str, entry: Dict[str, Any]
+    def dev_targets(cls, anchors: Optional[Dict[str, Any]] = None
+                    ) -> set:
+        """★ 真源集 = dev 任务 id ∪ dev behavior 函数名（target 的合法落点）。
+
+        ★ R202（审计 P2 裁决）: RULES target **语义双载**（behavior 族 =
+          fn 名 / 文本族 = task_id — R171 起两口径并存）, 双载本身是历史
+          语义不动; 本方法给校验面提供"已知落点"集合, 让 target 写错
+          （指向不存在的 fn/task）在固化时被拒。
+        ★ anchors 给定 ⇒ 从该 dict 算（调用方复用已加载 judge — 无双源）;
+          缺省 ⇒ 读真源文件（模块缓存, 与 judge TRUTH_SOURCE 同一文件）。
+        """
+        if anchors is None:
+            cached = getattr(cls, "_dev_targets_cache", None)
+            if cached is None:
+                import io as _io
+                import json as _json
+                from dwc.organs.judge import TRUTH_SOURCE
+                data = _json.loads(_io.open(TRUTH_SOURCE[0][1],
+                                            encoding="utf-8").read())
+                anchors = data
+            else:
+                return cached
+        tids = {k for k in anchors if not str(k).startswith("_")}
+        fns = {c.get("fn") for v in anchors.values() if isinstance(v, dict)
+               for c in (v.get("checks") or []) if c.get("fn")}
+        out = tids | fns
+        if getattr(cls, "_dev_targets_cache", None) is None:
+            cls._dev_targets_cache = out
+        return out
+
+    @classmethod
+    def check_entry(cls, key: str, entry: Dict[str, Any],
+                    dev_targets: Optional[set] = None
                     ) -> List[str]:
         """★ 固化前的字段校验（**数据完整性**，不是判分）。
 
@@ -1388,9 +1420,20 @@ class Mutator:
         ⇒⇒ ★ 为什么在 evolver 而不在 applier:
           schema 是**进化侧的知识**，applier 是通用写入器
           ⇒⇒ 让 applier 懂 RULES 的结构 = 职责越界
+        ★ R202 · target 真源校验（审计 P2 裁决 = 推荐②）: dev_targets
+          提供时, target 必须落在真源集（dev task_id ∪ dev fn）——把
+          "双载语义写错落点"挡在固化门前。
+          · 生产注入: loop 固化 / e2e 固化显式传入 ⇒ **主路径必过**
+            （不是装饰 — Layer 23.2: 纪律要能在真实写入路径生效）。
+          · 缺省不查: 单元测试的合成占位 target（'f'/'f1'）合法 ——
+            schema 层与真源层解耦是既有测试设计, 不为校验破坏它。
         """
         missing = [f for f in cls.RULE_ENTRY_FIELDS
                    if not str(entry.get(f, "")).strip()]
+        if dev_targets is not None:
+            tgt = str(entry.get("target") or "")
+            if tgt and tgt not in dev_targets:
+                missing.append("target∉真源(dev task∪fn): %r" % tgt)
         # ★★★ R37 · 第 4 个来源（prompt/生成/固化/schema）
         #   我原来写 `not in COMPONENT_VOCAB` ⇒ 模型给的 `code`
         #   (𝒦_meta 合法) 在 **schema 这一步**又被拒
@@ -1714,7 +1757,9 @@ class Mutator:
         """★ 声明过的失败签名（可审计：我们只修这些）。"""
         return sorted(self.RULES)
 
-    def propose_lateral(self, sig: Dict[str, str]) -> Optional[Proposal]:
+    def propose_lateral(self, sig: Dict[str, str],
+                         prefer_components: Optional[tuple] = None
+                         ) -> Optional[Proposal]:
         """★★★ R173 · LATERAL 泛化提案（同 (c,q) 不同 fn 的近亲修法）。
 
         ★ 依据: direction.py 的 R73 边界注释**自己点名的第一落点** —
@@ -1732,12 +1777,26 @@ class Mutator:
         c, q = sig.get("c", ""), sig.get("q", "")
         if not c or not q:
             return None
-        kin = None
-        for k in sorted(self.RULES):            # 排序 ⇒ 同族多个时确定选
-            kc, kq, kfn = k.split(":", 2)
-            if kc == c and kq == q:
-                kin = k
-                break                            # 首个同族（可复现）
+        # ★★★ R202（审计悬置①裁决 = 推荐b）: **同 component 优先**。
+        #   背景: RULES 键 (c,q) 跨组件 — behavior 任务的 (c,q) 族里混着
+        #   prompt 组件的 answer-text kin（R200 加 expected_values 族后
+        #   **实测发生**: average 的 LATERAL 借到 pow2 答案文本 ⇒ 编译炸,
+        #   白试一轮）。prefer_components = 当前任务偏好的组件组:
+        #     · 文本任务（keyword/expected_values）→ ("prompt",)
+        #     · behavior 任务 → COMPONENT_VOCAB 去 prompt（代码组件）
+        #   组内仍 sorted 首个（确定性不变）; **偏好组空 ⇒ 回落全集首个
+        #   （R173 原行为 — 不因偏好弃候选, 弃权只在真无同族时）**。
+        cands = [k for k in sorted(self.RULES)
+                 if k.split(":", 2)[:2] == [c, q]]
+        if not cands:
+            return None
+        if prefer_components:
+            pref = [k for k in cands
+                    if str(self.RULES[k].get("component", ""))
+                    in prefer_components]
+            kin = (pref or cands)[0]            # 无偏好组 ⇒ 回落全集首个
+        else:
+            kin = cands[0]                      # 未传偏好 ⇒ R173 原行为
         if kin is None:
             return None
         rule = self.RULES[kin]
@@ -1864,10 +1923,13 @@ class Evolver:
     # ══════════════════════════════════════════════
     # 诊断 → 提案
     # ══════════════════════════════════════════════
-    def propose_lateral(self, sig: Dict[str, str]) -> Optional[Proposal]:
+    def propose_lateral(self, sig: Dict[str, str],
+                         prefer_components: Optional[tuple] = None
+                         ) -> Optional[Proposal]:
         """★★ R173: LATERAL 泛化委派（Loop 侧入口 — 实现在 Mutator, 与
         propose/diagnose 同一委派模式: 器官对器官, 策略在 Mutator）。"""
-        return self.mutator.propose_lateral(sig)
+        return self.mutator.propose_lateral(sig,
+                                            prefer_components=prefer_components)
 
     def diagnose(self, signatures: List[Dict[str, str]]
                  ) -> Dict[str, Any]:

@@ -294,6 +294,7 @@ class Loop:
         ★★★ R173 的伦理边界不变: 候选生成 ≠ 采纳; 泛化 patch
           修不好 ⇒ 门/试跑拦 ⇒ 弃权, 不硬过。
         """
+        from dwc.organs.evolver import COMPONENT_VOCAB
         attempts = self._dir_attempts.setdefault(tid, [])
         # ★ FORWARD 的尝试已由调用方完成（diagnose 空 ⇒ 才进本函数）⇒
         #   必须先记一笔 attempt（否则 next_action 会把 FORWARD 当"未试
@@ -314,7 +315,18 @@ class Loop:
                                    "%s" % (tid, exc))
                 return []
             self._last_dir_decision = dec
-            cands = self._dir_generate(dec.direction, sig, sigs=sigs)
+            _kind = (self.judge.anchors.get(tid) or {}).get(
+                "verifier_kind")
+            # ★ R202 prefer: 文本任务 → prompt 组件; behavior → 代码组件
+            #   （COMPONENT_VOCAB 去 prompt — 偏好组空时 propose_lateral
+            #    自动回落全集, 不弃候选）
+            _prefer = ((("prompt",) if _kind in ("keyword_match",
+                                                "expected_values")
+                        else tuple(c for c in COMPONENT_VOCAB
+                                   if c != "prompt"))
+                       if _kind else None)
+            cands = self._dir_generate(dec.direction, sig, sigs=sigs,
+                                       prefer_components=_prefer)
             self._dir_ledger_append(
                 tid, attempts, direction=dec.direction,
                 n_candidates=len(cands), reason=dec.reason)
@@ -337,7 +349,8 @@ class Loop:
         return []
 
     def _dir_generate(self, direction, sig: Dict[str, str],
-                      sigs: Optional[List[Dict[str, str]]] = None) -> list:
+                      sigs: Optional[List[Dict[str, str]]] = None,
+                      prefer_components: Optional[tuple] = None) -> list:
         """R188 · 按方向调 evolver 对应入口（表驱动, 防 if-elif 漂移）。
 
         ★ FORWARD  = diagnose 的签名命中（本 fn 的专有修法）
@@ -354,7 +367,10 @@ class Loop:
         """
         if direction.value == "LATERAL":
             try:
-                lat = self.evolver.propose_lateral(sig)
+                # ★ R202: 同 component 优先（文本任务借 prompt kin,
+                #   behavior 借代码 kin — 见 Mutator.propose_lateral 注）
+                lat = self.evolver.propose_lateral(
+                    sig, prefer_components=prefer_components)
                 return [lat] if lat is not None else []
             except Exception as exc:            # noqa: BLE001 — 留痕不静默
                 self._last_skip = "LATERAL 泛化失败: %s" % exc
@@ -1122,11 +1138,15 @@ class Loop:
                               " 复验（strategy=bridge-landed）" % tid),
             }
             tgt = _RuleTarget(Mutator, key)
+            # ★ R202 注入: target 真源校验在生产固化路径**必过**（审计
+            #   推荐② — dev task∪fn 集从已加载 judge 算, 无双源 IO）。
             rec_res = self.applier.land_rule(
                 tgt, key, entry,
                 {"success": bool((trial or {}).get("success")),
                  "split": "dev", "task": tid},
-                Mutator.check_entry)
+                lambda _k, _e: Mutator.check_entry(
+                    _k, _e,
+                    dev_targets=Mutator.dev_targets(self.judge.anchors)))
             self._last_consolidation = {
                 "key": key, "outcome": "consolidated",
                 "readback_ok": rec_res.readback_ok}

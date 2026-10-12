@@ -75,6 +75,11 @@ def test_a1_component_check_is_single_sourced():
       ⇒ 改一处其余矛盾（prompt 扩了校验没扩 ⇒ e2e 卡死）
     ⇒ ⇒★ 除**定义处**与 `check_component` 自身，别处不许再写
         「component in COMPONENT_VOCAB」这种**直接判词表**的表达式
+    ★ R202 误伤修正（本判据的第 3 次校准, Layer 22 纪律: 判据错修判据）:
+      `for c in COMPONENT_VOCAB`（**遍历构造集合**）被旧正则误拦 —
+      遍历是**跟随真源**的（词表扩 ⇒ 偏好集自动扩, 正是 R37 要的单源
+      方向）, 与"判定合法性"语义不同 ⇒ 收窄正则: 拦判定形态
+      (`x in COMPONENT_VOCAB` / `not in`), 豁免 for-遍历形态。
     """
     offenders = []
     _truth = _truth_lines()
@@ -94,7 +99,10 @@ def test_a1_component_check_is_single_sourced():
             #   （R39 第一版没这个 ⇒ 把真源自己报成多来源）
             if rel.replace("\\", "/").endswith("organs/evolver.py") and ln in _truth:
                 continue
-            if re.search(r"\bin\s+COMPONENT_VOCAB", line):
+            # ★ R202: 豁免 for-遍历（构造集合=跟随真源, 非判词表）;
+            #   判定形态（x in / not in）照拦 — 见 docstring 误伤记录
+            if re.search(r"\bin\s+COMPONENT_VOCAB", line) and not re.search(
+                    r"\bfor\s+\w+\s+in\s+COMPONENT_VOCAB", line):
                 offenders.append((rel, ln, st[:84]))
     assert not offenders, (
         "★ A1 多来源: 直接写 `in COMPONENT_VOCAB` 的地方（应走 "

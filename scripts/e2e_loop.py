@@ -783,6 +783,9 @@ print("  任务: %s" % T2)
 #     —— 否则它防不住"上次异常中断"（而异常恰恰最可能留下脏状态）
 print("  ── 前置自清洁（确保从零学起）──")
 from dwc.organs.evolver import Mutator as _M   # ★ 提到这里（8g 之前就用）
+# ★ R202: 固化校验统一走真源注入版（dev task∪fn — 审计推荐②; 缺省读
+#   TRUTH_SOURCE 同一文件, 模块缓存, 无双源）
+_chk = lambda k, e: _M.check_entry(k, e, dev_targets=_M.dev_targets())  # noqa: E731
 _sig8_key = "%s:%s:%s" % ("E_OFF_BY_ONE", "off_by_one_in_range", LEARN_FN)
 if _sig8_key in _M.RULES:
     # ★★★★ R32 实测: 这里**不能**用 ap.rollback ——
@@ -1076,7 +1079,7 @@ tgt_rule = Target(getter=lambda: _M.RULES.get(sig_key),
                   delete_fn=lambda: _M.RULES.pop(sig_key, None),
                   flush_fn=_M.persist_learned)
 evi = {"success": v8f.success, "split": "dev", "task": T2}
-res_l = ap.land_rule(tgt_rule, sig_key, entry, evi, _M.check_entry)
+res_l = ap.land_rule(tgt_rule, sig_key, entry, evi, _chk)
 print("  ✓ 固化: readback_ok=%s" % res_l.readback_ok)
 print("    reason = %s" % res_l.reason)
 print("  固化后 RULES 含该键: %s" % (sig_key in _M.RULES))
@@ -1084,7 +1087,7 @@ print("  固化后 RULES 含该键: %s" % (sig_key in _M.RULES))
 # ★ 负面: 未验证的证据必须被拒（不许"顺手"固化）
 try:
     ap.land_rule(tgt_rule, sig_key, entry,
-                 {"success": False, "task": T2}, _M.check_entry)
+                 {"success": False, "task": T2}, _chk)
     print("  ★ 未验证的证据居然通过了（闸②失效）")
 except Exception as e:
     print("  ✓ 未验证证据被拒: %s" % str(e)[:56])
@@ -1303,7 +1306,7 @@ else:
         print("  key = %s" % _key10)
         print("  entry 7+1 字段: %s" % sorted(_entry10))
         # 10b · schema 校验（evolver 注入）
-        _miss = _M.check_entry(_key10, _entry10)
+        _miss = _chk(_key10, _entry10)
         print("  check_entry: %s" % (_miss or "合格 ✓"))
         assert not _miss, "★ schema 不过 ⇒ 不许落"
         # 10c · 固化（applier 三闸 + 读回 + 落盘）
@@ -1314,7 +1317,7 @@ else:
                         flush_fn=_M.persist_learned)
         _ev10 = {"success": True, "split": "dev", "task": _LT}
         _res10 = ap.land_rule(_tgt10, _key10, _entry10, _ev10,
-                              _M.check_entry)
+                              _chk)
         print("  ✓ 固化 readback=%s" % _res10.readback_ok)
         print("    reason=%s" % _res10.reason[:96])
         print("    m 指纹已入条目: %s" % bool(
@@ -1384,7 +1387,7 @@ else:
         # 11a · step10 已自清洁 ⇒ 这里**重新固化**（同一条）
         if _key10 not in _M.RULES:
             _res11 = ap.land_rule(_tgt10, _key10, _entry10, _ev10,
-                                  _M.check_entry)
+                                  _chk)
             print("  11a 重新固化: readback=%s" % _res11.readback_ok)
         assert _key10 in _M.RULES, "★ 前置: 规则应在位"
         _good_patch = _M.RULES[_key10]["patch"]

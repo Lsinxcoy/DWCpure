@@ -1,0 +1,99 @@
+{
+ "round": "R202",
+ "date": "2026-10-12",
+ "裁决执行": "审计悬置三推荐全部落地（用户令'全部执行你的推荐'）",
+ "①LATERAL同component优先": {
+  "裁决": "推荐b",
+  "实现": "Mutator.propose_lateral(sig, prefer_components): kin按任务kind偏好分组——文本任务(keyword/expected_values)→('prompt',), behavior任务→COMPONENT_VOCAB去prompt; 组内保持sorted首个(确定性); 偏好组空⇒回落全集首个(R173不因偏好弃候选)",
+  "实测": "average的kin从pow2(prompt/answer-text, R200引入后实测编译炸)变为sum_first_n(control_flow); 未传偏好=R173原行为(测试锁); Evolver委派透传; loop._dir_pick_candidates按tid的verifier_kind构造prefer",
+  "A1锁校准": "A1单源锁(test_a1_component_check_is_single_sourced)拦下for-in遍历——判据误伤(锁语义='判词表'判定, 遍历是跟随真源); Layer22处置=修判据不改实现: 正则收窄豁免for-遍历形态(保留判定/断言拦截), 锁docstring记录第3次校准, 锁行为6/6验证(判定拦/断言拦/遍历放/定义放/注释放/字符串放)"
+ },
+ "②target真源校验": {
+  "裁决": "推荐b(带工程变形: 注入式)",
+  "实现": "check_entry(cls,key,entry,dev_targets=None): dev_targets提供时target必须∈(dev task_id∪dev fn), 否则missing追加'target∉真源'; Mutator.dev_targets(anchors=None)两路同源(anchors给定从dict算/缺省读TRUTH_SOURCE文件, 模块缓存)",
+  "生产注入在环": "loop固化(lambda闭包dev_targets=dev_targets(self.judge.anchors), 复用已加载judge无双源IO) + e2e固化5处(_chk helper); 合成测试占位target('f'/'f1')未注入路径兼容——schema/真源解耦的既有测试设计不为校验破坏",
+  "锁": "test_production_injection_wired(结构: loop+e2e源码含注入, e2e无裸check_entry land_rule) + test_dev_targets_matches_truth_source(两路同源)"
+ },
+ "③drift监控常驻": {
+  "裁决": "推荐a",
+  "实现": "scripts/dwc_anchor_drift_watch.py: drift_signals(REPO)消费方; 有建议⇒构造报告直连飞书API(tenant_access_token→im/v1/messages, open_id私聊适配)⇒print+exit1; 无建议⇒日度心跳(一天一条); 同建议key24h节流(state文件)",
+  "纪律": "no_agent deliver:local铁律(skill: deliver:feishu静默陷阱); 脚本内嵌API调用不走stdout转发; 异常print+exit2不静默",
+  "cron": "job f3e18d04b90f('DWC anchor drift watch', no_agent, '0 */2 * * *', deliver local); CRON RUNS THE COPY: 仓库→%LOCALAPPDATA%/hermes/scripts/副本md5同步锁进test_cron_copy_in_sync",
+  "验证": "run1心跳message_id=om_x100b63f685bfe4a4c1075182feeeddb(真API ack); run2静默RC=0(节流生效); 副本跑RC=0共享state; cronjob action=run后台执行"
+ },
+ "施工坑": "①@classmethod脱落: dev_targets插入手术把原check_entry装饰器顶成双@classmethod叠在dev_targets上(锚文本不含装饰器)——发现于冒烟TypeError(missing entry), 结构复核修正; ②kernel陈旧模块第3次(新签名propose_lateral TypeError)——fresh interpreter复核; ③R202提交脚本误用inheritance_ledger.jsonl(不存在的路径——真实档形态=knowledge3_R###.json单文件gen=轮号)——git add失败拦住未污染",
+ "verify": {
+  "pytest": "1423 passed",
+  "gate": "全部通过(8项)",
+  "e2e": "rc=0",
+  "r202_tests": "11 new tests"
+ },
+ "inheritance": {
+  "gen": 202,
+  "at": "2026-10-12T06:30:00+08:00",
+  "parent_gen": 201,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 212,
+   "pytest": 1411,
+   "inheritance_gen_prev": 201,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2,
+   "epoch_source": "anchor_drift.epoch_of(ROOT)机器读(R201纪律)"
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "审计悬置三裁决落地: ①LATERAL prefer_components分组选kin(文本→prompt/behavior→代码组件, 组空回落全集) ②check_entry dev_targets注入式真源校验(loop固化+e2e固化5处在环) ③dwc_anchor_drift_watch.py监控常驻(cron每2h, 直连飞书API, 24h节流+日度心跳+副本md5锁)",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "src/dwc/harness/loop.py",
+    "scripts/e2e_loop.py",
+    "scripts/dwc_anchor_drift_watch.py",
+    "tests/test_r202_audit_recommendations.py",
+    "tests/test_judge_source_audit.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/AUDIT_R197_R200.html 悬置裁决节",
+     "claim": "P1 anchor_drift仅测试接线(9符号外接线=0) + P2 target双载活陷阱(审计中两次实证) + R200实测average借pow2 answer-text编译炸浪费试跑"
+    },
+    {
+     "type": "trial_report",
+     "ref": "R202冒烟: behavior有偏好kin=sum_first_n/control_flow vs 无偏好=pow2/prompt; check_entry注入拒['target∉真源: no_such_fn']; 偏好组空回落factorial/control_flow",
+     "claim": "三裁决行为面全部机器实测(非文本锁)"
+    },
+    {
+     "type": "test",
+     "ref": "message_id=om_x100b63f685bfe4a4c1075182feeeddb",
+     "claim": "cron脚本飞书直连真投递(API ack); run2静默=节流验证"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_frozen": true,
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl",
+   "split_fingerprint": "0726ef8b"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1423 + gate 8/8 + e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r202_audit_recommendations.py(11锁: prefer三态/注入三态/生产在环/副本md5) + A1锁6/6校准验证",
+   "user_decision": "用户令'全部执行你的推荐'——三推荐全落地"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "drift监控心跳已通(message_id)但漂移建议路径未实战(当前无建议)——首个建议触发时回流本段; A/B决策层观察未接线(同R201)"
+  }
+ }
+}
