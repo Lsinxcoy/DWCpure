@@ -10,13 +10,39 @@
 """
 from __future__ import annotations
 
+
+def _dwc_root():
+    """R228: 仓库根发现（env DWC_ROOT > 本文件上溯 — 不写死盘符/用户名）。"""
+    _e = os.environ.get("DWC_ROOT", "").strip()
+    if _e and os.path.isdir(_e):
+        return os.path.abspath(_e)
+    _c = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    while not (os.path.isdir(os.path.join(_c, "src", "dwc"))
+               and os.path.isdir(os.path.join(_c, "config"))):
+        _p = os.path.dirname(_c)
+        if _p == _c:
+            break
+        _c = _p
+    else:
+        return _c
+    # ③ 副本场景（cron 跑 hermes/scripts 下的拷贝 — 上溯找不到仓库）:
+    #    同目录 .dwc_repo 标记（同步时写入一行仓库路径）
+    _mk = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       ".dwc_repo")
+    if os.path.isfile(_mk):
+        with open(_mk, encoding="utf-8") as _f:
+            _r = _f.readline().strip()
+        if _r and os.path.isdir(_r):
+            return _r
+    raise RuntimeError("找不到 DWC 根 — 设 DWC_ROOT 或同步副本(写 .dwc_repo)")
+
 import json
 import os
 import sys
 import time
 import urllib.request
 
-REPO = r"E:/Divine Wisdom Core"
+REPO = _dwc_root()
 sys.path.insert(0, os.path.join(REPO, "src"))
 VAR = os.path.join(REPO, "var")
 DB = os.path.join(VAR, "dwc_prod.sqlite")

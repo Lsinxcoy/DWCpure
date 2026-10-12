@@ -46,6 +46,8 @@ import io
 import json
 import re
 import os
+from dwc.foundation.paths import find_root as _fr
+ROOT = _fr()
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -77,17 +79,17 @@ class JudgeError(Exception):
 #:   形式: (类别, 路径) —— 路径必须是**真实存在**的文件
 TRUTH_SOURCE: Tuple[str, ...] = (
     # ★★ dev: 已落地（10 条 · 6 behavior + 4 keyword_match）
-    ("dev_anchors", r"E:/Divine Wisdom Core/config/anchors/dev.json"),
+    ("dev_anchors", os.path.join(ROOT, "config", "anchors", "dev.json")),
     # ★★ test: **未落地**。2607.12790 §2.2 原文 test 是 locked split，
     #   「no part of metric evolution reads it」
     #   ⇒⇒ JUDGE_DESIGN §4.5 也写明「test 锁定任务: **必须另建**」
     # ⇒⇒ ★★ 绝不能用 dev 的副本冒充 —— 那会让回归检测形同虚设
     #     （分子分母同源，改了哪边都算过）
-    ("test_sealed", r"E:/Divine Wisdom Core/config/anchors/test_sealed.json"),
+    ("test_sealed", os.path.join(ROOT, "config", "anchors", "test_sealed.json")),
     # ★★ R184 · train: 2607.12790 的"无标注大集合"（A_train 共识面）
     #   — train.json 落了（R184: 6 条同族新题, 无 expected）; 与 dev/
     #   test 互不相交（前缀 train_ + 题面不同 — 已验 dev∩train=∅）
-    ("train_unlabeled", r"E:/Divine Wisdom Core/config/anchors/train.json"),
+    ("train_unlabeled", os.path.join(ROOT, "config", "anchors", "train.json")),
 )
 
 #: ★★ 未落地的真值源（判据: 声明了但文件不存在 ⇒ 启动必须 raise）

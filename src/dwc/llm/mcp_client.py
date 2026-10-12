@@ -26,7 +26,8 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-ROOT = r"E:/Divine Wisdom Core"
+from dwc.foundation.paths import find_root
+ROOT = find_root()
 MCP_CONF = os.path.join(ROOT, "config", "mcp.json")
 
 #: 进程池 {name: {"proc": Popen, "lock": Lock, "tools": [...]}}

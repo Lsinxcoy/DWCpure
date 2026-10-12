@@ -17,7 +17,8 @@ import re
 import time
 from typing import Any, Dict, List
 
-ROOT = r"E:/Divine Wisdom Core"
+from dwc.foundation.paths import find_root
+ROOT = find_root()
 VAR = os.path.join(ROOT, "var")
 LESSONS = os.path.join(VAR, "dwc_lessons.jsonl")
 

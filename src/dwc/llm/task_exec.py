@@ -29,7 +29,8 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-ROOT = r"E:/Divine Wisdom Core"
+from dwc.foundation.paths import find_root
+ROOT = find_root()
 WORK = os.path.join(ROOT, "var", "inbox_work")
 #: 危险命令黑名单（子串匹配; run 动作的护栏之一 — 不是完备沙箱, 是护栏）
 _FORBIDDEN = ("rm -rf", "mkfs", "format ", "del /s", "rd /s",

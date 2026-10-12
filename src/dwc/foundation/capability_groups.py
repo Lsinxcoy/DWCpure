@@ -29,7 +29,7 @@
   ⇒ ★ 该冲突已登记，待裁（见 PROGRESS 的下一步）
 
 坐标：
-  ROOT = E:/Divine Wisdom Core
+  ROOT = 仓库根（dwc.foundation.paths.find_root() 发现）
   cfg  = config/capability_groups.yaml
   src  = E:/ARSI/config/sealed_tasks.yaml   ← 源数据（不在本仓）
 """
@@ -43,7 +43,12 @@ from typing import Any, Dict, List, Tuple
 
 import yaml
 
-ROOT = r"E:/Divine Wisdom Core"
+#: ROOT 内联上溯（本模块保持可独立直跑 — 不 import dwc 自身, 零依赖:
+#:   foundation/ → dwc/ → src/ → 仓库根; env DWC_ROOT 仍可覆盖）
+_ROOT_ENV = os.environ.get("DWC_ROOT", "").strip()
+ROOT = (_ROOT_ENV if _ROOT_ENV and os.path.isdir(_ROOT_ENV) else
+        os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))))
 CFG_PATH = os.path.join(ROOT, "config", "capability_groups.yaml")
 SEALED_PATH = r"E:/ARSI/config/sealed_tasks.yaml"
 

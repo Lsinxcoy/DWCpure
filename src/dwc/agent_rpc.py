@@ -25,7 +25,8 @@ import secrets
 import time
 from typing import Any, Dict, List, Optional
 
-ROOT = r"E:/Divine Wisdom Core"
+from dwc.foundation.paths import find_root
+ROOT = find_root()
 #: ★ 测试/多实例隔离: DWC_VAR_DIR 环境变量覆盖 var 根（subprocess 测试与
 #:   生产 agent 的台账/db/pid 全隔离 — 间歇竞态根治, 2026-10-12 全量复现）
 VAR = os.environ.get("DWC_VAR_DIR") or os.path.join(ROOT, "var")
@@ -196,8 +197,9 @@ def send_feishu(text: str) -> bool:
     try:
         import urllib.request
         import yaml
-        cfg_path = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
-                                "hermes", "config.yaml")
+        from dwc.foundation.paths import hermes_config_path
+        cfg_path = hermes_config_path() or os.path.join(
+            os.environ.get("LOCALAPPDATA", "~"), "hermes", "config.yaml")
         with open(cfg_path, encoding="utf-8") as fh:
             fs = (yaml.safe_load(fh) or {}).get("feishu") or {}
         req = urllib.request.Request(
@@ -250,6 +252,26 @@ def cmd_history(n: int = 20) -> Dict[str, Any]:
 
 def cmd_doctor() -> Dict[str, Any]:
     checks = {}
+    # ── R230 · 环境段（发布级: 新机器先看这里 — python/venv/依赖/校验器）──
+    import sys
+    checks["python"] = ("ok %s" % sys.version.split()[0]
+                        if sys.version_info >= (3, 11)
+                        else "NEED>=3.11 (实为 %s)" % sys.version.split()[0])
+    checks["venv"] = ("ok" if getattr(sys, "prefix", "") != getattr(
+        sys, "base_prefix", "") else "SYSTEM_PYTHON（建议 venv — install.ps1 会建）")
+    try:
+        import yaml, psutil                      # noqa: F401 — 依赖存在性
+        checks["deps"] = "ok (yaml+psutil)"
+    except ImportError as exc:
+        checks["deps"] = "MISSING: %s（pip install -r requirements.txt）" % exc
+    try:
+        from dwc.foundation import dial_config
+        dial_config.load_world_tree(); dial_config.load_drift()
+        dial_config.load_difficulty() if hasattr(
+            dial_config, "load_difficulty") else None
+        checks["config_validators"] = "ok (world_tree+drift)"
+    except Exception as exc:                    # noqa: BLE001
+        checks["config_validators"] = "ERROR: %s" % exc
     checks["db"] = "ok" if os.path.exists(DB) and os.path.getsize(DB) > 0 \
         else "MISSING"
     dev = os.path.join(ROOT, "config", "anchors", "dev.json")

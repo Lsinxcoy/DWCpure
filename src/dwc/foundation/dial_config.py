@@ -24,7 +24,8 @@ from typing import Any, Dict
 
 import yaml
 
-ROOT = r"E:/Divine Wisdom Core"
+from dwc.foundation.paths import find_root
+ROOT = find_root()
 CFG = os.path.join(ROOT, "config")
 
 WORLD_TREE_PATH = os.path.join(CFG, "world_tree.yaml")

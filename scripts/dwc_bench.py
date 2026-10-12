@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 """R212 · 任务执行能力基准器（真任务质量度量 — 提升可证伪的前提）。
 
 ★★ 定位: 度量引擎, 不是护栏。judge/anchor 评"变什么"; 本器评"任务做得好不好"
@@ -10,6 +11,33 @@
 """
 from __future__ import annotations
 
+import os as _os
+def _dwc_root():
+    """R228: 仓库根发现（env DWC_ROOT > 本文件上溯 — 不写死盘符/用户名）。"""
+    _e = _os.environ.get("DWC_ROOT", "").strip()
+    if _e and _os.path.isdir(_e):
+        return _os.path.abspath(_e)
+    _c = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    while not (_os.path.isdir(_os.path.join(_c, "src", "dwc"))
+               and _os.path.isdir(_os.path.join(_c, "config"))):
+        _p = _os.path.dirname(_c)
+        if _p == _c:
+            break
+        _c = _p
+    else:
+        return _c
+    # ③ 副本场景（cron 跑 hermes/scripts 拷贝 — 上溯找不到仓库）:
+    #    同目录 .dwc_repo 标记（同步时写入一行仓库路径）
+    _mk = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                        ".dwc_repo")
+    if _os.path.isfile(_mk):
+        with open(_mk, encoding="utf-8") as _f:
+            _r = _f.readline().strip()
+        if _r and _os.path.isdir(_r):
+            return _r
+    raise RuntimeError("找不到 DWC 根 — 设 DWC_ROOT 或同步副本(写 .dwc_repo)")
+
+
 import io
 import json
 import os
@@ -18,7 +46,7 @@ import subprocess
 import sys
 import time
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = _dwc_root()
 sys.path.insert(0, os.path.join(ROOT, "src"))
 VAR = os.path.join(ROOT, "var")
 WORK = os.path.join(VAR, "inbox_work")
