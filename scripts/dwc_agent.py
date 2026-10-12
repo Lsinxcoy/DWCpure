@@ -35,17 +35,10 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
 
-VAR = os.path.join(ROOT, "var")
-DB = os.path.join(VAR, "dwc_prod.sqlite")
-LOG = os.path.join(VAR, "dwc_prod_log.jsonl")
-PID = os.path.join(VAR, "dwc_agent.pid")
-HB = os.path.join(VAR, "dwc_agent_heartbeat.json")
-FROZEN = os.path.join(VAR, "dwc_agent_frozen")
-#: ★ R209 · 任务收件箱（独立 agent 接单面 — 用户 2026-10-12: "不接我的单
-#:   算什么独立 agent"）。append-only 投单; done 态单独 state 文件对账。
-INBOX = os.path.join(VAR, "dwc_inbox.jsonl")
-INBOX_DONE = os.path.join(VAR, "dwc_inbox_done.json")
-REPORTS = os.path.join(VAR, "dwc_reports")
+#: ★ R210: 路径常量单源 —— agent_rpc 为权威（指令核心与 agent 同一套文件
+#:   协议面; 双处维护必漂移 ⇒ 从它导入）
+from dwc.agent_rpc import (VAR, DB, LOG, PID, HB, FROZEN,   # noqa: E402
+                           INBOX, INBOX_DONE, REPORTS, RPC_PORT)
 DEV_POOL = ("code_fix_001", "code_fix_002", "code_fix_003", "code_fix_004",
             "code_fix_005", "code_fix_006",
             "reasoning_001", "reasoning_002",
@@ -236,8 +229,30 @@ def main(argv) -> int:
         if "--budget-day" in argv else 40.0
     use_llm = "--llm" in argv
     os.makedirs(VAR, exist_ok=True)
+    # ── ★ R210 · 单例锁: pid 文件已有活 agent ⇒ 拒启（同 db 双写会锁冲突;
+    #    双 agent 互踩 pid/台账 — 2026-10-12 实测发生过, 现场根治）──
+    if os.path.exists(PID):
+        try:
+            _old = int(open(PID, encoding="utf-8").read().strip())
+            import psutil as _ps
+            if _ps.pid_exists(_old):
+                print("已有 agent 在跑（pid %d）— 拒绝双开" % _old,
+                      file=sys.stderr)
+                return 1
+        except Exception:                      # noqa: BLE001 — 坏 pid 文件放行
+            pass
     with open(PID, "w", encoding="utf-8") as fh:
         fh.write(str(os.getpid()))
+    # ── R210 · 指令面: HTTP RPC server（daemon 线程, 只走文件协议 ⇒ 线程安全）──
+    rpc_port = int(argv[argv.index("--rpc-port") + 1]) \
+        if "--rpc-port" in argv else RPC_PORT
+    from dwc.agent_rpc import serve as rpc_serve
+    try:
+        rpc_serve(rpc_port)
+    except Exception as exc:   # noqa: BLE001 — 端口被占等: agent 本体优先,
+        # 指令面降级（留痕可查; 单例锁已防双 agent 主因）
+        sys.stderr.write("RPC server 起失败(端口%s): %s\n"
+                         % (rpc_port, exc))
 
     d = DWC(depth_limit=3, max_nodes=50, budget=bpd, db_path=DB)
     if use_llm:
@@ -265,7 +280,7 @@ def main(argv) -> int:
     collapse = 0
     best_pass = 0.0
     _log({"event": "agent_started", "pid": os.getpid(),
-          "interval": interval, "use_llm": use_llm})
+          "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port})
     while _stop["by"] is None:
         if _freeze_check() or _budget_check(tpd, bpd):
             break

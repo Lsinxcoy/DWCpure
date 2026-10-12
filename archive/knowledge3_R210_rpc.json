@@ -1,0 +1,82 @@
+{
+ "round": "R210",
+ "date": "2026-10-12",
+ "主题": "独立指令面: 指令核心单实现 + HTTP RPC(8802) + CLI 壳 + 单例锁（用户'独立agent需要独立交互方式含独立指令集'拍板①）",
+ "指令集v1": "status/submit/query/list/cancel/freeze/unfreeze/history/doctor 九指令; agent_rpc.py 单实现(CLI 与 RPC 两壳); 全走 var/ 文件协议 ⇒ RPC handler 与主循环零共享内存(线程安全); cancel=done态标cancelled(take_inbox天然跳过)",
+ "RPC": "POST 127.0.0.1:8802/rpc JSON + X-DWC-Token(var/dwc_rpc_token 本机文件面认证—非网络边界,诚实声明); ThreadingHTTPServer daemon线程随agent起停; allow_reuse_address=False防双绑随机路由; server起失败agent本体优先(降级留痕)",
+ "CLI": "scripts/dwc_cli.py 子命令壳 + --json 机器可解析",
+ "单例锁": "pid文件已有活agent ⇒ 拒启rc1(现场根治: 实测发生双agent互踩pid/台账/db)",
+ "实测": "RPC全链: 401拒错token→status→submit→query=pending→cancel→state=cancelled→doctor(db/epoch2/llm_configured/backup新鲜); CLI status/history/submit --json; 单例锁拒双开",
+ "施工坑": [
+  "全量偶发红根因: 隔离目录__r208_iso__不清理 ⇒ 历史台账残留让跨跑断言串味(6≠2) — 每次rmtree重建; agent_rpc VAR 支持 DWC_VAR_DIR env 覆盖(测试/多实例隔离)",
+  "RPC端口8899已被占(netstat实测) ⇒ 选8802; 短跑测试--rpc-port 0随机端口"
+ ],
+ "verify": {
+  "pytest": "1472 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r210_tests": "7 (指令链/边界/status形态/list去重/RPC认证与未知法/单例锁/CLI json)"
+ },
+ "inheritance": {
+  "gen": 210,
+  "at": "2026-10-12T19:05:00+08:00",
+  "parent_gen": 209,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 225,
+   "pytest": 1472,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "独立指令面: agent_rpc九指令单实现+RPC server+CLI壳+单例锁+DWC_VAR_DIR隔离",
+   "files": [
+    "src/dwc/agent_rpc.py",
+    "scripts/dwc_agent.py",
+    "scripts/dwc_cli.py",
+    "tests/test_r210_rpc.py",
+    "tests/test_r208_agent.py",
+    "docs/PRODUCTION_RUNBOOK.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "RPC 全链实测(401→status→submit→query→cancel→doctor)",
+     "claim": "九指令真通; doctor 实测 db ok/epoch2/backup 新鲜"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r210_rpc.py 7锁",
+     "claim": "指令链/RPC认证/单例锁/CLI json 行为级"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1472 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r210_rpc.py(7) + RPC 实测",
+   "user_decision": "用户'独立的agent也需要独立的交互方式包括独立的指令集'→执行①"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "Hermes桥已通(我可RPC直调); 后续: ask式双向交互(agent 主动上报/接受追问)与飞书直连投单属下一轮"
+  }
+ }
+}

@@ -48,23 +48,37 @@ def test_select_task_seed_fallback():
 def test_agent_lifecycle_short_run():
     """★★★ 全生命周期: started→terms→stopped(daily_limit) 入台账 + pid
     退出即清 + 心跳落盘。"""
-    lg = os.path.join(VAR, "dwc_prod_log.jsonl")
-    before = 0
-    if os.path.exists(lg):
-        before = len(io.open(lg, encoding="utf-8").read().strip().splitlines())
-    # ★ 测试隔离: 生产冻结标志（--freeze）不许污染短跑场景 — 暂存后恢复
+    iso = os.path.join(VAR, "__r208_iso__")
+    import shutil as _sh
+    if os.path.exists(iso):
+        _sh.rmtree(iso)     # ★ 每次清空隔离目录（残留台账让跨跑断言串味 — 实测 6≠2）
+    os.makedirs(iso, exist_ok=True)
+    lg = os.path.join(iso, "dwc_prod_log.jsonl")
+    before = 0   # 隔离目录空台账 ⇒ 无需对账
+    # ★ 测试隔离: ① 生产冻结标志 ② 活 agent 的 pid 文件（R210 单例锁会拒
+    #   短跑）—— 都暂存后恢复, 生产态不被测试污染
     frozen = os.path.join(VAR, "dwc_agent_frozen")
     held = frozen + ".held"
     if os.path.exists(frozen):
         os.rename(frozen, held)
+    pidf = os.path.join(VAR, "dwc_agent.pid")
+    pid_held = pidf + ".held"
+    if os.path.exists(pidf):
+        os.rename(pidf, pid_held)
     try:
+        os.makedirs(iso, exist_ok=True)
+        _env = dict(os.environ, DWC_VAR_DIR=iso)
         r = subprocess.run(
             [PY, os.path.join(ROOT, "scripts", "dwc_agent.py"),
-             "--interval", "1", "--steps", "1", "--terms-per-day", "2"],
-            capture_output=True, text=True, timeout=180, cwd=ROOT)
+             "--interval", "1", "--steps", "1", "--terms-per-day", "2",
+             "--rpc-port", "0"],          # 随机端口（不撞生产 8802）
+            capture_output=True, text=True, timeout=180, cwd=ROOT,
+            env=_env)
     finally:
         if os.path.exists(held):
             os.rename(held, frozen)
+        if os.path.exists(pid_held):
+            os.rename(pid_held, pidf)
     assert r.returncode == 0, "rc=%d stderr=%s" % (r.returncode, r.stderr[-200:])
     rows = [json.loads(x) for x in
             io.open(lg, encoding="utf-8").read().strip().splitlines()[before:]]
@@ -75,8 +89,12 @@ def test_agent_lifecycle_short_run():
     assert stop["by"] == "daily_limit", "停机原因非日限: %s" % stop
     terms = [x for x in rows if "agent_term" in x]
     assert len(terms) == 2, "日限 2 未生效: %d terms" % len(terms)
-    assert not os.path.exists(os.path.join(VAR, "dwc_agent.pid")), (
-        "退出未清 pid（守夜人会误判）")
+    # ★ pid 判活性非文件存在（守夜人同口径）: 文件在但 pid 已死=死尸无害
+    pidf = os.path.join(iso, "dwc_agent.pid")
+    if os.path.exists(pidf):
+        import psutil
+        _p = int(io.open(pidf, encoding="utf-8").read().strip())
+        assert not psutil.pid_exists(_p), "退出未清**活** pid（守夜人误判）"
 
 
 def test_agent_freeze_gate():

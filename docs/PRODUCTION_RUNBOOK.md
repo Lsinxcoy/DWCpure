@@ -34,6 +34,19 @@ rc0 空 stdout；异常走脚本内飞书 API 直推或 rc1+stderr。
 **CRON RUNS THE COPY**：cron 跑 `%LOCALAPPDATA%/hermes/scripts/` 副本，
 仓库改动必须 md5 同步（`test_cron_copies_in_sync` 锁死）。
 
+## 一A · 指令面（R210 · 独立 agent 的独立交互方式）
+
+```bash
+python scripts/dwc_cli.py status|submit|query|list|cancel|freeze|unfreeze|history|doctor
+# --json 出机器可解析 JSON（程序消费口）
+# HTTP RPC: POST http://127.0.0.1:8802/rpc
+#   {"method":"submit","params":{"task":"...","id":"T_x"}} + 头 X-DWC-Token
+#   token 在 var/dwc_rpc_token（本机文件面认证, 非网络安全边界）
+```
+- 指令语义**单实现**于 `src/dwc/agent_rpc.py`（CLI 与 RPC 两壳共用）；
+  handler 全走文件协议 ⇒ 与主循环零共享内存（线程安全）。
+- 单例锁：pid 文件已有活 agent ⇒ 拒绝双开（同 db 双写事故根治）。
+
 ## 一B · 怎么给它下任务（R209 接单面 — agent 优先消费收件箱）
 
 ```bash
