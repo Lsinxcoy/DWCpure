@@ -1,0 +1,62 @@
+{
+ "round": "R230",
+ "date": "2026-10-13",
+ "主题": "doctor 环境段: python≥3.11/venv检测/依赖存在/配置校验器 — 新机器先看这里; 两前端(RPC+CLI)共享单实现",
+ "verify": {
+  "pytest": "1533 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 230,
+  "at": "2026-10-13T03:41:00+08:00",
+  "parent_gen": 229,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 244,
+   "pytest": 1533,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "doctor 环境段: python≥3.11/venv检测/依赖存在/配置校验器 — 新机器先看这里; 两前端(RPC+CLI)共享单实现",
+   "files": [
+    "src/dwc/agent_rpc.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r228_install.py::test_doctor_has_env_section",
+     "claim": "环境四项齐+本机全ok"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1533 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r228_install.py::test_doctor_has_env_section",
+   "user_decision": "用户'帮新使用者设计快速安装/配置'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "doctor 的 llm_probe 段触网(单发小请求) — 频繁调用有端点成本"
+  }
+ }
+}

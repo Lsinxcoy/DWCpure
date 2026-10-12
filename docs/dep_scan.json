@@ -1,8 +1,8 @@
 {
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
- "current_judge_fingerprint": "bce27408",
+ "current_judge_fingerprint": "125f6eab",
  "counts": {
-  "active": 22,
+  "active": 26,
   "deprecated_by_evaluator": 0,
   "deprecated_by_split_change": 84,
   "pre_depz_legacy": 121
@@ -837,8 +837,8 @@
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R1_audit.json",
@@ -851,80 +851,80 @@
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R201_audit.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R202_audit_recommendations.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R203_production_wiring.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R204_advice_iron.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R205_prod_run.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R206_safety_net.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R207_prod_closeout.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R208_agent_form.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R209_inbox.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R20_arsi_verify.json",
@@ -937,56 +937,56 @@
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R211_chat_ui.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R215_trust_window.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R216_demote.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R217_robust.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R218_self_session.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R219_async.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R21_tubes.json",
@@ -999,32 +999,64 @@
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R221_compaction.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R222_approve.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R223_delegate.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",
-   "drift": false,
-   "why": "judge + split 指纹与当前一致"
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R224_mcp.json",
+   "status": "active",
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R225_live_approve.json",
+   "status": "active",
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R226_multimodal.json",
+   "status": "active",
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
+  },
+  {
+   "file": "knowledge3_R227_parallel.json",
+   "status": "active",
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "drift": true,
+   "why": "字节漂移(fp≠当前)但**无换代判决** ⇒ 保持 active（R119: dep(z) 触发源=换代判决 not 字节哈希）"
   },
   {
    "file": "knowledge3_R22_starve_fix.json",

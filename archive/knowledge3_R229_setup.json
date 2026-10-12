@@ -1,0 +1,62 @@
+{
+ "round": "R229",
+ "date": "2026-10-13",
+ "主题": "首次配置向导 scripts/dwc_setup.py: 交互式LLM端点/key(getpass遮蔽不回显,chmod600)+通知可选+冒烟(probe真发一发)+--check只冒烟/--yes非交互",
+ "verify": {
+  "pytest": "1533 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 229,
+  "at": "2026-10-13T03:41:00+08:00",
+  "parent_gen": 228,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 244,
+   "pytest": 1533,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "首次配置向导 scripts/dwc_setup.py: 交互式LLM端点/key(getpass遮蔽不回显,chmod600)+通知可选+冒烟(probe真发一发)+--check只冒烟/--yes非交互",
+   "files": [
+    "scripts/dwc_setup.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r228_install.py::test_setup_check_runs_smoke_only",
+     "claim": "--check不写配置(llm.json前后一致)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1533 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r228_install.py::test_setup_check_runs_smoke_only",
+   "user_decision": "用户'帮新使用者设计快速安装/配置'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "多provider选择器未做(现OpenAI兼容单形态 — 端点生态实况)"
+  }
+ }
+}

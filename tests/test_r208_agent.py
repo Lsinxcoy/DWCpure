@@ -145,9 +145,18 @@ def test_cron_copy_paths_point_to_repo():
     r = subprocess.run(
         [PY, "-c",
          "import sys; sys.path.insert(0, r'%s'); import dwc_agent_watch as W;"
-         "import dwc_agent as A; print(W.VAR, A.ROOT)" % dst],
+         "import dwc_agent as A; print(W.VAR + '|' + A.ROOT)" % dst],
         capture_output=True, text=True, timeout=60)
     out = r.stdout.strip()
-    # ★ 路径含空格 ⇒ 不能按空格 split — 断言两段前缀都出现
-    assert out.startswith("E:/Divine Wisdom Core/var"), "副本 VAR 错: %s" % out
-    assert out.endswith("E:/Divine Wisdom Core"), "副本 ROOT 错: %s" % out
+    # ★ 路径含空格 ⇒ 不能按空格 split — 断言两段前缀都出现。
+    # ★ R228: 期望值动态取仓库根（锁的意图=副本指向仓库; 判据不写死盘符 —
+    #   发布后任何机器安装路径不同, 锁必须跟着 find_root 走）。
+    from dwc.foundation.paths import find_root
+
+    def _norm(x):
+        return x.replace("\\", "/").rstrip("/")
+    var_part, root_part = out.split("|", 1)      # 路径含空格 — 竖线分隔
+    repo = _norm(find_root())
+    assert _norm(var_part).startswith(repo + "/") and \
+        _norm(var_part).endswith("/var"), "副本 VAR 错（应指仓库 var）: %s" % out
+    assert _norm(root_part) == repo, "副本 ROOT 错（应指仓库根）: %s" % out

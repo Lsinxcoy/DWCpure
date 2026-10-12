@@ -1,0 +1,66 @@
+{
+ "round": "R228",
+ "date": "2026-10-13",
+ "主题": "发布安装层: foundation/paths.py 根发现(env>上溯>副本标记.dwc_repo)+src/scripts 全去硬编码+E盘锁+install.ps1/sh 一键+requirements",
+ "verify": {
+  "pytest": "1533 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 228,
+  "at": "2026-10-13T03:41:00+08:00",
+  "parent_gen": 227,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 244,
+   "pytest": 1533,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "发布安装层: foundation/paths.py 根发现(env>上溯>副本标记.dwc_repo)+src/scripts 全去硬编码+E盘锁+install.ps1/sh 一键+requirements",
+   "files": [
+    "src/dwc/foundation/paths.py",
+    "install.ps1",
+    "install.sh",
+    "requirements.txt",
+    "tests/test_r228_install.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r228_install.py 5锁",
+     "claim": "根发现三模式/硬编码回潮锁/双平台脚本/doctor环境段/副本场景标记恢复"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1533 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r228_install.py 5锁",
+   "user_decision": "用户'帮新使用者设计快速安装/配置'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "capability_groups 保持独立直跑(内联上溯不import dwc); 副本场景经 .dwc_repo 标记(R208锁实测抓回潮)"
+  }
+ }
+}
