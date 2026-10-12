@@ -214,6 +214,10 @@ class IwmOrgan:
         self._judge = judge
         #: Q6 对照臂: {"iwm": [n, n_success], "baseline": [n, n_success]}
         self._arms: Dict[str, List[int]] = {"iwm": [0, 0], "baseline": [0, 0]}
+        #: ★ R215 · trust 窗口（判据校准见 drift.yaml 注释 — 全历史 trust
+        #:   在永久降级策略下自锁; 窗口让行为改变后 trust 能回升）
+        self.trust_window = int(d["trust_window"])   # d = config["drift"]
+        self._arm_window: List[Tuple[str, bool]] = []
         #: 最近一次 drift 结果（governor_advice 的输入之一）
         self._last_drift: Optional[Dict[str, Any]] = None
         self._dials = dial_config.load_dials()
@@ -342,6 +346,9 @@ class IwmOrgan:
         self._arms[arm][0] += 1
         if improved:
             self._arms[arm][1] += 1
+        self._arm_window.append((arm, bool(improved)))
+        if len(self._arm_window) > self.trust_window:
+            del self._arm_window[:-self.trust_window]
 
     def self_trust(self) -> Dict[str, Any]:
         """Q6 内省器自检 —— 度量 **iwm 自己**（ARSI calibrate 同构）。
@@ -350,8 +357,13 @@ class IwmOrgan:
           不足时 advice 不可信, 系统降级 baseline —— 不假装可信）。
         ★ ECE 过置信惩罚未做: Advice 没有自报置信字段（见模块诚实边界）。
         """
-        n_i, s_i = self._arms["iwm"]
-        n_b, s_b = self._arms["baseline"]
+        # ★ R215 · trust 口径 = **窗口内** iwm 臂（判据校准: 全历史在永久
+        #   降级策略下自锁 — 采纳降级⇒无改进⇒trust 恒 0⇒永久降级; 窗口让
+        #   行为改变后 trust 回升）。累计 _arms 仍留审计（total_* 字段）。
+        _wi = [(a, im) for a, im in self._arm_window if a == "iwm"]
+        _wb = [(a, im) for a, im in self._arm_window if a == "baseline"]
+        n_i, s_i = len(_wi), sum(1 for _, im in _wi if im)
+        n_b, s_b = len(_wb), sum(1 for _, im in _wb if im)
         rate_i = (s_i / n_i) if n_i else None
         rate_b = (s_b / n_b) if n_b else None
         if n_i < self.min_samples:
@@ -383,7 +395,10 @@ class IwmOrgan:
             ece = {"available": False, "error": "%s: %s"
                    % (type(exc).__name__, exc)}
         return {"trust": trust, "degrade": degrade, "n_iwm": n_i,
-                "n_baseline": n_b, "iwm_rate": rate_i,
+                "n_baseline": n_b, "trust_window": self.trust_window,
+                "total_iwm": self._arms["iwm"][0],
+                "total_baseline": self._arms["baseline"][0],
+                "iwm_rate": rate_i,
                 "baseline_rate": rate_b, "degrade_below": self.degrade_below,
                 "ece": ece,
                 "reason": ("trust=%.3f < %.2f ⇒ 降级" % (trust, self.degrade_below))

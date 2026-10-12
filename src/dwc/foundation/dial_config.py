@@ -296,6 +296,13 @@ def load_drift(path: str = DRIFT_PATH) -> Dict[str, Any]:
     if isinstance(ms, bool) or not isinstance(ms, int) or ms < 1:
         raise DialError("drift: min_samples 必须是 >=1 的整数, 实为 %r" % ms)
 
+    # ── R215 · trust_window（Layer 22 判据校准: 全历史 trust 在永久降级
+    #   策略下是自锁 —— 采纳降级⇒无改进⇒trust 恒 0⇒永久降级。ARSI 语义应为
+    #   **近期样本**: trust 只看窗口内 iwm 臂）──
+    tw = _need(d, "trust_window", "drift.drift")
+    if isinstance(tw, bool) or not isinstance(tw, int) or tw < 1:
+        raise DialError("drift: trust_window 必须是 >=1 的整数, 实为 %r" % tw)
+
     return o
 
 

@@ -31,6 +31,12 @@ drift:
   # ── self_trust（Q6 · ARSI iwm/calibrate.py 原值, §4.5 引文）──
   degrade_below: 0.35     # trust < 0.35 ⇒ advice 被忽略, 降级 baseline
   min_samples: 5          # iwm 臂样本不足 ⇒ trust 记 0（不假装可信）
+  # ★ R215 · Layer 22 判据校准（2026-10-12 现场: 49 轮"采纳降级建议"记 iwm
+  #   臂, 降级砍探索⇒恒无改进⇒全历史 trust=0/49 恒<0.35 ⇒ **永久降级自锁**
+  #   （自证预言死锁: 台账 wta 66/66 全被 drop）。ARSI calibrate 语义应为
+  #   **近期样本**: trust 只看最近 trust_window 轮内 iwm 臂 —— 行为改变后
+  #   trust 能回升, 死锁解除; 累计计数仍留审计（self_trust total_* 字段）。
+  trust_window: 20        # trust 只统计最近 20 轮的 iwm 臂样本
 
   # 诚实边界:
   #   ① weights/tau 是 agent_choice 无论文出处（论文值需标注预算, DWC 没有）
