@@ -1,0 +1,63 @@
+{
+ "round": "R221",
+ "date": "2026-10-13",
+ "主题": "会话 compaction: 滑动窗口(最近2轮原文)+前更早轮压'前情摘要'注入 — 长任务第3轮起不再忘第1轮(反复重读根因)",
+ "verify": {
+  "pytest": "1515 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 221,
+  "at": "2026-10-13T01:43:00+08:00",
+  "parent_gen": 220,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 237,
+   "pytest": 1515,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "会话 compaction: 滑动窗口(最近2轮原文)+前更早轮压'前情摘要'注入 — 长任务第3轮起不再忘第1轮(反复重读根因)",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "tests/test_r221_compaction.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r221_compaction.py 2锁",
+     "claim": "第4轮prompt含前情摘要/早轮零开销"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1515 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r221_compaction.py 2锁",
+   "user_decision": "用户'执行下一批'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "摘要为压缩非删除(op+analysis 80字); obs 原文不进摘要(窗口外丢) — 更精细的 obs 摘要待真实长任务反馈"
+  }
+ }
+}
