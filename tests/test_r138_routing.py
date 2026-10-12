@@ -135,5 +135,13 @@ def test_no_external_consumer_of_old_str_form():
              and "test_r138_routing.py" not in l
              # deep_water_audit.py 的命中是**扫描正则本身**（含 action_
              # dispatched 字样）不是消费方 — R139 起排除它
-             and "deep_water_audit.py" not in l]
+             and "deep_water_audit.py" not in l
+             # ★ R203 校准（判据误伤）: e2e_core.py 是 action_dispatched 的
+             #   **dict 形态行为级消费方**（断言 d_["kind"] ∈ 枚举 + dispatched
+             #   布尔 — 本身就是新形态的锁定面）; 本锁要防的是 str 形态消费,
+             #   grep "出现即违规" 对它误伤 ⇒ 排除（Layer 22: 修判据不改实现）
+             and "e2e_core.py" not in l
+             #   同批校准: test_r203 的命中是**结构锁的 marker 检查**
+             #   （断言 e2e_core.py 源码含该键 — 锁 e2e 断言面在位）, 非消费
+             and "test_r203_production_wiring.py" not in l]
     assert not lines, lines[:5]

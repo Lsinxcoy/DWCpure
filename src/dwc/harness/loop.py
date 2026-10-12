@@ -423,8 +423,11 @@ class Loop:
             _os.makedirs(_os.path.dirname(path), exist_ok=True)
             with io.open(path, "a", encoding="utf-8") as fh:
                 fh.write(_json.dumps(entry, ensure_ascii=False) + "\n")
-        except Exception:                      # noqa: BLE001 — 观察面自吞
-            pass
+        except Exception as exc:        # F3: 写失败**留痕**（审计轨迹不许
+            # 静默丢 —— G7 同族; 不炸主链: 观察面失败不拦进化决策）
+            self._last_archive_error = ("%s: %s"
+                                        % (type(exc).__name__,
+                                           str(exc)[:120]))
 
     def _run_one_task(self, tid: str, round_no: int = 0
                       ) -> Dict[str, Any]:

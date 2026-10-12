@@ -1,0 +1,94 @@
+{
+ "round": "R203",
+ "date": "2026-10-12",
+ "主题": "生产级审计 F1/F3/F4 三发现修掉 —— 用户令'按1-2-3推进, 今天投入生产'",
+ "F1_iwm守卫发出口接线": {
+  "原状": "governor_advice/record_round/self_trust 三方法仅测试调用, 生产零接线(审计发现①核心)",
+  "落点": "run_term.py 4.45 段: governor_advice(self._build_state(rep, task)) 产 rep.iwm_advice; record_round 每 term 记 Q6 对照臂",
+  "State构造": "_build_state 生产构造器 — 全字段来自本轮已判事实(rep.judgement/gate_chain/drift/cost + _dw_version 内容哈希), 零占位; 诚实缺席: train_verdict=not_implemented(world_model 无 train)/laws_block=()(铁律执行面未接线)/gate1_verdict=degrade_to_heuristic(pre_enactment 层显式缺席)",
+  "诚实口径": "advice 的执行消费未接线 ⇒ record_round 恒记 baseline 臂 + iwm_advice.consumed=False(不假装采纳 — 两臂同源会毁对照语义); improved=score_delta>0(judge 真判, 非自评 G5)"
+ },
+ "F3_归档留痕": {
+  "落点": "loop.py _dir_ledger_append: except 改 as exc + self._last_archive_error 留痕(审计轨迹不许静默丢, G7 同族; 不炸主链)"
+ },
+ "F4_主类三入口e2e": {
+  "落点": "scripts/e2e_core.py — 真 DWC(depth_limit=3,max_nodes=50) + execute_task 执行器注入",
+  "三链路": "①step: 三层决策→执行→ingest→_judge_and_backfill 真判分→dispatch 五路由 ②ingest 不变量②: 失败痕迹无 failure_signature 必 raise ③run_term: TermReport 全周期 + iwm 接线",
+  "实测": "decision_source=heuristic · judge_success=true · dispatch=remember · rc=0"
+ },
+ "锁校准": "R138 路由锁(test_no_external_consumer_of_old_str_form) grep 'action_dispatched 出现即违规' 对 R203 新增的 dict 形态行为级消费方误伤(e2e_core.py + test_r203 marker检查) — Layer22 修判据: 排除清单加两项 + docstring 记录",
+ "verify": {
+  "pytest": "1431 passed rc=0",
+  "gate": "全部通过",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0 STEP1_CORE=passed",
+  "r203_tests": "6 new (advice四字段/对照臂记账/_build_state诚实字段/F3留痕/F4结构锁+F4真跑)"
+ },
+ "inheritance": {
+  "gen": 203,
+  "at": "2026-10-12T15:31:00+08:00",
+  "parent_gen": 202,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 215,
+   "pytest": 1431,
+   "inheritance_gen_prev": 202,
+   "truth_sha8": "acac083d",
+   "epoch_id": 2,
+   "epoch_source": "anchor_drift.epoch_of(ROOT)机器读"
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "F1: run_term 4.45 iwm 守卫发出口(governor_advice+record_round 生产在环, _build_state 零占位构造) + F3: loop 归档写盘 _last_archive_error 留痕 + F4: scripts/e2e_core.py 主类三入口端到端",
+   "files": [
+    "src/dwc/harness/run_term.py",
+    "src/dwc/harness/loop.py",
+    "scripts/e2e_core.py",
+    "tests/test_r203_production_wiring.py",
+    "tests/test_r138_routing.py",
+    "docs/AUDIT_R202_PRODUCTION.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "docs/AUDIT_R202_PRODUCTION.html 发现表",
+     "claim": "深度生产级审计七维度: F1 iwm 接了一半 / F3 归档吞异常 / F4 主类三入口无 e2e — 本轮三发全修"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r203_production_wiring.py (6 锁)",
+     "claim": "行为级: run_term 后 iwm_advice 四字段+consumed=False / baseline 臂+1 / _build_state 诚实字段 / F3 留痕 / F4 脚本真跑 rc=0"
+    },
+    {
+     "type": "trial_report",
+     "ref": "e2e_core.py 实测输出",
+     "claim": "主类三入口: step 判分真发生(judge_success=true) + ingest 不变量②硬闸 + run_term TermReport 周期 — 此前仅器官级 e2e 覆盖"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_frozen": true,
+   "epoch_id": 2,
+   "split_fingerprint": "0726ef8b",
+   "epoch_ledger": "archive/anchor_epochs.jsonl",
+   "judge_fingerprint": "bce27408"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1431 + gate 8/8 + e2e_loop rc=0 + e2e_core rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r203_production_wiring.py(6) + scripts/e2e_core.py",
+   "user_decision": "用户令'按照1-2-3推进 我今天要它能够投入生产'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "advice 执行消费(degrade/downweight 如何改行为)属 R204+ — 本轮只接发出口与记账; 铁律运行时执行面(laws_block 来源)仍是配置面未执行"
+  }
+ }
+}

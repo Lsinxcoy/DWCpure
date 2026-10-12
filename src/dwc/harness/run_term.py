@@ -235,6 +235,8 @@ class TermReport:
     next_task_source: Optional[Dict[str, Any]] = None
     #: R61 · 环节⑤ 防漂移观测（iwm.drift 的输出; 未注入 iwm 时为 None）
     drift: Optional[Dict[str, Any]] = None
+    #: ★ F1 · iwm 守卫发出口（governor_advice 的产出; 未注入 iwm 时为 None）
+    iwm_advice: Optional[Dict[str, Any]] = None
     #: 六层活性快照（★ 第一次让六层有系统内真实数据）
     activity: List[Dict[str, Any]] = field(default_factory=list)
     #: term 为什么结束（四个终止条件之一 + 实测依据）
@@ -332,6 +334,65 @@ class TermRunner:
     # ══════════════════════════════════════════════
     # 六步（判据 T1）
     # ══════════════════════════════════════════════
+    def _build_state(self, rep: "TermReport", task: str, *,
+                     split: str = "dev"):
+        """★ F1 · 生产 State 构造（governor_advice 的输入面 · §六不变量）。
+
+        ★ 全部字段来自本轮已判事实（rep.judgement/gate_chain/drift/cost）
+          + 内容哈希 —— 零占位字符串冒充实测。
+        ★ 诚实缺席（不装有）:
+          · world_model 无 train() ⇒ train_verdict="not_implemented"
+          · 铁律运行时执行未接线（配置面在, 执行面无）⇒ laws_block=()
+          · pre_enactment 预测层显式缺席（core._decide 同款）⇒
+            gate1_verdict="degrade_to_heuristic"
+        """
+        from dwc.foundation.state import (State, AssetVersions,
+                                          ArchitectureVersions,
+                                          GateSnapshot, ExecutionContext)
+        from dwc.organs.evolver import NOISE_DELTA   # R58 锁值 0.15
+        v = rep.judgement or {}
+        dr = rep.drift or {}
+        pass_rate = v.get("pass_rate")
+        degraded = bool(dr.get("over_tau")) or \
+            (dr.get("regression") or {}).get("verdict") == "regression"
+        ver = self._dw_version()
+        if degraded:
+            why = ("GDI %.4f ≥ tau（漂移超阈）" % dr.get("gdi", -1.0)
+                   if dr.get("over_tau") else
+                   "保护组回归: " + str((dr.get("regression") or {}
+                                         ).get("why", ""))[:60])
+        else:
+            why = "本轮无漂移触发"
+        return State(
+            S=AssetVersions(memory_version=ver,
+                            skills_version="no-compile-surface",
+                            tools_version="not-wired",
+                            context_version="not-wired"),
+            H=ArchitectureVersions(harness_version=ver,
+                                   workflow_version="not-versioned",
+                                   org_version="seven-organs-v1"),
+            G=GateSnapshot(
+                wm_version=ver,
+                wm_dev_accuracy=(float(pass_rate)
+                                 if pass_rate is not None else 0.0),
+                wm_dev_n=int(v.get("n_tasks", 0) or 0),
+                theta_dev=float(NOISE_DELTA),
+                theta_dev_kind="anchored",
+                gate1_verdict="degrade_to_heuristic",
+                iwm_verdict="degrade_to_baseline" if degraded else "ok",
+                iwm_reason=why[:120],
+                train_verdict="not_implemented",
+                laws_block=(),
+                cost_used=float((rep.cost_after or {}
+                                 ).get("term_cost", 0.0) or 0.0),
+                task_scores_ref="config/anchors/task_scores.jsonl"),
+            X=ExecutionContext(chain_id=rep.chain_id,
+                               decision_id=rep.decision_ref or "",
+                               turn_index=int(rep.n_steps),
+                               task_id=str(task),
+                               task_source="run_term_direct",
+                               split=split))
+
     def run_term(self, task: str, n_steps: int = 3,
                  chain_id: Optional[str] = None,
                  on_step: Optional[Callable[[int], None]] = None
@@ -473,6 +534,31 @@ class TermRunner:
             U=("dwc.organs.evolver.select_winner · 已实现但未接本盘点"
                "（R141 如实标 partial）"))
         rep.quintet = q.to_dict()
+
+        # ── 4.45 ★ F1 · iwm 守卫发出口（governor_advice + Q6 对照臂）──
+        #   ★ governor_advice 只读 State 公开四层（§六不变量）—— State 由
+        #     _build_state 从本轮已判事实构造（零占位字符串）。
+        #   ★★ record_round 的 adopted 口径（诚实）: advice 的**执行消费**
+        #     尚未接线（degrade/downweight 如何改行为属 R204+）⇒ 恒记
+        #     baseline 臂 —— 不假装采纳（自欺会让 Q6 对照臂两臂同源）。
+        #     improved = judge 真判（score_delta>0）—— 非自评（G5）。
+        if self.iwm is not None:
+            try:
+                advice = self.iwm.governor_advice(self._build_state(rep, task))
+                rep.iwm_advice = {
+                    "degrade_to_baseline": advice.degrade_to_baseline,
+                    "downweight_pre_enactment": advice.downweight_pre_enactment,
+                    "forbid_default_dream": advice.forbid_default_dream,
+                    "reason": advice.reason,
+                    "consumed": False,
+                }
+                self.iwm.record_round(
+                    adopted=False,
+                    improved=bool(rep.score_delta
+                                  and rep.score_delta > 0.0))
+            except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7 同款）
+                rep.iwm_advice = {"error": "%s: %s"
+                                  % (type(exc).__name__, str(exc)[:120])}
 
         # ── 4.5 ★ 七桶路由（R143 · 2609.14857 Table 8 接线）──
         #   ★ 数据源（全部已判事实, router 不判分 — G2）:

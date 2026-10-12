@@ -155,10 +155,10 @@ watch.py          146 行 /  5 def</pre>
 <div class="card">
 <table>
 <tr><th>编号</th><th>发现</th><th>危害</th><th>状态</th></tr>
-<tr><td>F1</td><td>iwm 器官接了一半（governor_advice / record_round / self_trust 生产零调用）</td><td><span class="tag tag-warn">中</span></td><td>已识别</td></tr>
+<tr><td>F1</td><td>iwm 器官接了一半（governor_advice / record_round / self_trust 生产零调用）</td><td><span class="tag tag-warn">中</span></td><td><b>已修正（R203）</b></td></tr>
 <tr><td>F2</td><td>PROGRESS.md / README 承重代码行滞后（10-08 停在 12,088 行，实测 21,738）</td><td><span class="tag tag-ok">低</span></td><td><b>已修正</b></td></tr>
-<tr><td>F3</td><td>loop.py:426 观察面归档写盘吞异常（审计轨迹丢失风险）</td><td><span class="tag tag-ok">低</span></td><td>已识别</td></tr>
-<tr><td>F4</td><td>e2e 只覆盖 harness.run_round，core.py.step 链路未覆盖</td><td><span class="tag tag-warn">中</span></td><td>已识别</td></tr>
+<tr><td>F3</td><td>loop.py 归档写盘吞异常（审计轨迹丢失风险）</td><td><span class="tag tag-ok">低</span></td><td><b>已修正（R203: _last_archive_error 留痕）</b></td></tr>
+<tr><td>F4</td><td>e2e 只覆盖 harness.run_round，core.py 主类三入口未覆盖</td><td><span class="tag tag-warn">中</span></td><td><b>已修正（R203: scripts/e2e_core.py 三入口端到端）</b></td></tr>
 </table>
 </div>
 
