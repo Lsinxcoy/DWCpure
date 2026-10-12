@@ -1,0 +1,72 @@
+{
+ "round": "R207",
+ "date": "2026-10-12",
+ "主题": "P2 收口: e2e 六公开方法全覆盖+多term段 + 生产 Runbook —— 生产就绪终验",
+ "P2_8_e2e残口": "e2e_core 子进程补④difficulty/success_stats(六公开方法全入链: ingest/step/run_term/dream/difficulty/success_stats) + ⑤多term幂等段(二次run_term: W5回填幂等+judgement真判); 实测 difficulty_n=7 success_groups>0 multi_term_judged=true rc=0",
+ "P2_9_runbook": "docs/PRODUCTION_RUNBOOK.md: 生产形态定义(四cron表+健康=silence契约+CRON RUNS THE COPY) / 能力通道诚实声明(0/6现状+退化崩塌口径) / 巡检节奏(日/周/轮) / 故障处置表(六症状+回滚标准动作) / 五人工门 / 生产就绪清单",
+ "终验": "pytest 1451 rc=0 + gate 8/8 + e2e_loop rc=0 + e2e_core rc=0(补段后) + 四cron在排 + 备份快照5对象实测全在",
+ "verify": {
+  "pytest": "1451 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0 六方法全覆盖",
+  "r206_tests": "6 (探针现状健康/缺db可违反/最新段口径/备份五对象/豁免11全交代/cron副本md5)"
+ },
+ "inheritance": {
+  "gen": 207,
+  "at": "2026-10-12T17:06:00+08:00",
+  "parent_gen": 206,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 222,
+   "pytest": 1451,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "P2: e2e_core 六方法全覆盖+多term幂等段 + PRODUCTION_RUNBOOK(形态/巡检/处置/人工门)",
+   "files": [
+    "scripts/e2e_core.py",
+    "docs/PRODUCTION_RUNBOOK.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "e2e_core rc0 补段实测",
+     "claim": "difficulty_n=7 + multi_term_judged=true —— 六公开方法零残口"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/PRODUCTION_RUNBOOK.md 六节",
+     "claim": "生产形态/能力诚实声明/巡检/故障处置/人工门/就绪清单 — 9条生产缺口(P04+P1 3+P2 2)全闭环"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1451 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "docs/PRODUCTION_RUNBOOK.md §六 + e2e_core rc0",
+   "user_decision": "用户令'执行1'(P0→P1→P2 一次做完)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "生产运行观察期开启: 四cron首日tick(运行器18:00/探针2h/备份03:00)的台账与告警记录是下一轮(Q6臂样本积累+铁律数据面补全)的输入"
+  }
+ }
+}

@@ -99,12 +99,27 @@ assert isinstance(rep, TermReport), "run_term 返回类型非法: %r" % type(rep
 assert d.iwm is not None, "iwm 器官缺失"
 assert d._replay_history is not None, "_replay_history 缺失（dream 历史快照）"
 
+# ── ④ difficulty/success_stats（R207 · P2-8 残口补全: 六公开方法全入 e2e）──
+diff = d.difficulty("code_repair")
+assert isinstance(diff, list), "difficulty 返回类型非法: r" + type(diff).__name__
+ss = d.success_stats()
+assert isinstance(ss, dict) and ss, "success_stats 空或类型非法"
+
+# ── ⑤ 多 term 幂等（R207 · P2-8 长程段: 生产形态=多 term 持久轮）──
+#   二次 run_term 同 dev 域: W5 回填幂等 + judgement 真判（R205 口径回归）
+rep2 = d.run_term("code_fix_002", n_steps=1)
+assert isinstance(rep2, TermReport), "第二 term 返回类型非法"
+assert rep2.judgement is not None, "第二 term 无 judge 判定"
+
 print(json.dumps({
     "decision_source": out["decision"]["source"],
     "judge_success": j.get("success"),
     "dispatch_kind": d_["kind"],
     "dispatched": d_.get("dispatched"),
     "mem_id_present": bool(out["memory_id"]),
+    "difficulty_n": len(diff),
+    "success_stats_groups": len(ss),
+    "multi_term_judged": rep2.judgement is not None,
 }))
 '''.replace("__SRC__", _SRC.replace("\\", "\\\\"))
 
