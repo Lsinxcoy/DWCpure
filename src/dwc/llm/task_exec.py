@@ -77,6 +77,13 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
     if op == "read":
         p = _guard_path(str(args.get("path", "")), write=False)
+        if os.path.splitext(p)[1].lower() in (".png", ".jpg", ".jpeg",
+                                              ".webp"):
+            # ★ R226 · 多模态读图: 路径回传, 循环层经 images 通道给 LLM
+            #   （端点不支持视觉 ⇒ LLM 层 4xx 如实报 — 不假装能看）
+            return {"ok": True, "image_path": p,
+                    "note": "图片已挂到下一轮 LLM 输入（若端点不支持视觉"
+                            "会明确报错）"}
         with io.open(p, encoding="utf-8", errors="replace") as fh:
             txt = fh.read()
         n = txt.count("\n") + 1
@@ -89,6 +96,15 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             fh.write(content)
         return {"ok": True, "path": os.path.relpath(p, ROOT),
                 "bytes": len(content.encode("utf-8"))}
+    if op == "mcp":
+        # ★ R224 · MCP 工具调用（标准协议面: server 配置在 config/mcp.json
+        #   — 维护者写 agent 只读; 未配置的 server 明确报错不静默）
+        from dwc.llm import mcp_client as M
+        server = str(args.get("server", ""))
+        tool = str(args.get("tool", ""))
+        if not server or not tool:
+            raise TaskExecError("mcp 需要 server 与 tool: %r" % (args,))
+        return M.tools_call(server, tool, args.get("args") or {})
     if op == "run":
         cmd = args.get("cmd")
         if not isinstance(cmd, list) or not cmd:
@@ -109,12 +125,21 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                     "stderr": (r0.stderr or "")[:1000],
                     "confirmed_by_human": ask}
         if ask:
-            # ★ R220 · ask 三态: 不执行但**明确告知需授权**（LLM 换路或
-            #   final 说明; 报告 ask_required 留痕 — 不静默不硬吞）
+            # ★ R225 · 实时审批（发布级: 头部 agent 的 ask=等客户端决定）——
+            #   ① pending 落盘 ② 飞书通知用户 ③ 轮询授权答复（≤ ASK_WAIT）
+            #   ④ approve ⇒ 真执行带人戳 / 否则拒（R222 重投通道仍保留）
+            ans = _ask_human(ask, joined, args.get("_task_id") or "")
+            if ans is True:
+                r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
+                                    capture_output=True, text=True,
+                                    timeout=60, errors="replace")
+                return {"ok": r0.returncode == 0, "rc": r0.returncode,
+                        "stdout": (r0.stdout or "")[:4000],
+                        "stderr": (r0.stderr or "")[:1000],
+                        "confirmed_by_human": ask}
             raise TaskExecError(
-                "ask_required: %r 类操作需人工授权。换路: 用别的办法;"
-                " 真需要它: 在 final 说明并停 —— 人工授权后会以"
-                " '人工授权: %s' 为前缀重投本任务自动放行" % (ask, ask))
+                "ask_required: %r 类操作被拒或未获授权（%s）。换路或在"
+                " final 说明需要人工做哪步" % (ask, ans))
         try:
             r = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                capture_output=True, text=True, timeout=60,
@@ -166,6 +191,82 @@ def _extract_json(text: str):
         except Exception:                      # noqa: BLE001
             pass
     return None
+
+
+#: R225 · 实时审批等待上限（秒）—— 超时=拒绝（不无限挂线节）
+ASK_WAIT = int(os.environ.get("DWC_ASK_WAIT", "900"))
+#: G7 静默计数（ask 链路的 except: pass 必须有计数 — 门判据）
+_ASK_SILENT = [0]
+
+
+def _ask_hush(where: str, exc: Exception) -> None:
+    _ASK_SILENT[0] += 1
+    if _ASK_SILENT[0] <= 3:
+        import sys as _sys
+        _sys.stderr.write("ask 链路静默×%d @%s: %s\n"
+                          % (_ASK_SILENT[0], where, exc))
+ASK_PENDING = os.path.join(ROOT, "var", "dwc_ask.jsonl")
+ASK_ANSWERS = os.path.join(ROOT, "var", "dwc_ask_answers.jsonl")
+
+
+def _notify_feishu(text: str) -> None:
+    """轻量飞书通知 — 委托 agent_rpc.send_feishu（单实现防漂移）。"""
+    try:
+        from dwc.agent_rpc import send_feishu
+        send_feishu(text)
+    except Exception:                           # noqa: BLE001
+        pass
+
+
+def _ask_human(ask_word: str, cmd_joined: str, tid: str):
+    """★ R225 · 实时审批: pending → 飞书问 → 轮询答复。返回 True=批准,
+    'timeout'/'denied:<词>'=拒绝。等待期线程挂起（R219 异步接单后主循环
+    不受影响 — Semaphore 名额占用见 runbook 诚实边界）。"""
+    # ★ 路径守卫: pending 只许落 var/ 生产区（防测试/错配置泄漏写错位置）
+    _var = os.path.normpath(os.path.join(ROOT, "var"))
+    if not os.path.normpath(os.path.dirname(ASK_PENDING)).startswith(_var):
+        raise TaskExecError("ASK_PENDING 不在 var/ 下（路径错乱拒写）: %s"
+                            % ASK_PENDING)
+    try:
+        os.makedirs(os.path.dirname(ASK_PENDING), exist_ok=True)
+        with io.open(ASK_PENDING, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"task_id": tid, "word": ask_word,
+                                 "cmd": cmd_joined[:200],
+                                 "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
+                                ensure_ascii=False) + "\n")
+        _notify_feishu("🖐 DWC 请求授权\n任务: %s\n操作: %s\n"
+                       "回复『授权 %s』或『拒绝 %s』（我经 RPC 转达）"
+                       % (tid or "?", cmd_joined[:200], ask_word, ask_word))
+    except OSError as exc:
+        _ask_hush("pending落盘/通知", exc)
+    t0 = time.time()
+    while time.time() - t0 < ASK_WAIT:
+        try:
+            if os.path.exists(ASK_ANSWERS):
+                lines = io.open(ASK_ANSWERS, encoding="utf-8").read().splitlines()
+                hit_idx = None
+                approved = False
+                for i, ln in enumerate(lines):
+                    if not ln.strip():
+                        continue
+                    a = json.loads(ln)
+                    if str(a.get("word", "")).strip() == ask_word.strip():
+                        hit_idx, approved = i, bool(a.get("approve"))
+                        break
+                if hit_idx is not None:
+                    # ★ 一次性消费: 匹配答复即从文件移除（旧授权不永久有效 —
+                    #   一次授权只放行一次等待中的操作, 下次 ask 重新问）
+                    rest = [x for i, x in enumerate(lines)
+                            if i != hit_idx and x.strip()]
+                    with io.open(ASK_ANSWERS, "w", encoding="utf-8") as fh:
+                        fh.write("".join(x + "\n" for x in rest))
+                    if approved:
+                        return True
+                    return "denied:%s" % ask_word
+        except (OSError, ValueError) as exc:
+            _ask_hush("答复轮询读", exc)
+        time.sleep(5)
+    return "timeout(%.0fs)" % ASK_WAIT
 
 
 def _parse_confirmed(ctx: Optional[str]) -> set:
@@ -221,6 +322,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         " · 写文件(只许 var/inbox_work/ 下): {\"op\":\"write\",\"path\":"
         "\"var/inbox_work/x.md\",\"content\":\"...\"}"
         " · 跑命令(argv列表,60s超时): {\"op\":\"run\",\"cmd\":[\"python\",\"-c\",\"...\"]}"
+        " · 调 MCP 外部工具（标准协议口; server 须在 config/mcp.json 配）:"
+        " {\"op\":\"mcp\",\"server\":\"名\",\"tool\":\"工具名\",\"args\":{}}"
         " · 派独立子代理（隔离上下文做子研究, 返回摘要; 限 1 层）:"
         " {\"op\":\"delegate\",\"task\":\"子任务描述\"}"
         " · 任务完成时: {\"op\":\"final\",\"answer\":\"结论(中文)\","
@@ -229,10 +332,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     log: List[Dict[str, Any]] = []
+    last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
+        _imgs = [last_image] if last_image else None
         res = llm.complete(prompt, system=system, max_tokens=1600,
-                           json_mode=True)
+                           json_mode=True, images=_imgs)
         if not getattr(res, "ok", False):
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
@@ -255,15 +360,36 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                 obs = {"ok": False, "error": "子代理内不可再 delegate（深度"
                        "上限 1 — 防递归; 自己继续做）"}
             else:
-                sub = execute_user_task(str(step.get("task", "")), llm=llm,
-                                        max_rounds=3,
-                                        task_id="%s_sub%d" % (sid, rnd),
-                                        _depth=_depth + 1)
-                obs = {"ok": True, "subagent": True,
-                       "sub_status": sub.get("status"),
-                       "sub_rounds": sub.get("rounds"),
-                       "sub_answer": str(sub.get("answer", ""))[:1500],
-                       "sub_why": sub.get("why", "")}
+                # ★ R227 · 真并行子代理: tasks 数组 ⇒ ThreadPool 并发
+                #   （各独立上下文, 摘要汇总回喂; 上限 3 防打爆 LLM）
+                subs = step.get("tasks")
+                if isinstance(subs, list) and len(subs) >= 2:
+                    from concurrent.futures import ThreadPoolExecutor
+
+                    def _one(k_sub):
+                        return execute_user_task(
+                            str(k_sub[1]), llm=llm, max_rounds=3,
+                            task_id="%s_sub%d_%d" % (sid, rnd, k_sub[0]),
+                            _depth=_depth + 1)
+                    with ThreadPoolExecutor(max_workers=3) as pool:
+                        results = list(pool.map(
+                            _one, list(enumerate(subs))[:3]))
+                    obs = {"ok": True, "subagent": True, "parallel": True,
+                           "subs": [{"status": r.get("status"),
+                                     "rounds": r.get("rounds"),
+                                     "answer": str(r.get("answer", ""))[:900],
+                                     "why": r.get("why", "")}
+                                    for r in results]}
+                else:
+                    sub = execute_user_task(str(step.get("task", "")),
+                                            llm=llm, max_rounds=3,
+                                            task_id="%s_sub%d" % (sid, rnd),
+                                            _depth=_depth + 1)
+                    obs = {"ok": True, "subagent": True,
+                           "sub_status": sub.get("status"),
+                           "sub_rounds": sub.get("rounds"),
+                           "sub_answer": str(sub.get("answer", ""))[:1500],
+                           "sub_why": sub.get("why", "")}
             log.append({"round": rnd, "op": "delegate",
                         "analysis": str(step.get("analysis", ""))[:200]})
             _sess({"round": rnd, "op": "delegate",
@@ -285,8 +411,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                     "actions_log": log}
         try:
             if op == "run":
-                step = {**step, "_confirmed": _parse_confirmed(ctx)}
+                step = {**step, "_confirmed": _parse_confirmed(ctx),
+                        "_task_id": sid}
             obs = _do_action(op, step)
+            if (op == "read" and isinstance(obs, dict)
+                    and obs.get("image_path")):
+                last_image = obs["image_path"]
         except TaskExecError as exc:
             obs = {"ok": False, "error": str(exc)}
         except Exception as exc:               # noqa: BLE001

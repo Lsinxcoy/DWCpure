@@ -1,0 +1,4 @@
+{
+ "_": "R224 · MCP server 配置（维护者写, agent 只读 — command 来自这里是结构性护栏; 空 servers = 未接入任何外部 server, mcp 动作会明确报未配置）",
+ "servers": {}
+}
