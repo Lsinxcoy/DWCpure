@@ -51,18 +51,34 @@ def test_f1_iwm_advice_produced_in_run_term():
     for k in ("degrade_to_baseline", "downweight_pre_enactment",
               "forbid_default_dream", "reason", "consumed"):
         assert k in adv, "iwm_advice 缺字段 %r" % k
-    assert adv["consumed"] is False, "消费未接线却标 consumed=True（自欺）"
+    # ★ R204 语义升级（消费已接线）: 锁从"恒 False"升级为**一致性** ——
+    #   consumed=True 必带合法 action 证据（三形态之一）, 防未来假 True
+    if adv["consumed"]:
+        ca = adv.get("consumed_action") or ""
+        assert ca.startswith(("drop_world_tree_action", "none(no_trigger)",
+                              "not_actionable")), (
+            "consumed=True 却无合法 action 证据（自欺）: %r" % ca)
+    else:
+        assert not adv.get("consumed_action"), "consumed=False 不该带 action"
 
 
 def test_f1_record_round_wired_baseline_arm():
     """★★★ Q6 对照臂真记账: run_term 后 baseline 臂 +1（adopted 恒 False
     —— advice 执行消费未接线, 不假装采纳; 两臂同源会毁掉对照语义）。"""
     d = _dwc_with_exe()
-    before = list(d.iwm._arms["baseline"])
-    d.run_term("code_fix_001", n_steps=1)
-    after = d.iwm._arms["baseline"]
-    assert after[0] == before[0] + 1, (
-        "baseline 臂没记账: %s -> %s" % (before, after))
+    before = [sum(v[0] for v in d.iwm._arms.values())]
+    rep = d.run_term("code_fix_001", n_steps=1)
+    after = sum(v[0] for v in d.iwm._arms.values())
+    assert after == before[0] + 1, (
+        "Q6 记账没发生: %d -> %d" % (before[0], after))
+    # ★ R204 语义升级: 臂归属随 advice 触发态（触发⇒iwm 臂 / 无触发⇒baseline）
+    fired = bool(rep.iwm_advice.get("degrade_to_baseline")
+                 or rep.iwm_advice.get("forbid_default_dream"))
+    if fired:
+        assert d.iwm._arms["iwm"][0] == 1, "触发轮没进 iwm 臂: %s" % d.iwm._arms
+    else:
+        assert d.iwm._arms["baseline"][0] == 1, (
+            "无触发轮没进 baseline 臂: %s" % d.iwm._arms)
 
 
 def test_f1_build_state_honest_fields():

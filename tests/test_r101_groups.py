@@ -97,7 +97,19 @@ def test_two_level_wta_weak_group_first_on_real_chain():
         t.observe(tid, 1.0, True)
     r = d.world_model.group_rates()
     assert r["code_repair"] < r["knowledge_reasoning"]
-    rep = d.run_term("probe", n_steps=1)
+    # ★ R204 行为变更下游: 首 term advice 必触发（min_samples）⇒ 消费段剔除
+    #   世界树任务源。本锁的意图是**排序逻辑**（R101 两级任务源）, 与消费剔除
+    #   （test_r204 独立锁）是两个行为 ⇒ 注入干净 advice 保排序场景（强度不降:
+    #   组序/弱组在前断言逐字保留, R204 的剔除面由 test_r204 专锁）
+    from types import SimpleNamespace as _SN
+    _clean = _SN(degrade_to_baseline=False, downweight_pre_enactment=False,
+                 forbid_default_dream=False, reason="R101 排序场景注入")
+    _orig = d.iwm.governor_advice
+    d.iwm.governor_advice = lambda state, layer="all": _clean
+    try:
+        rep = d.run_term("probe", n_steps=1)
+    finally:
+        d.iwm.governor_advice = _orig
     wt = [x for x in rep.next_task_source["tasks"]
           if x.get("kind") == "world_tree_action"]
     assert wt, "世界树任务源非空"

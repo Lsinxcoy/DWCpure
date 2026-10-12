@@ -1,0 +1,98 @@
+{
+ "round": "R204",
+ "date": "2026-10-12",
+ "主题": "执行 R203 收尾建议: advice 执行消费 + 铁律运行时执行面（Q6 对照臂真数据前置）",
+ "A_advice执行消费": {
+  "落点": "run_term.py _next_task_source 尾部消费段 + 5段后 record_round",
+  "行为": "degrade_to_baseline/forbid_default_dream 触发 ⇒ 剔除环节⑥默认探索任务(world_tree_action)并回填consumed_action; downweight_pre_enactment ⇒ run_term无pre-enactment层 ⇒ 如实标not_actionable(不假装消费); 无触发 ⇒ none(no_trigger)",
+  "Q6口径": "触发且消费 ⇒ iwm臂; 无触发/仅downweight ⇒ baseline臂; improved=score_delta>0(judge真判); record_round挪到消费后(adopted要消费事实)",
+  "冒烟实测": "首term双触发(min_samples=0<5 + GDI 0.6000≥tau 0.35真漂移) ⇒ drop_world_tree_action×13 ⇒ tasks只剩drift_degrade; arms iwm=[1,0]"
+ },
+ "B_铁律运行时执行面": {
+  "落点": "新模块 src/dwc/foundation/iron_runtime.py (7,237B) + run_term 4.44段 + _build_state laws真源",
+  "四态": "真判(G8五环齐-pass/G11 report_must_quote-pass) + na(G1 pre_apply无对象) + not_instrumented(G2/G3/G4/G5/G6/G7/G9/G10 逐条why数据面无设置方) + block/warn产出",
+  "G11动作侧": "get_certification_limit 从yaml摘certification_limit_text(122字)进rep.certification_limit; evaluate判在位, 缺⇒block[G11](可违反状态真存在)",
+  "laws_block真源": "_build_state: laws_block=tuple(iron_report.block)/laws_warn=tuple(iron_report.warn) — 从恒()变为真判真源(空=本轮真判无违规, 非没接线)",
+  "ARSI病对冲": "11律全交代: 2真判+1na+8显式缺席 — 不再是'10条生效0条'的静默空转; 缺席why可审计(取证: frozen/effect/consolidation src零命中)"
+ },
+ "锁与校准": [
+  "R203两锁语义升级: consumed恒False→一致性锁(consumed=True必带合法action三形态之一, 防未来假True); baseline+1→总记账+1+臂归属随触发态",
+  "R101排序锁注入干净advice: 首term必触发会剔世界树任务源, 排序意图与消费剔除是两个行为(各专锁), 组序断言逐字保留",
+  "G1/G2门抓我: iron_runtime缺DWC-AUTO定位声明+TRUTH_SOURCE — 补声明(DWC-AUTO自我强化 + TRUTH_SOURCE=iron_laws.yaml文件字节元组)",
+  "正则误读: yaml首条id实为G1(跨条目错位读成D1) — 测试与_NA表名实对齐删D1"
+ ],
+ "verify": {
+  "pytest": "1439 passed rc=0",
+  "gate": "8/8全过(files=67)",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r204_tests": "8 new (消费三态/四态报告/G11动作+判/G8可违反/真源相等/advice看block)"
+ },
+ "inheritance": {
+  "gen": 204,
+  "at": "2026-10-12T16:07:00+08:00",
+  "parent_gen": 203,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 219,
+   "pytest": 1439,
+   "inheritance_gen_prev": 203,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2,
+   "epoch_source": "anchor_drift.epoch_of(ROOT)机器读"
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "A: advice执行消费(触发⇒剔世界树任务源+Q6臂随触发态记账) + B: 铁律执行面iron_runtime四态真判(laws_block真源) + G11 report_must_quote动作侧",
+   "files": [
+    "src/dwc/foundation/iron_runtime.py",
+    "src/dwc/harness/run_term.py",
+    "tests/test_r204_advice_iron.py",
+    "tests/test_r203_production_wiring.py",
+    "tests/test_r101_groups.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "R204 冒烟: drop_world_tree_action×13 + arms iwm=[1,0] + iron四态 2真判/1na/8缺席",
+     "claim": "两建议全部行为级落地(非文本锁): 消费真改任务源 / laws_block 从装死变真源"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r204_advice_iron.py 8锁",
+     "claim": "消费三态(触发剔除/无触发保留/downweight不可执行) + 四态报告 + G11动作与判 + G8可违反 + 真源相等锁 + governor读block"
+    },
+    {
+     "type": "report_html",
+     "ref": "docs/AUDIT_R202_PRODUCTION.html F1族",
+     "claim": "R203建议原文: advice执行消费+铁律运行时执行面是Q6对照臂真实数据的前置 — 本轮闭环"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1439 + gate 8/8 + e2e_loop rc=0 + e2e_core rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r204_advice_iron.py(8) + iron_runtime.py(G1/G2门过)",
+   "user_decision": "用户令'执行你的建议'(R203收尾两项建议)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "Q6两臂样本从本轮起积累(触发轮iwm/正常轮baseline) — trust≥min_samples=5后self_trust才有真值; 8律not_instrumented的补全依赖各自数据面设置方(frozen/effect/consolidation等先落地)"
+  }
+ }
+}

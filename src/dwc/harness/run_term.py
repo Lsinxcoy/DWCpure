@@ -237,6 +237,10 @@ class TermReport:
     drift: Optional[Dict[str, Any]] = None
     #: ★ F1 · iwm 守卫发出口（governor_advice 的产出; 未注入 iwm 时为 None）
     iwm_advice: Optional[Dict[str, Any]] = None
+    #: ★ R204 · 铁律执行面报告（iron_runtime.evaluate_for_term 的四态产出）
+    iron_report: Optional[Dict[str, Any]] = None
+    #: ★ R204 · G11 report_must_quote 的摘录字段（空 = 配置缺席 ⇒ block[G11]）
+    certification_limit: str = ""
     #: 六层活性快照（★ 第一次让六层有系统内真实数据）
     activity: List[Dict[str, Any]] = field(default_factory=list)
     #: term 为什么结束（四个终止条件之一 + 实测依据）
@@ -342,7 +346,8 @@ class TermRunner:
           + 内容哈希 —— 零占位字符串冒充实测。
         ★ 诚实缺席（不装有）:
           · world_model 无 train() ⇒ train_verdict="not_implemented"
-          · 铁律运行时执行未接线（配置面在, 执行面无）⇒ laws_block=()
+          · laws_block/laws_warn 来自 rep.iron_report（R204 执行面真判;
+            空 = 本轮真判无违规, 非"没接线" — 缺席在 not_instrumented）
           · pre_enactment 预测层显式缺席（core._decide 同款）⇒
             gate1_verdict="degrade_to_heuristic"
         """
@@ -382,7 +387,8 @@ class TermRunner:
                 iwm_verdict="degrade_to_baseline" if degraded else "ok",
                 iwm_reason=why[:120],
                 train_verdict="not_implemented",
-                laws_block=(),
+                laws_block=tuple((rep.iron_report or {}).get("block") or ()),
+                laws_warn=tuple((rep.iron_report or {}).get("warn") or ()),
                 cost_used=float((rep.cost_after or {}
                                  ).get("term_cost", 0.0) or 0.0),
                 task_scores_ref="config/anchors/task_scores.jsonl"),
@@ -535,6 +541,16 @@ class TermRunner:
                "（R141 如实标 partial）"))
         rep.quintet = q.to_dict()
 
+        # ── 4.44 ★ R204 · 铁律执行面（laws_block 的真实来源）──
+        #   ★ 两步: ① G11 动作侧 — 摘 certification_limit 进报告字段
+        #           ② 评估 — 真判/na/not_instrumented 四态 → rep.iron_report
+        #   ⇒ block/warn 随后喂 _build_state 的 laws_block/laws_warn
+        from dwc.foundation.iron_runtime import (
+            get_certification_limit, evaluate_for_term)
+        rep.certification_limit = get_certification_limit()
+        rep.iron_report = evaluate_for_term(
+            rep, certification_limit_present=bool(rep.certification_limit))
+
         # ── 4.45 ★ F1 · iwm 守卫发出口（governor_advice + Q6 对照臂）──
         #   ★ governor_advice 只读 State 公开四层（§六不变量）—— State 由
         #     _build_state 从本轮已判事实构造（零占位字符串）。
@@ -552,10 +568,8 @@ class TermRunner:
                     "reason": advice.reason,
                     "consumed": False,
                 }
-                self.iwm.record_round(
-                    adopted=False,
-                    improved=bool(rep.score_delta
-                                  and rep.score_delta > 0.0))
+                # ★ R204: record_round 挪到 5 段消费之后 —— adopted 要看
+                #   「消费是否真执行」（建议触发 ⇒ iwm 臂; 无触发 ⇒ baseline 臂）
             except Exception as exc:   # noqa: BLE001 — 留痕不静默（G7 同款）
                 rep.iwm_advice = {"error": "%s: %s"
                                   % (type(exc).__name__, str(exc)[:120])}
@@ -640,6 +654,18 @@ class TermRunner:
         # ★★ 依据 §9 缺口 (bz): "Measurement thereby becomes the trigger
         #   of the next iteration rather than a terminal report"
         rep.next_task_source = self._next_task_source(cid, rep)
+        # ── R204 · Q6 对照臂记账（★ 必须在消费之后 — adopted 看触发态）──
+        #   口径: advice 触发（degrade/forbid）且消费段已执行 ⇒ iwm 臂;
+        #         无触发 ⇒ baseline 臂（正常默认行为 — 对照面）。
+        #         仅 downweight 触发（不可执行）⇒ 不算采纳 ⇒ baseline 臂。
+        if self.iwm is not None and isinstance(rep.iwm_advice, dict) \
+                and "error" not in rep.iwm_advice:
+            _a = rep.iwm_advice
+            _adopted = bool(_a.get("degrade_to_baseline")
+                            or _a.get("forbid_default_dream"))
+            self.iwm.record_round(
+                adopted=_adopted,
+                improved=bool(rep.score_delta and rep.score_delta > 0.0))
 
         # ── 6. 六层活性快照（★ 第一次有系统内真实数据）──
         rep.activity = self.wiring.snapshot()
@@ -951,6 +977,39 @@ class TermRunner:
                 tasks.append({"kind": "drift_degrade",
                               "gdi": d.get("gdi"),
                               "why": "环节⑤：漂移超阈/回归 ⇒ " + "；".join(trig)})
+        # ── R204 · advice 执行消费（守卫建议真改行为 — 原则9 同款）──
+        #   ★ 消费面 = 下一轮任务源:
+        #     · degrade_to_baseline / forbid_default_dream ⇒ 剔除环节⑥ 的
+        #       默认探索任务（world_tree_action = dream/想象面的默认展开）
+        #     · downweight_pre_enactment ⇒ run_term 无 pre-enactment 层
+        #       （core._decide 显式缺席）⇒ 如实标 not_actionable（不假装消费）
+        #   ★ 回填 rep.iwm_advice.consumed/consumed_action —— 5 段后的
+        #     record_round 依据触发态记 Q6 对照臂。
+        adv = rep.iwm_advice if isinstance(rep.iwm_advice, dict) else None
+        if adv and "error" not in adv:
+            degrade = bool(adv.get("degrade_to_baseline"))
+            forbid = bool(adv.get("forbid_default_dream"))
+            if degrade or forbid:
+                n_drop = sum(1 for t in tasks
+                             if t.get("kind") == "world_tree_action")
+                if n_drop:
+                    tasks[:] = [t for t in tasks
+                                if t.get("kind") != "world_tree_action"]
+                tag = "degrade_to_baseline" if degrade else "forbid_default_dream"
+                adv["consumed"] = True
+                adv["consumed_action"] = ("drop_world_tree_action×%d（%s）"
+                                          % (n_drop, tag))
+            else:
+                if adv.get("downweight_pre_enactment"):
+                    adv["downweight_actionable"] = False
+                    adv["downweight_why"] = (
+                        "run_term 无 pre-enactment 层（core._decide 显式"
+                        "缺席）⇒ 不可执行 — 如实标 not_actionable")
+                adv["consumed"] = True
+                adv["consumed_action"] = ("none(no_trigger)"
+                                          if not adv.get(
+                                              "downweight_pre_enactment")
+                                          else "not_actionable(downweight)")
         out = {
             "chain_id": cid,
             "n_tasks": len(tasks),
