@@ -94,25 +94,26 @@ def test_rpc_auth_and_call():
 
 # ═══ 单例锁（R210 现场根治: 双 agent 互踩）═══
 def test_singleton_lock_refuses_second_start():
-    """★★★ 单例锁: pid 文件已有活 agent ⇒ 拒启 rc1 + 报 pid（同 db 双写
-    的事故锁 — 2026-10-12 现场发生过双 agent）。"""
-    alive_pid = None
-    if os.path.exists(R.PID):
-        try:
-            import psutil
-            p = int(io.open(R.PID, encoding="utf-8").read().strip())
-            if psutil.pid_exists(p):
-                alive_pid = p
-        except Exception:                      # noqa: BLE001
-            pass
-    if alive_pid is None:
-        # 无活 agent: 伪造一个活 pid（本进程）验证拒启语义
-        io.open(R.PID, "w", encoding="utf-8").write(str(os.getpid()))
-        alive_pid = os.getpid()
+    """★★★ 单例锁: pid 文件已有活 agent ⇒ 拒启 rc1（同 db 双写的事故锁）。
+    ★★ 全程隔离（DWC_VAR_DIR）: 曾用生产 pid 文件伪造活 pid 留死尸
+      （2026-10-12 实测把守夜人引去误拉活）—— 现在隔离目录自洽。"""
+    import psutil
+    iso = os.path.join(R.VAR, "__r210_lock__")
+    if os.path.exists(iso):
+        import shutil
+        shutil.rmtree(iso)
+    os.makedirs(iso, exist_ok=True)
+    io.open(os.path.join(iso, "dwc_agent.pid"), "w",
+            encoding="utf-8").write(str(os.getpid()))   # 伪造活 pid
     r = subprocess.run([PY, os.path.join(ROOT, "scripts", "dwc_agent.py")],
-                       capture_output=True, text=True, timeout=60, cwd=ROOT)
+                       capture_output=True, text=True, timeout=60, cwd=ROOT,
+                       env=dict(os.environ, DWC_VAR_DIR=iso))
     assert r.returncode == 1 and "拒绝双开" in r.stderr, (
         "单例锁失效: rc=%d %s" % (r.returncode, r.stderr[-120:]))
+    # ★ 无污染: 生产 pid 文件不被本测试触碰（死尸教训）
+    if os.path.exists(R.PID):
+        prod = int(io.open(R.PID, encoding="utf-8").read().strip())
+        assert prod != os.getpid(), "测试把生产 pid 污染成本进程"
 
 
 # ═══ CLI 壳 ═══

@@ -1,0 +1,74 @@
+{
+ "round": "R211",
+ "date": "2026-10-12",
+ "主题": "交互式 CLI 界面（用户'独立agent应有独立cli交互界面, 去github学人气最高的'）",
+ "研究": "GitHub 实搜: OpenCode ~200k★/Claude Code ~142k/Codex ~125k/Gemini CLI ~107k/Goose 54k/Aider 49k; 抓 opencode docs(TUI/CLI)+Claude Code commands 页; 共性六模式: 无参=REPL/斜杠+字母过滤/单发run模式/状态栏+cost/客户端服务器/readline历史",
+ "界面": "scripts/dwc_chat.py: 无参REPL(BANNER+状态栏+DWC❯提示符)/斜杠12命令(/st过滤→候选)/自然语言=投单+watch跟踪就地显示结果/-c单发/RPC优先本地直调降级/readline↑历史(Windows降级)/ANSI色(NO_COLOR+管道自动关)/quit别名(q/exit)",
+ "现场事故与处置": "抓到双agent树双跑(18:40+18:49两棵, 单例锁是18:50才加的时序洞)+pid文件被singleton测试污染成pytest死尸3408(会引守夜人误拉活) — 杀树B留树A(10696心跳+RPC), pid修正三方一致; 根治: singleton测试改DWC_VAR_DIR隔离自洽+污染断言",
+ "verify": {
+  "pytest": "1478 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r211_tests": "6 (单发JSON/斜杠过滤/REPL管道会话/自然语言投单跟踪/RPC降级/quit别名)"
+ },
+ "inheritance": {
+  "gen": 211,
+  "at": "2026-10-12T19:36:00+08:00",
+  "parent_gen": 210,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 226,
+   "pytest": 1478,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "交互界面: dwc_chat.py(REPL+斜杠+自然语言投单跟踪) + singleton测试隔离根治双开污染",
+   "files": [
+    "scripts/dwc_chat.py",
+    "tests/test_r211_chat.py",
+    "tests/test_r210_rpc.py",
+    "docs/PRODUCTION_RUNBOOK.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "REPL 管道会话实测(BANNER+状态栏+help+quit rc0)",
+     "claim": "无参=REPL 形态成立; /st 过滤→候选; 自然语言投单+跟踪链过"
+    },
+    {
+     "type": "report_html",
+     "ref": "GitHub 头部 agent 交互研究(2026-10-12 实搜)",
+     "claim": "六共性模式逐条映射落地, 研究依据写进 dwc_chat docstring"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1478 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r211_chat.py(6) + REPL实测输出",
+   "user_decision": "用户'你确定这是独立agent的形态吗…去github搜索人气最高的一些agent学习'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "真tty人工验收(窗口宽度/滚动)未做(管道会话已验); @文件引用/!命令/多会话等OpenCode特性按DWC语义裁剪未抄(非需要)"
+  }
+ }
+}

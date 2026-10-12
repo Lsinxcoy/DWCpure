@@ -34,6 +34,23 @@ rc0 空 stdout；异常走脚本内飞书 API 直推或 rc1+stderr。
 **CRON RUNS THE COPY**：cron 跑 `%LOCALAPPDATA%/hermes/scripts/` 副本，
 仓库改动必须 md5 同步（`test_cron_copies_in_sync` 锁死）。
 
+## 一〇 · 交互界面（R211 · 学 GitHub 头部 agent 形态）
+
+```bash
+python scripts/dwc_chat.py            # 无参 = 交互 REPL（学 OpenCode）
+python scripts/dwc_chat.py -c "/doctor"       # 非交互单发（= opencode run）
+python scripts/dwc_chat.py "帮我读 core.py"   # 单发自然语言=投单+跟踪
+```
+- 斜杠命令 `/` 触发、字母过滤（`/st` → 候选 /status，Claude Code 模式）：
+  `/status /list /query /watch /cancel /submit /freeze /unfreeze /history
+  /cost /doctor /help /quit` —— 九指令面的交互投影 + `/watch` 跟踪轮询 +
+  `/cost` 台账真值（= Claude /cost 语义）。
+- **直接说话 = 投单并跟踪到完成**（结果就地显示 + 状态变化实时打点）。
+- 状态栏每轮刷新（alive/FROZEN · pid · terms/pass · 队列 · db 大小）。
+- 后端 RPC 优先，agent 离线自动降级本地直调（单实现两前端）。
+- ★ 研究依据: OpenCode ~200k★ / Claude Code ~142k★ / Codex ~125k /
+  Gemini CLI ~107k★（2026-10 GitHub 实搜）共性六模式全落。
+
 ## 一A · 指令面（R210 · 独立 agent 的独立交互方式）
 
 ```bash
