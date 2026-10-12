@@ -1,0 +1,87 @@
+{
+ "round": "R205",
+ "date": "2026-10-12",
+ "主题": "生产缺口 P0 四条全落: 常驻运行器 + 持久化 + 真 LLM 通道实测 + 树观测回填自动化",
+ "P0_1_常驻运行器": "scripts/dwc_prod_run.py: 多 term + budget/退化崩塌双护栏 + var/dwc_prod_log.jsonl 逐轮台账 + cron 形态(正常 rc0 空输出=health=silence, 异常 rc1+stderr)",
+ "P0_2_持久化": "db_path=var/dwc_prod.sqlite(143KB 实测落盘); var/ 进 .gitignore(库与台账绝不入库)",
+ "P0_3_能力通道": "--llm 走 R126 LLMExecutorFactory(LLMClient()); 实测 1 term completed rc0(use_llm=true, pass_rate=0.0 如实入账=当前真实能力); 默认 execute_task 真断言执行(两者皆非 R25 自造观测)",
+ "P0_4_回填自动化": "_close_stages 三重口径: 真执行(★_executed 键) ∩ success非None(Verdict 纪律) ∩ 首次(W5 判分不可覆盖); 重复执行真值走 C3'(judge.store, 已自动)",
+ "施工坑": [
+  "W5 冲突: judge.details 是全集判分(含 fallback False) ⇒ 首版回填全集, term1 二次喂已 observed 节点被 W5 拦 —— 修口径不改 W5(W5 是锚定纪律)",
+  "崩塌护栏误伤冷启动: 全败是当前真实能力非退化 ⇒ 护栏改退化型(曾经 best_pass>0.1 后连续崩才停), 台账如实记 pass=0.0 可审计",
+  "台账 dispatch 键不存在(next_task_source 无该字段) ⇒ 改记 next_tasks kinds 真字段"
+ ],
+ "verify": {
+  "pytest": "1445 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r205_tests": "6 (首term observed/二次幂等不抛W5/behavior-only provenance 防线/subprocess 运行器端到端/护栏事件/var gitignore)",
+  "llm实测": "1 term rc0 use_llm=true pass_rate=0.0 cost=1.0 drift=0.057"
+ },
+ "inheritance": {
+  "gen": 205,
+  "at": "2026-10-12T16:49:00+08:00",
+  "parent_gen": 204,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 220,
+   "pytest": 1445,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2,
+   "epoch_source": "anchor_drift.epoch_of(ROOT)机器读"
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "P0 四缺口: dwc_prod_run.py 运行器(护栏+台账+cron形态) + var 持久化 + --llm 真通道实测 + _close_stages 三重回填口径",
+   "files": [
+    "scripts/dwc_prod_run.py",
+    "src/dwc/harness/run_term.py",
+    "tests/test_r205_prod_run.py",
+    ".gitignore"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "var/dwc_prod_log.jsonl 实跑台账",
+     "claim": "3-term completed(cost_total=3.0)+LLM轮 completed(use_llm=true)+W5 冲突修复前后对照"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r205_prod_run.py 6锁",
+     "claim": "回填三重口径行为级(首observed/幂等/behavior-only)+运行器 subprocess 端到端+护栏留痕"
+    },
+    {
+     "type": "report_html",
+     "ref": "P0 生产缺口清单(会话取证)",
+     "claim": "无常驻运行器/零持久/能力通道未走真/回填手动债 — 四条本轮全落"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1445 + gate 8/8 + e2e_loop rc=0 + e2e_core rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "var/dwc_prod_log.jsonl + tests/test_r205_prod_run.py(6)",
+   "user_decision": "用户令'执行1'(P0→P1→P2 一次做完)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "生产 cron 接线与健康监控/备份属 R206; e2e 残口与 runbook 属 R207"
+  }
+ }
+}

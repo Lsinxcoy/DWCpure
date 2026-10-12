@@ -2,7 +2,7 @@
  "protocol": "dep(z): 只标记依赖旧评估器的档, 不物理删; 本报告只读, 置位动作在换代轮(E2)按此执行",
  "current_judge_fingerprint": "bce27408",
  "counts": {
-  "active": 5,
+  "active": 6,
   "deprecated_by_evaluator": 0,
   "deprecated_by_split_change": 84,
   "pre_depz_legacy": 121
@@ -872,6 +872,14 @@
   },
   {
    "file": "knowledge3_R203_production_wiring.json",
+   "status": "active",
+   "judge_fingerprint": "bce27408",
+   "split_fingerprint": "0726ef8b",
+   "drift": false,
+   "why": "judge + split 指纹与当前一致"
+  },
+  {
+   "file": "knowledge3_R204_advice_iron.json",
    "status": "active",
    "judge_fingerprint": "bce27408",
    "split_fingerprint": "0726ef8b",

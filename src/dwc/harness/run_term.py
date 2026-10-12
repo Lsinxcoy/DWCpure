@@ -835,6 +835,39 @@ class TermRunner:
         if verdict is not None:
             rep.judgement = verdict
             rep.score_delta = verdict.get("pass_rate")
+            # ── R205 · ★ 执行→树观测回填自动化（还 trial_run 手动债）──
+            #   ★ 依据: verdict.details 是**真判** per-task 结果（judge.evaluate）
+            #     ⇒ 喂 world_model（环节⑥ 探索的 GDI/组序/δ 排序全靠它）
+            #   ★★ Verdict 纪律: success=None（未评价）不许当 False 也不许
+            #     当 True ⇒ 跳过不喂（喂 0 = 把 None 当 False, 禁止）
+            #   ★ score 用 pass_rate（k/n 细粒度; 缺则 1.0/0.0 布尔映射）
+            #   ★ world_model 未注入 ⇒ 静默跳过（与 judge=None 同纪律:
+            #     没注入不假装喂过）; dev 树由 seed 建, 缺树由 tree() 自报
+            #   ★★ R205 三重口径（首跑冒烟抓的 W5 冲突后校准）:
+            #     ① 真执行集 = obs 里 ★_executed 的键（executor 通道真跑的;
+            #       fallback 判 False 不是真失败, 不许当 provenance 污染树）
+            #     ② success=None 跳过（未评价不当 False — Verdict 纪律）
+            #     ③ **首次**才喂: 树节点已带 score ⇒ W5 拦（判分不可覆盖,
+            #       锚定纪律）; 重复执行的真值走 C3' 记录点（judge.store,
+            #       已自动）—— 树只留首次真值, 与 W5 设计一致
+            if self.world_model is not None:
+                _tree = self.world_model.tree("dev")
+                _executed = {k for k, v in (obs or {}).items()
+                             if isinstance(v, dict) and v.get("★_executed")}
+                for _d in (verdict.get("details") or []):
+                    _ok = _d.get("success")
+                    _tid = _d.get("task_id")
+                    if _ok is None or _tid not in _executed:
+                        continue
+                    _node = _tree.nodes.get(_tid)
+                    if _node is None or _node.score is not None:
+                        continue          # W5: 非首见不覆盖（判分不可覆盖）
+                    _pr = _d.get("pass_rate")
+                    self.world_model.record_observation(
+                        "dev", _tid,
+                        (float(_pr) if _pr is not None
+                         else (1.0 if _ok else 0.0)),
+                        bool(_ok))
 
     def _build_observations(self, rep: TermReport) -> Dict[str, Dict]:
         """★ 造一批观测（judge 的输入契约）。
