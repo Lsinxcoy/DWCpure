@@ -41,6 +41,11 @@ LOG = os.path.join(VAR, "dwc_prod_log.jsonl")
 PID = os.path.join(VAR, "dwc_agent.pid")
 HB = os.path.join(VAR, "dwc_agent_heartbeat.json")
 FROZEN = os.path.join(VAR, "dwc_agent_frozen")
+#: ★ R209 · 任务收件箱（独立 agent 接单面 — 用户 2026-10-12: "不接我的单
+#:   算什么独立 agent"）。append-only 投单; done 态单独 state 文件对账。
+INBOX = os.path.join(VAR, "dwc_inbox.jsonl")
+INBOX_DONE = os.path.join(VAR, "dwc_inbox_done.json")
+REPORTS = os.path.join(VAR, "dwc_reports")
 DEV_POOL = ("code_fix_001", "code_fix_002", "code_fix_003", "code_fix_004",
             "code_fix_005", "code_fix_006",
             "reasoning_001", "reasoning_002",
@@ -59,6 +64,104 @@ def _heartbeat(**kw) -> None:
     with open(HB, "w", encoding="utf-8") as fh:
         json.dump({"ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
                    "pid": os.getpid(), **kw}, fh, ensure_ascii=False)
+
+
+def _feishu_notify(text: str) -> None:
+    """★ 任务结果通知（config.yaml feishu block; 发送失败留痕不阻塞循环）。"""
+    try:
+        import urllib.request
+        import yaml
+        cfg_path = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
+                                "hermes", "config.yaml")
+        with open(cfg_path, encoding="utf-8") as fh:
+            fs = (yaml.safe_load(fh) or {}).get("feishu") or {}
+        req = urllib.request.Request(
+            "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token"
+            "/internal",
+            data=json.dumps({"app_id": fs["app_id"],
+                             "app_secret": fs["app_secret"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            tok = json.loads(resp.read().decode("utf-8"))
+        rid, rid_type = fs["home_channel_id"], "chat_id"
+        if rid.startswith("ou_"):
+            rid_type = "open_id"
+        body = {"receive_id": rid, "msg_type": "text",
+                "content": json.dumps({"text": text}, ensure_ascii=False)}
+        req2 = urllib.request.Request(
+            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type="
+            + rid_type,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": "Bearer "
+                     + tok["tenant_access_token"]})
+        with urllib.request.urlopen(req2, timeout=30) as resp:
+            out = json.loads(resp.read().decode("utf-8"))
+        _log({"event": "notify", "msg_id":
+              out.get("data", {}).get("message_id", "")[:40]})
+    except Exception as exc:                   # noqa: BLE001
+        _log({"event": "notify_failed",
+              "error": "%s: %s" % (type(exc).__name__, exc)})
+
+
+def _done_state() -> dict:
+    try:
+        with open(INBOX_DONE, encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:                          # noqa: BLE001
+        return {}
+
+
+def take_inbox():
+    """★ 取第一条未处理的收件箱任务（None = 空）。done 态落 INBOX_DONE。"""
+    st = _done_state()
+    if not os.path.exists(INBOX):
+        return None
+    with open(INBOX, encoding="utf-8") as fh:
+        for ln in fh.read().splitlines():
+            if not ln.strip():
+                continue
+            try:
+                item = json.loads(ln)
+            except Exception:                  # noqa: BLE001
+                continue
+            tid = item.get("id") or ("T_" + str(abs(hash(ln)) % 10 ** 8))
+            if tid in st:
+                continue
+            return {**item, "id": tid}
+    return None
+
+
+def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
+    """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
+    from dwc.llm.task_exec import execute_user_task
+    from dwc.llm.client import LLMClient
+    # ★ 收件箱任务总是自带 LLM 通道（config/llm.json 自读）—— 不依赖
+    #   --llm 启动参数（watchdog 无参拉活的 agent 同样能接单）
+    llm = llm or LLMClient()          # ★ llm 注入（测试可测性 — 依赖注入）
+    if not getattr(llm, "configured", False):
+        rep = {"task": item.get("task"), "status": "incomplete",
+               "why": "LLM 未配置（收件箱任务需要 LLM 通道; --llm 启动）"}
+    else:
+        rep = execute_user_task(str(item.get("task", "")), llm=llm,
+                                ctx=item.get("ctx"))
+    rep = {"id": item["id"], **rep,
+           "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")}
+    os.makedirs(REPORTS, exist_ok=True)
+    with open(os.path.join(REPORTS, item["id"] + ".json"), "w",
+              encoding="utf-8") as fh:
+        json.dump(rep, fh, ensure_ascii=False, indent=1)
+    st = _done_state()
+    st[item["id"]] = rep["status"]
+    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
+        json.dump(st, fh, ensure_ascii=False)
+    _log({"user_task": item["id"], "status": rep["status"],
+          "rounds": rep.get("rounds"),
+          "why": rep.get("why", "")[:120]})
+    _feishu_notify("✅ DWC 任务完成（%s）\n%s" % (item["id"], rep.get("answer", "")[:400])
+                   if rep["status"] == "done" else
+                   "⚠️ DWC 任务未完成（%s）\n原因: %s" % (item["id"], rep.get("why", "")))
+    return rep
 
 
 def select_task(prev_rep) -> str:
@@ -100,6 +203,21 @@ def main(argv) -> int:
         if os.path.exists(FROZEN):
             os.remove(FROZEN)
         print("unfrozen")
+        return 0
+    if "--submit" in argv:
+        # 投单: python dwc_agent.py --submit "任务描述" [--id T_x] [--ctx "..."]
+        text = argv[argv.index("--submit") + 1]
+        tid = argv[argv.index("--id") + 1] if "--id" in argv else \
+            "T_" + time.strftime("%m%d_%H%M%S")
+        ctx = argv[argv.index("--ctx") + 1] if "--ctx" in argv else None
+        os.makedirs(VAR, exist_ok=True)
+        with open(INBOX, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"id": tid, "task": text, "ctx": ctx,
+                                 "by": "user",
+                                 "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
+                                ensure_ascii=False) + "\n")
+        print("投单成功: %s（agent 下轮优先消费; 结果在 var/dwc_reports/%s.json"
+              "+ 飞书通知）" % (tid, tid))
         return 0
     if "--status" in argv:
         for p in (PID, HB):
@@ -154,6 +272,16 @@ def main(argv) -> int:
         # 日界滚动（次日自动复位计数）
         if _day["key"] != time.strftime("%Y-%m-%d"):
             _day.update(key=time.strftime("%Y-%m-%d"), terms=0, cost=0.0)
+        # ── R209 · 收件箱优先（用户委托 > 自我改进锚任务 — 独立 agent 接单）──
+        item = take_inbox()
+        if item is not None:
+            _heartbeat(status="user_task", task_id=item["id"])
+            rep_u = run_user_task(item, use_llm)
+            _log({"inbox_left": bool(take_inbox())})
+            _heartbeat(status="alive", last_user_task=item["id"],
+                       result=rep_u["status"])
+            time.sleep(interval)
+            continue
         task = select_task(prev)
         try:
             rep = d.run_term(task, n_steps=steps)

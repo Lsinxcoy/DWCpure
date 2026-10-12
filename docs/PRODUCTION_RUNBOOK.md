@@ -34,6 +34,25 @@ rc0 空 stdout；异常走脚本内飞书 API 直推或 rc1+stderr。
 **CRON RUNS THE COPY**：cron 跑 `%LOCALAPPDATA%/hermes/scripts/` 副本，
 仓库改动必须 md5 同步（`test_cron_copies_in_sync` 锁死）。
 
+## 一B · 怎么给它下任务（R209 接单面 — agent 优先消费收件箱）
+
+```bash
+# 方式1: CLI 投单（最直接）
+python scripts/dwc_agent.py --submit "你的任务描述" --id T_my01
+
+# 方式2: 说给我（Hermes），我代投 —— 你说任务，我写 inbox，结果回你
+
+# 方式3: 直接追加 var/dwc_inbox.jsonl（一行一个 JSON: id/task/ctx）
+```
+
+- **消费**: agent 主循环**收件箱优先**（用户委托 > 自我改进锚任务），每
+  600s 检查一次；任务经 LLMTaskExecutor 多轮执行（read/write/run/final
+  四动作白名单，写限 `var/inbox_work/`，危险命令黑名单，60s/命令超时）。
+- **结果**: 报告 `var/dwc_reports/<id>.json` + **飞书通知**（done 给结论,
+  incomplete 给原因——不静默装完成）。真实首单实测: 3 轮 23.5s done。
+- 边界: 收件箱任务必须 LLM 通道（agent 自带 LLMClient, 不依赖启动参数）;
+  max 4 轮未 final ⇒ incomplete 如实报。
+
 ## 二 · 能力通道（诚实声明）
 
 - 默认执行器 = `execute_task` 真断言执行（golden checks 真跑）；

@@ -1,0 +1,75 @@
+{
+ "round": "R209",
+ "date": "2026-10-12",
+ "主题": "接单能力: 任务收件箱 + LLMTaskExecutor（用户'不接我的单算什么独立agent'拍板）",
+ "inbox协议": "var/dwc_inbox.jsonl(append-only投单) + dwc_inbox_done.json(done对账不二做) + dwc_reports/<id>.json(报告); agent主循环收件箱优先于锚任务; --submit CLI; 收件箱任务自带LLMClient(不依赖--llm启动参数 — watchdog无参拉活也能接单)",
+ "LLMTaskExecutor": "src/dwc/llm/task_exec.py: 多轮(≤4) LLM+白名单四动作(read限ROOT内/write只许var/inbox_work/run argv列表+危险词黑名单+60s超时/final结论); LLM失败当正常分支(complete不抛异常纪律)转incomplete带why; 超轮incomplete不静默装完成",
+ "真实首单实测": "T_real_test01 读core.py→写core_positioning.md→中文结论: 3轮23.5s status=done + 飞书通知 msg_id=om_x100b63fe80f6f0a4c4b31032cd5f460 + 报告落盘 + done记账",
+ "定位教训": "两次纠偏: ①批处理≠常驻agent(R208修) ②自我改进循环完备≠独立agent — 接用户单才是本分(R209修); 基础设施(持久化/LLM通道/监控/备份/1458测试)全部复用未废",
+ "verify": {
+  "pytest": "1465 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r209_tests": "7 (read-write-final链/写护栏越界拒/run黑名单/LLM失败honest/inbox去重/CLI投单/消费记账)"
+ },
+ "inheritance": {
+  "gen": 209,
+  "at": "2026-10-12T17:57:00+08:00",
+  "parent_gen": 208,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 224,
+   "pytest": 1465,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "接单面: inbox协议+LLMTaskExecutor四动作白名单+agent收件箱优先消费+飞书结果通知+--submit CLI",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "scripts/dwc_agent.py",
+    "tests/test_r209_inbox.py",
+    "docs/PRODUCTION_RUNBOOK.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "T_real_test01 报告 + 飞书 msg_id",
+     "claim": "真LLM首单 done: read→write→final 3轮23.5s 产物真实"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r209_inbox.py 7锁",
+     "claim": "白名单链/写护栏/黑名单/失败honest/inbox去重/CLI/记账全行为级"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1465 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "var/dwc_reports/T_real_test01.json + tests/test_r209_inbox.py(7)",
+   "user_decision": "用户'不接我的单算什么独立agent'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "观察真实单量与成功率; LLM端点稳定性(MiMo-V2)决定单任务耗时; Hermes桥(用户说→我投单→结果回)已可用(我写inbox即投)"
+  }
+ }
+}
