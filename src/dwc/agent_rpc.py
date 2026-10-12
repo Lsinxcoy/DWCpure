@@ -190,6 +190,60 @@ def cmd_unfreeze() -> Dict[str, Any]:
             "note": "守夜人 2h 内拉活, 或手动启动"}
 
 
+def send_feishu(text: str) -> bool:
+    """★ 公共飞书通知（tenant token API — agent 任务结果 / ask 审批共用,
+    单实现防漂移; 失败返 False 不抛 — 调用方留痕）。值读 config 不回显。"""
+    try:
+        import urllib.request
+        import yaml
+        cfg_path = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
+                                "hermes", "config.yaml")
+        with open(cfg_path, encoding="utf-8") as fh:
+            fs = (yaml.safe_load(fh) or {}).get("feishu") or {}
+        req = urllib.request.Request(
+            "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token"
+            "/internal",
+            data=json.dumps({"app_id": fs["app_id"],
+                             "app_secret": fs["app_secret"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            tok = json.loads(resp.read().decode("utf-8"))
+        rid, rid_type = fs["home_channel_id"], "chat_id"
+        if rid.startswith("ou_"):
+            rid_type = "open_id"
+        body = {"receive_id": rid, "msg_type": "text",
+                "content": json.dumps({"text": text}, ensure_ascii=False)}
+        req2 = urllib.request.Request(
+            "https://open.feishu.cn/open-apis/im/v1/messages?"
+            "receive_id_type=" + rid_type,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": "Bearer %s"
+                     % tok.get("tenant_access_token", "")})
+        with urllib.request.urlopen(req2, timeout=30) as resp2:
+            return json.loads(resp2.read().decode("utf-8")).get("code") == 0
+    except Exception:                           # noqa: BLE001 — 通知失败不炸
+        return False
+
+
+#: R225 · ask 审批答复文件（RPC ask_answer / 聊天 /approve 写这里）
+ASK_ANSWERS = os.path.join(VAR, "dwc_ask_answers.jsonl")
+
+
+def cmd_ask_answer(word: str, approve: bool) -> Dict[str, Any]:
+    """★ R225 · 审批答复入口（用户经飞书→Hermes→RPC 落这里; 执行侧轮询）。"""
+    if not word:
+        return {"ok": False, "error": "word 不能为空（ask 类操作词）"}
+    os.makedirs(VAR, exist_ok=True)
+    with open(ASK_ANSWERS, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"word": str(word).strip(),
+                             "approve": bool(approve),
+                             "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
+                            ensure_ascii=False) + "\n")
+    return {"ok": True, "word": word, "approve": bool(approve),
+            "note": "执行侧下轮询到即生效（≤15min 等待窗）"}
+
+
 def cmd_history(n: int = 20) -> Dict[str, Any]:
     return {"n": n, "tail": _log_tail(int(n))}
 
@@ -244,6 +298,7 @@ METHODS = {
     "status": cmd_status, "submit": cmd_submit, "query": cmd_query,
     "list": cmd_list, "cancel": cmd_cancel, "freeze": cmd_freeze,
     "unfreeze": cmd_unfreeze, "history": cmd_history, "doctor": cmd_doctor,
+    "ask_answer": cmd_ask_answer,
 }
 
 

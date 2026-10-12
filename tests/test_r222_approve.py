@@ -32,7 +32,14 @@ def test_confirmed_ask_runs_with_human_stamp():
     assert not os.path.exists(victim), "授权后未真执行"
 
 
-def test_unconfirmed_ask_still_refused():
-    """★ 未授权 ask 仍拒（授权不是默认 — 通道开了门没开）。"""
-    with pytest.raises(TE.TaskExecError, match="人工授权"):
+def test_unconfirmed_ask_still_refused(monkeypatch):
+    """★ 未授权 ask 仍拒（授权不是默认 — 通道开了门没开）。
+    ★ 隔离答复文件+短等待（生产答复文件里的真授权不许被测试消费）。"""
+    iso = os.path.join(TE.ROOT, "var", "__test_ask__")
+    os.makedirs(iso, exist_ok=True)
+    monkeypatch.setattr(TE, "ASK_PENDING", os.path.join(iso, "p2.jsonl"))
+    monkeypatch.setattr(TE, "ASK_ANSWERS", os.path.join(iso, "a2.jsonl"))
+    monkeypatch.setattr(TE, "ASK_WAIT", 1)
+    monkeypatch.setattr(TE, "_notify_feishu", lambda t: None)
+    with pytest.raises(TE.TaskExecError, match="ask_required"):
         TE._do_action("run", {"cmd": ["curl", "http://x"]})

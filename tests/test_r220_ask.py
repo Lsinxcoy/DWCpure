@@ -20,14 +20,20 @@ def test_ask_level_three_way():
     assert TE._ask_level("python scripts/gate.py") is None
 
 
-def test_ask_action_refused_with_clear_reason():
+def test_ask_action_refused_with_clear_reason(monkeypatch):
     """★★★ ask 级动作执行结果: **不执行** + 明确告知需人工授权（LLM 能换路
-    或 final 说明 — 不静默不硬吞, 报告可审计）。"""
+    或 final 说明 — 不静默不硬吞, 报告可审计）。
+    ★ 隔离+短等待（R225 后 ask 走轮询; 生产答复文件的真授权不许被测试
+    消费也不许让测试放行）。"""
+    iso = os.path.join(TE.ROOT, "var", "__test_ask__")
+    os.makedirs(iso, exist_ok=True)
+    monkeypatch.setattr(TE, "ASK_PENDING", os.path.join(iso, "p3.jsonl"))
+    monkeypatch.setattr(TE, "ASK_ANSWERS", os.path.join(iso, "a3.jsonl"))
+    monkeypatch.setattr(TE, "ASK_WAIT", 1)
+    monkeypatch.setattr(TE, "_notify_feishu", lambda t: None)
     with pytest.raises(TE.TaskExecError, match="ask_required"):
         TE._do_action("run", {"cmd": ["git", "push", "origin", "master"]})
-    # 确认真没执行: ask 不产生副作用（用无害但 ask 词的命令验证 — mkdir 不在
-    # ask 表, 用 echo+ask 词组合无法安全验证副作用; 以异常本身为锁）
-    with pytest.raises(TE.TaskExecError, match="人工授权"):
+    with pytest.raises(TE.TaskExecError, match="ask_required"):
         TE._do_action("run", {"cmd": ["curl", "http://example.com"]})
 
 

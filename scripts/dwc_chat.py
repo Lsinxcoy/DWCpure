@@ -56,6 +56,7 @@ HELP = """可用斜杠命令（输入 / 再输字母可过滤）:
   /cancel <id>   撤单              /cost         当日 term 成本台账
   /history [n]   台账尾 n 条        /doctor       自检（db/真值源/LLM/备份）
   /freeze        冻结 agent        /unfreeze     解冻
+  /approve <词>  授权 ask 类操作（飞书审批落点）   /deny <词>  拒绝
   /help          本帮助            /quit /q /exit  退出
 ★ 直接输入自然语言 = 自动投单并跟踪到完成（结果在这里显示）
 ★ 非交互单发: dwc_chat.py -c "内容\""""
@@ -151,6 +152,8 @@ def handle(line: str) -> bool:
             "/doctor": lambda: _fmt(call("doctor")),
             "/history": lambda: _hist(arg),
             "/cost": lambda: _hist("12", cost=True),
+            "/approve": lambda: _answer(arg, True),
+            "/deny": lambda: _answer(arg, False),
             "/freeze": lambda: print(yellow(_fmt(call("freeze")))),
             "/unfreeze": lambda: print(green(_fmt(call("unfreeze")))),
             "/watch": lambda: watch(arg) if arg else print(red("用法: /watch <id>")),
@@ -181,6 +184,15 @@ def handle(line: str) -> bool:
           % (green("→"), bold(tid), tid))
     watch(tid)
     return True
+
+
+def _answer(word, approve):
+    """★ R225 · 审批答复（/approve git push → RPC ask_answer 落答复文件）。"""
+    if not word:
+        print(red("用法: /approve <操作词> 或 /deny <操作词>"))
+        return
+    r = call("ask_answer", word=word, approve=approve)
+    print(_fmt(r))
 
 
 def _submit(task):

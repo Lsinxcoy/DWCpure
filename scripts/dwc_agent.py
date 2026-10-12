@@ -60,41 +60,13 @@ def _heartbeat(**kw) -> None:
 
 
 def _feishu_notify(text: str) -> None:
-    """★ 任务结果通知（config.yaml feishu block; 发送失败留痕不阻塞循环）。"""
+    """★ 任务结果通知 — 委托 agent_rpc.send_feishu（R225 单实现化: ask 审批
+    与任务结果共用一个发送器, 防双份实现漂移）。"""
     try:
-        import urllib.request
-        import yaml
-        cfg_path = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
-                                "hermes", "config.yaml")
-        with open(cfg_path, encoding="utf-8") as fh:
-            fs = (yaml.safe_load(fh) or {}).get("feishu") or {}
-        req = urllib.request.Request(
-            "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token"
-            "/internal",
-            data=json.dumps({"app_id": fs["app_id"],
-                             "app_secret": fs["app_secret"]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            tok = json.loads(resp.read().decode("utf-8"))
-        rid, rid_type = fs["home_channel_id"], "chat_id"
-        if rid.startswith("ou_"):
-            rid_type = "open_id"
-        body = {"receive_id": rid, "msg_type": "text",
-                "content": json.dumps({"text": text}, ensure_ascii=False)}
-        req2 = urllib.request.Request(
-            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type="
-            + rid_type,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json",
-                     "Authorization": "Bearer "
-                     + tok["tenant_access_token"]})
-        with urllib.request.urlopen(req2, timeout=30) as resp:
-            out = json.loads(resp.read().decode("utf-8"))
-        _log({"event": "notify", "msg_id":
-              out.get("data", {}).get("message_id", "")[:40]})
-    except Exception as exc:                   # noqa: BLE001
-        _log({"event": "notify_failed",
-              "error": "%s: %s" % (type(exc).__name__, exc)})
+        from dwc.agent_rpc import send_feishu
+        send_feishu(text)
+    except Exception:                           # noqa: BLE001 — 失败不阻塞循环
+        _log({"event": "notify_failed", "via": "agent_rpc"})
 
 
 def _done_state() -> dict:
