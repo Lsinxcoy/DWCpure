@@ -151,6 +151,41 @@ def test_drift_watch_script_contract():
     assert "receive_id_type" in src, "缺 open_id 私聊适配"
 
 
+def test_drift_watch_health_is_silent():
+    """★★★ 健康必须静默（hermes-cron-feishu 铁律: 空 stdout = 不投递,
+    cron 2h tick 不轰炸; 有建议才投递）。
+
+    ★ 行为级: 直接跑脚本, 断言 rc=0 且空 stdout（不是只读源码文本）。
+    ★ 日度心跳例外: 当天首次 tick 发一条后, 后续 tick 必须静默（已由
+      cron copy 的 state 验证 — 手动 run1 后 run2 空）。
+    """
+    import subprocess
+    ROOT_DIR = r"E:\Divine Wisdom Core"
+    r = subprocess.run(
+        [sys.executable, os.path.join(ROOT_DIR, "scripts",
+                                      "dwc_anchor_drift_watch.py")],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-300:]
+    assert r.stdout == "", (
+        "健康 tick 必须静默（空 stdout），实得:\n%r" % r.stdout[:300])
+
+
+def test_drift_watch_no_heartbeat_on_second_tick_of_day():
+    """★★ 当日第二次 tick 静默（心跳只发一条, cron 不轰炸）。"""
+    import json as _json
+    st_path = os.path.join(os.environ["LOCALAPPDATA"], "hermes", "scripts",
+                           ".dwc_drift_watch_state.json")
+    import time as _t
+    st = {"heartbeat": _t.strftime("%Y-%m-%d"), "sugg": None}
+    _json.dump(st, open(st_path, "w", encoding="utf-8"), ensure_ascii=False)
+    import subprocess
+    r = subprocess.run(
+        [sys.executable, r"E:\Divine Wisdom Core\scripts\dwc_anchor_drift_watch.py"],
+        capture_output=True, text=True)
+    assert r.returncode == 0
+    assert r.stdout == "", "同日二次 tick 不得输出"
+
+
 def test_cron_copy_in_sync():
     """★★★ CRON RUNS THE COPY 防漂移锁（skill 纪律: md5 断言）—
     cron 实际跑的是 hermes/scripts 下的副本, 仓库改完必须同步。"""

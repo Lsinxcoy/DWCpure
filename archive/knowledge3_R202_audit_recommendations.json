@@ -21,7 +21,7 @@
   "cron": "job f3e18d04b90f('DWC anchor drift watch', no_agent, '0 */2 * * *', deliver local); CRON RUNS THE COPY: 仓库→%LOCALAPPDATA%/hermes/scripts/副本md5同步锁进test_cron_copy_in_sync",
   "验证": "run1心跳message_id=om_x100b63f685bfe4a4c1075182feeeddb(真API ack); run2静默RC=0(节流生效); 副本跑RC=0共享state; cronjob action=run后台执行"
  },
- "施工坑": "①@classmethod脱落: dev_targets插入手术把原check_entry装饰器顶成双@classmethod叠在dev_targets上(锚文本不含装饰器)——发现于冒烟TypeError(missing entry), 结构复核修正; ②kernel陈旧模块第3次(新签名propose_lateral TypeError)——fresh interpreter复核; ③R202提交脚本误用inheritance_ledger.jsonl(不存在的路径——真实档形态=knowledge3_R###.json单文件gen=轮号)——git add失败拦住未污染",
+ "施工坑": "①@classmethod脱落: dev_targets插入手术把原check_entry装饰器顶成双@classmethod叠在dev_targets上(锚文本不含装饰器)——发现于冒烟TypeError(missing entry), 结构复核修正; ②kernel陈旧模块第3次(新签名propose_lateral TypeError)——fresh interpreter复核; ③R202提交脚本误用inheritance_ledger.jsonl——真实档形态=knowledge3_R###.json单文件(gen=轮号), git add失败拦住未污染, 未污染账本; ④drift监控心跳轰炸(无建议时每个2h tick推一条)——铁律'健康即静默'修正: 当日首tick发一条证明活着, 后续tick静默; 行为级测试2条; ⑤副本md5漂移——脚本改完必须同步%LOCALAPPDATA%\\hermes\\scripts\\, 否则cron跑旧码(RUN THE COPY铁律实证)",
  "verify": {
   "pytest": "1423 passed",
   "gate": "全部通过(8项)",

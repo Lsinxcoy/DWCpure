@@ -100,8 +100,8 @@ def main() -> int:
     today = time.strftime("%Y-%m-%d")
     st = _load_state()
 
+    key = json.dumps(sorted(sugg), ensure_ascii=False)   # R202: 无建议也定义
     if sugg:
-        key = json.dumps(sorted(sugg), ensure_ascii=False)
         last = st.get("sugg") or {}
         if last.get("key") == key and time.time() - last.get("t", 0) < THROTTLE_S:
             return 0                            # 同建议 24h 内 ⇒ 静默节流
@@ -116,12 +116,13 @@ def main() -> int:
         text = "\n".join(lines)
         mid = _send(text)
         st["sugg"] = {"key": key, "t": time.time(), "message_id": mid}
-        st["heartbeat"] = today
         _save_state(st)
         print(text)                              # print = 投递留痕（deliver local）
         return 1                                 # 有建议 ⇒ exit 1（输出被记）
 
-    # 无建议 ⇒ 日度心跳（一天一条, 证明活着）
+    # 无建议 ⇒ 静默 exit 0（cron 2h tick 不轰炸 — 空 stdout = 健康）
+    # 日度存活心跳: 只有当天首次 tick 且**无建议**时才发一条（证明活着）;
+    # 次日 0 点后再次发。非当日 ⇒ 静默。
     if st.get("heartbeat") != today:
         text = ("✅ DWC anchor drift 健康心跳 · %s · epoch %s · "
                 "rung_mix=%s · 无漂移建议" % (
@@ -129,10 +130,11 @@ def main() -> int:
                     json.dumps(sig.get("rung_mix"), ensure_ascii=False)))
         mid = _send(text)
         st["heartbeat"] = today
-        st.pop("sugg", None)
         st["last_heartbeat_mid"] = mid
         _save_state(st)
-        print(text)
+        print(text)                    # print = 投递（deliver local 存档）
+    st.pop("sugg", None)               # 建议消失 ⇒ 清节流缓存（下次触发可重报）
+    _save_state(st)
     return 0
 
 
