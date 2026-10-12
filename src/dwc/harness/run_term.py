@@ -1023,15 +1023,23 @@ class TermRunner:
             degrade = bool(adv.get("degrade_to_baseline"))
             forbid = bool(adv.get("forbid_default_dream"))
             if degrade or forbid:
-                n_drop = sum(1 for t in tasks
-                             if t.get("kind") == "world_tree_action")
-                if n_drop:
-                    tasks[:] = [t for t in tasks
-                                if t.get("kind") != "world_tree_action"]
+                # ── ★ R216 · 消费语义校准（Layer 22: 判据错了修判据）──
+                #   旧语义 drop 全部 wta = 把"baseline"变成 pass 恒 0 的死水
+                #   （DEV_POOL 静态清单）⇒ 无改进 ⇒ trust 恒 0 ⇒ 永久降级
+                #   自锁（台账实证: wta 66/66 全 drop, GDI 49 轮恒 ≥ tau）。
+                #   新语义 = **降序不丢**: wta 去 fancy 排序（δ/组序）回树
+                #   原序、排在基线任务之后 —— "回到基线"是排序降级, 不是
+                #   杀死探索。探索保活 ⇒ 改进可能出现 ⇒ trust 窗口回升 ⇒
+                #   死锁解除（配合 R215 窗口化）。
+                _wta = [t for t in tasks if t.get("kind") == "world_tree_action"]
+                if _wta:
+                    _base = [t for t in tasks
+                             if t.get("kind") != "world_tree_action"]
+                    tasks[:] = _base + _wta      # 基线在前, wta 按树原序在后
                 tag = "degrade_to_baseline" if degrade else "forbid_default_dream"
                 adv["consumed"] = True
-                adv["consumed_action"] = ("drop_world_tree_action×%d（%s）"
-                                          % (n_drop, tag))
+                adv["consumed_action"] = ("demote_world_tree_action×%d（%s;"
+                                          " 降序不丢）" % (len(_wta), tag))
             else:
                 if adv.get("downweight_pre_enactment"):
                     adv["downweight_actionable"] = False

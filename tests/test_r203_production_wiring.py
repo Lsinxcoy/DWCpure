@@ -55,7 +55,9 @@ def test_f1_iwm_advice_produced_in_run_term():
     #   consumed=True 必带合法 action 证据（三形态之一）, 防未来假 True
     if adv["consumed"]:
         ca = adv.get("consumed_action") or ""
-        assert ca.startswith(("drop_world_tree_action", "none(no_trigger)",
+        # ★ R216 语义升级: demote（降序不丢）取代 drop（全丢 — 自锁根因）
+        assert ca.startswith(("demote_world_tree_action",
+                       "drop_world_tree_action", "none(no_trigger)",
                               "not_actionable")), (
             "consumed=True 却无合法 action 证据（自欺）: %r" % ca)
     else:

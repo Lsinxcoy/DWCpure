@@ -38,18 +38,21 @@ def _dwc() -> DWC:
 # ══════════════════════════════════════
 # A · advice 执行消费
 # ══════════════════════════════════════
-def test_advice_consumed_drops_world_tree_tasks():
+def test_advice_consumed_demotes_world_tree_tasks():
     """★★★ 首 term 必触发（min_samples=5 ⇒ self_trust degrade）⇒ 消费段
-    真剔除环节⑥ 默认探索任务 —— 行为真的变了（tasks 里无 world_tree_action）。"""
+    **降序不丢**（R216 语义校准 — 旧'drop 全丢'是永久降级自锁根因之一:
+    台账实证 wta 66/66 全 drop ⇒ 无改进 ⇒ trust 恒 0 ⇒ 永久降级）。
+    行为锁: wta 保活且基线在前; consumed_action 标 demote。"""
     d = _dwc()
     rep = d.run_term("code_fix_001", n_steps=1)
     adv = rep.iwm_advice
     assert adv and "error" not in adv, adv
     assert adv["degrade_to_baseline"] is True, "首 term 不触发? %s" % adv
     assert adv["consumed"] is True, "消费未回填"
-    assert adv["consumed_action"].startswith("drop_world_tree_action"), adv
+    assert adv["consumed_action"].startswith("demote_world_tree_action"), adv
     kinds = [t["kind"] for t in rep.next_task_source["tasks"]]
-    assert "world_tree_action" not in kinds, "默认探索任务没被剔除: %s" % kinds
+    assert "world_tree_action" in kinds, "降级把探索杀了（R216 禁止）: %s" % kinds
+    assert kinds[0] != "world_tree_action", "降级须基线在前（排序降档非杀探索）"
 
 
 def test_advice_no_trigger_keeps_world_tree_and_baseline_arm():
@@ -98,8 +101,8 @@ def test_advice_downweight_only_marked_not_actionable():
 # B · 铁律运行时执行面
 # ══════════════════════════════════════
 def test_iron_report_four_states():
-    """★★★ 四态齐全: checked 真判（G8/G11）+ na（D1 pre_apply 无对象）+
-    not_instrumented 逐条 why + block/warn 进报告。"""
+    """★★★ 四态齐全: checked 真判（G8/G11 + R217 新增 G3/G10）+ na（G1
+    pre_apply 无对象）+ not_instrumented 逐条 why（剩 6 条）+ block/warn 进报告。"""
     d = _dwc()
     rep = d.run_term("code_fix_001", n_steps=1)
     ir = rep.iron_report
@@ -109,7 +112,10 @@ def test_iron_report_four_states():
     assert checked.get("G11") == "pass", "certification_limit 已摘该 pass"
     assert any(x["id"] == "G1" for x in ir["na"]), "G1 pre_apply 应 na"
     ni = {x["id"] for x in ir["not_instrumented"]}
-    assert {"G3", "G4", "G5"} <= ni, "数据面无设置方的律必须显式缺席: %s" % ni
+    # ★ R217 语义升级: G3（frozen 设置方 R208 已落）/G10（sealed sha 审计）
+    #   已升级真判 — 从缺席表移除; 剩余 6 条仍必须显式缺席
+    assert {"G4", "G5", "G6"} <= ni, "数据面无设置方的律必须显式缺席: %s" % ni
+    assert {"G3", "G10"} <= set(checked), "G3/G10 未进真判: %s" % set(checked)
     for x in ir["not_instrumented"]:
         assert x["why"], "not_instrumented 缺 why: %s" % x
     # 11 条全交代（无静默跳过）
