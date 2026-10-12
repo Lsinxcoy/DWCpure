@@ -240,8 +240,8 @@ class LLMClient:
     # ── 调用 ──────────────────────────────────────────
 
     def complete(self, prompt: str, *, system: Optional[str] = None,
-                 max_tokens: int = 1200, json_mode: bool = False
-                 ) -> LLMResult:
+                 max_tokens: int = 1200, json_mode: bool = False,
+                 images: Optional[List[str]] = None) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
         ★★★ 为什么不用异常: 调用方最常见的写法是
@@ -253,11 +253,33 @@ class LLMClient:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
 
+        # ★ R226 · 多模态: images=[文件路径] ⇒ OpenAI content 数组形态
+        #   （text + image_url data URI）; 端点不支持会 4xx ⇒ 走失败分支
+        #   如实报（不假装能看图 — 探测成本高, 让真实调用说话）
+        user_content: Any = prompt
+        if images:
+            import base64
+            parts: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+            for ip in images[:4]:               # 上限 4 图（上下文有界）
+                ext = os.path.splitext(str(ip))[1].lower()
+                mime = {".png": "image/png", ".jpg": "image/jpeg",
+                        ".jpeg": "image/jpeg", ".webp": "image/webp"
+                        }.get(ext, "image/png")
+                try:
+                    b64 = base64.b64encode(
+                        open(ip, "rb").read()).decode("ascii")
+                    parts.append({"type": "image_url",
+                                  "image_url": {"url":
+                                      "data:%s;base64,%s" % (mime, b64)}})
+                except OSError:
+                    continue                    # 单图读失败不炸整体
+            if len(parts) > 1:
+                user_content = parts
         body: Dict[str, Any] = {
             "model": self._model,
             "messages": ([{"role": "system", "content": system}]
                          if system else [])
-            + [{"role": "user", "content": prompt}],
+            + [{"role": "user", "content": user_content}],
             "max_tokens": max_tokens,
             "temperature": 0.2,   # ★ 低温度: 候选要可复现（便于判分）
         }
