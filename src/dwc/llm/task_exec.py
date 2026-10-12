@@ -34,6 +34,24 @@ WORK = os.path.join(ROOT, "var", "inbox_work")
 #: 危险命令黑名单（子串匹配; run 动作的护栏之一 — 不是完备沙箱, 是护栏）
 _FORBIDDEN = ("rm -rf", "mkfs", "format ", "del /s", "rd /s",
               "shutdown", "reg delete", ":(){", "dd if=")
+#: ★ R220 · ask 级（R218/R220 头部 agent 对标: OpenCode allow/deny/ask 三态）——
+#:   不硬拒但**停下来要人工授权**: 外发网络/改动仓库外状态/删单文件/改 git 远端。
+#:   形态: 动作拒 + obs 带 ask_required — LLM 换路或 final 说明; 报告留痕。
+_ASK = ("git push", "git commit", "curl ", "wget ", "ssh ", "scp ",
+        "pip install", "npm install", "del ", "rm ", "rmdir",
+        "move ", "copy ", "shutdown", "reboot")
+#: ★ R218 · 自我认知（维护者写入, agent 只读 — 结构性: write 白名单写不进 config）
+SELF_MD = os.path.join(ROOT, "config", "dwc_self.md")
+#: ★ R218 · 会话留痕（头部 agent 的 session 概念最小形态: 每任务一个 jsonl）
+SESSIONS = os.path.join(ROOT, "var", "dwc_sessions")
+
+
+def _ask_level(cmd_joined: str) -> Optional[str]:
+    """run 命令的三态分级: 黑名单=None(调用方硬拒); ask 命中=该词; 都无=放行。"""
+    for w in _ASK:
+        if w in cmd_joined:
+            return w
+    return None
 
 
 class TaskExecError(Exception):
@@ -79,6 +97,14 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         hit = [w for w in _FORBIDDEN if w in joined]
         if hit:
             raise TaskExecError("危险命令黑名单命中 %s: %s" % (hit, joined[:120]))
+        ask = _ask_level(joined)
+        if ask:
+            # ★ R220 · ask 三态: 不执行但**明确告知需授权**（LLM 换路或
+            #   final 说明; 报告 ask_required 留痕 — 不静默不硬吞）
+            raise TaskExecError(
+                "ask_required: %r 类操作需人工授权（当前模式不自动执行;"
+                " 换个不用它的办法, 或在 final 里说明需要人工做哪步）"
+                % ask)
         try:
             r = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                capture_output=True, text=True, timeout=60,
@@ -133,13 +159,40 @@ def _extract_json(text: str):
 
 
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
-                      ctx: Optional[str] = None) -> Dict[str, Any]:
+                      ctx: Optional[str] = None,
+                      task_id: Optional[str] = None) -> Dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
 
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
     actions_log, why} — status ∈ {done, incomplete}。
     """
     os.makedirs(WORK, exist_ok=True)
+    # ★ R218 · 自我认知注入（每次接单加载, 跨任务存活 — CLAUDE.md 同款;
+    #   文件缺席=空串不装有, 读失败不炸单）
+    self_md = ""
+    try:
+        if os.path.exists(SELF_MD):
+            self_md = io.open(SELF_MD, encoding="utf-8").read()[:4000]
+    except OSError:
+        self_md = ""
+    # ★ R218 · 会话留痕（session 概念最小形态: 每任务一个 jsonl, 轮转可查）
+    sid = (task_id or ("T_" + time.strftime("%m%d_%H%M%S")))
+    sess_path = os.path.join(SESSIONS, sid + ".jsonl")
+
+    _sess_fail = globals().setdefault("_SESS_FAIL", [0])   # G7: 静默必须计数
+
+    def _sess(ev: Dict[str, Any]) -> None:
+        try:
+            os.makedirs(SESSIONS, exist_ok=True)
+            with io.open(sess_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"at": time.strftime("%H:%M:%S"), **ev},
+                                    ensure_ascii=False)[:2000] + "\n")
+        except OSError as exc:               # 留痕失败不阻断主链, 但必须计数
+            _sess_fail[0] += 1               # （G7: 记不了不许杀主链, 也不许无痕）
+            if _sess_fail[0] <= 3:           # 前 3 次写 stderr（不刷屏）
+                import sys as _sys
+                _sys.stderr.write("session 留痕失败×%d: %s\n"
+                                  % (_sess_fail[0], exc))
     system = (
         "你是 DWC 独立 agent 的任务执行体。完成用户的任务。每轮只输出一个"
         " JSON 对象（无多余文本）: {\"analysis\": \"本步思考\", \"op\":"
@@ -151,28 +204,37 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         " · 任务完成时: {\"op\":\"final\",\"answer\":\"结论(中文)\","
         "\"artifacts\":[\"写出的文件相对路径\"]}"
         " 有充分信息就尽快 final；不确定就先 read 探查。禁止越权写路径。")
+    if self_md:
+        system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     log: List[Dict[str, Any]] = []
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
         res = llm.complete(prompt, system=system, max_tokens=1600,
                            json_mode=True)
         if not getattr(res, "ok", False):
-            return {"task": task, "status": "incomplete", "rounds": rnd,
+            return {"task": task, "task_id": sid, "status": "incomplete",
+                    "rounds": rnd,
                     "why": "LLM 失败: %s" % getattr(res, "error", "?"),
                     "actions_log": log}
         step = _extract_json(res.text)
         if step is None:
             # ★ R217 · 容错后仍失败才报 incomplete（bench 最大失败单点
             #   llm_format: 模型爱包 ```json 代码块/多行/前后缀文本）
-            return {"task": task, "status": "incomplete", "rounds": rnd,
+            return {"task": task, "task_id": sid, "status": "incomplete",
+                    "rounds": rnd,
                     "why": "LLM 响应非 JSON（容错提取后仍失败）: %s"
                            % str(res.text)[:120],
                     "actions_log": log}
         op = step.get("op")
         log.append({"round": rnd, "analysis": str(step.get("analysis", ""))[:300],
                     "op": op})
+        _sess({"round": rnd, "op": op,
+               "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
-            return {"task": task, "status": "done", "rounds": rnd,
+            _sess({"round": rnd, "op": "final", "answer":
+                   str(step.get("answer", ""))[:200]})
+            return {"task": task, "task_id": sid, "status": "done",
+                    "rounds": rnd,
                     "answer": str(step.get("answer", "")),
                     "artifacts": list(step.get("artifacts") or []),
                     "actions_log": log}
@@ -184,5 +246,6 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
             obs = {"ok": False, "error": "%s: %s" % (type(exc).__name__, exc)}
         prompt = ("任务: %s\n上一步动作观察(JSON): %s\n请继续（下一步 op）"
                   % (task, json.dumps(obs, ensure_ascii=False)[:8000]))
-    return {"task": task, "status": "incomplete", "rounds": max_rounds,
+    return {"task": task, "task_id": sid, "status": "incomplete",
+            "rounds": max_rounds,
             "why": "达轮数上限未 final", "actions_log": log}
