@@ -1,0 +1,66 @@
+{
+ "round": "R225",
+ "date": "2026-10-13",
+ "主题": "ask实时审批: pending+飞书+轮询+一次性消费+路径守卫+RPC ask_answer+chat /approve",
+ "verify": {
+  "pytest": "1528 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 225,
+  "at": "2026-10-13T02:58:00+08:00",
+  "parent_gen": 224,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 240,
+   "pytest": 1528,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "ask实时审批: pending+飞书+轮询+一次性消费+路径守卫+RPC ask_answer+chat /approve",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/agent_rpc.py",
+    "scripts/dwc_agent.py",
+    "scripts/dwc_chat.py",
+    "tests/test_r225_live_approve.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r225_live_approve.py 4锁 + r220/r222隔离更新",
+     "claim": "审批回路真轮询/超时拒/deny拒; 生产真实使用4次全通"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1528 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r225_live_approve.py 4锁 + r220/r222隔离更新",
+   "user_decision": "用户'把剩下的四个都做掉…追赶竞品'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "等待期占接单Semaphore名额(并发2中1)"
+  }
+ }
+}

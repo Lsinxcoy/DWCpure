@@ -1,0 +1,64 @@
+{
+ "round": "R226",
+ "date": "2026-10-13",
+ "主题": "多模态: client.complete加images(content数组data URI≤4图)+read图走image_path分支+最近图挂下轮",
+ "verify": {
+  "pytest": "1528 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 226,
+  "at": "2026-10-13T02:58:00+08:00",
+  "parent_gen": 225,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 240,
+   "pytest": 1528,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "多模态: client.complete加images(content数组data URI≤4图)+read图走image_path分支+最近图挂下轮",
+   "files": [
+    "src/dwc/llm/client.py",
+    "src/dwc/llm/task_exec.py",
+    "tests/test_r226_multimodal.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r226_multimodal.py 3锁",
+     "claim": "content数组真构造/无图零破坏/读图不污染上下文"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1528 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r226_multimodal.py 3锁",
+   "user_decision": "用户'把剩下的四个都做掉…追赶竞品'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "真端点视觉支持未实测(拒则LLM层如实报)"
+  }
+ }
+}

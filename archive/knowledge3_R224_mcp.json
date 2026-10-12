@@ -1,0 +1,65 @@
+{
+ "round": "R224",
+ "date": "2026-10-13",
+ "主题": "MCP 工具协议 client: stdio JSON-RPC 2.0 子集+进程池+atexit+config校验",
+ "verify": {
+  "pytest": "1528 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 224,
+  "at": "2026-10-13T02:58:00+08:00",
+  "parent_gen": 223,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 240,
+   "pytest": 1528,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "MCP 工具协议 client: stdio JSON-RPC 2.0 子集+进程池+atexit+config校验",
+   "files": [
+    "src/dwc/llm/mcp_client.py",
+    "src/dwc/llm/task_exec.py",
+    "config/mcp.json",
+    "tests/test_r224_mcp.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r224_mcp.py 4锁",
+     "claim": "假server真协议全链/未配置报错/坏配置大声/argv校验"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1528 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r224_mcp.py 4锁",
+   "user_decision": "用户'把剩下的四个都做掉…追赶竞品'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "未接真实外部server(resources/prompts子集未做)"
+  }
+ }
+}
