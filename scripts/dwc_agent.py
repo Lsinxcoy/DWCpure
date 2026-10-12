@@ -119,7 +119,19 @@ def take_inbox():
             except Exception:                  # noqa: BLE001
                 continue
             tid = item.get("id") or ("T_" + str(abs(hash(ln)) % 10 ** 8))
-            if tid in st:
+            v = st.get(tid)
+            if isinstance(v, str) and v.startswith("running:"):
+                # ★ R219 · 执行中标记: 15min 内不重取（异步线程在跑）;
+                #   超时=线程死了（崩溃/杀进程）⇒ 重取恢复, 标记覆盖留痕
+                try:
+                    if time.time() - float(v.split(":", 1)[1]) < 900:
+                        continue
+                except (ValueError, IndexError):
+                    pass
+                st[tid] = "stale_recovered"
+                with open(INBOX_DONE, "w", encoding="utf-8") as fh:  # 留痕落盘
+                    json.dump(st, fh, ensure_ascii=False)
+            elif v:
                 continue
             return {**item, "id": tid}
     return None
@@ -132,6 +144,10 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     # ★ 收件箱任务总是自带 LLM 通道（config/llm.json 自读）—— 不依赖
     #   --llm 启动参数（watchdog 无参拉活的 agent 同样能接单）
     llm = llm or LLMClient()          # ★ llm 注入（测试可测性 — 依赖注入）
+    _st = _done_state()               # ★ R219: 执行中标记（异步期间防重取）
+    _st[item["id"]] = "running:%.0f" % time.time()
+    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
+        json.dump(_st, fh, ensure_ascii=False)
     if not getattr(llm, "configured", False):
         rep = {"task": item.get("task"), "status": "incomplete",
                "why": "LLM 未配置（收件箱任务需要 LLM 通道; --llm 启动）"}
@@ -143,7 +159,7 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
         if lc:
             ctx = (ctx + "\n" + lc) if ctx else lc
         rep = execute_user_task(str(item.get("task", "")), llm=llm,
-                                ctx=ctx)
+                                ctx=ctx, task_id=item["id"])
     rep = {"id": item["id"], **rep,
            "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")}
     os.makedirs(REPORTS, exist_ok=True)
@@ -296,13 +312,24 @@ def main(argv) -> int:
         # ── R209 · 收件箱优先（用户委托 > 自我改进锚任务 — 独立 agent 接单）──
         item = take_inbox()
         if item is not None:
-            _heartbeat(status="user_task", task_id=item["id"])
-            rep_u = run_user_task(item, use_llm)
-            _log({"inbox_left": bool(take_inbox())})
+            # ★ R219 · 异步接单（头部 agent 标配: 接单不阻塞自主循环 —
+            #   旧同步形态一单 3-5min 全停; Semaphore 限并发 2 防打爆 LLM）
+            import threading
+            _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(2))
+
+            def _bg(it=item):
+                with _sema:
+                    try:
+                        run_user_task(it, use_llm)
+                    except Exception as exc:   # noqa: BLE001 — 线程内不许炸主循环
+                        _log({"event": "user_task_crashed", "id": it["id"],
+                              "error": "%s: %s" % (type(exc).__name__, exc)})
+            threading.Thread(target=_bg, daemon=True,
+                             name="inbox-" + item["id"]).start()
+            _log({"event": "user_task_async_started", "id": item["id"]})
             _heartbeat(status="alive", last_user_task=item["id"],
-                       result=rep_u["status"])
-            time.sleep(interval)
-            continue
+                       result="async_started")
+            # 主循环继续走自主 term —— 不阻塞不 sleep 不 continue
         task = select_task(prev)
         try:
             rep = d.run_term(task, n_steps=steps)
