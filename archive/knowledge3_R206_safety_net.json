@@ -1,0 +1,73 @@
+{
+ "round": "R206",
+ "date": "2026-10-12",
+ "主题": "P1 安全网三件: 健康探针+备份+铁律生产豁免清单（四 cron 在排）",
+ "P1_5_健康探针": "scripts/dwc_prod_health.py: 五判据(db/台账可解析/最新段无error·崩塌/停滞6h/真值源+epoch可读); 异常飞书直推(message_id实测 om_x100b63fe4e86eca8c27d55e6cacd987) + 24h同签名节流; 正常静默rc0",
+ "P1_6_备份": "scripts/dwc_backup.py: 五对象(两锚+epoch ledger+iron_laws+db)→var/backup/<ts>/ 保留7份滚动; 实测快照5对象全在; 缺对象rc1(真值源丢失=最高级告警)",
+ "P1_7_铁律豁免": "docs/IRON_LAW_PRODUCTION.md: 11律全交代(2真判+1na+8豁免逐条含补全前置+人工门); 豁免收紧触发条件=数据面落地即同轮接真判删表行(不留死豁免)",
+ "cron接线": "运行器 91603dba7d05(6h) + 健康探针 303b2054e9ea(2h) + 备份 d103c2624824(每日3am) + 锚漂移 f3e18d04b90f(2h) 四任务在排; 三脚本副本md5同步(cron跑副本 — test_cron_copies_in_sync锁)",
+ "施工坑": [
+  "备份路径: epoch ledger 真位置 archive/ 非 config/anchors/(首版rc1当场抓)",
+  "健康判据口径: 首版读rows[-30:]把历史已修error复发误报(真发了一条飞书) — 修口径: error只判最新run段(event行分隔); Layer22修判据不改判据族"
+ ],
+ "verify": {
+  "pytest": "1451 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 206,
+  "at": "2026-10-12T17:04:00+08:00",
+  "parent_gen": 205,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 221,
+   "pytest": 1445,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "P1 安全网三件: 健康探针+备份+铁律生产豁免清单（四 cron 在排）",
+   "files": [
+    "scripts/dwc_prod_health.py",
+    "scripts/dwc_backup.py",
+    "docs/IRON_LAW_PRODUCTION.md",
+    "tests/test_r206_safety_net.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r206_safety_net.py(6) + test_r205(6)",
+     "claim": "行为级锁 + 四层全绿 1451"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1451 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r206_safety_net.py(6)",
+   "user_decision": "用户令'执行1'(P0→P1→P2 一次做完)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "四 cron 首跑待观察: 运行器18:00首tick(3 terms持久轮入库)、探针同tick可能读到半截台账(判据只看最新段, 半截无error即健康—设计内)、备份明日03:00首tick; 探针判据的生产校准以首日告警记录为准"
+  }
+ }
+}
