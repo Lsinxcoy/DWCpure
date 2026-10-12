@@ -1,0 +1,80 @@
+{
+ "round": "R208",
+ "date": "2026-10-12",
+ "主题": "生产形态修正: 批处理 cron → 独立常驻 agent（用户纠偏'DWC是要构建成独立agent的'）",
+ "agent主体": "scripts/dwc_agent.py: 常驻循环(感知→决策→行动→记忆→自触发下轮); 任务源自主=上轮next_task_source.world_tree_action.node(bz缺口'measurement triggers next iteration'进程级落地); interval 600s自主节奏; 日限terms=48/budget=40超限优雅停(次日守夜人拉活自动复位); SIGINT/SIGTERM优雅停; pid+心跳文件",
+ "守夜人": "scripts/dwc_agent_watch.py: pid(psutil)+心跳(3×interval+5min)判活; 死→后台拉活+飞书告警; 冻结中不干预(人工门最高优先)",
+ "冻结人工门": "dwc_agent.py --freeze/--unfreeze/--status; var/dwc_agent_frozen 标志; G3 frozen 的设置方顺势落地(补一条铁律转真判的前置)",
+ "cron重排": "撤批处理 91603dba7d05(6h, 避免同db双写锁冲突) + 新守夜人 b402a1b4a098(2h); 保留探针303b2054/备份d103c26/锚漂移f3e18d04",
+ "实测": "agent短跑全生命周期(started→2terms→stopped(daily_limit))+常驻实跑(pid 12932心跳alive term1 drift=0.0297); select_task自主源(reproduce_002)+轮询回落; watchdog冻结豁免rc0不拉活",
+ "施工坑": [
+  "副本路径坑: agent/watch按__file__定位仓库根, 副本在hermes/scripts下会错指var/src — 改固定REPO(drift watch同款); test_cron_copy_paths锁",
+  "测试隔离: 生产freeze标志污染lifecycle短跑场景(停因freeze_flag非daily_limit) — 暂存恢复; 路径含空格不能按空格split断言"
+ ],
+ "verify": {
+  "pytest": "1458 passed rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r208_tests": "7 (自主源/轮询回落/生命周期/冻结门/守夜判活/冻结豁免/副本路径)"
+ },
+ "inheritance": {
+  "gen": 208,
+  "at": "2026-10-12T17:31:00+08:00",
+  "parent_gen": 207,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 223,
+   "pytest": 1458,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "独立agent形态: dwc_agent.py常驻(自主任务源+日限+冻结门) + dwc_agent_watch.py守夜(死→拉活) + cron重排(撤批处理/立守夜人) + runbook agent化",
+   "files": [
+    "scripts/dwc_agent.py",
+    "scripts/dwc_agent_watch.py",
+    "tests/test_r208_agent.py",
+    "docs/PRODUCTION_RUNBOOK.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "trial_report",
+     "ref": "agent 常驻实跑台账",
+     "claim": "agent_started(pid)→agent_term1(drift=0.0297)→心跳alive — 自主循环在跑"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r208_agent.py 7锁",
+     "claim": "自主任务源/生命周期/冻结门/守夜豁免/副本路径行为级全覆盖"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1458 + gate 8/8 + 双e2e rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r208_agent.py(7) + agent 常驻心跳",
+   "user_decision": "用户纠偏'但是 DWC 我是要构建成一个独立的 agent 的啊'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "agent观察期: 自主任务源在next非空时才真正接管(现pass=0下tasks多为空, 走轮询); Q6臂样本/self_trust真值与铁律数据面补全仍是后续轮输入"
+  }
+ }
+}

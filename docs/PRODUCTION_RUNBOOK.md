@@ -4,16 +4,26 @@
 > 配套：`docs/IRON_LAW_PRODUCTION.md`（铁律豁免清单）、
 > `docs/AUDIT_R202_PRODUCTION.html`（深度审计报告）。
 
-## 一 · 生产形态定义
+## 一 · 生产形态定义（R208 修正: 独立 agent）
 
-**当前生产 = 受监督的定时多 term 轮 + 人工观察台账**，非无人值守自主进化：
+**DWC 生产 = 独立常驻 agent**（`dwc_agent.py`）：自主循环——感知（judge
+判分/漂移）→ 决策 → 行动（actor/evolver）→ 记忆 → **自己触发下一轮**
+（任务源取上轮 `next_task_source` 的 `world_tree_action.node`，"measurement
+becomes the trigger of the next iteration" 的进程级落地）。cron 不喂食，
+只守夜：
 
-| 组件 | 机制 | 频率 | 健康判据 |
+| 组件 | 机制 | 频率 | 角色 |
 |---|---|---|---|
-| 生产运行 | cron `91603dba7d05` → `dwc_prod_run.py`（默认 3 terms × 2 steps） | 每 6h | rc0 空 stdout |
-| 健康探针 | cron `303b2054e9ea` → `dwc_prod_health.py` | 每 2h | 静默=健康；异常→飞书直推 |
-| 备份 | cron `d103c2624824` → `dwc_backup.py` | 每日 03:00 | rc0；缺对象 rc1 |
-| 锚漂移监控 | cron `f3e18d04b90f` → `dwc_anchor_drift_watch.py` | 每 2h | 有建议即推；24h 节流 |
+| **agent 主体** | `dwc_agent.py` 常驻（interval 600s 自主节奏；日限 terms=48/budget=40 超限优雅停，次日守夜人拉活自动复位） | 常驻 | 自主循环本体 |
+| 守夜人 | cron `b402a1b4a098` → `dwc_agent_watch.py`（pid+心跳判活；死→后台拉活+飞书告警；冻结中不干预） | 每 2h | 拉活，不喂食 |
+| 健康探针 | cron `303b2054e9ea` → `dwc_prod_health.py`（db/台账/停滞/真值源） | 每 2h | 报告 |
+| 备份 | cron `d103c2624824` → `dwc_backup.py` | 每日 03:00 | 快照 |
+| 锚漂移监控 | cron `f3e18d04b90f` → `dwc_anchor_drift_watch.py` | 每 2h | 建议推送 |
+
+★ 冻结（人工最高门）: `python scripts/dwc_agent.py --freeze`（agent 下轮
+  优雅停，守夜人不拉活）；`--unfreeze` 解冻，`--status` 查 pid/心跳/冻结态。
+★ 批处理工具 `dwc_prod_run.py` 保留为手动单发（与 agent 互斥——同 db 双写
+  会锁冲突；其 cron 已撤）。
 
 **状态与台账**：库 `var/dwc_prod.sqlite`（持久）· 逐轮台账
 `var/dwc_prod_log.jsonl`（append-only，event 行分段）· 备份
@@ -48,6 +58,9 @@ rc0 空 stdout；异常走脚本内飞书 API 直推或 rc1+stderr。
 
 | 症状 | 处置 |
 |---|---|
+| 飞书「agent 已拉活」 | 守夜人重启留痕：查台账尾 `agent_stopped` 事件定位死因（freeze/daily_limit/collapse/term_error） |
+| agent 冻结中不起来 | 预期行为：`--unfreeze` 后等守夜人下个 tick 或手动启动 |
+| 手动跑过批处理后 agent 锁冲突 | 双写同 db 禁止：先停批处理（kill）再放 agent；台账有 sqlite locked 报错即查此因 |
 | 飞书「生产健康告警」 | 按告警项定位：db/台账/停滞/真值源；恢复后探针自动静默 |
 | 台账 stopped_collapse | 看倒数第二轮 pass_rate 跌幅；比对 `git diff` 近期改动；必要时 `git revert` + 从 `var/backup/` 恢复 db |
 | 台账 stopped_budget | 预算内正常停；调 `--budget` 或查单 term 成本异常 |
@@ -72,9 +85,11 @@ git revert <bad-commit>   # 知识档链保留（继承可追溯）
 4. **LLM 端点/凭证更换**：`config/llm.json`（gitignore，永不入库）。
 5. **铁律豁免收紧**：豁免表任一条数据面落地后，同轮接真判并删表行。
 
-## 六 · 当前生产就绪清单（2026-10-12 终验）
+## 六 · 当前生产就绪清单（2026-10-12 终验 · R208 agent 形态）
 
-- P0 全落：常驻运行器 ✓ · 持久化 ✓ · 真 LLM 通道实测 ✓ · 回填自动化 ✓
+- 形态修正：**独立常驻 agent**（自主任务源闭环 + 守夜人拉活 + 冻结人工门）
+  ✓ —— 批处理 cron 已撤，agent 实跑心跳 alive
+- P0 全落：常驻（agent 形态）✓ · 持久化 ✓ · 真 LLM 通道实测 ✓ · 回填自动化 ✓
 - P1 全落：健康探针（2h cron）✓ · 备份（每日 cron + 7 份滚动）✓ ·
   铁律豁免清单 ✓（11=2 真判+1 na+8 豁免，无静默）
 - P2 全落：e2e 六公开方法全覆盖 + 多 term 段 ✓ · 本文档 ✓
