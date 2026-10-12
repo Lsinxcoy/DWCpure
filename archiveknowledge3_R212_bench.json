@@ -1,0 +1,67 @@
+{
+ "round": "R212",
+ "date": "2026-10-12",
+ "主题": "任务执行能力基准器: 10任务可机判(真值动态算)+pass基线0.300 — 用户诊断'宏大系统没提升执行能力'",
+ "verify": {
+  "pytest": "1489 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "bench_baseline": "0.300 (3/10)",
+  "r212_tests": "4 (真值动态/机判产物/缺失fail/gitsha实时)"
+ },
+ "inheritance": {
+  "gen": 212,
+  "at": "2026-10-12T20:15:00+08:00",
+  "parent_gen": 211,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 227,
+   "pytest": 1489,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "任务执行能力基准器: 10任务可机判(真值动态算)+pass基线0.300 — 用户诊断'宏大系统没提升执行能力'",
+   "files": [
+    "config/task_bench.json",
+    "scripts/dwc_bench.py",
+    "tests/test_r212_bench.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "report_html",
+     "ref": "var/dwc_bench_results.json",
+     "claim": "基线 pass_rate 0.300(3/10); 失败模式: 未产出/幻觉输入/未final; verifier机判产物不看自述"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "1489 rc=0 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "var/dwc_bench_results.json",
+   "user_decision": "用户'我有一个疑问…能帮助提升任务执行能力吗'→执行①"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "rung_dist 判据曾查错键名(verifier_rung非rung)— Layer22修判据; bench 任务文本消歧义"
+  }
+ },
+ "_基线数据": "round0=0.300(3/10, 209s)"
+}

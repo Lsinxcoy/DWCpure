@@ -1,0 +1,66 @@
+{
+ "round": "R214",
+ "date": "2026-10-12",
+ "主题": "技能固化: 同fail_mode教训≥3条⇒规矩文件(var/dwc_skills/)+接单注入 — '被纠N次变永久规矩'",
+ "verify": {
+  "pytest": "1489 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r214_tests": "3 (阈值/注入/GAI底线)"
+ },
+ "inheritance": {
+  "gen": 214,
+  "at": "2026-10-12T20:15:00+08:00",
+  "parent_gen": 213,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 229,
+   "pytest": 1489,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "技能固化: 同fail_mode教训≥3条⇒规矩文件(var/dwc_skills/)+接单注入 — '被纠N次变永久规矩'",
+   "files": [
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_bench.py",
+    "tests/test_r214_skills.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r214_skills.py",
+     "claim": "阈值(<3不固化/≥3出规矩+例证); 技能注入生效; GAI底线锁(绝不写config/anchors); round2带注入0.500"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "1489 rc=0 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r214_skills.py",
+   "user_decision": "用户拍板②→③顺序执行"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "三轮曲线0.300→0.400→0.500(n=10, 单端点单日)—样本小, 长期曲线靠后续真单积累; llm_format技能固化×11条"
+  }
+ },
+ "_学习曲线": "round0=0.300 → round1=0.400 → round2=0.500(技能注入生效); fail_modes round2: ok5/llm_format4/exhausted1"
+}

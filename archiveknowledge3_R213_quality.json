@@ -1,0 +1,67 @@
+{
+ "round": "R213",
+ "date": "2026-10-12",
+ "主题": "任务质量回路: 失败分类判据表(6分支)+教训沉淀 lessons.jsonl+接单检索注入(bench与agent双点) — 引擎本体",
+ "verify": {
+  "pytest": "1489 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "r213_tests": "4 (判据表全覆盖/闭环/不乱命中/中文2-gram)"
+ },
+ "inheritance": {
+  "gen": 213,
+  "at": "2026-10-12T20:15:00+08:00",
+  "parent_gen": 212,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 228,
+   "pytest": 1489,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "任务质量回路: 失败分类判据表(6分支)+教训沉淀 lessons.jsonl+接单检索注入(bench与agent双点) — 引擎本体",
+   "files": [
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_bench.py",
+    "scripts/dwc_agent.py",
+    "tests/test_r213_quality.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r213_quality.py",
+     "claim": "六分支判据全覆盖; 沉淀→检索→注入闭环; 无关任务零注入零开销; round1(带沉淀)0.400"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "1489 rc=0 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r213_quality.py",
+   "user_decision": "用户拍板①→②顺序执行"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "教训注入对 llm_format 类失败帮助有限(注入后仍4/10 format失败)—规则类注入对格式问题作用待观察"
+  }
+ },
+ "_学习曲线": "round1=0.400(4/10,91s, llm_format×6主导)"
+}

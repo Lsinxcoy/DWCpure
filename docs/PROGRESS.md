@@ -14,7 +14,7 @@
 | ★ 缺口销账 | **11 项已销账**（A1–A7 · §二①②③ · C3'） | `docs/GAP_AUDIT.md` 内 11 项全标 ✓ | `grep -c "【已做" docs/GAP_AUDIT.md` |
 | ★ 世界树收束 | 两条路线并列 + A2（剪枝策略 / 想象节点存哪） | `docs/WORLD_TREE_CONVERGENCE.md` 15,502 B | `wc -c docs/WORLD_TREE_CONVERGENCE.md` |
 | ★ 全量核对 | 声称 vs 实测已核一轮 | `docs/FULL_AUDIT_2026-10-04.md` 10.1K | `wc -c docs/FULL_AUDIT_2026-10-04.md` |
-| ★ 测试 | 首份 12 项（10-04）→ **现 1478 项全过** | `1478 passed in 91.5s` rc=0（2026-10-12 R211 实跑） | `python -m pytest tests/ -q` |
+| ★ 测试 | 首份 12 项（10-04）→ **现 1489 项全过** | `1489 passed in 90.0s` rc=0（2026-10-12 R214 实跑） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
 | ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
 | ★★★ 承重代码 | **67 个 .py / 22,070 行**（R18 建 git 起，从 0 写到 R207） | 22,070（2026-10-12 R207 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
@@ -26,7 +26,7 @@
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R211 · 每轮一知识档 | **227 commits** · `archive/knowledge3_R*.json` · **R202 = 审计三裁决落地**（LATERAL 同 component 优先 / target 真源校验 / drift 监控常驻 cron f3e18d04b90f） | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R214 · 每轮一知识档 | **230 commits** · `archive/knowledge3_R*.json` · **R202 = 审计三裁决落地**（LATERAL 同 component 优先 / target 真源校验 / drift 监控常驻 cron f3e18d04b90f） | `git rev-list --count HEAD` |
 
 ---
 
