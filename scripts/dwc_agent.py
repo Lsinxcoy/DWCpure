@@ -136,8 +136,14 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
         rep = {"task": item.get("task"), "status": "incomplete",
                "why": "LLM 未配置（收件箱任务需要 LLM 通道; --llm 启动）"}
     else:
+        # ★ R213: 历史教训检索注入（agent_quality 回路 — 同类失败不再重犯）
+        from dwc.agent_quality import lessons_context
+        ctx = item.get("ctx")
+        lc = lessons_context(str(item.get("task", "")))
+        if lc:
+            ctx = (ctx + "\n" + lc) if ctx else lc
         rep = execute_user_task(str(item.get("task", "")), llm=llm,
-                                ctx=item.get("ctx"))
+                                ctx=ctx)
     rep = {"id": item["id"], **rep,
            "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")}
     os.makedirs(REPORTS, exist_ok=True)
