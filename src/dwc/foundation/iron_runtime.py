@@ -51,13 +51,13 @@ IRON_YAML = TRUTH_SOURCE[0][1]
 #: ★ 数据面无设置方的律 —— 逐条 why 全部为 2026-10-12 R204 src 全仓 grep 实测
 _NOT_INSTRUMENTED: Dict[str, str] = {
     "G2": "层阈值结构不存在 —— dials/drift/difficulty 均为单层 config（无 i<j 层级可单调）",
-    "G3": "frozen 字段无设置方 —— src 全仓 grep 'frozen' 零业务命中（ARSI 同款病: 读的字段没人写）",
+    # G3 已升级真判（R217）: frozen 设置方 = R208 var/dwc_agent_frozen + agent freeze 门 + RPC freeze 指令
     "G4": "memory_consolidate 不存在 —— memory.py grep 'consolidat' 零命中",
     "G5": "effect 数据面不存在 —— credit/evolver/applier grep 'effect' 零命中",
     "G6": "runner 无 LLM client 句柄 —— n_fail 状态活在 llm/client 实例上, run_term 拿不到",
     "G7": "Lyapunov 无埋点 —— src grep 'lyapunov' 零命中（仅 yaml 有名字）",
     "G9": "高熵判定无实现 —— memory_write/decision 触发点无熵度量",
-    "G10": "sealed 访问无审计日志面 —— splitfeed 有锁语义但无访问留痕可判",
+    # G10 已升级真判（R217）: sealed sha 跨 term 审计（epoch 账本末条 truth_sha8 比对）
 }
 
 #: ★ 本轮无对象（na）—— trigger 的对象在 term 周期内不存在（非数据面问题）
@@ -92,6 +92,60 @@ def get_certification_limit(path: str = IRON_YAML) -> str:
         if law.get("severity") == "meta" and law.get("check_fn") is None:
             return str(law.get("certification_limit_text") or "").strip()
     return ""
+
+
+#: G3 判据的数据面（R208 冻结门 — agent 主循环的 freeze 开关）
+FROZEN_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))), "var", "dwc_agent_frozen")
+#: G10 判据的 sealed 源（GAI②: dev 真值源在 agent 之外）
+SEALED_DEV = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))), "config", "anchors",
+    "dev.json")
+_EPOCH_LEDGER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))), "archive",
+    "anchor_epochs.jsonl")
+
+
+def _sha8(path: str) -> str:
+    import hashlib
+    try:
+        return hashlib.sha256(io.open(path, "rb").read()).hexdigest()[:8]
+    except OSError:
+        return ""
+
+
+def _last_truth_sha8() -> str:
+    """G10 审计基准 = **最新知识档**的 truth_sha8（gen 最大的 knowledge3_*.json
+    的 evaluation_config — 档在 git 里, 改档=进 git 历史可审计, 天然外部锚）。
+
+    ★ Layer 22 校准（R217 首版查 anchor_epochs.jsonl 末条 — 那是锚换代账本
+      (epoch/added_tasks), 不含 truth_sha8; 基准必须来自带 evaluation_config
+      的知识档）。"""
+    import json as _j
+    import re as _re
+    best_gen, sha = -1, ""
+    d = os.path.dirname(_EPOCH_LEDGER)
+    try:
+        for f in os.listdir(d):
+            m = _re.match(r"knowledge3_R(\d+).*\.json$", f)
+            if not m:
+                continue
+            g = int(m.group(1))
+            if g <= best_gen:
+                continue
+            try:
+                o = _j.loads(io.open(os.path.join(d, f), encoding="utf-8")
+                             .read())
+                sha = str(o.get("inheritance", {})
+                          .get("evaluation_config", {})
+                          .get("truth_sha8", ""))
+                if sha:
+                    best_gen = g
+            except Exception:                  # noqa: BLE001
+                continue
+        return sha
+    except OSError:
+        return ""
 
 
 def evaluate_for_term(rep: Any, *, certification_limit_present: bool,
@@ -139,6 +193,41 @@ def evaluate_for_term(rep: Any, *, certification_limit_present: bool,
                             "verdict": "pass" if ok else "warn",
                             "how": "五环 stages 齐套（T1 同源真数据）",
                             "missing": missing})
+            if not ok:
+                warn.append(lid)
+            continue
+        if lid == "G3":
+            # ── G3 · 冻结/人类主权（R217 首批仪表 · R208 后 frozen 有设置方）──
+            #   判据: frozen 在场且本轮仍有落地 stages ⇒ block（冻结主权被绕过）;
+            #   否则 pass（how 标注两情形 — 无对象≠过, 但这里是主权检查: 在场
+            #   且生效=pass, 不在场=无冻结对象 pass）。
+            frozen = os.path.exists(FROZEN_PATH)
+            landed = any(x for x in stages if "apply" in str(x)
+                         or "land" in str(x))
+            ok = not (frozen and landed)
+            checked.append({"id": lid, "severity": sev,
+                            "verdict": "pass" if ok else "block",
+                            "how": "frozen=%s · 落地 stages=%s（设置方:"
+                                   " var/dwc_agent_frozen + agent freeze 门）"
+                                   % (frozen, landed),
+                            "frozen": frozen})
+            if not ok:
+                block.append(lid)
+            continue
+        if lid == "G10":
+            # ── G10 · 密封评估层（R217 首批仪表 · sealed sha 跨 term 审计）──
+            #   判据: dev.json sha8 与 anchor 账本末条 truth_sha8 比对 —
+            #   一致 pass; 不一致 warn（**新增锚任务合法**故不 block, 但变化
+            #   必须留痕可审 —— agent 篡改锚会在这里现形）。
+            sha_now = _sha8(SEALED_DEV)
+            sha_last = _last_truth_sha8()
+            ok = (sha_now == sha_last) if sha_last else None
+            checked.append({"id": lid, "severity": sev,
+                            "verdict": "pass" if ok else "warn",
+                            "how": "sealed sha8 现=%s 账本末=%s（一致=pass;"
+                                   " 变化=warn 留痕——新增锚合法, 篡改现形）"
+                                   % (sha_now, sha_last),
+                            "sha_now": sha_now, "sha_ledger": sha_last})
             if not ok:
                 warn.append(lid)
             continue

@@ -1,0 +1,65 @@
+{
+ "round": "R217",
+ "date": "2026-10-12",
+ "主题": "鲁棒包: task_exec JSON容错四形态 + G3/G10铁律升级真判(2/11→4/11) + bench每日cron",
+ "verify": {
+  "pytest": "1499 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 217,
+  "at": "2026-10-12T21:45:00+08:00",
+  "parent_gen": 216,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 231,
+   "pytest": 1499,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "鲁棒包: task_exec JSON容错四形态 + G3/G10铁律升级真判(2/11→4/11) + bench每日cron",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/foundation/iron_runtime.py",
+    "scripts/dwc_bench_cron.py",
+    "tests/test_r217_robust.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r217_robust.py 6锁",
+     "claim": "容错四形态/G3冻结主权block/G10篡改warn/基准=git内知识档truth_sha8外部锚"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1499 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r217_robust.py 6锁",
+   "user_decision": "用户'按照你的规划 修复全部warning和bad'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "铁律剩 G2/G4/G5/G6/G7/G9 未仪表; bench cron 明晨04:30首轮 (efda640ea187)"
+  }
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "round": "R215",
+ "date": "2026-10-12",
+ "主题": "trust 窗口化判据校准（Layer 22）— 永久降级自锁解除",
+ "verify": {
+  "pytest": "1499 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 215,
+  "at": "2026-10-12T21:45:00+08:00",
+  "parent_gen": 214,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 231,
+   "pytest": 1499,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "trust 窗口化判据校准（Layer 22）— 永久降级自锁解除",
+   "files": [
+    "src/dwc/organs/iwm.py",
+    "config/drift.yaml",
+    "src/dwc/foundation/dial_config.py",
+    "tests/test_r215_trust_window.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r215_trust_window.py 4锁",
+     "claim": "窗口救trust行为级锁(25无改进+20改进⇒窗口trust=1.0保持)/截断/min_samples保留/校验器DialError"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1499 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r215_trust_window.py 4锁",
+   "user_decision": "用户'按照你的规划 修复全部warning和bad'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "生产真效果待 agent 重启后 term 曲线观察"
+  }
+ }
+}

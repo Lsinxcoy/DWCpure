@@ -93,7 +93,7 @@
     "src\\dwc\\foundation\\calibration.py:141:out.append(CalibrationPoint(conf=float(t), outcome=imp))"
    ],
    "wire_evidence": [
-    "src\\dwc\\organs\\iwm.py:373:from dwc.foundation.calibration import ("
+    "src\\dwc\\organs\\iwm.py:385:from dwc.foundation.calibration import ("
    ],
    "doc_note": " R140: foundation/calibration.py 落地（ECE 经典定义+CalibrationPoint 契约+过置信惩罚; 消费 iwm.self_trust() trust 序列, 不碰 Advice 四字段 = B 方案）"
   },

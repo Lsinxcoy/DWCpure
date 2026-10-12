@@ -1,0 +1,65 @@
+{
+ "round": "R216",
+ "date": "2026-10-12",
+ "主题": "degrade 消费语义校准: drop全丢→demote降序不丢（自锁另一半解除）",
+ "verify": {
+  "pytest": "1499 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 216,
+  "at": "2026-10-12T21:45:00+08:00",
+  "parent_gen": 215,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 231,
+   "pytest": 1499,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "degrade 消费语义校准: drop全丢→demote降序不丢（自锁另一半解除）",
+   "files": [
+    "src/dwc/harness/run_term.py",
+    "tests/test_r216_demote.py",
+    "tests/test_r203_production_wiring.py",
+    "tests/test_r204_advice_iron.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r216_demote.py 2锁 + r203/r204 旧锁诚实更新",
+     "claim": "demote标注/基线在前/wta全保原序; R203白名单加demote; R204 drops锁改demotes"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "bce27408",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1499 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r216_demote.py 2锁 + r203/r204 旧锁诚实更新",
+   "user_decision": "用户'按照你的规划 修复全部warning和bad'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "wta 真被执行需 agent 重启后观察台账 next 字段"
+  }
+ }
+}

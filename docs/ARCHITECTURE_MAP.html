@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>DWC 架构实况图 · 2026-10-12</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--edge:#30363d;--tx:#c9d1d9;--dim:#8b949e;
+--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--vio:#bc8cff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+font:14px/1.55 "Cascadia Code","Microsoft YaHei",monospace}
+.wrap{max-width:1280px;margin:0 auto;padding:18px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:16px;margin:26px 0 10px;padding-left:10px;border-left:4px solid var(--acc)}
+h3{font-size:13px;margin:0 0 6px;color:var(--acc)}
+.sub{color:var(--dim);font-size:12px}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.kpi{background:var(--card);border:1px solid var(--edge);border-radius:8px;
+padding:8px 14px;min-width:110px}
+.kpi b{display:block;font-size:18px;color:#fff}
+.kpi span{font-size:11px;color:var(--dim)}
+.grid{display:grid;gap:10px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.g4,.g3,.g2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:8px;padding:12px}
+.card.ok{border-left:3px solid var(--ok)}.card.warn{border-left:3px solid var(--warn)}
+.card.bad{border-left:3px solid var(--bad)}.card.acc{border-left:3px solid var(--acc)}
+.badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:9px;
+margin-left:6px;vertical-align:middle}
+.b-ok{background:#1a3a1f;color:var(--ok)}.b-warn{background:#3a2e14;color:var(--warn)}
+.b-bad{background:#3d1a1a;color:var(--bad)}.b-acc{background:#11263a;color:var(--acc)}
+.m{font-size:12px;color:var(--dim)}
+.m b{color:var(--tx);font-weight:normal}
+code{background:#21262d;padding:1px 5px;border-radius:4px;font-size:12px}
+.flow{text-align:center;color:var(--acc);font-size:18px;margin:6px 0;letter-spacing:3px}
+.flow.bad{color:var(--bad)}.flow.warn{color:var(--warn)}
+nav{position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:9;
+border-bottom:1px solid var(--edge);margin-bottom:10px}
+nav a{color:var(--dim);text-decoration:none;margin-right:14px;font-size:12px}
+nav a:hover{color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+td,th{border:1px solid var(--edge);padding:4px 8px;text-align:left}
+th{background:#1c2128;color:var(--dim)}
+.honest{background:#241a12;border:1px dashed var(--warn);border-radius:8px;
+padding:12px;margin-top:10px}
+.honest li{margin:4px 0}
+footer{color:var(--dim);font-size:11px;margin:26px 0;border-top:1px solid var(--edge);
+padding-top:10px}
+</style></head>
+<body><div class="wrap">
+<h1>DWC（Divine Wisdom Core）架构实况图</h1>
+<div class="sub">全部模块/行数/接线状态机器采集于 2026-10-12 · 231 commits · 本图区分「宪法生效 / 结构接通 / 动力断闸」三态，虚线红=已接线但产出被上游丢弃</div>
+
+<div class="kpis">
+<div class="kpi"><b>64</b><span>src 模块</span></div>
+<div class="kpi"><b>22,616</b><span>src 总行数</span></div>
+<div class="kpi"><b>1489</b><span>pytest 全绿</span></div>
+<div class="kpi"><b>231</b><span>commits (R1–R214)</span></div>
+<div class="kpi"><b>epoch 2</b><span>守门人看守</span></div>
+<div class="kpi"><b>0.500</b><span>bench 三轮曲线末值</span></div>
+<div class="kpi"><b>pid 10696</b><span>常驻 agent + RPC 8802</span></div>
+<div class="kpi"><b>4</b><span>守护 cron</span></div>
+</div>
+
+<nav>
+<a href="#truth">① 外部真值源</a><a href="#iface">② 交互面</a>
+<a href="#rt">③ 常驻 agent 运行时</a><a href="#evo">④ 进化循环</a>
+<a href="#organs">⑤ 八器官</a><a href="#harness">⑥ harness 编排</a>
+<a href="#found">⑦ foundation 基础</a><a href="#llm">⑧ LLM 通道</a>
+<a href="#guard">⑨ 守护面</a><a href="#honest">⑩ 诚实层</a>
+</nav>
+
+<h2 id="truth">① 外部真值源层（GAI② — base/锚在 agent 之外，agent 只追加 epoch 不改锚）</h2>
+<div class="grid g4">
+<div class="card ok"><h3>dev 真值源<span class="badge b-ok">只读</span></h3>
+<div class="m"><code>config/anchors/dev.json</code> 8,326B sha8=acac083d<br>
+<b>16 任务</b>（verifier_rung 1/3）· 锚任务单调性 2606.14249：旧记录字节不变</div></div>
+<div class="card ok"><h3>铁律真值源<span class="badge b-ok">只读</span></h3>
+<div class="m"><code>config/iron_laws.yaml</code> 12,308B sha8=a4e41804 · <b>11 律</b>（G1–G11）· 运行时面 iron_runtime：G8/G11 真仪表、G1 na、8 条 not_instrumented（诚实）</div></div>
+<div class="card ok"><h3>基准任务集<span class="badge b-ok">R212 新</span></h3>
+<div class="m"><code>config/task_bench.json</code> 10 任务可机判（真值动态算：AST/git HEAD/计数现场算，零硬编码）</div></div>
+<div class="card ok"><h3>锚点账本 + 漂移<span class="badge b-ok">观察面</span></h3>
+<div class="m"><code>archive/anchor_epochs.jsonl</code> epoch 账本（append-only）· anchor_drift 观察漂移<b>不自动换代</b>（换代权在守门人/用户）</div></div>
+</div>
+
+<h2 id="iface">② 交互面层（独立 agent 的独立语言 — R210/R211 学 GitHub 头部 agent 形态）</h2>
+<div class="grid g4">
+<div class="card acc"><h3>REPL 界面<span class="badge b-acc">live</span></h3>
+<div class="m"><code>dwc_chat.py</code> 278行 · 无参=REPL（学 OpenCode ~200k★）· 12 斜杠命令+字母过滤 · 自然语言=投单+跟踪 · readline↑</div></div>
+<div class="card acc"><h3>HTTP RPC<span class="badge b-acc">live</span></h3>
+<div class="m"><code>agent_rpc.py</code> 314行 · 127.0.0.1:8802 · 九指令单实现（status/submit/query/list/cancel/freeze/unfreeze/history/doctor）· token 认证 · CLI 两壳共用</div></div>
+<div class="card acc"><h3>任务收件箱<span class="badge b-acc">live</span></h3>
+<div class="m"><code>var/dwc_inbox.jsonl</code> 投单（append-only）· done 态对账不二做 · 飞书结果通知（done/incomplete 都报）· Hermes 桥：用户说→我 RPC 投</div></div>
+<div class="card acc"><h3>CLI 壳<span class="badge b-acc">live</span></h3>
+<div class="m"><code>dwc_cli.py</code> 89行 · 九指令子命令 + <code>--json</code> 机器可解析</div></div>
+</div>
+<div class="flow">▼ 投单 / RPC 指令</div>
+
+<h2 id="rt">③ 常驻 agent 运行时（dwc_agent.py 349行 — 自触发，cron 只当守夜人）</h2>
+<div class="grid g3">
+<div class="card ok"><h3>主循环<span class="badge b-ok">live pid 10696</span></h3>
+<div class="m">interval 600s 自触发 · <b>收件箱优先</b>（用户单 > 自我改进锚任务）· 单例锁拒双开（双 agent 事故根治）· freeze 冻结门 · 日限 terms48/budget40 · 降级塌陷即停</div></div>
+<div class="card ok"><h3>接单执行<span class="badge b-ok">R209</span></h3>
+<div class="m"><code>task_exec.py</code> 146行 · 多轮≤6 · 四动作白名单 read/write/run/final · 写限 <code>var/inbox_work/</code> · 危险命令黑名单 · LLM 失败=incomplete 如实报（不静默）</div></div>
+<div class="card warn"><h3>质量回路<span class="badge b-warn">R213 新·样本小</span></h3>
+<div class="m"><code>agent_quality.py</code> 150行 · 失败 6 分支分类 → <code>dwc_lessons.jsonl</code> 沉淀 → 接单 token 重叠检索注入 → ≥3 条同类固化 <code>var/dwc_skills/</code> 规矩 · bench 曲线 0.300→0.400→0.500</div></div>
+</div>
+<div class="flow">▼ 自主任务（DEV_POOL / wta.node）</div>
+
+<h2 id="evo">④ 进化循环（run_term.py 1094行 — 环节①→⑦，"第一个能串起一切的入口"）</h2>
+<div class="grid g4">
+<div class="card acc"><h3>⑥-任务源<span class="badge b-warn">半生效</span></h3>
+<div class="m">世界树 <code>legal_actions()</code> 未揭示叶 → wta 任务 · δ 罕见失败优先 + 组内弱组优先（group_rates）· EL 采样标注（observed_rate 节律）</div></div>
+<div class="card ok"><h3>执行+判分<span class="badge b-ok">live</span></h3>
+<div class="m">actor 产唯一痕迹 → judge 1311行判分（split dev/held_out · splitfeed）→ <b>回填世界树</b> record_observation（simulated→observed 单向，W5 判分不可覆盖）</div></div>
+<div class="card warn"><h3>⑤ 防漂移<span class="badge b-warn">半仪表</span></h3>
+<div class="m">iron_runtime 评估 11 律（2 真仪表 8 未仪表）· iwm 内省出 GDI → governor_advice（R204 接线）</div></div>
+<div class="card bad"><h3>建议消费<span class="badge b-bad">动力断闸</span></h3>
+<div class="m">R204 消费段：degrade_to_baseline ⇒ <b>drop 全部 wta</b>——台账 148 行实数 <b>66/66=100% 被丢</b>（GDI 恒低，根因 F6 空转）· record_round 记 Q6 对照臂 · epoch_guard 守门人单调性</div></div>
+</div>
+<div class="flow bad">✕ 世界树排序再好，产出 100% 被降级门丢弃（已通电、闸刀断）</div>
+<h2 id="organs">⑤ 八器官层（organs 27 件 · 12,195 行 — 七器官 + 探索簇 + 门件）</h2>
+<div class="grid g3">
+<div class="card ok"><h3>核心器官<span class="badge b-ok">结构全通</span></h3>
+<div class="m"><b>judge</b> 1311 判分器(2/7) · <b>evolver</b> 2235 变异器(4/7·让分数能掉下来) · <b>actor</b> 828 行动者(3/7·唯一产痕迹) · <b>applier</b> 732 落地器(5/7·闭环最后一段) · <b>candidates</b> 787 候选生成(②改什么) · <b>memory</b> 825 记忆内核(四区七管) · <b>planner</b> 242 契约现场合成(⑧)</div></div>
+<div class="card warn"><h3>探索簇（器官⑥）<span class="badge b-warn">断闸下游</span></h3>
+<div class="m"><b>world_model</b> 610 第七器官（一套树 W1·provenance 想象/真实可区分 W2·simulated 永不进 judge W3·观测单向 W5·信息增益收束 W4 不吃 confidence·Z4 候选持久化/Z5 merge 三条件/Z6 卡住检测）· <b>weakness</b> 339 残差难度 δ · <b>direction</b> 377 三方向 · <b>el_sched</b> 185 EL 调度 · <b>replay</b> 354 回放仿真(Dreaming)</div></div>
+<div class="card ok"><h3>门件与账面<span class="badge b-ok">六门链</span></h3>
+<div class="m">contract/contracts_builtin 判定能力可用性 · drawback/ops 原子缺点"不认证正确" · noncomp 非补偿门(顺序不可换) · hook 八 hook 互斥 · router 七桶路由 · leakage 泄漏筛查(评估前第0步) · measure/metrics 四量"写了≠用了" · credit 信用分配 · budget 退火预算 · dimension 九维分类 · iwm 482 内省自检(⑤)</div></div>
+</div>
+
+<h2 id="harness">⑥ harness 编排层（14 件 · 4,439 行 — 候选环五面合流 + 门组）</h2>
+<div class="grid g3">
+<div class="card ok"><h3>主链<span class="badge b-ok">live</span></h3>
+<div class="m"><b>run_term</b> 1094 单轮编排（环节①-⑦）· <b>loop</b> 1335 daemon 的 round_fn 生产形态 · <b>pipeline</b> 候选环五面合流（bridge→gates→adoption→credit）</div></div>
+<div class="card ok"><h3>门组与采纳<span class="badge b-ok">六门</span></h3>
+<div class="m"><b>gates</b> 378 六门顺序执行器+三态裁决 · <b>candidate_bridge</b> Candidate→门组适配 · <b>adoption</b> 链裁决→Proposal 采纳 · <b>landing</b> 采纳后自动落地(applier 真落地) · <b>splitfeed</b> held_out 双口径</div></div>
+<div class="card ok"><h3>观测账面<span class="badge b-ok">Z类</span></h3>
+<div class="m"><b>anchor_drift</b> 171 锚漂移观察(不自动换代) · <b>attestation</b> 声称vs实测双账 · <b>coupling</b> 机制间压力传播 · <b>trajectory</b> 轮次状态序列 · <b>consume_points</b> 消费点五元组 · <b>exploration</b> 停滞激活探索编排</div></div>
+</div>
+
+<h2 id="found">⑦ foundation 基础层（15 件 · 3,178 行 + core 主类）</h2>
+<div class="grid g3">
+<div class="card ok"><h3>主类与状态<span class="badge b-ok">三入口</span></h3>
+<div class="m"><b>core</b> 690 主类持有全部器官（step/ingest/run_term 三入口 · e2e_core 6 方法全覆盖）· <b>state</b> 四层冻结快照 · <b>version</b> git 真实状态非自报</div></div>
+<div class="card ok"><h3>继承与账本<span class="badge b-ok">六段</span></h3>
+<div class="m"><b>inheritance</b> 289 六段继承产物（gen→gen，judge_fingerprint 必在）· <b>epoch_guard</b> 守门人约束半 · <b>iron_runtime</b> 151 铁律运行时面 · <b>calibration</b> ECE 校准 · <b>granularity</b>/<b>vocabulary</b> 单一真源收口</div></div>
+<div class="card ok"><h3>活性与因果<span class="badge b-ok">Γ</span></h3>
+<div class="m"><b>activity</b> 338 六层活性模型 · <b>causal_chain</b> 445 因果链 Γ 三表四索引 · <b>wiring</b> 334 事件喂活性 · <b>dial_config</b> 418 三 yaml 加载器+校验器("没有校验器的 yaml 只是文本") · <b>stop_criteria</b>/<b>eq10</b>/<b>capability_groups</b> 门件</div></div>
+</div>
+
+<h2 id="llm">⑧ LLM 通道（3 件 · 641 行 — config/llm.json 单点，双用：进化变异 + 用户任务）</h2>
+<div class="grid g3">
+<div class="card ok"><h3>client<span class="badge b-ok">纪律</span></h3>
+<div class="m"><b>client</b> 328 行 · complete() <b>永不抛异常</b>（返回 ok/text/error）· probe 探活 · 双通道（进化循环变异 / 接单执行）</div></div>
+<div class="card ok"><h3>执行体<span class="badge b-ok">R126</span></h3>
+<div class="m"><b>executor</b> 167 执行环境默认化 · <b>task_exec</b> 146 用户任务执行器（白名单+黑名单护栏）</div></div>
+<div class="card warn"><h3>端点实况<span class="badge b-warn">毛刺</span></h3>
+<div class="m">MiMo flash 级 · 偶发瞬时拒绝（bench 已加 ×2 重试）· llm_format 失败是 bench 最大单点（R213 教训库主要类目）</div></div>
+</div>
+
+<h2 id="guard">⑨ 守护面（4 cron · 全 no_agent 静默契约 + 副本 md5 同步）</h2>
+<div class="grid g4">
+<div class="card ok"><h3>守夜人 b402</h3><div class="m">15 */2 · pid+心跳双判活 · 死→拉活+飞书告警 · frozen=绝不碰</div></div>
+<div class="card ok"><h3>健康 303b</h3><div class="m">0 */2 · 五判据最新段口径（历史错误行不误报）</div></div>
+<div class="card ok"><h3>备份 d103</h3><div class="m">0 3 · 5 对象 KEEP7 · epoch 账本路径已核（archive/）</div></div>
+<div class="card ok"><h3>漂移 f3e1</h3><div class="m">0 */2 · 锚漂移心跳（观察不换代）</div></div>
+</div>
+
+<div class="honest" id="honest">
+<h3 style="color:var(--warn)">⑩ 诚实层 — 本图不藏的四件事（声称=实测）</h3>
+<ul>
+<li><b>世界树动力断闸</b>：wta 产出生产 66/66=100% 被 iwm 降级丢弃（GDI 恒低，根因 F6 编译空转 compiled 2/50）——探索排序从未在生产跑过一轮；agent 自主循环退回 DEV_POOL 静态清单。</li>
+<li><b>铁律仪表缺口</b>：11 律仅 G8/G11 真仪表，8 条 not_instrumented（每条带 why，不是假装合规）。</li>
+<li><b>能力实测</b>：dev 任务 pass 0.0–0.29（LLM 通道）；任务基准 bench 三轮 0.300→0.400→0.500（n=10 单端点，方向可信幅度慎读）；iwm 建议多数为 drop 类（无真实变异时的诚实降级）。</li>
+<li><b>两台引擎刚接</b>：质量回路（R213/214 教训+技能）与探索端（世界树）分别管"做过的好不好"与"往哪探"——中段（真实探索动力）仍空，是下一刀候选。</li>
+</ul>
+</div>
+
+<footer>机器采集: os.walk 全模块行数/定位声明/TRUTH_SOURCE 标记 · git rev-list · 台账 jsonl 事件计数 · sha256 前8位 · netstat 端口 · 口径 2026-10-12 R214 后 · 生成: Hermes（DWC 开发上下文 R198–R214 + 全代码核实）</footer>
+</div></body></html>

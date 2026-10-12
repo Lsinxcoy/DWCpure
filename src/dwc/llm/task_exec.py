@@ -91,6 +91,47 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     raise TaskExecError("未知动作 op=%r（白名单: read/write/run/final）" % op)
 
 
+def _extract_json(text: str):
+    """★ R217 · LLM 响应 JSON 鲁棒提取（判据: 拿到能用的 dict, 不苛求纯净）。
+
+    容错序（bench llm_format 失败实测形态）:
+    ① 整体 json.loads
+    ② 剥 ```json / ``` 代码块包裹
+    ③ 从后往前逐行 json.loads（模型常在 JSON 后追加说明文本）
+    ④ 首个 { 到最后一个 } 的子串
+    全失败返回 None（不猜不编 — 提取的是模型给的, 不是造的）。
+    """
+    t = (text or "").strip()
+    if not t:
+        return None
+    for cand in (t, t.strip("`"), t.replace("```json", "").replace("```", "").strip()):
+        try:
+            o = json.loads(cand)
+            if isinstance(o, dict):
+                return o
+        except Exception:                      # noqa: BLE001
+            pass
+    for ln in reversed(t.splitlines()):
+        ln2 = ln.strip().strip("`").strip()
+        if not ln2:
+            continue
+        try:
+            o = json.loads(ln2)
+            if isinstance(o, dict):
+                return o
+        except Exception:                      # noqa: BLE001
+            continue
+    a, b = t.find("{"), t.rfind("}")
+    if 0 <= a < b:
+        try:
+            o = json.loads(t[a:b + 1])
+            if isinstance(o, dict):
+                return o
+        except Exception:                      # noqa: BLE001
+            pass
+    return None
+
+
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                       ctx: Optional[str] = None) -> Dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
@@ -119,12 +160,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
             return {"task": task, "status": "incomplete", "rounds": rnd,
                     "why": "LLM 失败: %s" % getattr(res, "error", "?"),
                     "actions_log": log}
-        try:
-            step = json.loads(res.text.strip().splitlines()[-1])
-        except Exception as exc:               # noqa: BLE001 — 解析失败如实报
+        step = _extract_json(res.text)
+        if step is None:
+            # ★ R217 · 容错后仍失败才报 incomplete（bench 最大失败单点
+            #   llm_format: 模型爱包 ```json 代码块/多行/前后缀文本）
             return {"task": task, "status": "incomplete", "rounds": rnd,
-                    "why": "LLM 响应非 JSON: %s / %s"
-                           % (exc, str(res.text)[:120]),
+                    "why": "LLM 响应非 JSON（容错提取后仍失败）: %s"
+                           % str(res.text)[:120],
                     "actions_log": log}
         op = step.get("op")
         log.append({"round": rnd, "analysis": str(step.get("analysis", ""))[:300],
