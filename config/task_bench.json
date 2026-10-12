@@ -1,0 +1,68 @@
+{
+ "_": "R212 · 任务执行能力基准集（claim=measurement — 现无任务质量度量, pass=0 指无度量）",
+ "_设计": "10 任务全部可机判（verifier 在 dwc_bench.py 内, 真值动态计算不硬编码）; 全部是 agent 够得着的（读仓库/写 var/inbox_work/跑命令）; 难度覆盖: 提取/统计/写脚本/变换/命令执行",
+ "tasks": [
+  {
+   "id": "T_b_core_classes",
+   "kind": "read",
+   "task": "读 src/dwc/core.py 的源码, 把其中所有 class 名字(不含前后缀装饰)写进 var/inbox_work/core_classes.md, 每行一个类名, 用 - 开头列表",
+   "ctx": "文件在 E:/Divine Wisdom Core/src/dwc/core.py",
+   "verifier": "classes"
+  },
+  {
+   "id": "T_b_rung_dist",
+   "kind": "read",
+   "task": "读 E:/Divine Wisdom Core/config/anchors/dev.json, 数一数有多少个任务的 verifier_rung 字段等于 3, 把数字写进 var/inbox_work/rung_dist.txt, 只写数字",
+   "verifier": "rung3_count"
+  },
+  {
+   "id": "T_b_mult3",
+   "kind": "write",
+   "task": "写一个 python 脚本 var/inbox_work/mult3.py, 运行后打印 1 到 100 中 3 的倍数共有多少个(只打印数字本身, 不要别的输出)",
+   "verifier": "run_mult3"
+  },
+  {
+   "id": "T_b_dedup_sort",
+   "kind": "write",
+   "task": "写一个 python 脚本 var/inbox_work/dedup_sort.py: 定义列表 ['pear','apple','pear','fig','apple','banana'], 去重后按字母排序, 逗号连接打印(如 a,b,c)",
+   "verifier": "run_dedup"
+  },
+  {
+   "id": "T_b_def_count",
+   "kind": "read",
+   "task": "统计 E:/Divine Wisdom Core/src/dwc 目录所有 .py 文件里 'def ' 出现的总次数(注意 def 后有空格, 跨所有文件累加), 把数字写进 var/inbox_work/def_count.txt, 只写数字",
+   "verifier": "def_count"
+  },
+  {
+   "id": "T_b_readme_test",
+   "kind": "read",
+   "task": "读 E:/Divine Wisdom Core/README.md, 找到'测试'那一行里 pytest 的项数(形如 'pytest 1478 项' 的数字), 把这个数字写进 var/inbox_work/readme_test.txt, 只写数字",
+   "verifier": "readme_test"
+  },
+  {
+   "id": "T_b_incr_digits",
+   "kind": "transform",
+   "task": "读 var/inbox_work/numsrc.txt 里的数字(空格分隔), 把每个数字加 1, 结果空格分隔写进 var/inbox_work/numdst.txt",
+   "ctx": "numsrc.txt 由基准器预先生成在 var/inbox_work/ 下",
+   "verifier": "incr_digits"
+  },
+  {
+   "id": "T_b_three_sections",
+   "kind": "write",
+   "task": "写一个 markdown 报告 var/inbox_work/report3.md, 必须包含三个二级标题段: ## 目标 / ## 方法 / ## 结论, 每段下面写一句你自己的话",
+   "verifier": "sections3"
+  },
+  {
+   "id": "T_b_git_sha",
+   "kind": "command",
+   "task": "在 E:/Divine Wisdom Core 目录运行 git rev-parse HEAD, 把输出的完整 40 位 sha 写进 var/inbox_work/gitsha.txt, 除了 sha 不要写别的",
+   "verifier": "gitsha"
+  },
+  {
+   "id": "T_b_dual_symbol",
+   "kind": "read",
+   "task": "在 E:/Divine Wisdom Core/src/dwc 目录下找出哪个 .py 文件同时包含单词 judge 和 anchor(都在源码文本里出现), 把那个文件的文件名写进 var/inbox_work/dualsym.txt, 只写文件名(带 .py)",
+   "verifier": "dual_symbol"
+  }
+ ]
+}
