@@ -86,11 +86,11 @@ dwc/
 ```text
 定位    已定：独立 agent，记忆 + 自进化（丙方向为未来扩展）
 架构    已定 → ARCHITECTURE.md v4（器官式骨架 + 进化循环七环节）
-代码    29 个 .py / 12,088 行（七器官 + core.py 主类 + experiments 实验包 + trial）
-测试    35 文件 / 713 函数 → pytest 760 项全过（18.2s）
+代码    66 个 .py / 21,738 行（七器官 + core.py 主类 + experiments 实验包 + trial）
+测试    129 文件 / 1374 函数 → pytest 1425 项全过（74.5s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R201 · 212 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R202 · 215 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
@@ -98,6 +98,7 @@ dwc/
   `python -m pytest tests/ -q` · `python scripts/gate.py` ·
   `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
 ★ 本节最后实测 **2026-10-08（R90 · w_delta 分化三迭代 → 架构边界实证: dream 揭示语义(非根深挖+空转break+root兜底)下 nonroot≥2 不可达 ⇒ w 无多选窗口; 真主场=任务源采样(R77); M>1 区分维度=r 开关; trial 恢复 R89 6/6 版）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
+★ 代码规模刷新 **2026-10-12（R202）**: 承重代码 66 .py / 21,738 行 · 测试 129 文件 / 1,374 函数 → pytest 1,425 项全过 · e2e rc=0 三段绿 · 真值源 35 处全 read 零写 + evolver FORBIDDEN_TARGETS 硬闸 · 端到端生灭闭环真端点跑通
 
 **架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
 

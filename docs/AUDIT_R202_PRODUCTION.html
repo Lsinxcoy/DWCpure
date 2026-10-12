@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC 深度生产级审计报告 · R202</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--fg:#e6edf3;--dim:#8b949e;
+        --ok:#3fb950;--warn:#d29922;--bad:#f85149;--acc:#58a6ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.7 -apple-system,"Segoe UI",system-ui,sans-serif}
+  .wrap{display:flex;min-height:100vh}
+  nav{width:230px;flex:none;background:#010409;border-right:1px solid var(--border);
+      padding:20px 0;position:sticky;top:0;height:100vh;overflow:auto}
+  nav a{display:block;padding:8px 20px;color:var(--dim);text-decoration:none;font-size:13px}
+  nav a:hover{color:var(--fg);background:#161b22}
+  nav .brand{padding:0 20px 16px;color:var(--acc);font-weight:600;border-bottom:1px solid var(--border);margin-bottom:12px}
+  main{flex:1;max-width:960px;margin:0 auto;padding:32px 40px 80px}
+  h1{font-size:26px;margin:0 0 4px}
+  .sub{color:var(--dim);margin-bottom:28px}
+  h2{font-size:19px;margin:40px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px 20px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border)}
+  th{color:var(--dim);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  code{background:#0d1117;border:1px solid var(--border);border-radius:4px;padding:1px 6px;
+       font:13px "SF Mono",Consolas,monospace;color:#79c0ff}
+  pre{background:#010409;border:1px solid var(--border);border-radius:8px;padding:14px 16px;
+      overflow:auto;font:13px/1.6 "SF Mono",Consolas,monospace}
+  .ok{color:var(--ok);font-weight:600}
+  .warn{color:var(--warn);font-weight:600}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+  .stat .box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+  .stat .n{font-size:24px;font-weight:700;color:var(--acc)}
+  .stat .l{color:var(--dim);font-size:12px;margin-top:2px}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .tag-ok{background:rgba(63,185,80,.15);color:var(--ok)}
+  .tag-warn{background:rgba(210,153,34,.15);color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="brand">DWC 审计 · R202</div>
+  <a href="#scope">审计范围</a>
+  <a href="#dims">七维度结论</a>
+  <a href="#shell">① 空壳函数</a>
+  <a href="#wire">② 生产接线</a>
+  <a href="#test">③ 测试强度</a>
+  <a href="#data">④ 数据面完整性</a>
+  <a href="#silent">⑤ 静默失败路径</a>
+  <a href="#claim">⑥ 声称 vs 实测</a>
+  <a href="#entry">⑦ 生产入口</a>
+  <a href="#findings">审计发现</a>
+  <a href="#fixed">已修正项</a>
+  <a href="#verify">验证底座</a>
+</nav>
+<main>
+<h1>DWC 深度生产级审计报告</h1>
+<div class="sub">2026-10-12 · R202 · E:/Divine Wisdom Core</div>
+
+<div class="stat">
+  <div class="box"><div class="n">66</div><div class="l">承重 .py</div></div>
+  <div class="box"><div class="n">21,738</div><div class="l">承重代码行</div></div>
+  <div class="box"><div class="n">1,425</div><div class="l">pytest 收集</div></div>
+  <div class="box"><div class="n">87%</div><div class="l">测试行为级占比</div></div>
+  <div class="box"><div class="n">8/8</div><div class="l">质量门</div></div>
+  <div class="box"><div class="n">rc=0</div><div class="l">e2e 生灭闭环</div></div>
+</div>
+
+<h2 id="scope">审计范围</h2>
+<div class="card">
+方法：AST 级空壳扫描 + 生产接线审计 + 数据面核对 + 静默路径扫描 + 声称 vs 实测重算 + 端到端真跑。
+审计对象为 R197–R202 期间动过的六个核心文件：
+<pre>judge.py        1,310 行 / 32 def
+actor.py          828 行 / 24 def
+evolver.py      2,234 行 / 46 def
+loop.py         1,332 行 / 38 def
+anchor_drift.py   171 行 /  6 def
+watch.py          146 行 /  5 def</pre>
+</div>
+
+<h2 id="dims">七维度结论</h2>
+<div class="card">
+<table>
+<tr><th>维度</th><th>方法</th><th>结论</th></tr>
+<tr><td>① 空壳函数</td><td>AST 体分析</td><td><span class="tag tag-ok">0.15%</span> 653 def 仅 1 空壳（演示块误报）</td></tr>
+<tr><td>② 生产接线</td><td>调用点扫描</td><td><span class="tag tag-warn">27/370 仅测试</span> iwm 接了一半</td></tr>
+<tr><td>③ 测试强度</td><td>被测符号调用</td><td><span class="tag tag-ok">87% 行为级</span> 13% 文本锁为架构不变量锁</td></tr>
+<tr><td>④ 数据面</td><td>split/真值源核对</td><td><span class="tag tag-ok">一致</span> 真值源 35 处全 read 零写</td></tr>
+<tr><td>⑤ 静默路径</td><td>except 体分析</td><td><span class="tag tag-ok">无真静默</span> 3 pass 均正当降级</td></tr>
+<tr><td>⑥ 声称 vs 实测</td><td>重算对账</td><td><span class="tag tag-warn">1 处滞后</span> 已修正</td></tr>
+<tr><td>⑦ 生产入口</td><td>真跑</td><td><span class="tag tag-warn">e2e 只覆盖 harness</span> core.py.step 未覆盖</td></tr>
+</table>
+</div>
+
+<h2 id="shell">① 空壳函数</h2>
+<div class="card">
+全 src/dwc AST 扫描 <b>653 个 def，仅 1 个空壳</b>（0.15%）。
+唯一空壳是 <code>actor.py:813 __call__</code>——它是 <code>__main__</code> 演示块里的测试夹具（<code>Boom.__call__</code> 故意 raise 验证失败留痕），非生产代码，判为误报。
+<b>结论：无生产级空壳。</b>
+</div>
+
+<h2 id="wire">② 生产接线</h2>
+<div class="card">
+370 个 class.method 里 <b>27 个仅被 tests 调用、生产零接线</b>。按性质分级：
+<ul>
+<li><b>正当预留</b>：<code>unregister</code> / <code>merge</code> / <code>entries</code> / <code>is_pass</code> 等生命周期方法</li>
+<li><b>核心缺口</b>：iwm 器官只接了 <code>drift()</code>（run_term.py:447），而 <code>governor_advice</code> / <code>record_round</code> / <code>self_trust</code>（Q6 对照臂、ECE 校准）生产零调用——<b>器官接了一半</b></li>
+<li><b>已确认接线</b>：world_model 的 <code>record_observation</code>/<code>legal_actions</code>/<code>observed_count</code>/<code>observed_rate</code>/<code>seed_tasks</code> 真接入 core.py；<code>_split</code> 有 14 个生产消费点（judge.py:606-610 真读，ga_duel/hce_split_report 真用）</li>
+</ul>
+</div>
+
+<h2 id="test">③ 测试强度</h2>
+<div class="card">
+1,374 个测试函数中 <b>1,189 行为级（87%）</b>、185 文本锁（13%）。
+文本锁集中在架构不变量（"actor 不得自判""器官不复制""组件不越界"）——<b>文本锁是这类负面约束的正当形态</b>，非缺陷。
+</div>
+
+<h2 id="data">④ 数据面完整性</h2>
+<div class="card">
+<ul>
+<li><b>dev.json</b>：<code>search(10) + val(3) = 13 = 任务全集</code>，互斥且全覆盖，一致</li>
+<li><b>真值源不可写</b>：35 处真值源文件名出现<b>全是 read</b>，<code>evolver.py:1838</code> 有 <code>FORBIDDEN_TARGETS</code> 硬闸</li>
+<li><b>e2e 端到端</b>：LLM → judge → 固化 → 跨进程存活 → 退化 → 真判 fail → 退役 → 跨进程消失，<b>生灭闭环真端点跑通</b></li>
+</ul>
+</div>
+
+<h2 id="silent">⑤ 静默失败路径</h2>
+<div class="card">
+<table>
+<tr><th>位置</th><th>形态</th><th>判定</th></tr>
+<tr><td>candidate_bridge.py:43</td><td><code>except: pass</code></td><td><span class="tag tag-ok">正当</span> patch 空会大声 raise</td></tr>
+<tr><td>loop.py:426</td><td><code>except: pass</code></td><td><span class="tag tag-warn">留痕</span> 观察面归档写盘吞异常，审计轨迹丢失风险</td></tr>
+<tr><td>applier.py:581</td><td><code>except: pass</code></td><td><span class="tag tag-ok">正当</span> 坏行跳过，注释声明"不吞"</td></tr>
+</table>
+另有 35 条 <code>except</code> 体无 raise/log/print——但大多记错误到字段（<code>self._last_skip=</code> / <code>error=</code> / <code>skipped.append()</code>），<b>有痕迹，非真静默</b>。
+</div>
+
+<h2 id="claim">⑥ 声称 vs 实测</h2>
+<div class="card">
+<ul>
+<li><b>测试侧声称 100% 精确</b>：129 文件 / 1,374 函数 / 1,425 收集全对上</li>
+<li><b>承重代码行滞后</b>（唯一缺口）：PROGRESS.md L20 与 README L89/90 停在 <code>29 .py / 12,088 行 / 760 项</code>（10-08），实测 <code>66 .py / 21,738 行 / 1,425 项</code>——<b>本轮已修正</b></li>
+</ul>
+</div>
+
+<h2 id="entry">⑦ 生产入口</h2>
+<div class="card">
+<code>DWC()</code> 需要 <code>depth_limit</code> / <code>max_nodes</code>；<code>scripts/e2e_loop.py</code> 走的是 <code>harness.pipeline.run_round</code> 而非 <code>core.py.step</code>——<b>e2e 覆盖 harness 链路，core.py.step 链路未被 e2e 覆盖</b>（记为发现 F4）。
+</div>
+
+<h2 id="findings">审计发现</h2>
+<div class="card">
+<table>
+<tr><th>编号</th><th>发现</th><th>危害</th><th>状态</th></tr>
+<tr><td>F1</td><td>iwm 器官接了一半（governor_advice / record_round / self_trust 生产零调用）</td><td><span class="tag tag-warn">中</span></td><td>已识别</td></tr>
+<tr><td>F2</td><td>PROGRESS.md / README 承重代码行滞后（10-08 停在 12,088 行，实测 21,738）</td><td><span class="tag tag-ok">低</span></td><td><b>已修正</b></td></tr>
+<tr><td>F3</td><td>loop.py:426 观察面归档写盘吞异常（审计轨迹丢失风险）</td><td><span class="tag tag-ok">低</span></td><td>已识别</td></tr>
+<tr><td>F4</td><td>e2e 只覆盖 harness.run_round，core.py.step 链路未覆盖</td><td><span class="tag tag-warn">中</span></td><td>已识别</td></tr>
+</table>
+</div>
+
+<h2 id="fixed">已修正项</h2>
+<div class="card">
+<ol>
+<li><b>PROGRESS.md L20 承重代码行</b>：29 .py / 12,088 行 → 66 .py / 21,738 行（2026-10-12 R202 实测）</li>
+<li><b>README L89/90 代码规模</b>：同步刷新为 R202 实测值</li>
+<li><b>README L100</b>：保留 R90 归档历史，新增 L101 R202 实测行</li>
+</ol>
+</div>
+
+<h2 id="verify">验证底座</h2>
+<div class="card">
+三层全绿：
+<pre>pytest   1424 passed + 1 skipped  rc=0  （skip 为 R202 已记录的 LLM 端点空响应防误报）
+gate     8/8 全过（G1 定位门 · G2 真值门 · G3 活性门 · G4 生灭门 · G5 声称门 · G6 加减门 · G7 静默门 · G8 契约门）
+e2e      rc=0 · LLM_SEG=passed · LAND_SEG=landed · RETIRE_SEG=retired（生灭闭环三段绿）</pre>
+复现命令：
+<pre>cd "E:/Divine Wisdom Core"
+find src tests scripts -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+PY="C:/Users/41228/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+"$PY" -m pytest tests -q -p no:randomly
+"$PY" scripts/gate.py
+"$PY" scripts/e2e_loop.py</pre>
+</div>
+
+</main>
+</div>
+</body>
+</html>

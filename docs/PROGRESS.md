@@ -17,7 +17,7 @@
 | ★ 测试 | 首份 12 项（10-04）→ **现 1425 项全过** | `1425 passed in 74.5s` rc=0（2026-10-12 R202 实跑） | `python -m pytest tests/ -q` |
 | ★ 质量门三态 | pass / fail / **n_a 无可检对象** | `tests/test_gate_n_a.py` 20.1K 在 | `wc -c tests/test_gate_n_a.py` |
 | ★ config | 首批两份 → **现 7 项**（iron_laws/dials/difficulty/capability_groups/llm.json/drift.yaml/anchors/） | `ls config/` 实列 7 项 | `ls config/` |
-| ★★★ 承重代码 | **29 个 .py / 12,088 行**（R18 建 git 起，从 0 写到 R86） | 12088（2026-10-08 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
+| ★★★ 承重代码 | **66 个 .py / 21,738 行**（R18 建 git 起，从 0 写到 R202） | 21,738（2026-10-12 R202 实测） | `find src -name '*.py' -exec cat {} + \| wc -l` |
 | ★★★ 测试代码 | **129 文件 / 1374 函数 → pytest 收集 1425 项** | 同「测试」行实测（2026-10-12 R202） | `ls tests/*.py \| wc -l` · `grep -rho 'def test_' tests/ \| wc -l` |
 | ★★★ 七器官 | **7/7 全齐**：memory·judge·actor·evolver·world_model·iwm·iron_laws ✓ | `organs/` 13 文件（含 __init__；applier/candidates = evolver ④ 支撑体；weakness/el_sched/direction/replay = ⑥ search/ 四件全落 R69-R74） | `ls src/dwc/organs/` |
 | ★★★ 七环节 | **7/7 全齐**：①②③④(evolver)+⑤防漂移(iwm,R61)+⑥探索(world_model)+⑦盘点 ✓ | iwm.drift 已接 run_term 3.5 步并消费为 drift_degrade 任务 | `grep -n '环节⑤\|环节⑥' src/dwc/harness/run_term.py` |
@@ -26,7 +26,7 @@
 | ★★★ 端到端 | e2e **三段绿**（LLM / land / retire） | rc=0 · `LLM_SEGMENT=passed · LAND_SEG=landed · RETIRE_SEG=retired`（2026-10-08） | `python scripts/e2e_loop.py` |
 | ★★★ LLM 真端点 | 候选生成走真 LLM（非 mock，需 config/llm.json） | e2e step9 `LLM_SEGMENT=passed` | 同上 |
 | ★★★ δ 拍板 | R58：δ=0.15 落地 + 纪律锁值同步 | 破坏 δ→0 ⇒ 2 条纪律测试红 ⇒ 恢复绿；`NOISE_DELTA = 0.15` | `grep -n "NOISE_DELTA = " src/dwc/organs/evolver.py` |
-| ★★★ 轮次 | R1–R202 · 每轮一知识档 | **214 commits** · `archive/knowledge3_R*.json` · **R202 = 审计三裁决落地**（LATERAL 同 component 优先 / target 真源校验 / drift 监控常驻 cron f3e18d04b90f） | `git rev-list --count HEAD` |
+| ★★★ 轮次 | R1–R202 · 每轮一知识档 | **215 commits** · `archive/knowledge3_R*.json` · **R202 = 审计三裁决落地**（LATERAL 同 component 优先 / target 真源校验 / drift 监控常驻 cron f3e18d04b90f） | `git rev-list --count HEAD` |
 
 ---
 
