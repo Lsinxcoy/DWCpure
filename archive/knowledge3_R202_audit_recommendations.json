@@ -95,5 +95,11 @@
    "observed_at_gen": null,
    "gap_note": "drift监控心跳已通(message_id)但漂移建议路径未实战(当前无建议)——首个建议触发时回流本段; A/B决策层观察未接线(同R201)"
   }
+ },
+ "R202a": {
+  "commit": "c05cb21",
+  "fix": "drift 监控心跳轰炸修正 — 健康=静默(exit0+空stdout); 当日首tick发一条心跳证明活着, 后续tick静默; 副本md5同步锁进测试",
+  "tests": "新增2条行为级测试(rc=0+空stdout / 同日二次tick静默)",
+  "verify": "pytest 1425 + gate 8/8 + e2e rc=0"
  }
 }

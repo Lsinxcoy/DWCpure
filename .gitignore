@@ -114,3 +114,5 @@ config/anchors/merge_log.jsonl
 config/anchors/task_scores.jsonl
 config/anchors/evidence.jsonl
 papers/**/refs/*.pdf
+# 运行期临时产物（不入库 — 空 diff 会红, 由 gate/e2e 每次重生成）
+archive/direction_ledger.jsonl
