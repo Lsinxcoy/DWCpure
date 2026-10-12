@@ -98,13 +98,23 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         if hit:
             raise TaskExecError("危险命令黑名单命中 %s: %s" % (hit, joined[:120]))
         ask = _ask_level(joined)
+        confirmed = args.get("_confirmed") or set()
+        if ask and any(str(c) in joined for c in confirmed):
+            # ★ R222 · 人工授权通道: ctx 带 '人工授权: <词>' ⇒ 放行 + 留痕
+            r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
+                                capture_output=True, text=True, timeout=60,
+                                errors="replace")
+            return {"ok": r0.returncode == 0, "rc": r0.returncode,
+                    "stdout": (r0.stdout or "")[:4000],
+                    "stderr": (r0.stderr or "")[:1000],
+                    "confirmed_by_human": ask}
         if ask:
             # ★ R220 · ask 三态: 不执行但**明确告知需授权**（LLM 换路或
             #   final 说明; 报告 ask_required 留痕 — 不静默不硬吞）
             raise TaskExecError(
-                "ask_required: %r 类操作需人工授权（当前模式不自动执行;"
-                " 换个不用它的办法, 或在 final 里说明需要人工做哪步）"
-                % ask)
+                "ask_required: %r 类操作需人工授权。换路: 用别的办法;"
+                " 真需要它: 在 final 说明并停 —— 人工授权后会以"
+                " '人工授权: %s' 为前缀重投本任务自动放行" % (ask, ask))
         try:
             r = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                capture_output=True, text=True, timeout=60,
@@ -158,9 +168,19 @@ def _extract_json(text: str):
     return None
 
 
+def _parse_confirmed(ctx: Optional[str]) -> set:
+    """★ R222 · 人工授权解析: ctx 里 '人工授权: <词>' 行 → 放行词集合。"""
+    out = set()
+    for ln in (ctx or "").splitlines():
+        if ln.strip().startswith("人工授权:"):
+            out.add(ln.split("人工授权:", 1)[1].strip())
+    return out
+
+
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                       ctx: Optional[str] = None,
-                      task_id: Optional[str] = None) -> Dict[str, Any]:
+                      task_id: Optional[str] = None,
+                      _depth: int = 0) -> Dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
 
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
@@ -201,6 +221,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         " · 写文件(只许 var/inbox_work/ 下): {\"op\":\"write\",\"path\":"
         "\"var/inbox_work/x.md\",\"content\":\"...\"}"
         " · 跑命令(argv列表,60s超时): {\"op\":\"run\",\"cmd\":[\"python\",\"-c\",\"...\"]}"
+        " · 派独立子代理（隔离上下文做子研究, 返回摘要; 限 1 层）:"
+        " {\"op\":\"delegate\",\"task\":\"子任务描述\"}"
         " · 任务完成时: {\"op\":\"final\",\"answer\":\"结论(中文)\","
         "\"artifacts\":[\"写出的文件相对路径\"]}"
         " 有充分信息就尽快 final；不确定就先 read 探查。禁止越权写路径。")
@@ -226,6 +248,29 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                            % str(res.text)[:120],
                     "actions_log": log}
         op = step.get("op")
+        # ★ R223 · delegate 子代理（真子代理最小形态: 独立上下文隔离 —
+        #   子探索的大量 read 输出不淹主任务; depth 限 1 层防递归爆炸）
+        if op == "delegate":
+            if _depth >= 1:
+                obs = {"ok": False, "error": "子代理内不可再 delegate（深度"
+                       "上限 1 — 防递归; 自己继续做）"}
+            else:
+                sub = execute_user_task(str(step.get("task", "")), llm=llm,
+                                        max_rounds=3,
+                                        task_id="%s_sub%d" % (sid, rnd),
+                                        _depth=_depth + 1)
+                obs = {"ok": True, "subagent": True,
+                       "sub_status": sub.get("status"),
+                       "sub_rounds": sub.get("rounds"),
+                       "sub_answer": str(sub.get("answer", ""))[:1500],
+                       "sub_why": sub.get("why", "")}
+            log.append({"round": rnd, "op": "delegate",
+                        "analysis": str(step.get("analysis", ""))[:200]})
+            _sess({"round": rnd, "op": "delegate",
+                   "analysis": str(step.get("task", ""))[:200]})
+            prompt = ("任务: %s\n子代理返回(JSON): %s\n请继续（下一步 op）"
+                      % (task, json.dumps(obs, ensure_ascii=False)[:2500]))
+            continue
         log.append({"round": rnd, "analysis": str(step.get("analysis", ""))[:300],
                     "op": op})
         _sess({"round": rnd, "op": op,
@@ -239,13 +284,32 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                     "artifacts": list(step.get("artifacts") or []),
                     "actions_log": log}
         try:
+            if op == "run":
+                step = {**step, "_confirmed": _parse_confirmed(ctx)}
             obs = _do_action(op, step)
         except TaskExecError as exc:
             obs = {"ok": False, "error": str(exc)}
         except Exception as exc:               # noqa: BLE001
             obs = {"ok": False, "error": "%s: %s" % (type(exc).__name__, exc)}
-        prompt = ("任务: %s\n上一步动作观察(JSON): %s\n请继续（下一步 op）"
-                  % (task, json.dumps(obs, ensure_ascii=False)[:8000]))
+        # ★ R221 · 会话 compaction（滑动窗口+摘要 — 头部 agent 的上下文
+        #   管理最小形态）: 窗口=最近 2 轮原文; 更早轮压成前情摘要注入 ——
+        #   旧形态只带"上一步", 第 3 轮起 LLM 已忘了第 1 轮干了什么（长任务
+        #   反复重读同文件的根因）。摘要是压缩不是删除（信息保留有界）。
+        recent = log[-2:]
+        older = log[:-2]
+        prefix = ""
+        if older:
+            bits = []
+            for e in older:
+                bits.append("第%s轮 %s%s" % (
+                    e.get("round"), e.get("op"),
+                    ("（%s）" % e["analysis"][:80]) if e.get("analysis") else ""))
+            prefix = "前情摘要（更早轮次已压缩）: " + " → ".join(bits) + "\n"
+        prompt = ("任务: %s\n%s最近轮次: %s\n上一步动作观察(JSON): %s\n"
+                  "请继续（下一步 op）"
+                  % (task, prefix,
+                     json.dumps(recent, ensure_ascii=False)[:1200],
+                     json.dumps(obs, ensure_ascii=False)[:6000]))
     return {"task": task, "task_id": sid, "status": "incomplete",
             "rounds": max_rounds,
             "why": "达轮数上限未 final", "actions_log": log}
