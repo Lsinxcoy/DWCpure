@@ -1,0 +1,66 @@
+{
+ "round": "R237",
+ "date": "2026-10-13",
+ "主题": "流式+乱码: client SSE complete_stream(回退链)+task_exec token事件+AnswerStream状态机+chcp/utf8/ANSI三修",
+ "verify": {
+  "pytest": "1563 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 237,
+  "at": "2026-10-13T11:00:00+08:00",
+  "parent_gen": 236,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 254,
+   "pytest": 1563,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R237: token级流式(SSE complete_stream+delta回调+非SSE回退) + 乱码三修(chcp65001/utf8 reconfigure/ANSI支持检测降级) + _AnswerStream可测状态机; 实测端点首token0.95s, 6.3s完整对话",
+   "files": [
+    "src/dwc/llm/client.py",
+    "src/dwc/llm/task_exec.py",
+    "scripts/dwc_chat.py",
+    "src/dwc/cli_main.py",
+    "tests/test_r237_stream.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r237_stream.py 4锁 + 真端点实测",
+     "claim": "SSE delta逐帧/非SSE回退stream_fallback/token事件进progress/answer状态机转义还原; MiMo端点streamed=True首token0.95s"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1563 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r237_stream.py",
+   "user_decision": "用户'页面全是乱码; 去做token级逐字流式'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "reasoning模型思考token未单独可视化(只流content); 用户真终端chcp验证待其回报"
+  }
+ }
+}

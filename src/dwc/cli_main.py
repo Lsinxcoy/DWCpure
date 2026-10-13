@@ -75,6 +75,12 @@ def _stop_agent() -> int:
 
 
 def main(argv=None) -> int:
+    for _stream in (sys.stdout, sys.stderr):
+        try:                                   # ★ UTF-8 输出（936 码页防乱）
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError) as _e:
+            # G7: 不静默 — 老 Python/管道流不支持 reconfigure 时留一行痕
+            sys.stderr.write("utf8 reconfigure 跳过: %s\n" % _e)
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "chat"
     rest = argv[1:]

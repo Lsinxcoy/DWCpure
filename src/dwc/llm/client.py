@@ -341,6 +341,110 @@ class LLMClient:
                          meta={"model": self._model,   # ★ model 名可记
                                "n_chars": len(text)})
 
+    def complete_stream(self, prompt: str, *, system=None,
+                        max_tokens: int = 1200, json_mode: bool = False,
+                        images=None, on_delta=None) -> LLMResult:
+        """★ token 级流式补全（R237）: SSE 逐 delta 回调 on_delta(text)。
+
+        ★ 与 complete 同契约: 返回 LLMResult, 不抛; 失败如实报。
+        ★ 回退链（诚实）: 流式请求失败（端点不支持/非 SSE）⇒ 自动回退
+          complete() 整段, meta.stream_fallback=True（用不用流看得见）。
+        ★ on_delta 是**增量原文**回调 — 由调用方决定怎么渲染。"""
+        if not self.configured:
+            return LLMResult(ok=False, source="not_configured",
+                             error=self.unavailable_reason or "无配置")
+        import copy as _copy
+        # 复用 complete 的 body 构造 — 从一次完整请求拷一份（避免双实现漂移）
+        # 快法: 先打一个不读流的探测——直接构造同款请求加 stream:True
+        user_content: Any = prompt
+        if images:
+            import base64
+            parts: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+            for ip in images[:4]:
+                ext = os.path.splitext(str(ip))[1].lower()
+                mime = {".png": "image/png", ".jpg": "image/jpeg",
+                        ".jpeg": "image/jpeg", ".webp": "image/webp"
+                        }.get(ext, "image/png")
+                try:
+                    b64 = base64.b64encode(
+                        open(ip, "rb").read()).decode("ascii")
+                    parts.append({"type": "image_url",
+                                  "image_url": {"url":
+                                      "data:%s;base64,%s" % (mime, b64)}})
+                except OSError:
+                    continue
+            if len(parts) > 1:
+                user_content = parts
+        body: Dict[str, Any] = {
+            "model": self._model,
+            "messages": ([{"role": "system", "content": system}]
+                         if system else [])
+            + [{"role": "user", "content": user_content}],
+            "max_tokens": max_tokens,
+            "temperature": 0.2,
+            "stream": True,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+        self.n_calls += 1
+        url = self._base.rstrip("/") + "/chat/completions"
+        req = urllib.request.Request(
+            url, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": "Bearer " + self._key},
+            method="POST")
+        chunks: List[str] = []
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                ctype = (resp.headers.get("Content-Type") or "").lower()
+                if "event-stream" not in ctype and "text/plain" not in ctype:
+                    raise ValueError("非 SSE 响应: %s" % ctype[:60])
+                for raw in resp:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(payload)["choices"][0] \
+                            .get("delta", {})
+                    except (ValueError, KeyError, IndexError):
+                        continue                # 单帧坏不炸流
+                    piece = delta.get("content")
+                    if piece:
+                        chunks.append(piece)
+                        if on_delta:
+                            on_delta(piece)
+            text = "".join(chunks)
+        except Exception as e:                  # noqa: BLE001 — 流失败回退整段
+            if self.retries > 0 and getattr(self, "_stream_fb", False) is False:
+                self._stream_fb = True
+            self.n_fail += 1
+            fb = self.complete(prompt, system=system, max_tokens=max_tokens,
+                               json_mode=json_mode, images=images)
+            if fb.ok:
+                self.n_ok += 1                  # 回退成功计入（账本仍如实）
+                return LLMResult(ok=True, text=fb.text, source="llm",
+                                 meta={"stream_fallback": True,
+                                       "fallback_reason": "%s: %s"
+                                       % (type(e).__name__, str(e)[:80]),
+                                       "n_chars": len(fb.text)})
+            return LLMResult(ok=False, source="error",
+                             error="流式失败且回退失败: %s" % fb.error[:120],
+                             meta={"stream_error": str(e)[:80]})
+        finally:
+            self._stream_fb = False
+        if not text.strip():
+            self.n_fail += 1
+            return LLMResult(ok=False, source="error",
+                             error="流式返回内容为空", meta={"kind": "empty"})
+        self.n_ok += 1
+        return LLMResult(ok=True, text=text, source="llm",
+                         meta={"model": self._model, "streamed": True,
+                               "n_chars": len(text),
+                               "n_chunks": len(chunks)})
+
     def stats(self) -> Dict[str, Any]:
         """★ 调用账本（不含量任何凭证）。"""
         return {"configured": self.configured, "model": self._model,

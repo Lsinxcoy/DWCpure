@@ -31,7 +31,26 @@ from dwc import agent_rpc as R                               # noqa: E402
 
 # ── ANSI（无依赖; NO_COLOR/管道自动关）────────────────────
 _ON = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+def _ansi_ok() -> bool:
+    """★ ANSI 色支持检测: PS 5.1 无 VT ⇒ 不发色码（发了就是乱码 — 用户实测）。
+    支持面: Windows Terminal / VSCode / ANSICON / ConEmu / TERM 非 dumb。"""
+    if os.environ.get("NO_COLOR"):
+        return False
+    return bool(os.environ.get("WT_SESSION")
+                or os.environ.get("WT_PROFILE_ID")
+                or os.environ.get("ANSICON")
+                or os.environ.get("ConEmuANSI") == "ON"
+                or os.environ.get("TERM_PROGRAM")
+                or os.environ.get("TERM") not in (None, "", "dumb")
+                and os.name != "nt")
+
+
+_ANSI = _ansi_ok()
+
+
 def _c(code, s):
+    if not _ANSI:
+        return str(s)
     return "\033[%sm%s\033[0m" % (code, s) if _ON else s
 def cyan(s):  return _c("36", s)
 def dim(s):   return _c("2", s)
@@ -137,6 +156,60 @@ BG_MODE = False          # ★ R236: False=同步直驱(默认, 对话感); True
 _HISTORY = []            # 多轮上下文: 上轮任务+答案摘要进下轮 ctx
 
 
+class _AnswerStream:
+    """★ R237 · answer 流状态机（模块级 — 可测的真码, 不是闭包副本）。
+    增量 raw JSON 中只打印 answer 字段的值, 转义还原, 闭合即止。"""
+
+    def __init__(self):
+        self.raw = ""
+        self.in_ans = False
+
+    def feed(self, piece: str, out=None) -> None:
+        import sys as _s
+        out = out or _s.stdout
+        self.raw += piece
+        raw = self.raw
+        if not self.in_ans:
+            key = '"answer":'
+            i = raw.find(key)
+            if i < 0:
+                self.raw = raw[-64:]         # 只留可能跨包的尾部
+                return
+            j = raw.find('"', i + len(key))
+            if j < 0:
+                return
+            self.in_ans = True
+            raw = raw[j + 1:]
+        emit, i = [], 0
+        while i < len(raw):
+            ch = raw[i]
+            if ch == "\\" and i + 1 < len(raw):
+                nx = raw[i + 1]
+                emit.append({"n": "\n", "t": "\t", '"': '"', "b": "\b",
+                             "f": "\f", "r": "\r"}.get(nx, nx))
+                i += 2
+                continue
+            if ch == '"':
+                self.in_ans = False
+                self.raw = ""                 # ★ 闭合即清（尾部 } 无信息 —
+                break                         #   否则 streamed 误报, 测试抓到）
+            emit.append(ch)
+            i += 1
+        else:
+            self.raw = ""
+        if emit:
+            out.write("".join(emit))
+            out.flush()
+
+    @property
+    def streamed(self) -> bool:
+        return bool(self.raw or self.in_ans)
+
+    def reset(self) -> None:
+        self.raw = ""
+        self.in_ans = False
+
+
 def _md(text: str) -> str:
     """★ 轻 markdown 渲染: 代码块保原 + 标题上色/粗体标记去除（零依赖 ANSI）。"""
     out, in_code = [], False
@@ -173,8 +246,17 @@ def _run_sync(task: str) -> None:
     _ICON = {"read": "⌕", "write": "✎", "run": "▶", "final": "✓",
              "delegate": "⇄", "mcp": "⚙", "ask": "?"}
 
+    astream = _AnswerStream()                 # ★ R237 answer 流状态机（可测真码）
+
     def _prog(ev):
-        if ev.get("ev") == "action":
+        kind = ev.get("ev")
+        if kind == "token":
+            astream.feed(ev.get("t", ""))
+            return
+        if kind == "action":
+            if astream.streamed:
+                sys.stdout.write("\n")
+            astream.reset()
             mark = green("✓") if ev.get("ok") else red("✗")
             print("  %s %-8s %s %s" % (_ICON.get(ev.get("op"), "·"),
                                        ev.get("op", ""),
@@ -187,7 +269,10 @@ def _run_sync(task: str) -> None:
     mark = green("完成") if status == "done" else yellow(status)
     print("\n%s  %s · %d 轮 · %.1fs" % (mark, bold(task[:50]),
                                          rep.get("rounds", 0), secs))
-    if rep.get("answer"):
+    streamed = astream.streamed
+    if streamed:
+        print()                                  # 流式已逐字打 — 只补结尾换行
+    elif rep.get("answer"):
         print(_md(rep["answer"]))
     if rep.get("why") and status != "done":
         print(dim("原因: %s" % str(rep["why"])[:300]))
@@ -354,6 +439,12 @@ def repl() -> int:
 
 
 def main(argv) -> int:
+    # ★ R237 乱码修: 控制台统一 UTF-8 输出（936 码页下图标/ANSI 必乱 — 用户实测）
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     if len(argv) > 1 and argv[1] in ("-c", "--cmd"):
         line = " ".join(argv[2:])
         return 0 if handle(line) else 0

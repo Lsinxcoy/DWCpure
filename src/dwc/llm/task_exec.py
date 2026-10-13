@@ -340,8 +340,17 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         if progress:
             progress({"ev": "round", "n": rnd})
         _imgs = [last_image] if last_image else None
-        res = llm.complete(prompt, system=system, max_tokens=1600,
-                           json_mode=True, images=_imgs)
+        # ★ R237 token 级流式: 有 progress 且 client 支持 ⇒ SSE 流,
+        #   每 delta 发 token 事件（chat 端状态机提取 answer 流式打印;
+        #   中间轮 JSON 无 answer 键 ⇒ 天然静默, final 轮才见逐字输出）
+        if progress and hasattr(llm, "complete_stream"):
+            res = llm.complete_stream(
+                prompt, system=system, max_tokens=1600, json_mode=True,
+                images=_imgs,
+                on_delta=lambda t: progress({"ev": "token", "t": t}))
+        else:
+            res = llm.complete(prompt, system=system, max_tokens=1600,
+                               json_mode=True, images=_imgs)
         if not getattr(res, "ok", False):
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
