@@ -6,7 +6,7 @@
 
 ★ R240 设计语言 · "Deep Space Terminal"（DESIGN 纪律: 一个主色 + 一个点缀,
   层级靠留白与细线不靠框, 品牌要有记忆点）:
-  · 主色 teal 青 #7EE0E6（线条/标题/图标） · 点缀 amber 橙 #FFB86B（❯/焦点/切模式）
+  · 字色纯白 #ECEDEE（R242c: 不要蓝字） · 点缀 amber 橙 #FFB86B（❯/焦点/色块字标）
   · 深空底 #0B0F14 → surface #11161D → panel #161D26（三级灰阶纵深）
   · 面板**去框** — 只留 1px 细竖线分隔（避免"两个方框"平庸病）
   · 顶栏品牌条 ◆ DWC ┊ 模式 ┊ 心跳 ┊ 时钟 · 首屏块字记忆点 · 动作行带时间戳
@@ -160,17 +160,18 @@ class DwcApp(App):
         try:
             self.register_theme(Theme(
                 name="dwc-deep-space",
-                primary="#7EE0E6",       # 主色: teal 青
-                secondary="#4A6670",
+                primary="#ECEDEE",       # 主体字色: 纯白(R242c 用户: 字用白不要蓝)
+                secondary="#8A8E94",   # 中性次级灰(原蓝绿灰)
                 accent="#FFB86B",        # 点缀: amber 橙
                 success="#5AF78E",
                 error="#FF5F56",
                 warning="#F3D99D",
                 background="#0B0F14",    # 深空底
                 surface="#11161D",
-                panel="#161D26",
-                foreground="#C9D1D9",
-                dark=True))
+                panel="#24282E",      # 中性深灰(蓝灰被看成蓝线)
+                foreground="#ECEDEE",  # 纯白主文字
+                dark=True,
+                variables={"text-muted": "#9B9B9B"}))
             self.theme = "dwc-deep-space"
         except Exception:                       # noqa: BLE001 — 主题失败用默认
             pass
@@ -220,10 +221,10 @@ class DwcApp(App):
             pass
 
     def _topbar_text(self) -> str:
-        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
+        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "同步"
         clock = _time.strftime("%H:%M")
         return ("  ◆ [bold black on #FFB86B] D W C [/]  "
-                "[on #1E2733] %s [/]  [on #1E2733] %s [/]  [dim]ctrl+c[/]"
+                "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
                 % (mode, clock))
 
     def _set_topbar(self) -> None:
@@ -248,12 +249,12 @@ class DwcApp(App):
         hb = s.get("heartbeat") or {}
         mark = ("[#5AF78E]●[/] agent alive" if s.get("pid")
                 else "[#FF5F56]●[/] agent down")
-        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
+        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "同步"
         clock = _time.strftime("%H:%M")
         self.query_one("#topbar", Static).update(
             "  ◆ [bold black on #FFB86B] D W C [/]  "
-            "[on #1E2733] %s [/]  [on #1E2733] %s·%s·%s/%s [/]  "
-            "[on #1E2733] %s [/]  [dim]ctrl+c[/]"
+            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s·%s·%s/%s [/]  "
+            "[on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
             % (mark, mode, hb.get("terms", "─"),
                q.get("pending", 0), q.get("done", 0), clock))
 
@@ -334,7 +335,7 @@ class DwcApp(App):
             elif kind == "action":
                 mark = ("[#5AF78E]✓[/]" if ev.get("ok")
                         else "[#FF5F56]✗[/]")
-                _post_tool("[dim]%s[/] [bold #7EE0E6]%-2s[/] %-5s %s %s"
+                _post_tool("[dim]%s[/] [bold]%-2s[/] %-5s %s %s"
                            % (_time.strftime("%H:%M:%S"),
                               _ICON.get(ev.get("op"), "·"), ev.get("op", ""),
                               str(ev.get("target", ""))[:50], mark))

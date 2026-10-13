@@ -56,6 +56,21 @@ STATE_PATH = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
                           "hermes", "scripts", ".dwc_agent_watch_state.json")
 
 
+def _agent_python() -> str:
+    """★ R243a: 拉活解释器 — cron 的 sys.executable 缺 yaml/psutil,
+    agent 拉起即崩(14:15 实测: 拉活进程无心跳)。DWC 真身必须用
+    hermes venv(全依赖); env DWC_PY 可覆盖; 降级 sys.executable(留痕)。"""
+    _p = os.environ.get("DWC_PY", "").strip()
+    if _p and os.path.isfile(_p):
+        return _p
+    _v = os.path.join(os.environ.get("LOCALAPPDATA", "~"), "hermes",
+                      "hermes-agent", "venv", "Scripts", "python.exe")
+    if os.path.isfile(_v):
+        return _v
+    print("watchdog: venv 缺失 — 降级 sys.executable(agent 可能缺依赖)")
+    return sys.executable
+
+
 def _alive() -> bool:
     if not os.path.exists(PID):
         return False
@@ -80,12 +95,30 @@ def _fresh() -> bool:
         return False
 
 
-def _send(text: str) -> str:
-    import yaml
+def _feishu_cfg() -> dict:
+    """★ R243a: 配置解析 — cron 的 python 无 yaml(14:15 实测告警崩),
+    正则 fallback 保告警必达(降级留痕)。"""
     cfg_path = os.path.join(os.environ.get("LOCALAPPDATA", "~"),
                             "hermes", "config.yaml")
-    with open(cfg_path, encoding="utf-8") as fh:
-        fs = (yaml.safe_load(fh) or {}).get("feishu") or {}
+    raw = open(cfg_path, encoding="utf-8").read()
+    try:
+        import yaml
+        return (yaml.safe_load(raw) or {}).get("feishu") or {}
+    except Exception as exc:                    # noqa: BLE001 — 降级留痕
+        print("watchdog: yaml 不可用(%s) — 正则解析 feishu 配置" % exc)
+        import re as _re
+        def _grab(k):
+            m = _re.search(r"^\s*%s\s*:\s*[\"']?([^\"'\n]+)" % k,
+                           raw, _re.MULTILINE)
+            return m.group(1).strip() if m else ""
+        return {"app_id": _grab("app_id"),
+                "app_secret": _grab("app_secret"),
+                "home_channel_id": _grab("home_channel_id"),
+                "home_channel_type": _grab("home_channel_type")}
+
+
+def _send(text: str) -> str:
+    fs = _feishu_cfg()
     req = urllib.request.Request(
         FEISHU_API + "/auth/v3/tenant_access_token/internal",
         data=json.dumps({"app_id": fs["app_id"],
@@ -120,11 +153,13 @@ def main() -> int:
         return 0                              # 活着且新鲜 = 静默
     # 拉活: 后台启动 agent（与 watchdog 同目录的副本）
     agent = os.path.join(HERE, "dwc_agent.py")
-    py = os.path.join(os.environ.get("LOCALAPPDATA", "~"), "..")  # placeholder
-    py = sys.executable
+    py = _agent_python()
+    _flags = (getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+              | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+              | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
     subprocess.Popen([py, agent], cwd=os.path.dirname(HERE),
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                     creationflags=_flags, close_fds=True)
     ts = time.strftime("%Y-%m-%d %H:%M")
     try:
         mid = _send("🟡 DWC agent 已拉活（%s）\n原因: %s" % (ts, reason))

@@ -1,0 +1,70 @@
+{
+ "round": "R243",
+ "date": "2026-10-13",
+ "主题": "白字化(teal零残留) + watchdog双根因修复(cron无yaml/解释器错/非detached)——agent down 2h恢复",
+ "verify": {
+  "pytest": "1566+1skip rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 243,
+  "at": "2026-10-13T15:53:00+08:00",
+  "parent_gen": 242,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 262,
+   "pytest": 1567,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R242c白字+R243a: ①字色纯白(primary/foreground白+secondary/muted中性灰+chip炭灰+panel中性—teal零残留) ②watchdog三修(cron的python无yaml⇒正则fallback告警必达/拉活解释器venv优先/Popen DETACHED|NEW_GROUP|NO_WINDOW真脱离)——用户截图agent down实锤双根因, 端到端验证(tools python跑副本→拉活+飞书msg=om_送达+35s心跳)",
+   "files": [
+    "scripts/dwc_tui.py",
+    "scripts/dwc_agent_watch.py",
+    "tests/test_r243_watchdog.py",
+    "C:\\Users\\41228\\AppData\\Local\\hermes\\scripts\\dwc_agent_watch.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r243_watchdog.py 4锁(venv优先/yaml降级字段全/DETACHED/副本md5)",
+     "claim": "cron 14:15 输出'No module named yaml'+agent死2h实锤; 端到端tools-python跑副本拉活成功"
+    },
+    {
+     "type": "test",
+     "ref": "vision复检",
+     "claim": "白字化后8/10→残余蓝灰再修(chip/muted/panel)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1566+1skip rc=0 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r243_watchdog.py",
+   "user_decision": "用户'字的颜色换成白色 不要蓝色'+截图down"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "watchdog下轮16:15 cron实测; agent双进程现象(venv壳+runtime真身)待观察"
+  }
+ }
+}
