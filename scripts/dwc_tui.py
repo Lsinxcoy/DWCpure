@@ -323,7 +323,10 @@ def main(argv=None) -> int:
         import dwc_chat
         return dwc_chat.main(["dwc_chat"] + list(argv or []))
     app = DwcApp()
-    app.run()
+    # ★ R241 抖动修: textual Windows 驱动开 1003h(任何鼠标事件都上报) ⇒
+    #   点击/移动全进程序触发重绘风暴(用户实测整屏抖)。本 TUI 键盘导向 ⇒
+    #   默认关鼠标(终端原生行为不再进程序); 想开: DWC_TUI_MOUSE=1。
+    app.run(mouse=(os.environ.get("DWC_TUI_MOUSE", "").strip() == "1"))
     return 0
 
 
