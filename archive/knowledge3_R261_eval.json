@@ -1,0 +1,84 @@
+{
+ "round": "R261",
+ "date": "2026-10-14",
+ "主题": "短板1/2/3补齐: 测量层A/B(Δ+3.8pp)+无人值守跑批回路+web_read",
+ "verify": {
+  "pytest": "1634 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "AB": "A90.4% B94.2% Δ+3.8pp"
+ },
+ "inheritance": {
+  "gen": 259,
+  "at": "2026-10-14T06:34:00+08:00",
+  "parent_gen": 258,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 277,
+   "pytest": 1634,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R259-R261 短板1/2/3补齐: ①测量层52单A/B(机器验收agent外, 零LLM自评) 实测 A90.4%/B94.2%/Δ+3.8pp进化净收益; 抓到dwc_self.md过时6轮真缺陷(已修+回归锁) ②nightbench无人值守回路(每日02:30投inbox+轮换抽样+success_curve曲线+周报cron) ③web_read op(urllib零依赖, http/https白名单+20s+2MB+HTMLParser转文本, 实测三连过)",
+   "files": [
+    "scripts/dwc_bench2.py",
+    "config/eval_tasks.jsonl",
+    "scripts/score_revisions.py",
+    "scripts/reverify_eval.py",
+    "scripts/dwc_nightbench.py",
+    "scripts/dwc_nightbench_weekly.py",
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/llm/step_judge.py",
+    "config/dwc_self.md",
+    "tests/test_r259_eval.py",
+    "docs/EVAL_PLAN.md",
+    "docs/EVAL_REPORT.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "docs/EVAL_REPORT.md A/B 实测",
+     "claim": "A(关进化)47/52=90.4% B(开进化)49/52=94.2% Δ=+3.8pp; 判据Layer-22修正3处+reverify统一重验"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1634 rc=0+gate+双e2e; 测量层首日抓dwc_self.md过时真缺陷(6轮→999同步)"
+    },
+    {
+     "type": "test",
+     "ref": "web_read 实测",
+     "claim": "html2text剥script/file://拒绝/真抓example.com三连过"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1634 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "docs/EVAL_REPORT.md",
+   "user_decision": "用户'动手 补齐1 2 3短板'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "nightbench 曲线需≥1周积累; 任务集构造偏差(A/B差值干净但绝对值偏乐观); 修订质量 grounded 率待有修订对后跑 score_revisions"
+  }
+ }
+}

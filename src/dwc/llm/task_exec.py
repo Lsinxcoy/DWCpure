@@ -76,8 +76,64 @@ def _guard_path(path: str, *, write: bool) -> str:
     return p
 
 
+def _html_to_text(html: str) -> str:
+    """★ R261 · 轻量 html→text（标准库 HTMLParser — 零依赖）。"""
+    from html.parser import HTMLParser
+
+    class _T(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self._skip = 0
+            self._buf: List[str] = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style", "noscript"):
+                self._skip += 1
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style", "noscript") and self._skip:
+                self._skip -= 1
+
+        def handle_data(self, data):
+            if not self._skip and data.strip():
+                self._buf.append(data.strip())
+
+    t = _T()
+    try:
+        t.feed(html)
+    except Exception:                       # noqa: BLE001 — 解析失败退化剥标签
+        import re as _re
+        return _re.sub(r"<[^>]+>", " ", html)
+    return "\n".join(t._buf)
+
+
 def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
+    if op == "web_read":
+        # ★ R261 · 网页抓取（研究类任务最疼的缺口 — urllib 零依赖;
+        #   协议白名单 http/https; 超时 20s; 体积 2MB 上限）
+        import urllib.request
+        url = str(args.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")):
+            return {"ok": False, "error": "web_read 只接受 http/https URL: %s"
+                    % url[:80]}
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "DWC-Agent/1.0 (+research)"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read(2_000_000)
+                charset = resp.headers.get_content_charset() or "utf-8"
+        except Exception as exc:            # noqa: BLE001 — 网络失败如实报
+            return {"ok": False, "error": "web_read 失败: %s: %s"
+                    % (type(exc).__name__, exc)}
+        body = raw.decode(charset, errors="replace")
+        text = (_html_to_text(body)
+                if "html" in (resp.headers.get_content_type() or "")
+                else body)
+        return {"ok": True, "url": url, "chars": len(text),
+                "content": text[:8000]
+                           + ("\n…(截断 — 正文 %d 字符)" % len(text)
+                              if len(text) > 8000 else "")}
     if op == "read":
         p = _guard_path(str(args.get("path", "")), write=False)
         if os.path.splitext(p)[1].lower() in (".png", ".jpg", ".jpeg",
@@ -177,7 +233,8 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                     "err": (r.stderr or "")[:1500]}
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "timeout 60s"}
-    raise TaskExecError("未知动作 op=%r（白名单: read/write/run/final）" % op)
+    raise TaskExecError("未知动作 op=%r（白名单: read/write/run/web_read/"
+                        "mcp/delegate/ask/final）" % op)
 
 
 def _extract_json(text: str):
@@ -458,6 +515,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         " · 写文件(只许 var/inbox_work/ 下): {\"op\":\"write\",\"path\":"
         "\"var/inbox_work/x.md\",\"content\":\"...\"}"
         " · 跑命令(argv列表,60s超时): {\"op\":\"run\",\"cmd\":[\"python\",\"-c\",\"...\"]}"
+        " · 抓网页(研究查资料; http/https, 20s超时, 自动转纯文本):"
+        " {\"op\":\"web_read\",\"url\":\"https://...\"}"
         " · 调 MCP 外部工具（标准协议口; server 须在 config/mcp.json 配）:"
         " {\"op\":\"mcp\",\"server\":\"名\",\"tool\":\"工具名\",\"args\":{}}"
         " · 派独立子代理（隔离上下文做子研究, 返回摘要; 限 1 层）:"

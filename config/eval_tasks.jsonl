@@ -1,0 +1,52 @@
+{"id": "rf01", "kind": "read-fact", "task": "DWC 的一行安装命令中, PowerShell 需要 TrimStart 的字符码是什么？只答字符码。", "check": {"type": "contains", "target": "0xfeff"}}
+{"id": "rf02", "kind": "read-fact", "task": "README 里全屏 TUI 的命令面板快捷键是什么？只答快捷键。", "check": {"type": "contains", "target": "Ctrl+P"}}
+{"id": "rf03", "kind": "read-fact", "task": "DWC 的复读熔断是连续几轮同动作同结果触发？只答数字。", "check": {"type": "regex", "pattern": "^[\\s'\\\"（）()]*3[\\s'\\\"（）()]*$"}}
+{"id": "rf04", "kind": "read-fact", "task": "DWC 任务执行核的最大轮数是多少？只答数字。", "check": {"type": "regex", "pattern": "(999)"}}
+{"id": "rf05", "kind": "read-fact", "task": "DWC 的记忆系统内核类名叫什么？只答类名。", "check": {"type": "contains", "target": "MemoryKernel"}}
+{"id": "rf06", "kind": "read-fact", "task": "README 快速开始里, 常驻 agent 启动用哪个命令（含参数）？只答命令。", "check": {"type": "contains", "target": "dwc start --llm"}}
+{"id": "rf07", "kind": "read-fact", "task": "DWC 项目的 GitHub 仓库全名（owner/repo）是什么？只答 owner/repo。", "check": {"type": "contains", "target": "Lsinxcoy/divine-wisdom-core"}}
+{"id": "rf08", "kind": "read-fact", "task": "DWC 记忆修订的新节点用哪个保留键链回旧节点？只答键名。", "check": {"type": "contains", "target": "_rev_prev"}}
+{"id": "rf09", "kind": "read-fact", "task": "DWC 事前判别的 env 开关变量名是什么（可关判别的那个）？只答变量名。", "check": {"type": "contains", "target": "DWC_STEP_JUDGE"}}
+{"id": "rf10", "kind": "read-fact", "task": "DWC 修订对（失败任务修订重试的配对）落盘到哪个文件名？只答文件名。", "check": {"type": "contains", "target": "dwc_pairs.jsonl"}}
+{"id": "rf11", "kind": "read-fact", "task": "PROGRESS 里记录的轮次上限数字（用户拍板改的那个）是多少？只答数字。", "check": {"type": "regex", "pattern": "999"}}
+{"id": "rf12", "kind": "read-fact", "task": "DWC 的 TUI 主题名（theme）叫什么？只答主题名。", "check": {"type": "contains", "target": "dwc-deep-space"}}
+{"id": "cl01", "kind": "code-locate", "task": "execute_user_task 定义在哪个文件？只答文件名（含路径后缀）。", "check": {"type": "contains", "target": "task_exec.py"}}
+{"id": "cl02", "kind": "code-locate", "task": "MemoryKernel 定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "memory.py"}}
+{"id": "cl03", "kind": "code-locate", "task": "step_judge（事前判别）模块在哪个目录？只答目录名。", "check": {"type": "contains", "target": "llm"}}
+{"id": "cl04", "kind": "code-locate", "task": "next_effort（节流-冲刺调度）定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "effort.py"}}
+{"id": "cl05", "kind": "code-locate", "task": "revision_lessons（规矩文件修订）定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "agent_quality.py"}}
+{"id": "cl06", "kind": "code-locate", "task": "updater（自更新）模块在哪个子目录？只答目录名。", "check": {"type": "contains", "target": "foundation"}}
+{"id": "cl07", "kind": "code-locate", "task": "revise_from_outcome 定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "revision.py"}}
+{"id": "cl08", "kind": "code-locate", "task": "DWC 的 CLI 入口路由文件叫什么？只答文件名。", "check": {"type": "contains", "target": "cli_main.py"}}
+{"id": "cl09", "kind": "code-locate", "task": "复读熔断的实现在哪个文件？只答文件名。", "check": {"type": "contains", "target": "task_exec.py"}}
+{"id": "cl10", "kind": "code-locate", "task": "lessons_context（历史教训注入）定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "agent_quality.py"}}
+{"id": "rv01", "kind": "run-verify", "task": "运行 dwc 的 effort 调度模块测试文件（tests/test_r252_effort.py）, 确认通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r252_effort.py -q -p no:randomly", "target": "passed"}}
+{"id": "rv02", "kind": "run-verify", "task": "运行事前判别测试（tests/test_r255_stepjudge.py）, 确认通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r255_stepjudge.py -q -p no:randomly", "target": "passed"}}
+{"id": "rv03", "kind": "run-verify", "task": "运行修订回路测试（tests/test_r258_revision.py）, 确认通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r258_revision.py -q -p no:randomly", "target": "passed"}}
+{"id": "rv04", "kind": "run-verify", "task": "运行 R247 读修复测试, 确认通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r247_readfix.py -q -p no:randomly", "target": "passed"}}
+{"id": "rv05", "kind": "run-verify", "task": "运行 inbox 测试, 确认通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r209_inbox.py -q -p no:randomly", "target": "passed"}}
+{"id": "rv06", "kind": "run-verify", "task": "统计 src/dwc 目录下 Python 文件数量, 报告数字（用命令行统计）。", "check": {"type": "rc_and_contains", "cmd": "python -c \"import os;n=sum(1 for _,_,fs in os.walk(r'src/dwc') for f in fs if f.endswith('.py'));print('PYFILES',n)\"", "target": "PYFILES"}}
+{"id": "rv07", "kind": "run-verify", "task": "运行门禁脚本 scripts/gate.py, 报告是否全部通过。", "check": {"type": "rc_and_contains", "cmd": "python scripts/gate.py", "target": "全部通过"}}
+{"id": "rv08", "kind": "run-verify", "task": "输出当前 git 最新提交哈希前 8 位（git log -1）。", "check": {"type": "rc_and_contains", "cmd": "git log -1 --format=%h", "target": ""}}
+{"id": "rv09", "kind": "run-verify", "task": "运行记忆系统测试（tests/test_r258_revision.py 中的版本链锁）, 确认 10 个测试通过。", "check": {"type": "rc_and_contains", "cmd": "python -m pytest tests/test_r258_revision.py -q -p no:randomly", "target": "10 passed"}}
+{"id": "rv10", "kind": "run-verify", "task": "用 python 打印 DWC 的 pytest 基线数字（读 README 里 badge 的数字）并输出。", "check": {"type": "contains", "target": "1598"}}
+{"id": "an01", "kind": "analyze", "task": "列出 src/dwc/organs 目录下至少三个器官模块文件名（如 memory.py 等）。", "check": {"type": "contains_all", "target": ["memory.py", "evolver.py", "judge.py"]}}
+{"id": "an02", "kind": "analyze", "task": "列出 tests 目录下与本轮论文落地相关的至少两个测试文件名（如 test_r258 开头的）。", "check": {"type": "contains_all", "target": ["test_r258_revision.py", "test_r255_stepjudge.py"]}}
+{"id": "an03", "kind": "analyze", "task": "docs/papers 目录下有哪三篇论文的深读文件？列出文件名（含编号）。", "check": {"type": "contains_all", "target": ["2609.14858", "2609.28416", "2610.12668"]}}
+{"id": "an04", "kind": "analyze", "task": "DWC 的八质量门里, G7 门叫什么名字（静默门）？只答门名。", "check": {"type": "contains", "target": "静默"}}
+{"id": "an05", "kind": "analyze", "task": "config 目录下与进化调度相关的 yaml 配置文件名（replay 调度的那个）。", "check": {"type": "contains", "target": "replay.yaml"}}
+{"id": "an06", "kind": "analyze", "task": "archive 目录下知识档文件的命名前缀是什么（knowledge 开头的完整前缀）？", "check": {"type": "contains", "target": "knowledge3_"}}
+{"id": "an07", "kind": "analyze", "task": "列出 dwc 的安装脚本文件名（Windows 与 shell 两个）。", "check": {"type": "contains_all", "target": ["install.ps1", "install.sh"]}}
+{"id": "an08", "kind": "analyze", "task": "scripts 目录下与校准 bench 相关的脚本文件名是什么？", "check": {"type": "contains", "target": "calibrate_step_judge.py"}}
+{"id": "an09", "kind": "analyze", "task": "DWC 的铁律文档（iron laws）文件在哪个目录下？只答目录名。", "check": {"type": "contains_any", "target": ["config", "docs"]}}
+{"id": "an10", "kind": "analyze", "task": "var 目录下 agent 心跳文件叫什么名？只答文件名。", "check": {"type": "contains", "target": "dwc_agent_heartbeat.json"}}
+{"id": "wr01", "kind": "write", "task": "在 var/inbox_work/ 目录写入文件 hello.txt, 内容为一行: EVAL_WRITE_OK", "check": {"type": "file_contains", "path": "var/inbox_work/hello.txt", "target": "EVAL_WRITE_OK"}}
+{"id": "wr02", "kind": "write", "task": "在 var/inbox_work/ 写入 stats.json, 内容为合法 JSON 且含键 \"purpose\": \"eval\"。", "check": {"type": "file_contains", "path": "var/inbox_work/stats.json", "target": "eval"}}
+{"id": "wr03", "kind": "write", "task": "在 var/inbox_work/ 写入 list.md, 内容是三个用 - 开头的列表项。", "check": {"type": "file_contains", "path": "var/inbox_work/list.md", "target": "-"}}
+{"id": "wr04", "kind": "write", "task": "在 var/inbox_work/ 写入 answer.txt, 内容为: 复读熔断阈值是3", "check": {"type": "file_contains", "path": "var/inbox_work/answer.txt", "target": "3"}}
+{"id": "wr05", "kind": "write", "task": "在 var/inbox_work/ 写入 note.txt, 内容包含 DWC 与 999 两个词。", "check": {"type": "file_contains_all", "path": "var/inbox_work/note.txt", "target": ["DWC", "999"]}}
+{"id": "wr06", "kind": "write", "task": "在 var/inbox_work/ 写入 quote.txt, 内容包含 0xfeff。", "check": {"type": "file_contains", "path": "var/inbox_work/quote.txt", "target": "0xfeff"}}
+{"id": "wr07", "kind": "write", "task": "在 var/inbox_work/ 写入 two.txt, 恰好两行, 第一行是 A, 第二行是 B。", "check": {"type": "file_lines", "path": "var/inbox_work/two.txt", "lines": 2, "target": "A"}}
+{"id": "wr08", "kind": "write", "task": "在 var/inbox_work/ 写入 flag.txt, 内容为 EVAL_E2E_COMPLETE。", "check": {"type": "file_contains", "path": "var/inbox_work/flag.txt", "target": "EVAL_E2E_COMPLETE"}}
+{"id": "hs01", "kind": "historical", "task": "世界模型的作用（历史失败任务原题）。", "check": {"type": "contains_any", "target": ["预测", "模拟", "状态", "环境", "规划", "表征", "因果"]}}
+{"id": "hs02", "kind": "historical", "task": "为什么上轮没执行（历史失败任务原题）。", "check": {"type": "contains_any", "target": ["失败", "原因", "轮", "熔断", "重复", "上限", "错误", "未"]}}

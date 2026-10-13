@@ -37,7 +37,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
-VALID_OPS = ("read", "write", "run", "delegate", "ask", "final")
+VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "final")
 
 
 class JudgeError(ValueError):
@@ -109,6 +109,9 @@ def validate_step(step: Any, *, root: Optional[str] = None,
         return "修订缺 path"
     if op == "run" and not str(step.get("cmd", "")).strip():
         return "修订 run 空 cmd"
+    if op == "web_read" and not str(step.get("url", "")).startswith(
+            ("http://", "https://")):
+        return "修订 web_read 非法 url"
     if op == "read" and step.get("path"):
         base = root or os.environ.get("DWC_ROOT", "") or os.getcwd()
         tgt = step["path"]
