@@ -22,8 +22,8 @@ import time as _time
 
 try:
     from textual.app import App, ComposeResult
-    from textual.containers import Horizontal, Vertical
-    from textual.widgets import Footer, Input, RichLog, Static
+    from textual.containers import Horizontal, Vertical, VerticalScroll
+    from textual.widgets import Footer, Input, Markdown, RichLog, Static
     from textual.binding import Binding
     from textual.theme import Theme
     _TUI_OK = True
@@ -60,7 +60,36 @@ class DwcApp(App):
         padding: 0 1;
     }
     #body { height: 1fr; }
+    /* ── R242 · 消息组件系统（告别日志流 — 每条消息一个 widget） ── */
     #chat-pane { width: 3fr; background: $background; padding: 0 1; }
+    #msgs {
+        background: $background;
+        height: 1fr;
+        scrollbar-color: $panel;
+        padding: 0 1;
+    }
+    .msg-user {
+        background: $surface;
+        border-left: tall $accent;
+        padding: 0 1;
+        margin: 1 0;
+        text-style: bold;
+    }
+    .msg-ans {
+        background: $background;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+    .msg-sys {
+        color: $text-muted;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+    .msg-stream {
+        background: $background;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
     #tool-pane {
         width: 2fr;
         background: $background;
@@ -119,9 +148,9 @@ class DwcApp(App):
         with Horizontal(id="body"):
             with Vertical(id="chat-pane"):
                 yield Static("  ─ 对话 ", classes="pane-title")
-                yield RichLog(id="chat", wrap=True, highlight=False, markup=True)
-                yield Static("   [dim]输入任务开始对话 · 答案将在这里逐字流出[/]",
-                             id="empty-hint")
+                with VerticalScroll(id="msgs"):
+                    yield Static("   [dim]输入任务开始对话 · "
+                                 "答案将在这里渲染[/]", id="empty-hint")
             with Vertical(id="tool-pane"):
                 yield Static("  ─ 动作 ─ 实时 ", classes="pane-title")
                 yield RichLog(id="tools", wrap=True, markup=True)
@@ -151,15 +180,50 @@ class DwcApp(App):
             self.theme = "dwc-deep-space"
         except Exception:                       # noqa: BLE001 — 主题失败用默认
             pass
-        chat = self.query_one("#chat", RichLog)
-        for ln in _MARK:
-            chat.write("[bold #7EE0E6]%s[/]" % ln)
-        chat.write("[bold]DIVINE WISDOM CORE[/]  "
-                   "[dim]· 独立常驻 agent · v0.1.0[/]")
-        chat.write("[dim]输入任务回车即执行 · /help 全部命令[/]")
-        chat.write("")
+        msgs = self.query_one("#msgs", VerticalScroll)
+        try:
+            self.query_one("#empty-hint").remove()
+        except Exception:                       # noqa: BLE001 — 已移除不炸
+            pass
+        head = "\n".join(_MARK) + (
+            "\n\n[bold]DIVINE WISDOM CORE[/]  "
+            "[dim]· 独立常驻 agent · v0.1.0[/]\n"
+            "[dim]输入任务回车即执行 · /help 全部命令[/]")
+        msgs.mount(Static(head, classes="msg-sys"))
         self._refresh_status()
         self.set_interval(15.0, self._refresh_status)
+
+    # ── R242 · 消息卡 API（mount widget 而非日志行） ──────────
+
+    def _msgs(self) -> VerticalScroll:
+        return self.query_one("#msgs", VerticalScroll)
+
+    def _say_user(self, text: str) -> None:
+        """★ 用户消息卡: accent 左条 + surface 底 + 粗体。"""
+        self._msgs().mount(Static("❯ " + text, classes="msg-user"))
+        self._msgs().scroll_end(force=True)
+
+    def _say_sys(self, text: str) -> None:
+        self._msgs().mount(Static(text, classes="msg-sys"))
+        self._msgs().scroll_end(force=True)
+
+    def _say_ans(self, markdown: str) -> None:
+        """★ 助手答案: Markdown 组件渲染（标题/代码块/列表 — 质变点）。"""
+        self._msgs().mount(Markdown(markdown, classes="msg-ans"))
+        self._msgs().scroll_end(force=True)
+
+    def _stream_open(self) -> Static:
+        """★ 流式临时区: 逐字打; 完成后 remove 并换 Markdown 卡。"""
+        w = Static("", classes="msg-stream", id="streaming")
+        self._msgs().mount(w)
+        self._msgs().scroll_end(force=True)
+        return w
+
+    def _stream_close(self) -> None:
+        try:
+            self.query_one("#streaming").remove()
+        except Exception:                       # noqa: BLE001
+            pass
 
     def _topbar_text(self) -> str:
         mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
@@ -206,30 +270,27 @@ class DwcApp(App):
         ev.input.value = ""
         if not line:
             return
-        chat = self.query_one("#chat", RichLog)
         if line in ("/quit", "/exit", "/q"):
             self.exit()
             return
         if line == "/bg":
             self._bg_mode = True
             self._set_topbar()
-            chat.write("[#FFB86B]✦ 已切后台投单模式[/] "
-                       "[dim]（常驻 agent 消费）[/]")
+            self._say_sys("✦ 已切后台投单模式（常驻 agent 消费）")
             return
         if line == "/fg":
             self._bg_mode = False
             self._set_topbar()
-            chat.write("[#7EE0E6]✦ 已切同步直驱模式[/]")
+            self._say_sys("✦ 已切同步直驱模式")
             return
         if line == "/help":
-            chat.write("[dim]/bg /fg 模式 · /status 刷新 · /quit 退出 · "
-                       "直接输入任务=同步执行[/]")
+            self._say_sys("/bg /fg 模式 · /status 刷新 · /quit 退出 · "
+                          "直接输入任务=同步执行")
             return
         if line == "/status":
             self._refresh_status()
             return
-        chat.write("")
-        chat.write("[bold #FFB86B]❯[/] [bold]%s[/]" % line)
+        self._say_user(line)
         if self._bg_mode:
             self._submit_bg(line)
         else:
@@ -239,8 +300,7 @@ class DwcApp(App):
 
     def _run_sync(self, task: str) -> None:
         if self._busy:
-            self.query_one("#chat", RichLog).write(
-                "[yellow]上一个任务还在跑 — 等它完成[/]")
+            self._say_sys("⏳ 上一个任务还在跑 — 等它完成")
             return
         self._busy = True
         ctx = None
@@ -249,26 +309,43 @@ class DwcApp(App):
             ctx = "上轮对话摘要: 任务=%s; 答案要点=%s" % (
                 last["task"][:120], str(last.get("answer", ""))[:400])
 
-        def _post(msg: str, tool: bool = False) -> None:
+        def _post_tool(msg: str) -> None:
             try:
                 self.call_from_thread(
-                    self.query_one("#tools" if tool else "#chat", RichLog).write,
-                    msg)
+                    self.query_one("#tools", RichLog).write, msg)
+            except Exception:                       # noqa: BLE001
+                pass
+
+        def _stream_put(text: str) -> None:
+            """★ 流式逐字（线程 → UI）: 累进临时卡。"""
+            def _do():
+                w = getattr(self, "_stream_w", None)
+                if w is None or not w.is_attached:
+                    self._stream_w = self._stream_open()
+                    w = self._stream_w
+                base = getattr(w, "_acc", "") + text
+                w._acc = base
+                w.update(base)
+                self._msgs().scroll_end(force=True)
+            try:
+                self.call_from_thread(_do)
             except Exception:                       # noqa: BLE001
                 pass
 
         def _progress(ev: dict) -> None:
             kind = ev.get("ev")
             if kind == "round":
-                _post("[dim]%s │  轮 %d · 思考中…[/]"
-                      % (_time.strftime("%H:%M:%S"), ev.get("n", 0)), True)
+                _post_tool("[dim]%s │  轮 %d · 思考中…[/]"
+                           % (_time.strftime("%H:%M:%S"), ev.get("n", 0)))
             elif kind == "action":
                 mark = ("[#5AF78E]✓[/]" if ev.get("ok")
                         else "[#FF5F56]✗[/]")
-                _post("[dim]%s[/] [bold #7EE0E6]%-2s[/] %-5s %s %s"
-                      % (_time.strftime("%H:%M:%S"),
-                         _ICON.get(ev.get("op"), "·"), ev.get("op", ""),
-                         str(ev.get("target", ""))[:50], mark), True)
+                _post_tool("[dim]%s[/] [bold #7EE0E6]%-2s[/] %-5s %s %s"
+                           % (_time.strftime("%H:%M:%S"),
+                              _ICON.get(ev.get("op"), "·"), ev.get("op", ""),
+                              str(ev.get("target", ""))[:50], mark))
+            elif kind == "token":
+                _stream_put(ev.get("t", ""))
 
         def _work():
             from dwc.llm.client import LLMClient
@@ -279,18 +356,23 @@ class DwcApp(App):
                                     progress=_progress)
             secs = round(_time.time() - t0, 1)
             ans = str(rep.get("answer", ""))
-            if rep.get("status") == "done":
-                _post("[bold #5AF78E]── ✓ 完成[/]"
-                      "[dim]  · %d 轮 · %.1fs[/]"
-                      % (rep.get("rounds", 0), secs))
-            else:
-                _post("[bold #FF5F56]── ✗ %s[/]"
-                      "[dim]  · %d 轮 · %.1fs · %s[/]"
-                      % (rep.get("status"), rep.get("rounds", 0), secs,
-                         str(rep.get("why", ""))[:140]))
-            if ans:
-                for ln in ans.splitlines() or [""]:
-                    _post(ln)
+
+            def _finalize():
+                self._stream_close()
+                self._stream_w = None
+                if ans:
+                    self._say_ans(ans)           # ★ 流式终态 → Markdown 卡
+                if rep.get("status") == "done":
+                    self._say_sys("── ✓ 完成 · %d 轮 · %.1fs"
+                                  % (rep.get("rounds", 0), secs))
+                else:
+                    self._say_sys("── ✗ %s · %d 轮 · %.1fs · %s"
+                                  % (rep.get("status"), rep.get("rounds", 0),
+                                     secs, str(rep.get("why", ""))[:140]))
+            try:
+                self.call_from_thread(_finalize)
+            except Exception:                       # noqa: BLE001
+                pass
             self._hist.append({"task": task, "answer": ans,
                                "status": rep.get("status")})
             del self._hist[:-8]
@@ -303,13 +385,10 @@ class DwcApp(App):
             try:
                 from dwc import agent_rpc as R
                 r = R.cmd_submit(task) or {}
-                self.call_from_thread(
-                    self.query_one("#chat", RichLog).write,
-                    "[green]→ 已投单 %s[/]" % r.get("id", "?"))
+                self.call_from_thread(self._say_sys,
+                                      "→ 已投单 %s" % r.get("id", "?"))
             except Exception as e:                  # noqa: BLE001 — 如实报
-                self.call_from_thread(
-                    self.query_one("#chat", RichLog).write,
-                    "[red]投单失败: %s[/]" % e)
+                self.call_from_thread(self._say_sys, "投单失败: %s" % e)
         threading.Thread(target=_work, daemon=True).start()
 
 

@@ -27,7 +27,7 @@ def test_widgets_compose():
     ★ R240 结构校准: #status 状态行并入品牌顶栏 #topbar（锁跟结构语义）。"""
     async def _check(app, pilot):
         assert app.query_one("#topbar") is not None
-        assert app.query_one("#chat") is not None
+        assert app.query_one("#msgs") is not None      # ★ R242 消息容器
         assert app.query_one("#tools") is not None
         assert app.query_one("#ask") is not None
         assert app.query_one("#prompt-label") is not None
@@ -61,6 +61,10 @@ def test_input_dispatches_sync_task(monkeypatch):
             if calls.get("task"):
                 break
         assert calls.get("task") == "任务X"
+        # ★ R242: 用户消息以卡片 widget 入流（非日志行）
+        await pilot.pause(0.1)
+        users = app.query(".msg-user")
+        assert len(users) >= 1, "用户消息卡未生成"
     _run(_go)
 
 

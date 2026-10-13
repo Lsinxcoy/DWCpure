@@ -1,0 +1,63 @@
+{
+ "round": "R242",
+ "date": "2026-10-13",
+ "主题": "界面重构冲刺①: 消息组件系统(卡片化+Markdown渲染+流式临时卡)——opencode对标拆解驱动",
+ "verify": {
+  "pytest": "1567 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 242,
+  "at": "2026-10-13T14:52:00+08:00",
+  "parent_gen": 241,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 261,
+   "pytest": 1567,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R242: 消息组件系统 — VerticalScroll容器+每条消息一个widget(用户卡accent左条/系统卡/Markdown答案卡/流式临时卡完成转Markdown)——告别RichLog日志流; vision自检'提升85-90%'7/10",
+   "files": [
+    "scripts/dwc_tui.py",
+    "tests/test_r239_tui.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r239_tui.py 4锁+截图自检",
+     "claim": "消息卡mount断言/五件套/#msgs容器; opencode基准对标拆解→差距=组件系统深度"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1567 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r239_tui.py",
+   "user_decision": "用户'A'界面重构冲刺拍板(差距像劣质版)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "R243-245排期: 输入升级(@补全/多行)/Ctrl+P面板+session+文件树/动效; 截图SVG有CJK字形丢失伪影(真实终端无)"
+  }
+ }
+}
