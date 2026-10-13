@@ -22,6 +22,7 @@ import time as _time
 
 try:
     from textual.app import App, ComposeResult
+    from textual.screen import ModalScreen
     from textual.containers import Horizontal, Vertical, VerticalScroll
     from textual.widgets import Footer, Input, Markdown, RichLog, Static
     from textual.binding import Binding
@@ -54,6 +55,25 @@ class DwcApp(App):
         padding: 0 1;
     }
     #body { height: 1fr; }
+    /* ── R244 · 文件树侧栏 + Ctrl+P 命令面板 ── */
+    #tree-pane {
+        width: 20%;
+        min-width: 22;
+        background: $background;
+        border-right: solid $panel;
+        padding: 0 1;
+    }
+    #tree { background: $background; height: 1fr; }
+    PaletteScreen { align: center middle; background: $background 45%; }
+    #palette-box {
+        width: 72; max-width: 90%;
+        height: auto;
+        background: $surface;
+        border: tall $accent;
+        padding: 1;
+    }
+    #palette-input { border: none; border-bottom: tall $accent; background: $surface; }
+    #palette-list { height: 10; margin-top: 1; }
     /* ── R242 · 消息组件系统（告别日志流 — 每条消息一个 widget） ── */
     #chat-pane { width: 3fr; background: $background; padding: 0 1; }
     #msgs {
@@ -136,9 +156,14 @@ class DwcApp(App):
     #hint { color: $text-muted; width: 34; content-align: right middle; }
     Footer { background: $surface; color: $text-muted; }
     """
+    #: ★ R244: 关闭 textual 内置面板 — 其自动注入 priority=True 的
+    #:   ctrl+p 绑定会抢走我们的绑定（实测开的是内置 CommandPalette）。
+    ENABLE_COMMAND_PALETTE = False
     BINDINGS = [
         Binding("ctrl+c", "quit", "退出"),
         Binding("ctrl+d", "quit", "退出"),
+        Binding("ctrl+p", "palette", "面板"),
+        Binding("ctrl+l", "clear_chat", "清屏"),
     ]
 
     def __init__(self):
@@ -150,6 +175,9 @@ class DwcApp(App):
     def compose(self) -> ComposeResult:
         yield Static(self._topbar_text(), id="topbar")
         with Horizontal(id="body"):
+            with Vertical(id="tree-pane"):
+                yield Static("  ─ 工作区 ", classes="pane-title")
+                yield Static("", id="tree")
             with Vertical(id="chat-pane"):
                 yield Static("  ─ 对话 ", classes="pane-title")
                 with VerticalScroll(id="msgs"):
@@ -206,6 +234,55 @@ class DwcApp(App):
         self._sug = []              # [(展示, 填充值)]
         self._sug_idx = -1
         self.query_one("#ask", Input).focus()   # ★ 启动即可输入(免 Tab)
+        self._render_tree()
+
+    # ── R244 · Ctrl+P 面板 / 文件树 / 新会话 ───────────────────
+
+    def action_palette(self) -> None:
+        """★ Ctrl+P: 命令面板（全部命令 + 常用动作）。"""
+        def _run(fn):
+            if callable(fn):
+                fn()
+        self.push_screen(PaletteScreen(self._palette_items()), _run)
+
+    def action_command_palette(self) -> None:
+        """★ R244 双保险: textual 内置 action 真名是 command_palette
+        （曾误覆盖 toggle_command_palette — 无效）。覆盖之。"""
+        self.action_palette()
+
+    def _palette_items(self):
+        # ★ R244 实测: acts 与同名命令文字近重复(新会话/查看状态 vs
+        #   /new /status) ⇒ 底部两行看着"重叠实为冗余"。只留无命令
+        #   等价的动作, 面板=命令本身。
+        return [(c + " — " + d, self._mk_cmd(c)) for c, d in _CMDS]
+
+    def _mk_cmd(self, cmd: str):
+        def _go():
+            inp = self.query_one("#ask", Input)
+            inp.value = cmd
+            self.on_input_submitted(type("E", (), {"value": cmd})())
+        return _go
+
+    def action_clear_chat(self) -> None:
+        """★ R244 /new: 新会话 — 清多轮上下文 + 清对话流(留品牌头)。"""
+        self._hist = []
+        msgs = self._msgs()
+        msgs.remove_children()
+        msgs.mount(Static(
+            "[bold black on #FFB86B] D W C [/]  [dim]新会话 · "
+            "输入任务回车即执行[/]", classes="msg-sys"))
+
+    def _render_tree(self) -> None:
+        """★ R244: 文件树侧栏（按目录分组缩进 — 展示态, 选择走 @）。"""
+        lines = []
+        last_dir = None
+        for f in getattr(self, "_files", [])[:120]:
+            d = f.rsplit("/", 1)[0] if "/" in f else "."
+            if d != last_dir:
+                lines.append("[#8A8E94]%s/[/]" % d)
+                last_dir = d
+            lines.append("  %s" % f.rsplit("/", 1)[-1])
+        self.query_one("#tree", Static).update("\n".join(lines) or "—")
 
     # ── R243 · 输入升级（/ 命令补全 · @ 文件补全 · ↑ 历史） ──────
 
@@ -403,6 +480,9 @@ class DwcApp(App):
         if line == "/status":
             self._refresh_status()
             return
+        if line in ("/new", "/clear"):
+            self.action_clear_chat()
+            return
         if not line.startswith("/"):
             self._in_hist.append(line)     # ★ R243 历史(命令不入)
             if len(self._in_hist) > 200:
@@ -514,7 +594,76 @@ _CMDS = [("/bg", "切后台投单模式"),
          ("/fg", "切同步直驱模式"),
          ("/help", "全部命令"),
          ("/status", "刷新状态"),
+         ("/new", "新会话(清上下文)"),
          ("/quit", "退出")]
+
+
+class PaletteScreen(ModalScreen):
+    """★ R244 · Ctrl+P 命令面板（居中浮层 — 模糊过滤 + ↑↓ 选 + Enter 执行）。"""
+
+    CSS = """
+    PaletteScreen { align: center middle; background: $background 45%; }
+    #palette-box { width: 72; height: auto;
+        background: $surface; border: tall $accent; padding: 1; }
+    #palette-input { border: none; border-bottom: tall $accent;
+        background: $surface; }
+    #palette-list { height: 10; margin-top: 1; }
+    """
+
+    def __init__(self, items):
+        super().__init__()
+        self._items = items            # [(展示, callable)]
+        self._idx = 0
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="palette-box"):
+            yield Input(placeholder="过滤…", id="palette-input")
+            yield RichLog(id="palette-list", auto_scroll=False,
+                          markup=True, wrap=False)
+
+    def on_mount(self) -> None:
+        self.query_one("#palette-input", Input).focus()
+        self._render_palette("")
+
+    def _matched(self, q: str):
+        if not q:
+            return self._items
+        ql = q.lower()
+        return [it for it in self._items if ql in it[0].lower()]
+
+    def _render_palette(self, q: str) -> None:
+        # ★ RichLog 路径（Static 多行 update 实测底部行重叠 — 弃用）
+        log = self.query_one("#palette-list", RichLog)
+        log.clear()
+        for i, (label, _fn) in list(enumerate(self._matched(q)))[:12]:
+            mark = "▸ " if i == self._idx else "  "
+            if i == self._idx:
+                log.write("[#FFB86B bold]%s%s[/]" % (mark, label))
+            else:
+                log.write("%s%s" % (mark, label))
+
+    def on_input_changed(self, ev) -> None:
+        self._idx = 0
+        self._render_palette(ev.value or "")
+
+    def on_key(self, ev) -> None:
+        q = self.query_one("#palette-input", Input).value
+        n = len(self._matched(q))
+        if not n:
+            return
+        if ev.key == "down":
+            self._idx = (self._idx + 1) % n
+            self._render_palette(q); ev.stop(); ev.prevent_default()
+        elif ev.key == "up":
+            self._idx = (self._idx - 1) % n
+            self._render_palette(q); ev.stop(); ev.prevent_default()
+        elif ev.key in ("enter", "tab"):
+            _label, fn = self._matched(q)[self._idx]
+            self.dismiss(fn)
+            ev.stop(); ev.prevent_default()
+        elif ev.key == "escape":
+            self.dismiss(None)
+            ev.stop(); ev.prevent_default()
 
 
 def _scan_repo_files(limit=400):
