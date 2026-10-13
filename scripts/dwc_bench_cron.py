@@ -46,9 +46,20 @@ if not os.path.exists(PY):                     # cron 副本场景: venv 固定�
 
 def main() -> int:
     try:
-        r = subprocess.run([PY, os.path.join(ROOT, "scripts", "dwc_bench.py")],
-                           capture_output=True, text=True, timeout=1800,
-                           cwd=ROOT, encoding="utf-8", errors="replace")
+        # ★ R232 A/B 对照: select_mode 拨盘; auto ⇒ 按日奇偶交替
+        #   （偶数日 predictor 预测式选择, 奇数日 full 原序 — 增益走 7 天实测）
+        import time as _t
+        import yaml as _y
+        _drift = _y.safe_load(open(os.path.join(ROOT, "config", "drift.yaml"),
+                                   encoding="utf-8"))["drift"]
+        _mode = _drift["bench"].get("select_mode", "full")
+        if _mode == "auto":
+            _mode = "predictor" if int(_t.strftime("%d")) % 2 == 0 else "full"
+        r = subprocess.run(
+            [PY, os.path.join(ROOT, "scripts", "dwc_bench.py"),
+             "--select", _mode],
+            capture_output=True, text=True, timeout=1800,
+            cwd=ROOT, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             sys.stderr.write("bench rc=%d %s\n"
                              % (r.returncode, (r.stderr or "")[-400:]))

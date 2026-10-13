@@ -44,3 +44,12 @@ drift:
   #      没有输入就没有校准（要做须先改 ORGAN_INTERFACES 的 Advice 定义）
   #   ③ 回归风险只到「保护组回归二值」（judge.regression_check），
   #      Appendix D 的「回到更早状态的概率上界」未实现
+
+# ── R232 · bench 预测式选择（RSI-Anything 2.3 的评测层落点）─────────
+# ★ 只作用于评测层与调度层 —— 世界树任务源层（收束排序键）不受影响
+#   （WORLD_TREE §4.3 "收束不选模拟最高分" — 合流仅 dial 可选默认关）。
+  bench:
+    explore_lambda: 0.5     # score = p̂ + λ·uncertainty — 0=纯利用(成功率排序)
+                          # 很大=纯探索(不确定度排序)
+    select_mode: auto       # auto=按日 A/B（bench_cron 偶数日 predictor 选择,
+                          # 奇数日 full 原序 — 增益走实测不预设）; full=恒原序

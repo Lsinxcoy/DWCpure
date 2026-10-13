@@ -249,14 +249,42 @@ def run_one(task, timeout):
             "why": str(report.get("why", ""))[:200]}
 
 
+def bench_select(tasks, lam, predictor=None):
+    """★ R232 · 预测式选择（RSI 2.3 / selector.py 同构 — 评测层专用）。
+
+    score(τ) = p̂(τ) + λ·uncertainty(τ)（利用×探索双项）;
+    平局按任务 ID 升序 —— 确定性可复现（selector.py argmax 平局纪律同款）。
+    ★ 预测表在一轮内冻结: 选择基于调用时刻的 predictor 快照, 中途观测不改序。
+    ★ 不碰世界树任务源层（调整B: 收束排序键原样）。"""
+    from dwc.organs.predictor import OutcomePredictor
+    pred = predictor or OutcomePredictor()
+    scored = []
+    for t in tasks:
+        r = pred.predict("bench:" + t["id"])
+        score = r["p"] + float(lam) * r["uncertainty"]
+        scored.append((-score, t["id"], t))
+    return [t for _, _, t in sorted(scored)]
+
+
 def main(argv) -> int:
     only = argv[argv.index("--only") + 1] if "--only" in argv else None
     timeout = int(argv[argv.index("--timeout") + 1]) if "--timeout" in argv \
         else 150
+    sel_mode = argv[argv.index("--select") + 1] if "--select" in argv else "full"
     bench = json.loads(_src("config", "task_bench.json"))
     _pre_setup()
+    tasks = list(bench["tasks"])
+    sel_lam = None
+    if sel_mode == "predictor":
+        # ★ λ 从 dial 读（R232: config/dials 校验器管 — 不硬编码）
+        import yaml
+        drift = yaml.safe_load(io.open(
+            os.path.join(ROOT, "config", "drift.yaml"),
+            encoding="utf-8"))["drift"]
+        sel_lam = float(drift["bench"]["explore_lambda"])
+        tasks = bench_select(tasks, sel_lam)
     results = []
-    for task in bench["tasks"]:
+    for task in tasks:
         if only and task["id"] != only:
             continue
         r = run_one(task, timeout)
@@ -266,6 +294,7 @@ def main(argv) -> int:
                                              r["secs"], r["verdict"][:60]))
     npass = sum(1 for r in results if r["pass"])
     out = {"at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+           "select_mode": sel_mode, "select_lambda": sel_lam,
            "n": len(results), "pass": npass,
            "pass_rate": round(npass / len(results), 3) if results else 0.0,
            "results": results}

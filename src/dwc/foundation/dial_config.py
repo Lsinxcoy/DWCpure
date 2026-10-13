@@ -304,6 +304,17 @@ def load_drift(path: str = DRIFT_PATH) -> Dict[str, Any]:
     if isinstance(tw, bool) or not isinstance(tw, int) or tw < 1:
         raise DialError("drift: trust_window 必须是 >=1 的整数, 实为 %r" % tw)
 
+    # ── R232 · bench 预测式选择（评测层 — 不碰世界树任务源层）──
+    bench = _need(d, "bench", "drift.drift")
+    if not isinstance(bench, dict):
+        raise DialError("drift.bench 须为映射, 实为 %r" % type(bench).__name__)
+    lam = _need(bench, "explore_lambda", "drift.bench")
+    if isinstance(lam, bool) or not isinstance(lam, (int, float)) or lam < 0:
+        raise DialError("drift.bench.explore_lambda 须为 >=0 的数, 实为 %r" % lam)
+    sm = _need(bench, "select_mode", "drift.bench")
+    if sm not in ("auto", "full"):
+        raise DialError("drift.bench.select_mode ∈ {auto, full}, 实为 %r" % sm)
+
     return o
 
 
