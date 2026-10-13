@@ -40,7 +40,9 @@ def test_repl_pipe_session():
     （管道喂 stdin 模拟会话 — 真 tty 由人工验收）。"""
     r = _run([], inp="/help\n/quit\n")
     assert r.returncode == 0, r.stderr[-200:]
-    assert "DWC" in r.stdout and "独立 agent · 交互界面" in r.stdout
+    # ★ R238 锁跟语义: 横幅仍是"品牌块字 + 定位句"（文案随设计升级）
+    assert "DIVINE WISDOM CORE" in r.stdout \
+        and "独立常驻 agent" in r.stdout
     assert "/watch" in r.stdout, "help 缺命令"
     assert "再见" in r.stdout, "未正常收尾"
 

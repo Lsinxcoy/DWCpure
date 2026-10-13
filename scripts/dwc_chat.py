@@ -58,15 +58,21 @@ def green(s): return _c("32", s)
 def yellow(s):return _c("33", s)
 def red(s):   return _c("31", s)
 def bold(s):  return _c("1", s)
+def dim2(s):  return _c("90", s)             # ★ R238 次级灰（更沉的层级）
 
-BANNER = """
-  ██████╗ ██████╗ ██╗ ██████╗███████╗
-  ██╔══██╗██╔══██╗██║██╔════╝██╔════╝
-  ██║  ██║██████╔╝██║██║     █████╗
-  ██║  ██║██╔══██╗██║██║     ██╔══╝
-  ╚█████╔╝██║  ██║██║╚██████╗███████╗
-   ╚════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝╚══════╝   独立 agent · 交互界面
-"""
+
+# ★ R238 设计语言（研究对齐: opencode 单色主导 + Claude Code 行型密度）
+#   —— 一个主色(青) + 语义色; 层级用 ⎿ │ ─ 符号, 不靠框
+_LOGO = [
+    " █████╗ ███╗   ██╗",
+    "██╔══██╗████╗  ██║",
+    "███████║██╔██╗ ██║",
+    "██╔══██║██║╚██╗██║",
+    "██║  ██║██║ ╚████║",
+    "╚═╝  ╚═╝╚═╝  ╚═══╝",
+]
+
+
 
 HELP = """可用斜杠命令（输入 / 再输字母可过滤）:
   /status        agent 状态（pid/心跳/冻结/队列/当日成本）
@@ -253,29 +259,39 @@ def _run_sync(task: str) -> None:
         if kind == "token":
             astream.feed(ev.get("t", ""))
             return
+        if kind == "round":
+            if astream.streamed:
+                sys.stdout.write("\n")
+            print("  %s %s" % (dim("│"),
+                               dim2("轮 %d · 思考中…" % ev.get("n", 0))))
+            return
         if kind == "action":
             if astream.streamed:
                 sys.stdout.write("\n")
             astream.reset()
             mark = green("✓") if ev.get("ok") else red("✗")
-            print("  %s %-8s %s %s" % (_ICON.get(ev.get("op"), "·"),
-                                       ev.get("op", ""),
-                                       dim(str(ev.get("target", ""))[:70]), mark))
+            icon = _ICON.get(ev.get("op"), "·")
+            tgt = dim(str(ev.get("target", ""))[:64])
+            # ★ Claude Code 行型: ⎿ 支线引导 + 右置结果符（层级靠符号）
+            print("  %s %s %s %s" % (dim("⎿"), cyan(icon), tgt, mark))
     print(dim("▸ 执行中（同步直驱 — 过程实时; /bg 切异步投单）"))
     t0 = _time.time()
     rep = execute_user_task(task, llm=LLMClient(), ctx=ctx, progress=_prog)
     secs = round(_time.time() - t0, 1)
     status = rep.get("status", "?")
-    mark = green("完成") if status == "done" else yellow(status)
-    print("\n%s  %s · %d 轮 · %.1fs" % (mark, bold(task[:50]),
-                                         rep.get("rounds", 0), secs))
     streamed = astream.streamed
     if streamed:
         print()                                  # 流式已逐字打 — 只补结尾换行
     elif rep.get("answer"):
         print(_md(rep["answer"]))
     if rep.get("why") and status != "done":
-        print(dim("原因: %s" % str(rep["why"])[:300]))
+        print(dim("  " + str(rep.get("why"))[:260]))
+    # ★ 完成块（R238 尾块密度）: 分隔线状态 + 次级信息右随
+    tail = dim2("  ·  %d 轮 · %.1fs" % (rep.get("rounds", 0), secs))
+    if status == "done":
+        print(green("\n  ── ✓ 完成") + tail)
+    else:
+        print(red("\n  ── ✗ %s" % status) + tail)
     _HISTORY.append({"task": task, "answer": rep.get("answer", ""),
                      "status": status})
     if len(_HISTORY) > 8:
@@ -400,10 +416,20 @@ def _hist(n_arg, cost=False):
         print(bold("  台账尾 %d 行 cost 合计: %.1f" % (len(rows), total)))
 
 
+def banner() -> None:
+    """★ 启动画面（R238: 块字主标 + 语义色状态点 — 对齐头部 agent splash）。"""
+    print()
+    for ln in _LOGO:
+        print("  " + (cyan(ln) if _ANSI else ln))
+    print()
+    print("  " + bold("DIVINE WISDOM CORE")
+          + dim2("   独立常驻 agent · 自我强化 · v0.1.0"))
+    print("  " + status_bar())
+
+
 def repl() -> int:
-    print(BANNER)
-    print(status_bar())
-    print(dim("输入 /help 看命令 · 直接说话=投单 · /quit 退出"))
+    banner()
+    print(dim("输入 /help 看命令 · 直接说话=执行 · /quit 退出"))
     try:
         import readline                      # ↑ 历史（Windows 缺则降级）
         try:
@@ -447,8 +473,11 @@ def main(argv) -> int:
             pass
     if len(argv) > 1 and argv[1] in ("-c", "--cmd"):
         line = " ".join(argv[2:])
+        if not line.startswith("/"):
+            banner()
         return 0 if handle(line) else 0
     if len(argv) > 1:                        # 自然语言单发参数
+        banner()
         return 0 if handle(" ".join(argv[1:])) else 0
     return repl()
 
