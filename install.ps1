@@ -41,6 +41,19 @@ $env:DWC_ROOT = $Root
 & $Py -c "import sys; sys.path.insert(0, r'$Root\src'); from dwc.foundation.paths import find_root; print('  根发现:', find_root()); from dwc.foundation import dial_config; dial_config.load_world_tree(); dial_config.load_drift(); print('  配置校验器: OK'); from dwc.llm import task_exec; print('  执行器: OK')"
 if ($LASTEXITCODE -ne 0) { Write-Host "冒烟失败 — 请把上面报错发给维护者" -ForegroundColor Red; exit 1 }
 
+# ⑤ dwc 命令进用户 PATH（.local/bin — 跨工具惯例目录; 无则建）
+$BinDir = Join-Path $env:USERPROFILE ".local\bin"
+New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+Set-Content -Path (Join-Path $BinDir "dwc.cmd") -Encoding ascii `
+    -Value "@echo off`r`n`"$Py`" -m dwc.cli_main %*"
+$shim = Join-Path $BinDir "dwc"
+Set-Content -Path $shim -Encoding utf8 -Value "#!/bin/sh`nexec `"$Py`" -m dvwc.cli_main `"$@`"".Replace("dvwc", "dwc")
+$up = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($up -notlike "*$BinDir*") {
+    [Environment]::SetEnvironmentVariable("Path", "$up;$BinDir", "User")
+    Write-Host "已把 $BinDir 加入用户 PATH（重开终端生效）"
+}
+
 Write-Host ""
 Write-Host "== 安装完成 ==" -ForegroundColor Green
 Write-Host "下一步（首次配置向导, 交互式设置 LLM 端点）:"
