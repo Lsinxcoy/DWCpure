@@ -40,12 +40,6 @@ if _ROOT not in sys.path:
 _ICON = {"read": "⌕", "write": "✎", "run": "▶", "final": "✓",
          "delegate": "⇄", "mcp": "⚙", "ask": "?"}
 
-#: ★ 首屏品牌记忆点（纯 ASCII — 任何码页零错位）
-_MARK = ["   ####   #   #    ####",
-         "   #  #   # # #    #  #",
-         "   ####   #   #    ####"]
-
-
 class DwcApp(App):
     """★ 全屏 TUI: 品牌顶栏 | 对话区 ╎ 动作区 | 底线输入。"""
 
@@ -185,10 +179,10 @@ class DwcApp(App):
             self.query_one("#empty-hint").remove()
         except Exception:                       # noqa: BLE001 — 已移除不炸
             pass
-        head = "\n".join(_MARK) + (
-            "\n\n[bold]DIVINE WISDOM CORE[/]  "
-            "[dim]· 独立常驻 agent · v0.1.0[/]\n"
-            "[dim]输入任务回车即执行 · /help 全部命令[/]")
+        head = ("[bold black on #FFB86B] D W C [/]  "
+                "[bold]DIVINE WISDOM CORE[/]  "
+                "[dim]· 独立常驻 agent · v0.1.0[/]\n"
+                "[dim]输入任务回车即执行 · /help 全部命令[/]")
         msgs.mount(Static(head, classes="msg-sys"))
         self._refresh_status()
         self.set_interval(15.0, self._refresh_status)
@@ -228,7 +222,7 @@ class DwcApp(App):
     def _topbar_text(self) -> str:
         mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
         clock = _time.strftime("%H:%M")
-        return ("  [bold #FFB86B]◆[/] [bold]D W C[/]   "
+        return ("  ◆ [bold black on #FFB86B] D W C [/]  "
                 "[on #1E2733] %s [/]  [on #1E2733] %s [/]  [dim]ctrl+c[/]"
                 % (mode, clock))
 
@@ -257,7 +251,7 @@ class DwcApp(App):
         mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
         clock = _time.strftime("%H:%M")
         self.query_one("#topbar", Static).update(
-            "  [bold #FFB86B]◆[/] [bold]D W C[/]   "
+            "  ◆ [bold black on #FFB86B] D W C [/]  "
             "[on #1E2733] %s [/]  [on #1E2733] %s·%s·%s/%s [/]  "
             "[on #1E2733] %s [/]  [dim]ctrl+c[/]"
             % (mark, mode, hb.get("terms", "─"),
