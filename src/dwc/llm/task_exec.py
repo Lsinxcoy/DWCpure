@@ -26,6 +26,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import time
 from typing import Any, Dict, List, Optional
 
@@ -45,6 +46,7 @@ _ASK = ("git push", "git commit", "curl ", "wget ", "ssh ", "scp ",
 SELF_MD = os.path.join(ROOT, "config", "dwc_self.md")
 #: ★ R218 · 会话留痕（头部 agent 的 session 概念最小形态: 每任务一个 jsonl）
 SESSIONS = os.path.join(ROOT, "var", "dwc_sessions")
+_PAIRS_FAIL = 0   # ★ G7: 修订对落盘失败计数（不静默）
 
 
 def _ask_level(cmd_joined: str) -> Optional[str]:
@@ -304,10 +306,117 @@ def _parse_confirmed(ctx: Optional[str]) -> set:
     return out
 
 
+def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
+                 recent: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """★ State Revision 轻量版（2609.28416 §2.3）: 对 noisy 提案重写一次。
+
+    ★ 每次判别**只调一次**; 失败返回 None ⇒ 调用方 fallback 保留原提案
+      （EditAct _fallback 纪律 — 修订器故障绝不卡任务）。
+    ★ 修订禁产 final（validate allow_final=False — 终局分支已结算）。
+    """
+    prompt = (
+        "你在执行任务, 上一步被判为噪声动作。\n"
+        "任务: %s\n"
+        "噪声动作: %s\n"
+        "判别原因: %s\n"
+        "最近动作观察: %s\n"
+        "请**换一条路径/换参数/换动作类型**重写下一步（不要重复噪声动作, "
+        "不要 final）。只输出 JSON: {\"analysis\": \"…\", \"op\": "
+        "\"read|write|run\", \"path\": \"…\"（read/write）, \"cmd\": "
+        "\"…\"（run）}" % (task,
+                 json.dumps({k: v for k, v in step.items()
+                             if k != "analysis"}, ensure_ascii=False)[:400],
+                 why[:200],
+                 json.dumps(recent[-3:], ensure_ascii=False)[:900]))
+    try:
+        r = llm.complete(prompt, json_mode=True, tag="revise")
+        if not getattr(r, "ok", False):
+            return None
+        obj = json.loads(r.text or "{}")
+        if not isinstance(obj, dict) or not obj.get("op"):
+            return None
+        return obj
+    except Exception:                    # noqa: BLE001 — 修订失败=fallback
+        return None
+
+
+def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
+                    sid: str, progress: Any = None) -> Optional[Dict[str, Any]]:
+    """★ R256 · 任务级修订重试（2609.28416 §3.3 AEWM-RFT 数据策略的 DWC 落地）。
+
+    失败任务 → LLM 基于失败留痕**重写任务理解** → 二跑（不再三跑, 防循环）。
+    二跑仍失败也返回二跑结果（带 revised 标 — 失败现场更有信息）。
+    revision_pair 供调用方入记忆（correction 轨迹比成功轨迹多学东西 — §3.3）。
+    """
+    global _PAIRS_FAIL
+    try:
+        prompt = (
+            "上一个任务执行失败, 请**重写任务**（更小步/更明确/补上缺失前提）"
+            "让下一次执行能走通。只输出 JSON: {\"revised_task\": \"…\"}\n"
+            "原任务: %s\n失败状态: %s\n失败原因: %s\n已做动作: %s"
+            % (task, fail.get("status"), str(fail.get("why", ""))[:300],
+               json.dumps([{"op": e.get("op"),
+                            "ok": e.get("ok"),
+                            "t": str(e.get("target", ""))[:60]}
+                           for e in (fail.get("actions_log") or [])
+                           if isinstance(e, dict) and e.get("phase") == "obs"][-8:],
+                          ensure_ascii=False)[:1200]))
+        r = llm.complete(prompt, json_mode=True, tag="task_revise")
+        obj = json.loads(r.text or "{}") if getattr(r, "ok", False) else {}
+        revised = str(obj.get("revised_task", "")).strip()
+        if not revised or revised == task.strip():
+            return None                    # 修订无产出 ⇒ 不重跑
+    except Exception:                      # noqa: BLE001 — 修订失败=不重跑
+        return None
+    if progress:
+        progress({"ev": "revision_retry", "revised": revised[:200]})
+    try:      # _sess 是 execute_user_task 闭包 — 模块级直写同款文件
+        os.makedirs(SESSIONS, exist_ok=True)
+        with io.open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
+                     encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": time.strftime("%H:%M:%S"),
+                                 "phase": "task_revision", "original": task[:200],
+                                 "revised": revised[:200],
+                                 "fail_why": str(fail.get("why", ""))[:200]},
+                                ensure_ascii=False)[:2000] + "\n")
+    except OSError:
+        _PAIRS_FAIL += 1   # ★ G7: 留痕失败计数（_sess_fails 同族）
+    res2 = execute_user_task(revised, llm=llm, task_id=sid + "_r1",
+                             retry_on_fail=False, progress=progress)
+    res2["revised"] = True
+    res2["revision_pair"] = {
+        "original_task": task, "revised_task": revised,
+        "fail_why": str(fail.get("why", ""))[:300],
+        "fail_status": fail.get("status"),
+        "retried_status": res2.get("status"),
+        "retried_ok": res2.get("status") == "done"}
+    try:
+        with io.open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
+                     encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": time.strftime("%H:%M:%S"),
+                                 "phase": "task_revision_result",
+                                 "task_id": sid + "_r1",
+                                 "status": res2.get("status")},
+                                ensure_ascii=False)[:2000] + "\n")
+    except OSError:
+        _PAIRS_FAIL += 1   # ★ G7: 留痕失败计数（_sess_fails 同族）
+    # ★ 修订对落盘（retention 4 臂的候选原料 — 接入留后续轮, 诚实 gap）
+    try:
+        pair_p = os.path.join(ROOT, "var", "dwc_pairs.jsonl")
+        os.makedirs(os.path.dirname(pair_p), exist_ok=True)
+        with io.open(pair_p, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(res2["revision_pair"], ensure_ascii=False) + "\n")
+    except Exception as exc:               # noqa: BLE001 — G7: 计数不静默
+        _PAIRS_FAIL += 1
+        sys.stderr.write("dwc_pairs 落盘失败(%d): %s\n" % (_PAIRS_FAIL, exc))
+    return res2
+
+
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                       ctx: Optional[str] = None,
                       task_id: Optional[str] = None,
                       _depth: int = 0,
+                      retry_on_fail: bool = True,
                       progress: Optional[Any] = None) -> Dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
 
@@ -368,6 +477,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     log: List[Dict[str, Any]] = []
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
+    _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
@@ -465,6 +575,37 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             if op == "run":
                 step = {**step, "_confirmed": _parse_confirmed(ctx),
                         "_task_id": sid}
+            # ★ R255 · EditAct 事前判别 + 轻量修订（2609.28416 §2.2/2.3 规则版;
+            #   R247 熔断保留为第二防线; env DWC_STEP_JUDGE=0 可关）
+            if op != "final" and os.environ.get("DWC_STEP_JUDGE", "1") != "0":
+                from dwc.llm.step_judge import (judge_step, step_signature,
+                                                validate_step)
+                recent_obs = [e for e in log
+                              if isinstance(e, dict)
+                              and e.get("phase") == "obs"][-6:]
+                _v, _jwhy, _jrule = judge_step(step, recent_obs)
+                _sess({"round": rnd, "phase": "judge", "verdict": _v,
+                       "rule": _jrule, "why": _jwhy[:150]})
+                if _v == "noisy":
+                    rev = _revise_step(llm=llm, task=task, step=step,
+                                       why=_jwhy, recent=recent_obs)
+                    if rev is None:
+                        _sess({"round": rnd, "phase": "revision",
+                               "fallback": "revision_llm_failed"})
+                    else:
+                        _err = validate_step(rev, allow_final=False)
+                        _sig = step_signature(rev)
+                        if _err is None and _sig != _last_rev_sig:
+                            _sess({"round": rnd, "phase": "revision", "ok": True,
+                                   "new_op": rev.get("op"),
+                                   "why": str(rev.get("analysis", ""))[:150]})
+                            step = rev
+                            op = str(rev.get("op"))
+                            _last_rev_sig = _sig
+                        else:
+                            _sess({"round": rnd, "phase": "revision",
+                                   "fallback": _err or "duplicate_replacement"})
+                            _last_rev_sig = _sig
             obs = _do_action(op, step)
             if (op == "read" and isinstance(obs, dict)
                     and obs.get("image_path")):
@@ -487,6 +628,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                              or step.get("task") or "")[:160],
                "ok": bool((obs or {}).get("ok", True)),
                "obs": json.dumps(obs, ensure_ascii=False)[:400]})
+        # ★ R255 修正: obs 行进 actions_log — judge 的 recent_obs 需要结构化
+        #   历史（target/ok）; 此前 log 只有 op 行 ⇒ 判别历史恒空（真bug）。
+        log.append({"round": rnd, "phase": "obs", "op": op,
+                    "target": str(step.get("path") or step.get("cmd")
+                                  or step.get("task") or "")[:160],
+                    "ok": bool((obs or {}).get("ok", True)),
+                    "obs": json.dumps(obs, ensure_ascii=False)[:300]})
         # ★ R247 复读熔断: 999 轮开放后必须有硬出口 — 连续 3 轮同
         #   动作同目标同结果 = 此路不通（17:12 实测: read 同段×3 至上限）
         import hashlib as _hl
@@ -503,6 +651,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                             " — 换 offset/路径/参数或直接 final"
                             % (op, _tgt_sig[:60])),
                     "actions_log": log}
+            _fail = {"status": "incomplete", "why": "复读熔断",
+                     "actions_log": log}
+            if retry_on_fail and _depth == 0:
+                _r2 = _revision_retry(task=task, fail=_fail, llm=llm,
+                                      sid=sid, progress=progress)
+                if _r2 is not None:
+                    return _r2
         # ★ R221 · 会话 compaction（滑动窗口+摘要 — 头部 agent 的上下文
         #   管理最小形态）: 窗口=最近 2 轮原文; 更早轮压成前情摘要注入 ——
         #   旧形态只带"上一步", 第 3 轮起 LLM 已忘了第 1 轮干了什么（长任务
@@ -511,17 +666,33 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         older = log[:-2]
         prefix = ""
         if older:
+            # ★ R257 · 证伪标记（2609.28416 §1.2 contamination 第1型对抗）:
+            #   该轮 obs ok=False ⇒ 其结论是**被证伪的**, 摘要打标而非删除
+            #   （删=彻底遗忘会复用, 标记=保留证伪记录防引用）。
+            _okmap = {e.get("round"): e.get("ok") for e in log
+                      if isinstance(e, dict) and e.get("phase") == "obs"}
             bits = []
             for e in older:
-                bits.append("第%s轮 %s%s" % (
+                _mark = (" [✗证伪—结论勿引用]"
+                         if _okmap.get(e.get("round")) is False else "")
+                bits.append("第%s轮 %s%s%s" % (
                     e.get("round"), e.get("op"),
-                    ("（%s）" % e["analysis"][:80]) if e.get("analysis") else ""))
-            prefix = "前情摘要（更早轮次已压缩）: " + " → ".join(bits) + "\n"
+                    ("（%s）" % e["analysis"][:80]) if e.get("analysis") else "",
+                    _mark))
+            prefix = "前情摘要（更早轮次已压缩; ✗证伪轮的结论不可用）: " \
+                + " → ".join(bits) + "\n"
         prompt = ("任务: %s\n%s最近轮次: %s\n上一步动作观察(JSON): %s\n"
                   "请继续（下一步 op）"
                   % (task, prefix,
                      json.dumps(recent, ensure_ascii=False)[:1200],
                      json.dumps(obs, ensure_ascii=False)[:6000]))
+    _fail = {"status": "incomplete", "why": "达轮数上限未 final",
+             "actions_log": log}
+    if retry_on_fail and _depth == 0:
+        _r2 = _revision_retry(task=task, fail=_fail, llm=llm, sid=sid,
+                              progress=progress)
+        if _r2 is not None:
+            return _r2
     return {"task": task, "task_id": sid, "status": "incomplete",
             "rounds": max_rounds,
             "why": "达轮数上限未 final", "actions_log": log}

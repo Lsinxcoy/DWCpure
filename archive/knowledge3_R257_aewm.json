@@ -1,0 +1,78 @@
+{
+ "round": "R257",
+ "date": "2026-10-14",
+ "主题": "AEWM四点落地: 判别规则版+Bench校准锚+证伪标记+修订重试",
+ "verify": {
+  "pytest": "1616 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "校准": "Terminal1000条 P=0.600"
+ },
+ "inheritance": {
+  "gen": 255,
+  "at": "2026-10-14T03:55:00+08:00",
+  "parent_gen": 254,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 275,
+   "pytest": 1616,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R255-R257 AEWM四点全落: ①step_judge规则版三分类+State Revision轻量(noisy→一次修订→校验过才用→fallback; R247熔断降二防线; env开关) ②AEWM Bench 3000决策外部校准锚(Terminal实测noisy精度P=0.600/召回0.013—结构规则判结构性噪声,语义级需LLM) ③compaction证伪标记[✗证伪—结论勿引用] ④任务级修订重试(revision_pair落dwc_pairs.jsonl)",
+   "files": [
+    "src/dwc/llm/step_judge.py",
+    "src/dwc/llm/task_exec.py",
+    "scripts/calibrate_step_judge.py",
+    "tests/test_r255_stepjudge.py",
+    "tests/test_r209_inbox.py",
+    "docs/papers/2609.28416.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r255_stepjudge.py 13锁",
+     "claim": "规则族R1-R4/校验/签名/修订fallback/env开关/证伪标记/修订重试对落盘/校准锚"
+    },
+    {
+     "type": "test",
+     "ref": "calibrate_step_judge.py Terminal 1000条",
+     "claim": "noisy触发10中6真(P=0.600); 既有15测试零破坏; 全量1616+gate+双e2e"
+    },
+    {
+     "type": "test",
+     "ref": "实现中抓2真bug",
+     "claim": "judge recent曾恒空(log无obs行)/_root_dir未定义NameError被静默(G7)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1616 + gate 8/8 + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r255_stepjudge.py",
+   "user_decision": "用户'1234全做'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "revision_pair接入retention 4臂留下轮; 语义级noisy需LLM judge模式(bench可先测MiMo judge-only); bench 331MB在var/未入库"
+  }
+ }
+}

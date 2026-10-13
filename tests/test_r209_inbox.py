@@ -45,7 +45,9 @@ def test_executor_read_write_final_chain():
     ])
     rep = TE.execute_user_task("测试任务", llm=llm)
     assert rep["status"] == "done" and rep["rounds"] == 3
-    assert [l["op"] for l in rep["actions_log"]] == ["read", "write", "final"]
+    # ★ R255: actions_log 含 obs 行（judge 历史来源）— 只取决策行
+    assert [l["op"] for l in rep["actions_log"]
+            if l.get("phase") != "obs"] == ["read", "write", "final"]
     p = os.path.join(ROOT, "var", "inbox_work", "r209_test.md")
     assert os.path.exists(p) and io.open(p, encoding="utf-8").read() == "# 测试产物"
 
