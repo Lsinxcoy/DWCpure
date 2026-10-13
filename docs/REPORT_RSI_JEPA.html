@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSI-Anything × JEPA-Anything 深度研究报告 → DWC 强化落地方案</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--dim:#8b949e;--hi:#58a6ff;--good:#3fb950;--warn:#d29922;--bad:#f85149;--code:#0d1117}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",sans-serif;line-height:1.7;padding:2rem}
+nav{position:fixed;left:0;top:0;width:230px;height:100vh;background:var(--card);border-right:1px solid var(--border);padding:1.5rem 1rem;overflow-y:auto}
+nav a{display:block;color:var(--dim);text-decoration:none;padding:.4rem .6rem;font-size:.85rem;border-radius:6px}
+nav a:hover{color:var(--hi);background:#21262d}
+main{margin-left:250px;max-width:1000px}
+h1{color:var(--hi);font-size:1.6rem;margin:.2rem 0 1rem}
+h2{color:var(--hi);font-size:1.3rem;margin:2.5rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+h3{color:#e6edf3;font-size:1.05rem;margin:1.6rem 0 .6rem}
+p,li{font-size:.92rem;color:var(--text)}
+.sub{color:var(--dim);font-size:.85rem}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.2rem;margin:1rem 0}
+.card.good{border-left:3px solid var(--good)}.card.warn{border-left:3px solid var(--warn)}.card.bad{border-left:3px solid var(--bad)}.card.hi{border-left:3px solid var(--hi)}
+code{background:var(--code);border:1px solid var(--border);padding:.1rem .4rem;border-radius:4px;font-size:.82rem;font-family:Consolas,monospace}
+pre{background:var(--code);border:1px solid var(--border);border-radius:8px;padding:1rem;overflow-x:auto;font-size:.8rem;line-height:1.5;font-family:Consolas,monospace;margin:.8rem 0}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.85rem}
+th,td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+th{background:#21262d;color:#e6edf3}
+.tag{display:inline-block;padding:.1rem .5rem;border-radius:10px;font-size:.72rem;margin-right:.3rem}
+.tag.g{background:#0d2818;color:var(--good)}.tag.w{background:#2b2105;color:var(--warn)}.tag.b{background:#2d0b0b;color:var(--bad)}.tag.h{background:#0c2d4d;color:var(--hi)}
+.num{color:var(--good);font-weight:600}
+</style>
+</head>
+<body>
+<nav>
+<a href="#s1">① 两篇论文的关系</a>
+<a href="#s2">② JEPA-Anything 机制</a>
+<a href="#s3">③ RSI-Anything 四层协议</a>
+<a href="#s4">④ 代码级证据清单</a>
+<a href="#s5">⑤ DWC 缺口矩阵</a>
+<a href="#s6">⑥ R231 预测器底座</a>
+<a href="#s7">⑦ R232 预测式选择</a>
+<a href="#s8">⑧ R233 保留协议</a>
+<a href="#s9">⑨ R234 对比数据选择</a>
+<a href="#s10">⑩ 批次规划与验收</a>
+</nav>
+<main>
+<h1>RSI-Anything × JEPA-Anything → DWC 强化落地方案</h1>
+<p class="sub">arXiv:2610.13912（2026-10-09）· arXiv:2609.20800（2026-09-17）· Gen-Verse · 代码已逐文件精读（RSI 100文件/11.6k行 + JEPA 15文件/6.5k行）· 2026-10-13</p>
+
+<h2 id="s1">① 两篇论文的关系：底座与循环</h2>
+<div class="card hi"><p><b>JEPA-Anything</b>（底座）回答"一个预测原则能否跨异质世界"——正交预测因子分解（OPF）。<br>
+<b>RSI-Anything</b>（循环）回答"预测如何变成持续自我改进"——<b>用预测世界模型引导动作选择和学习数据选择，用组件+配对检查决定哪个 policy–model 版本对被保留</b>。一句话：<u>JEPA 造眼睛，RSI 造新陈代谢</u>。</p></div>
+<h3>论文核心数字（原样引用）</h3>
+<table>
+<tr><th>域</th><th>对照</th><th>结果</th></tr>
+<tr><td>代码修复（coder 固定）</td><td>静态 verifier</td><td><span class="num">26.3% → 29.2%</span>（预测选择）<span class="num">→ 31.2%</span>（世界模型适应），同等测试用量</td></tr>
+<tr><td>APPS-Intro / LiveCodeBench v6</td><td>JEPA-Anything 引导候选选择</td><td><span class="num">46.37% / 33.05%</span> 全测试通过</td></tr>
+<tr><td>GUI（OSWorld）</td><td>vs RLAnything / 初始 agent</td><td><span class="num">+5.5% / +18.4%</span> 成功率，平均动作 <span class="num">-39.4%</span></td></tr>
+<tr><td>实验室规划（五代 policy）</td><td>自身第 1 代</td><td><span class="num">21.80% → 46.01%</span>（翻倍+）</td></tr>
+<tr><td>反应优化（40 实验预算）</td><td>vs 贝叶斯优化</td><td><span class="num">96.15% vs 82.16%</span>（+13.99pp）</td></tr>
+</table>
+
+<h2 id="s2">② JEPA-Anything：正交预测因子分解（OPF）</h2>
+<div class="card"><h3>机制（opf.py 444 行逐行读毕）</h3>
+<p>把完整潜状态 <code>d</code> 分解为 <code>K</code> 组正交预测坐标（<b>硬契约 K·r = d</b>，构造期校验，违反即 <code>ValueError</code>）：</p>
+<pre>decompose:  factors = einsum("...d,krd->...kr", state, basis)   # 分析
+compose:    state   = einsum("...a,da->...d", factors, pinv(P))  # 合成(伪逆)
+audit:      allclose(P·Pᵀ, I, atol=dtype容差)                     # 几何审计</pre>
+<p><b>三条值得偷的设计纪律</b>：</p>
+<ul>
+<li><b>因子匿名原则</b>——"The class guarantees no semantic interpretation: factor indices remain anonymous predictive coordinates until experiments establish a meaning"。因子先无名，实验建立意义后才命名。<u>DWC 的机制命名应该同德</u>。</li>
+<li><b>dtype 感知容差</b>——几何判据阈值按精度分档（float64: 1e-10 / f32: 1e-5 / f16: 1e-2 / bf16: 5e-2）。判据阈值是精度的函数，不是拍脑袋常数（DWC Layer 22 同族）。</li>
+<li><b>审计与操作分离</b>——<code>transpose_synthesize_state</code> 只为审计暴露，操作路径用 <code>compose_state</code>（伪逆）。"测的"和"用的"分开，防止用审计函数干生产的事。</li>
+</ul></div>
+
+<h2 id="s3">③ RSI-Anything：四层协议（DWC 真正该抄的东西）</h2>
+<div class="card hi"><h3>第一层：预测引导选择（2.3）</h3>
+<p>候选打分 <code>R_d(τ) = Σⱼ w_j·r_j(τ) − Δ_d(τ)</code>（效用加权和减去不确定性惩罚）；化学任务用<b>冻结校准先验 + EI</b>（selector.py 60 行）：反馈只更新 incumbent 与已测排除，<b>预测表全程冻结</b>——防反馈污染预测器。</p>
+<h3>第二层：条件世界模型适应 + 复用判定</h3>
+<p>新经验到达 → <code>checkpoint_reusable()</code> 判定复用旧 checkpoint 还是重训；重训数据 = <b>新经验 + replay 旧行</b>（防遗忘）；训练请求带 <code>input_new_hash / input_replay_hash / parent</code> 三重身份校验，checkpoint 文件再做 sha 校验——<b>result 归属错请求即拒</b>。</p>
+<h3>第三层：递归保留（2.5 + rsi.py 79 行 — 全论文最核心）</h3>
+<pre>每代 generation:
+  1. 现任 (world, policy, controller) rollout → 收集经验
+  2. policy 训练: new + replay 旧数据, parent 指针
+  3. 世界模型条件适应: checkpoint_reusable? 复用 : 重训(new+replay)
+  4. ★保留决策（dev 上, test 未开）:
+       olddev = rollout(现任, dev)          # 基线
+       newdev = rollout(候选, dev)
+       promoted = (newdev.success - olddev.success >= promotion_gain)      # 效用判据
+               AND (newdev.seconds <= olddev.seconds × promotion_cost_ratio) # 成本判据
+  5. manifest 冻结: {"test_not_opened_yet": True, ...}    # 版本先冻结
+  6. promoted ⇒ 换任 incumbent; 否则现任留任
+  7. ★★ 四臂交叉评估（test 解封后）:
+       (old_world×old_policy) (old_world×new_policy)
+       (new_world×old_policy) (new_world×new_policy)
+       —— 分离 world 与 policy 各自的贡献 = 配对检查的实验形式</pre>
+<div class="card warn" style="margin-top:.8rem"><p><b>配对检查的动机（原文）</b>："a policy can generate candidates for which an otherwise improved predictor is unreliable, and a predictor can change which candidates are selected"——<b>policy 换了，predictor 必须在新候选分布上重新验证</b>。单组件过检 ≠ 组合可用。</p></div>
+<h3>第四层：工作流收据（runner.py 185 行）</h3>
+<p>stage 完成时记录输出文件 sha；resume 前逐个校验"已完成 stage 的输出没变"（<code>Completed stage output changed</code> 即拒）；identity = digest(config+source+plan+files)——<b>配置或源码变过就不许 resume 旧目录</b>。</p></div>
+
+<h2 id="s4">④ 代码级证据清单（声称 vs 实测）</h2>
+<table>
+<tr><th>机制</th><th>文件:行</th><th>机器证据</th></tr>
+<tr><td>K·r=d 硬契约</td><td>opf.py:41-72</td><td><code>validate_factorization</code> 校验维数为正整数且乘积相等</td></tr>
+<tr><td>几何审计 dtype 分档</td><td>opf.py:21-38,128-146</td><td><code>default_geometry_tolerance</code> 四档阈值；<code>is_orthonormal_basis</code></td></tr>
+<tr><td>QR 符号规范化</td><td>opf.py:120-124</td><td>diag(R)&lt;0 翻转列符号——防反复 retraction 任意翻号</td></tr>
+<tr><td>EI 选择+冻结先验</td><td>selector.py:11-60</td><td><code>scores[ids] = -np.inf</code> 排除已测；argmax 平局按升序 ID</td></tr>
+<tr><td>保留双判据</td><td>rsi.py:53</td><td><code>newdev['success_rate']-olddev['success_rate'] &gt;= promotion_gain and newdev['effective_seconds'] &lt;= olddev × promotion_cost_ratio</code></td></tr>
+<tr><td>test 冻结</td><td>rsi.py:57-60</td><td><code>'test_not_opened_yet': True</code> 写入 versions_frozen.json 后才跑 test</td></tr>
+<tr><td>四臂配对评估</td><td>rsi.py:63-71</td><td>combinations 四元组 × (selected, pure) 两种控制</td></tr>
+<tr><td>训练请求身份三重校验</td><td>rsi.py:36-39</td><td>input_new_hash/input_replay_hash/parent 不符即 RuntimeError</td></tr>
+<tr><td>replay 防遗忘</td><td>rsi.py:40-43</td><td><code>replay_rows(initial,new,300+generation)</code> + 世界模型训练带 replay_rows</td></tr>
+<tr><td>阶段收据 resume 校验</td><td>runner.py:121-127</td><td>逐输出 sha 比对，变过即 <code>Completed stage output changed</code></td></tr>
+<tr><td>contrast 数据选择</td><td>incumbent.py:35,55-57</td><td><code>contrast=max(values)&gt;min(values)</code> 标注区分度；batch 优先 contrast 单元</td></tr>
+</table>
+
+<h2 id="s5">⑤ DWC 缺口矩阵（逐项对照，含现有物）</h2>
+<table>
+<tr><th>RSI 机制</th><th>DWC 现状（实测）</th><th>缺口</th><th>等级</th></tr>
+<tr><td>量化校准预测器</td><td>agent_quality=文本教训注入；world_model=结构判据（无结果预测）</td><td>无"按历史成功率预测本次动作/任务结果"的量化预测器</td><td><span class="tag b">P0</span></td></tr>
+<tr><td>预测式选择</td><td>bench 固定 10 任务顺序跑；任务分配零先验</td><td>选任务/选动作无模型引导</td><td><span class="tag b">P0</span></td></tr>
+<tr><td>组件+配对保留</td><td>继承档有 acceptance_decision（单组件 verdict 门）</td><td>无四臂配对检查；policy 改动后 predictor 从不复验</td><td><span class="tag b">P0</span></td></tr>
+<tr><td>效用+成本双判据</td><td>acceptance=pass/fail 门</td><td>无"增益≥阈值 且 成本≤比率"的连续判据</td><td><span class="tag w">P1</span></td></tr>
+<tr><td>版本冻结→再开 test</td><td>bench 有 split_fingerprint（数据侧冻结 ✓）</td><td>无"改进版本先冻结再评估"的程序锁</td><td><span class="tag w">P1</span></td></tr>
+<tr><td>条件适应+replay</td><td>predictor 不存在；iwm _arms 窗口=隐式滑窗（丢旧）</td><td>无版本化 checkpoint；无 replay 防遗忘</td><td><span class="tag w">P1</span></td></tr>
+<tr><td>contrast 数据选择</td><td>lessons 按 fail_mode 计数选</td><td>无区分度（成败对照）优先机制</td><td><span class="tag h">P2</span></td></tr>
+<tr><td>阶段收据 hash</td><td>e2e 全量重跑（无 resume 语义）</td><td>无（暂无 resume 需求——不抄，诚实标注）</td><td><span class="tag h">不抄</span></td></tr>
+</table>
+<div class="card warn"><p><b>为什么 P0 是预测器</b>：RSI 的全部增益（26.3→31.2、+5.5%、21.8→46.0、96.15 vs 82.16）都从"有量化预测器引导选择"开始——没有预测器，保留协议无物可依，选择无模型可用。<b>底座先行</b>。</p></div>
+
+<h2 id="s5b">⑤b 结合世界树收束的三处调整（2026-10-13 修正）</h2>
+<div class="card bad">
+<p>核对 DWC 既有世界树（world_model.py 收束机制：信息增益单键排序、谱系 (n_obs,n_pass) 布尔观测、WORLD_TREE §4.3 "收束不选模拟最高分"）后，原方案三处让路——<b>方案对齐设计，不是设计迁就方案</b>：</p>
+<table>
+<tr><th>#</th><th>调整</th><th>理由（既有事实）</th></tr>
+<tr><td>A</td><td>R231 键空间复用树；树键统计<b>直接读树不另记</b></td><td>树的 Laplace 平滑 (n_pass+1)/(n_obs+2) 数学上=Beta(1,1) 后验均值——同源重复观测流是浪费且有双写不一致风险</td></tr>
+<tr><td>B</td><td>收束排序键<b>原样不动</b>；EI 移到调度层；合流仅作 dial 可选项默认关</td><td>§4.3 明文禁止分数排序——直接改=违设计文档</td></tr>
+<tr><td>C</td><td>R234 contrast 复用树 group 兄弟对照（R101 组键已存在）</td><td>同组成败对照是天然强 contrast，比 fail_mode 键信息量高</td></tr>
+<tr><td>边界</td><td><b>树=事实层</b>（观测永久 append-only）· <b>predictor=视图层</b>（版本化可重放重建）；predictor 单向读树，树绝不依赖 predictor</td><td>G1 定位门防循环依赖；同 RSI"审计/操作分离"纪律</td></tr>
+</table>
+<h3>三层职责分层（调整 B 的落地形态）</h3>
+<table>
+<tr><th>层</th><th>机制</th><th>排序键</th><th>状态</th></tr>
+<tr><td>任务源（哪些叶子进表）</td><td>收束 select()</td><td>信息增益单键</td><td><span class="tag g">原样不动</span></td></tr>
+<tr><td>调度（同批执行顺序）</td><td>predictor</td><td>EI 式 p̂+λ·unc</td><td><span class="tag h">新增</span></td></tr>
+<tr><td>评测（bench 选任务）</td><td>predictor</td><td>同上</td><td><span class="tag h">新增</span></td></tr>
+</table></div>
+
+<h2 id="s6">⑥ R231 · 预测器底座 <code>src/dwc/organs/predictor.py</code>（P0）</h2>
+<div class="card hi">
+<h3>定位（G1）：DWC-AUTO 的行为结果预测器——"agent 对自己动作结果的预测"，不是环境模拟器</h3>
+<p><b>学什么</b>：给定上下文特征，预测本次动作/任务的成功概率。特征键两族（★调整A：树键读树不另记，杜绝双写）：</p>
+<pre>★树键   = "tree:{tree_id}/{node_id}" ⇒ 读 world_model 谱系 (n_obs,n_pass)
+         p̂=(n_pass+1)/(n_obs+2) — 与收束判据同源(Beta(1,1) 后验均值), 不另记
+ 台账键 = (op 或 task_rung 或 fail_mode, 简化上下文桶) ⇒ 自记观测
+观测   = 台账族每次 run_user_task 完成后回写: success ∈ {0,1} + 证据 id
+         ★ 树族绝不另写（树=事实层, predictor 单向读 — 见⑤b边界）
+模型   = Beta(α, β) 共轭后验（每键独立; 新键继承全局先验 Beta(1,1) 的收缩版）
+输出   = p̂ = α/(α+β)          # 校准成功率
+       + uncertainty = 1/(α+β) # 不确定度
+       + Brier 滚动跟踪（预测 vs 实际, 按版本记录 — 校准度不是声称是实测）</pre>
+<h3>接口（确定性转换用代码, 无模型在环）</h3>
+<pre>class OutcomePredictor:
+    VERSION = "pred-v1"                # 版本化 checkpoint 的身份
+    def observe(self, key: str, success: bool, evidence_ref: str) -> None
+        # ★ 写观测日志 var/dwc_predictor.jsonl（append-only — 台账即 replay 源）
+    def predict(self, key: str) -> dict
+        # {"p": α/(α+β), "uncertainty": 1/(α+β), "n": α+β-2, "version": VERSION}
+    def calibrate(self, recent: int = 200) -> dict
+        # Brier 分数 + reliability 五桶 — 校准度实测, 不是自我声称
+    def checkpoint(self) -> None
+        # 写 var/dwc_predictor_ckpt.json: {version, counts{key:[α,β]}, sha}
+        # ★ 重训=重放全量 jsonl（replay 防遗忘 — RSI 同款: 台账就是 replay 源）
+    @classmethod
+    def load(cls, path) -> "OutcomePredictor"
+        # sha 校验 + version 匹配, 不符拒载（rsi.py:36-39 同款身份校验）</pre>
+<h3>观测回写接线（唯一侵入点）</h3>
+<p><code>scripts/dwc_agent.py</code> 任务完成回调处（现 record_failure 调用点旁）+ <code>dwc_bench.py</code> 每任务后：<code>predictor.observe("op:run", success, tid)</code>。失败/成功定义与 bench verifier 同源（不新造判据）。</p>
+<h3>测试锁（tests/test_r231_predictor.py）</h3>
+<ul>
+<li>★★★ 后验数学锁：observe 5 成 3 败 ⇒ p̂=(5+1)/(8+2)=0.6 精确相等（先验 Beta(1,1)）</li>
+<li>★★ replay 防遗忘锁：checkpoint → 重放 → 与直接在线计数完全一致（逐键 α,β 相等）</li>
+<li>★★ 校准诚实锁：人造完美校准流 ⇒ Brier≈0.25 以下；纯随机 ⇒ ≈0.25 — 校准器自身可测</li>
+<li>★★ checkpoint 身份锁：篡改 sha / version 不符 ⇒ 拒载报错</li>
+</ul></div>
+
+<h2 id="s7">⑦ R232 · 预测式选择 <code>dwc_bench.py</code> 增强（P0）</h2>
+<div class="card hi">
+<h3>机制（selector.py 同构 + 论文 2.3）：每轮 bench 前用 predictor 给 10 任务打分, 选"信息量最大"的子集</h3>
+<p class="sub">★ 调整B：本选择只作用于<b>评测层与调度层</b>——世界树的任务源层（收束排序键）不受影响，合流仅 dial 可选默认关。</p>
+<pre>score(τ) = w_useful·p̂(τ) + w_info·uncertainty(τ)      # 利用×探索双项
+         = p̂ + λ·sqrt(p̂(1-p̂)/n) 形式（λ 由 config/dials.yaml 新拨盘 bench_explore 控制, 默认 0.5）
+排除已跑任务（-inf 同 selector.py:47）；平局按任务 ID 升序（确定性可复现）
+★ 预测表在一轮 bench 内冻结（feedback 不中途改选择 — RSI 冻结先验纪律）</pre>
+<h3>对照实验设计（声称=实测的落地）</h3>
+<p>bench_cron 每日轮 <b>A/B 交替</b>：奇数日 predictor 选择, 偶数日全量顺序（现有行为）——两侧都记 var/dwc_bench_results.json。<b>7 天后对比同预算 pass 率</b>——增益是实测的, 不是方案声称的。首轮验收只看"选择逻辑跑通 + 每任务有预测记录", 增益留给时间。</p>
+<h3>测试锁</h3>
+<ul>
+<li>★★★ 选择确定性锁：同一预测状态两次选择序列完全一致</li>
+<li>★★ 排除锁：已跑任务不再入选</li>
+<li>★★ λ 拨盘锁：λ=0 ⇒ 纯按 p̂ 排序；λ 很大 ⇒ 纯按不确定性排序（两端极限行为）</li>
+</ul></div>
+
+<h2 id="s8">⑧ R233 · 保留协议 <code>src/dwc/foundation/retention.py</code>（P0 — 论文最核心机制）</h2>
+<div class="card hi">
+<h3>定位：组件检查 + 配对检查 + 双判据晋升 + test 冻结 —— 先试点于 bench 演进环</h3>
+<pre>候选提交（agent_quality consolidate / 手动改进）时:
+  1. 组件检查: bench 子集 pass 率 vs 现任基线（component_pass）
+  2. 配对检查（四臂 — rsi.py:63 同构, 维度换成执行器×预测器）:
+       A: old_exec × old_pred   B: old_exec × new_pred
+       C: new_exec × old_pred   D: new_exec × new_pred
+     —— 分离贡献: Δ_exec = score(D)-score(B); Δ_pred = score(D)-score(C)
+     ★ 若 Δ_exec 为负而组件单独过检 ⇒ 配对不兼容, 拒（论文动机句的机器化）
+  3. 双判据晋升:
+       promoted = (Δscore >= promotion_gain)          # 默认 0.02, dial: retention_gain
+               AND (cost_ratio <= promotion_cost_max)  # 默认 1.2, dial: retention_cost
+  4. ★ test 冻结程序锁:
+       versions_frozen.json 写入 {candidate_sha, pred_version, "test_not_opened_yet": true}
+       → bench test split 才允许评估 → 结果回填 manifest
+  5. 未晋升 ⇒ 现任留任 + rejected 档（含四臂数据 — RSI raw_rejected_candidates_reported 同款）</pre>
+<h3>与继承档的关系（结构完整性）</h3>
+<p>retention 不替代 knowledge3 档 — 档继续记 lineage；<b>retention 是档的 acceptance_decision 的量化升级</b>：verdict 从"人判/门判"升级为"预声明判据+四臂数据"。档的 acceptance_decision 字段扩展 <code>retention_ref</code> 指向 manifest。G10/G11 仪表扩展读 retention manifest（零新判定面）。</p>
+<h3>测试锁（tests/test_r233_retention.py）</h3>
+<ul>
+<li>★★★ 晋升判据锁：Δ=0.05/cost=1.0 ⇒ promote；Δ=0.05/cost=1.5 ⇒ 拒（成本否决）；Δ=0.01 ⇒ 拒（增益不足）</li>
+<li>★★★ 配对不兼容锁：new_exec 单独过组件检但四臂显示 Δ_exec(D−B)&lt;0 ⇒ 拒 — 论文动机句的直接机器化</li>
+<li>★★ test 冻结锁：未写 versions_frozen 就评估 test ⇒ 报错（程序锁不靠自觉）</li>
+<li>★★ rejected 留痕锁：拒绝的候选四臂数据完整入档</li>
+</ul></div>
+
+<h2 id="s9">⑨ R234 · 对比数据选择 <code>agent_quality.py</code> 增强（P2）</h2>
+<div class="card warn">
+<h3>机制（incumbent.py 同构）：lessons/技能的样本优先"区分度"</h3>
+<pre>现有: fail_mode 计数 ≥3 ⇒ 技能固化（无区分度概念）
+★调整C: 树组兄弟对照=天然强 contrast —— 同 group_id 下有成有败的谱系,
+  其教训/统计优先注入与固化（R101 组键已存在, 零新结构）
+增强: 每条 lesson 记 contrast 值 = 同键下 success 与 failure 都存在
+     —— 只见过失败没见过成功的教训可能是噪声; 有对照的教训信息量高
+技能固化排序: contrast=True 优先, 同等计数下先固化
+lessons_context 注入排序同理（先注入高对比度教训 — 上下文预算优先给信息量大的）</pre>
+<h3>测试锁</h3>
+<ul>
+<li>★★ 对比标注锁：同键有成有败 ⇒ contrast=True；只有单侧 ⇒ False</li>
+<li>★★ 排序锁：同计数下 contrast=True 的 lesson 先注入</li>
+</ul></div>
+
+<h2 id="s10">⑩ 批次规划与验收</h2>
+<div class="card">
+<table>
+<tr><th>批次</th><th>轮次</th><th>内容</th><th>验收（四层验证+专项）</th></tr>
+<tr><td>1</td><td>R231</td><td>predictor.py + 回写接线 + 4 测试锁</td><td>pytest 全绿；后验数学精确；replay 一致性</td></tr>
+<tr><td>2</td><td>R232+R233</td><td>bench 预测式选择 + retention.py 四臂协议</td><td>选择确定性；晋升判据三态；配对不兼容拒；test 冻结程序锁</td></tr>
+<tr><td>3</td><td>R234</td><td>contrast lessons</td><td>排序锁；固化优先级</td></tr>
+<tr><td>观察</td><td>—</td><td>bench_cron A/B 交替 7 天</td><td>同预算 pass 率对比（实测增益, 不预设数字）</td></tr>
+</table>
+<h3>不抄清单（诚实边界）</h3>
+<ul>
+<li><b>OPF 张量分解</b>不抄——DWC 无 torch 训练循环；偷的是<b>纪律</b>（匿名因子→实验命名、dtype 分档判据、审计/操作分离），不是张量。</li>
+<li><b>阶段收据 resume</b>不抄——DWC e2e 是全量重跑语义，无 resume 需求。需求出现时按 runner.py:121-127 抄。</li>
+<li><b>RL 策略梯度</b>（GUI policy_train）不抄——DWC 的"policy"是执行器代码+配置，演进方式是带保留协议的版本替换，不是梯度。</li>
+</ul>
+<h3>风险与既有资产复用</h3>
+<ul>
+<li>iwm 的窗口信任（R215）与 predictor 正交：iwm 管 arms 选择信任, predictor 管结果预测——两者数据源相同（台账）但判据面不同, 不合并（G1 定位门）。</li>
+<li>predictor 的 jsonl 台账即天然 replay 源——RSI 的 replay 防遗忘在 DWC 是"重放 append-only 台账", 零新存储。</li>
+<li>全部新拨盘进 config/dials.yaml（现校验器直接管）。</li>
+</ul>
+</div>
+</main>
+</body>
+</html>
+

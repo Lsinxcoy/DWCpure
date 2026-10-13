@@ -170,6 +170,15 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     st[item["id"]] = rep["status"]
     with open(INBOX_DONE, "w", encoding="utf-8") as fh:
         json.dump(st, fh, ensure_ascii=False)
+    # ★ R231 接线: 任务结果回写预测器（视图层 — 台账族; 树族读树不写）
+    try:
+        from dwc.organs.predictor import OutcomePredictor
+        OutcomePredictor().observe(
+            "inbox:" + ("done" if rep["status"] == "done" else "not_done"),
+            rep["status"] == "done", evidence_ref=item["id"])
+    except Exception as _pe:                  # noqa: BLE001 — 预测器故障不拖垮任务
+        import sys as _sy
+        _sy.stderr.write("predictor observe 失败: %s\n" % _pe)
     _log({"user_task": item["id"], "status": rep["status"],
           "rounds": rep.get("rounds"),
           "why": rep.get("why", "")[:120]})

@@ -229,6 +229,18 @@ def run_one(task, timeout):
     if fm != "ok":
         Q.record_lesson(tid, fm, task["task"], "verdict=%s status=%s"
                         % (detail, report["status"]))
+    # ★ R231 接线: bench 结果回写预测器（视图层 — 键含任务/梯级/失败模式）
+    try:
+        from dwc.organs.predictor import OutcomePredictor
+        _pred = OutcomePredictor()
+        _pred.observe("bench:" + tid, bool(ok), evidence_ref=tid)
+        _pred.observe("rung:%s" % task.get("verifier_rung", "?"), bool(ok),
+                      evidence_ref=tid)
+        if fm != "ok":
+            _pred.observe("fail:" + fm, False, evidence_ref=tid)
+    except Exception as _pe:                  # noqa: BLE001 — 预测器故障不拖垮 bench
+        import sys as _sy
+        _sy.stderr.write("predictor observe 失败: %s\n" % _pe)
     return {"id": tid, "exec_status": report["status"], "pass": bool(ok),
             "fail_mode": fm, "lessons_total": len(Q.load_lessons()),
             "verdict": detail, "rounds": report.get("rounds"),

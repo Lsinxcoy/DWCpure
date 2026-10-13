@@ -1,0 +1,66 @@
+{
+ "round": "R231",
+ "date": "2026-10-13",
+ "主题": "RSI-Anything 落地批1: outcome predictor 视图层(树键读树不双写/台账键Beta后验/replay防遗忘/身份校验) + agent+bench 观测接线 + 报告三调整",
+ "verify": {
+  "pytest": "1539 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 230,
+  "at": "2026-10-13T08:52:00+08:00",
+  "parent_gen": 229,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 247,
+   "pytest": 1539,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "RSI-Anything R231: 行为结果预测器(视图层) Beta后验+树键只读+replay+身份校验; 世界树三调整(A键复用/B分层/C contrast)入报告",
+   "files": [
+    "src/dwc/organs/predictor.py",
+    "scripts/dwc_agent.py",
+    "scripts/dwc_bench.py",
+    "tests/test_r231_predictor.py",
+    "docs/REPORT_RSI_JEPA.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r231_predictor.py 6锁",
+     "claim": "后验数学精确0.6/树键只读拒双写/replay重建一致/校准诚实Brier可测/sha与version拒载/不确定度收缩"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1539 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r231_predictor.py",
+   "user_decision": "用户'把三处调整更新进报告然后按修正方案开工逐步落地'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "树键生产观测流依赖世界树任务真跑(wta); 台账族观测自本轮起积累 — 校准增益需bench A/B对照7天实测"
+  }
+ }
+}

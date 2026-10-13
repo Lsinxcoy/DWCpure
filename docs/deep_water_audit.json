@@ -8,7 +8,7 @@
    "status": "live",
    "semantic": null,
    "code_hits": 14,
-   "wire_hits": 8,
+   "wire_hits": 9,
    "code_evidence": [
     "src\\dwc\\foundation\\dial_config.py:105:# ── Z4 · 候选必须持久化 + 记 lineage ──",
     "src\\dwc\\foundation\\dial_config.py:108:raise DialError(\"Z4: candidates.persist 必须为 true（原文 'tracked'）\")",
@@ -22,8 +22,8 @@
     "src\\dwc\\foundation\\dial_config.py:109:lineage = _need(cand, \"lineage\", \"world_tree.world_tree.candidates\")",
     "src\\dwc\\foundation\\dial_config.py:110:if lineage != \"parent_id\":",
     "src\\dwc\\foundation\\dial_config.py:111:raise DialError(\"Z4: candidates.lineage 必须是 parent_id，实为 %r\" % lineage",
-    "src\\dwc\\organs\\world_model.py:226:def lineage_obs(self, node_id: str) -> tuple:",
-    "src\\dwc\\organs\\world_model.py:291:# ── Z4: 候选必须持久化 + 记 lineage（WORLD_TREE_CONVERGENCE §四）──"
+    "src\\dwc\\organs\\predictor.py:121:return tree.lineage_obs(node_id)",
+    "src\\dwc\\organs\\world_model.py:226:def lineage_obs(self, node_id: str) -> tuple:"
    ],
    "doc_note": "dial_config.py L104-110 实现过（旧轮 R56/R68 系列）"
   },
@@ -57,7 +57,7 @@
    "name": "δ_θ 残差难度（weakness 器官⑥）",
    "status": "live",
    "semantic": null,
-   "code_hits": 46,
+   "code_hits": 48,
    "wire_hits": 15,
    "code_evidence": [
     "src\\dwc\\core.py:379:from dwc.organs.weakness import task_delta_map",
