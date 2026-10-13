@@ -1,0 +1,63 @@
+{
+ "round": "R246",
+ "date": "2026-10-13",
+ "主题": "界面冲刺④收官: spinner动效+智能滚动跟随(不劫持历史阅读)",
+ "verify": {
+  "pytest": "1584 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 246,
+  "at": "2026-10-13T17:07:00+08:00",
+  "parent_gen": 245,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 266,
+   "pytest": 1584,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R245动效: ①思考spinner(braille 120ms轮转+忙态占位符, busy置位即刻切) ②智能滚动跟随(仅视口在底部才跟—阅读历史不被新输出拽底) ③界面冲刺R242-R245收官",
+   "files": [
+    "scripts/dwc_tui.py",
+    "tests/test_r245_motion.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r245_motion.py 3锁(忙闲态/底部跟随/顶部不劫持)",
+     "claim": "TUI集合17 passed; vision自检流程贯穿R242-R245(末轮8/10)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1584 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r245_motion.py",
+   "user_decision": "用户'继续'(R245冲刺收官轮)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "diff视图需task_exec写write前后内容(属内容功能非动效,留下轮); 真实终端体感待用户回报"
+  }
+ }
+}

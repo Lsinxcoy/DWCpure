@@ -235,6 +235,37 @@ class DwcApp(App):
         self._sug_idx = -1
         self.query_one("#ask", Input).focus()   # ★ 启动即可输入(免 Tab)
         self._render_tree()
+        # ★ R245: 思考 spinner（120ms 轮转 — 忙时输入区右侧动效）
+        self._spin_i = 0
+        self._spin_t = self.set_interval(0.12, self._spin_tick)
+
+    # ── R245 · 动效打磨（spinner · 智能滚动 · 忙态占位） ──────────
+
+    _SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"      # braille 族(UTF-8 终端标准)
+
+    def _spin_tick(self) -> None:
+        """★ 忙: hint 行转 spinner+轮态; 闲: 恢复快捷提示。"""
+        try:
+            hint = self.query_one("#hint", Static)
+            inp = self.query_one("#ask", Input)
+        except Exception:                       # noqa: BLE001 — 已卸载
+            return
+        if self._busy:
+            self._spin_i = (self._spin_i + 1) % len(self._SPIN)
+            hint.update("[#FFB86B]%s[/] 执行中…" % self._SPIN[self._spin_i])
+            if not inp.placeholder.startswith("执行中"):
+                inp.placeholder = "执行中… 输入将排队"
+        else:
+            hint.update("/help · /bg")
+            if inp.placeholder.startswith("执行中"):
+                inp.placeholder = "输入任务，回车执行…  / 命令 · @ 文件 · ↑ 历史"
+
+    def _follow(self) -> None:
+        """★ 智能滚动: 仅当视口已在底部才跟随新消息
+        （阅读历史时新输出不强行拉底 — R245）。"""
+        m = self._msgs()
+        if m.scroll_y >= m.max_scroll_y - 2:
+            m.scroll_end(force=True)
 
     # ── R244 · Ctrl+P 面板 / 文件树 / 新会话 ───────────────────
 
@@ -391,22 +422,22 @@ class DwcApp(App):
     def _say_user(self, text: str) -> None:
         """★ 用户消息卡: accent 左条 + surface 底 + 粗体。"""
         self._msgs().mount(Static("❯ " + text, classes="msg-user"))
-        self._msgs().scroll_end(force=True)
+        self._follow()
 
     def _say_sys(self, text: str) -> None:
         self._msgs().mount(Static(text, classes="msg-sys"))
-        self._msgs().scroll_end(force=True)
+        self._follow()
 
     def _say_ans(self, markdown: str) -> None:
         """★ 助手答案: Markdown 组件渲染（标题/代码块/列表 — 质变点）。"""
         self._msgs().mount(Markdown(markdown, classes="msg-ans"))
-        self._msgs().scroll_end(force=True)
+        self._follow()
 
     def _stream_open(self) -> Static:
         """★ 流式临时区: 逐字打; 完成后 remove 并换 Markdown 卡。"""
         w = Static("", classes="msg-stream", id="streaming")
         self._msgs().mount(w)
-        self._msgs().scroll_end(force=True)
+        self._follow()
         return w
 
     def _stream_close(self) -> None:
@@ -500,6 +531,7 @@ class DwcApp(App):
             self._say_sys("⏳ 上一个任务还在跑 — 等它完成")
             return
         self._busy = True
+        self._spin_tick()          # ★ 立即切忙态视觉(不等 120ms)
         ctx = None
         if self._hist:
             last = self._hist[-1]
@@ -523,7 +555,7 @@ class DwcApp(App):
                 base = getattr(w, "_acc", "") + text
                 w._acc = base
                 w.update(base)
-                self._msgs().scroll_end(force=True)
+                self._follow()
             try:
                 self.call_from_thread(_do)
             except Exception:                       # noqa: BLE001
