@@ -33,7 +33,9 @@ def test_router_single_implementation(capsys):
 
 
 def test_no_arg_defaults_to_chat(monkeypatch):
-    """★★ 无参 = chat REPL（opencode/claude 惯例）— 打桩子进程验证路由。"""
+    """★★ 无参 = 进交互界面（opencode/claude 惯例）— 打桩子进程验证路由。
+    ★ R239 语义校准: 界面默认升级为全屏 TUI（dwc_tui.py）;
+      --plain 显式走老 REPL; 锁意图不变=无参必达交互面。"""
     seen = {}
 
     def _fake_run(name, args):
@@ -42,7 +44,10 @@ def test_no_arg_defaults_to_chat(monkeypatch):
         return 0
     monkeypatch.setattr(C, "_run_script", _fake_run)
     assert C.main([]) == 0
-    assert seen["name"] == "dwc_chat.py" and seen["args"] == []
+    assert seen["name"] == "dwc_tui.py" and seen["args"] == []
+    # --plain 回老 REPL
+    C.main(["chat", "--plain"])
+    assert seen["name"] == "dwc_chat.py"
     # ask 单发路由
     C.main(["ask", "去重 排序"])
     assert seen["name"] == "dwc_chat.py" and seen["args"] == ["-c", "去重 排序"]

@@ -85,7 +85,11 @@ def main(argv=None) -> int:
     cmd = argv[0] if argv else "chat"
     rest = argv[1:]
     if cmd in ("chat", "repl"):
-        return _run_script("dwc_chat.py", rest)
+        # ★ R239: 默认全屏 TUI（textual）; --plain 走老 REPL;
+        #   TUI 脚本内 textual 不可用会自动回退 chat（降级不硬撑）
+        if rest and rest[0] == "--plain":
+            return _run_script("dwc_chat.py", rest[1:])
+        return _run_script("dwc_tui.py", rest)
     if cmd in ("ask", "-c", "--ask"):
         # 单发: dwc ask "任务" ⇒ chat -c "任务"
         return _run_script("dwc_chat.py", ["-c"] + rest)
