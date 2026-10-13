@@ -1,0 +1,66 @@
+{
+ "round": "R232",
+ "date": "2026-10-13",
+ "主题": "bench 预测式选择: bench_select=p̂+λ·unc(平局按ID)+dial校验(bench段)+main --select+cron按日A/B交替(偶predictor/奇full)",
+ "verify": {
+  "pytest": "1552 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 232,
+  "at": "2026-10-13T09:12:00+08:00",
+  "parent_gen": 231,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 248,
+   "pytest": 1552,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "bench 预测式选择: bench_select=p̂+λ·unc(平局按ID)+dial校验(bench段)+main --select+cron按日A/B交替(偶predictor/奇full)",
+   "files": [
+    "scripts/dwc_bench.py",
+    "scripts/dwc_bench_cron.py",
+    "src/dwc/foundation/dial_config.py",
+    "config/drift.yaml",
+    "tests/test_r232_select.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r232_select.py 4锁",
+     "claim": "选择确定性/λ两端极限/dial校验/结果记录select_mode"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1552 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r232_select.py 4锁",
+   "user_decision": "用户'按修正后方案开工逐步落地'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "A/B增益需7天实测(不预设数字); 收束排序键未动(调整B)"
+  }
+ }
+}
