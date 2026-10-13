@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.request
@@ -63,13 +64,14 @@ def dim2(s):  return _c("90", s)             # ★ R238 次级灰（更沉的层
 
 # ★ R238 设计语言（研究对齐: opencode 单色主导 + Claude Code 行型密度）
 #   —— 一个主色(青) + 语义色; 层级用 ⎿ │ ─ 符号, 不靠框
+#: ★ ASCII 艺术字（R238b: 制表符块字 █╗║ 在错码页/非等宽字体下会糊成
+#:   "AN"形乱码 — 用户实测被坑 ⇒ 一律纯 ASCII, 任何终端零错位）
 _LOGO = [
-    " █████╗ ███╗   ██╗",
-    "██╔══██╗████╗  ██║",
-    "███████║██╔██╗ ██║",
-    "██╔══██║██║╚██╗██║",
-    "██║  ██║██║ ╚████║",
-    "╚═╝  ╚═╝╚═╝  ╚═══╝",
+    " ####   #   #    ####   ",
+    " #  #   #   #    #  #   ",
+    " #  #   # # #    #  #   ",
+    " #  #   # # #    #  #   ",
+    " ####   #   #    ####   ",
 ]
 
 
@@ -427,6 +429,17 @@ def banner() -> None:
     print("  " + status_bar())
 
 
+def _force_utf8_console() -> None:
+    """★ R238b: 启动即切终端到 UTF-8（直接 python dwc_chat.py 不经 launcher
+    也保中文不乱 — chcp 幂等, 失败静默为好过崩）。"""
+    if os.name == "nt":
+        try:
+            subprocess.call(["chcp", "65001"], stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=5)
+        except Exception:                      # noqa: BLE001 — 自愈尽力而为
+            pass
+
+
 def repl() -> int:
     banner()
     print(dim("输入 /help 看命令 · 直接说话=执行 · /quit 退出"))
@@ -471,6 +484,7 @@ def main(argv) -> int:
             _stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
+    _force_utf8_console()
     if len(argv) > 1 and argv[1] in ("-c", "--cmd"):
         line = " ".join(argv[2:])
         if not line.startswith("/"):
