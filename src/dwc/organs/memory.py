@@ -231,6 +231,7 @@ class MemoryKernel:
             self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
         self._conn.commit()
+        self._retrieved: List[str] = []   # ★ R258 检索留痕（修订候选集）
 
     def close(self) -> None:
         self._conn.close()
@@ -486,6 +487,7 @@ class MemoryKernel:
             score.items(),
             key=lambda kv: (kv[1], pool[kv[0]].access_count),
             reverse=True)
+        self._note_retrieved([nid for nid, _ in ordered[:k]])
         return [pool[nid] for nid, _ in ordered[:k]]
 
     def recall_many(self, scene: str, terms: Optional[List[str]] = None,
@@ -714,6 +716,76 @@ class MemoryKernel:
                      "recall 管要修，不是记忆该删"
                      % (len(held), len(archived), len(protected))),
         }
+
+    # ══════════════════════════════════════════════
+    # ★ R258 · 后向修订（ReHarness 2610.12668 §3.2）
+    # ══════════════════════════════════════════════
+    def revise(self, node_id: str, payload_new: Dict[str, Any], *,
+               source_traj: str, why: str) -> MemoryNode:
+        """★ 版本链式修订一条 SKILL（reflection 等价物）。
+
+        ★★ G2 grounding: source_traj 必填 —— 新内容必须可回溯到**源轨迹**
+          （ReHarness: 当前实例只作反馈, 不作信息源 — 防泄漏）。
+        ★ 守门单调性（2606.14249 同族）: 旧节点**内容字段原样**, 只加
+          _revised_to 指针; 新节点 _rev_prev 链回 —— 双向版本链, 可回滚。
+        ★ FAILURE_SIGNATURE 是事件流不修订（R104 同族: 事件是事实,
+          经验才是可修订的解读）—— 只对 SKILL。
+        """
+        if not source_traj:
+            raise MemoryError("修订必须引源轨迹（G2 grounding — 无源不修订）")
+        old = self.get(node_id)
+        if old is None:
+            raise MemoryError("修订目标不存在: %s" % node_id)
+        if old.kind is not MemoryKind.SKILL:
+            raise MemoryError("修订只对 SKILL（事件流/工作态是事实, 不修订）")
+        payload = dict(payload_new)
+        payload["_rev_prev"] = node_id
+        payload["_rev_why"] = str(why)[:300]
+        payload["_rev_src"] = str(source_traj)[:400]
+        new_id = self.remember(MemoryKind.SKILL, payload,
+                               chain_id=old.chain_id)
+        # 旧节点: 只加指针, 内容字段不动（审计可读原版）
+        old_p = dict(old.payload)
+        old_p["_revised_to"] = new_id
+        self._conn.execute(
+            "UPDATE memory_node SET payload=? WHERE node_id=?",
+            (json.dumps(old_p, ensure_ascii=False), node_id))
+        self._conn.commit()
+        return self.get(new_id)
+
+    def _note_retrieved(self, node_ids) -> None:
+        """★ R258 检索留痕（修订候选集 — 只记 id, 环形上限 64）。"""
+        for nid in node_ids:
+            if nid not in self._retrieved[-8:]:
+                self._retrieved.append(nid)
+        del self._retrieved[:-64]
+
+    def last_retrieved(self, n: int = 8) -> List[MemoryNode]:
+        """★ 最近一次检索用过的节点（修订的候选集 — 检索留痕）。"""
+        out = []
+        for nid in list(reversed(self._retrieved))[:n]:
+            node = self.get(nid)
+            if node is not None:
+                out.append(node)
+        return out
+
+    def revision_demo(self, n: int = 2) -> str:
+        """★ R258 ③ 修订条目做 forward-write 的 demo（ReHarness 消融 0.217→0.191）。"""
+        rows = self._conn.execute(
+            "SELECT payload FROM memory_node WHERE kind=? "
+            "AND payload LIKE '%_rev_prev%' ORDER BY created_at DESC LIMIT ?",
+            (MemoryKind.SKILL.value, n)).fetchall()
+        lines = []
+        for r in rows:
+            try:
+                p = json.loads(r["payload"])
+            except ValueError:
+                continue
+            lines.append("修订示例（旧: %s… → 新方法: %s…; 修订理由: %s）"
+                         % (str(p.get("_rev_prev", ""))[:12],
+                            str(p.get("method", p.get("scene", "")))[:120],
+                            p.get("_rev_why", "")[:100]))
+        return "\n".join(lines)
 
     def archive(self, node_id: str) -> MemoryNode:
         """归档（不删 —— 判据 S6 的同款纪律）。"""

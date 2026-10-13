@@ -179,6 +179,19 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     except Exception as _pe:                  # noqa: BLE001 — 预测器故障不拖垮任务
         import sys as _sy
         _sy.stderr.write("predictor observe 失败: %s\n" % _pe)
+    # ★ R258 · ReHarness 后向修订（2610.12668 §3.2 — 任务成败明确时回修
+    #   检索用过的规矩; diagnostic gate 在 revision_lessons 内）
+    try:
+        from dwc.agent_quality import revision_lessons
+        _rv = revision_lessons(str(item.get("task", "")),
+                               status=rep.get("status", ""),
+                               fail_why=str(rep.get("why", ""))[:300],
+                               llm=llm)
+        if _rv.get("revised"):
+            _log({"user_task": item["id"], "skills_revised": _rv["revised"]})
+    except Exception as _re:               # noqa: BLE001 — 修订失败不拖垮任务
+        import sys as _sy
+        _sy.stderr.write("revision_lessons 失败: %s\n" % _re)
     _log({"user_task": item["id"], "status": rep["status"],
           "rounds": rep.get("rounds"),
           "why": rep.get("why", "")[:120]})

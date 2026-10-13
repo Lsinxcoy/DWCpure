@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from typing import Any, Dict, List
 
@@ -148,15 +149,100 @@ def consolidate_skills() -> Dict[str, int]:
         if n < SKILL_MIN:
             continue
         path = os.path.join(SKILLS_DIR, "%s.md" % mode)
+        if os.path.exists(path):
+            # ★ R258: 已修订的规矩不覆盖（修订版由 outcome 驱动, 更优 —
+            #   ReHarness §3.3: 修订是 forward-write 的上游）
+            continue
         ex = [l for l in load_lessons() if l.get("fail_mode") == mode][:3]
-        body = ("# 规矩（%s 教训 ×%d 固化）\n\n%s\n\n例证:\n%s\n" % (
+        # ★ R258 ③: 修订示范注入（消融 0.217→0.191 — 新规矩写法向修订对看齐）
+        _demo_note = ""
+        _demo_p = os.path.join(SKILLS_DIR, "_revision_demo.md")
+        if os.path.exists(_demo_p):
+            try:
+                _demo_note = ("\n修订示范（写规矩时参考 — 有条件加限定, "
+                              "过时改写）:\n"
+                              + open(_demo_p, encoding="utf-8").read()[:400])
+            except OSError as exc:
+                sys.stderr.write("demo 读取失败: %s\n" % exc)
+        body = ("# 规矩（%s 教训 ×%d 固化）\n\n%s\n%s\n\n例证:\n%s\n" % (
             mode, n, _TEMPLATES.get(mode, "同类失败已多次发生, 更谨慎规划。"),
+            _demo_note,
             "\n".join("- %s: %s" % (e.get("task_id"), e.get("detail"))
                        for e in ex)))
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(body)
         made[mode] = n
     return made
+
+
+def revision_lessons(task: str, *, status: str, fail_why: str = "",
+                     llm: Any = None) -> Dict[str, Any]:
+    """★ R258 · 规矩文件的后向修订（ReHarness 2610.12668 §3.2 — 文件轨）。
+
+    ★ diagnostic gate（§6 poker 教训）: status ∉ {done, failed} ⇒ 跳过
+      —— incomplete/超时是噪声反馈, 不修订。
+    ★ 修订对象 = dwc_skills/{fail_mode}.md（规矩 = 可修订的解读）;
+      lessons JSONL 事件流**不动**（失败是事实 — R104 同族纪律）。
+    ★ 版本链: 旧版存 dwc_skills/.hist/{mode}.{ts}.md（可回滚）。
+    ★ ③ demo 环: 修订对写 _revision_demo.md — consolidate_skills 固化新
+      规矩时读它当示范（ReHarness 消融: 修订做 forward-write demo
+      0.217→0.191 的证据）。
+    """
+    if status not in ("done", "failed"):
+        return {"revised": [], "skipped": "nondiagnostic"}
+    if llm is None:
+        return {"revised": [], "skipped": "no_llm"}
+    hits = recall_lessons(task, 2)
+    revised: List[str] = []
+    for h in hits:
+        fm = str(h.get("fail_mode") or "").strip()
+        sp = os.path.join(SKILLS_DIR, "%s.md" % fm) if fm else ""
+        if not sp or not os.path.exists(sp):
+            continue
+        try:
+            old_txt = open(sp, encoding="utf-8").read()
+        except OSError:
+            continue
+        prompt = (
+            "固化规矩曾用于任务。按结局**修订**它（有条件加限定, 过时改写; "
+            "不许编造新要求）。\n任务: %s\n结局: %s\n%s\n"
+            "原规矩:\n%s\n\n只输出修订后的规矩全文（≤200字）。"
+            % (task[:300], status,
+               ("失败原因: " + fail_why[:200]) if fail_why else "", old_txt[:600]))
+        try:
+            r = llm.complete(prompt, tag="lesson_revise")
+            new_txt = (r.text or "").strip() if getattr(r, "ok", False) else ""
+        except Exception as exc:                # noqa: BLE001 — 修订失败不阻断
+            sys.stderr.write("lesson_revise LLM 失败: %s\n" % exc)
+            continue
+        if not new_txt or new_txt == old_txt or len(new_txt) > 1200:
+            continue
+        hist = os.path.join(SKILLS_DIR, ".hist")
+        os.makedirs(hist, exist_ok=True)
+        ts = time.strftime("%m%d_%H%M%S")
+        with open(os.path.join(hist, "%s.%s.md" % (fm, ts)), "w",
+                  encoding="utf-8") as fh:      # 版本链: 旧版存档
+            fh.write(old_txt)
+        body = ("> 修订于 %s（任务%s）\n\n%s\n" % (ts, status, new_txt))
+        with open(sp, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        # ★ ③ demo 环（最近 2 条修订对 — 固化新规矩时读）
+        try:                                   # ★ ③ demo 环（G7: 失败计数）
+            demo_p = os.path.join(SKILLS_DIR, "_revision_demo.md")
+            line = "- [%s] 旧: %s… → 新: %s…（任务%s）" % (
+                fm, old_txt.replace("\n", " ")[:80],
+                new_txt.replace("\n", " ")[:80], status)
+            prev = []
+            if os.path.exists(demo_p):
+                prev = [l for l in open(demo_p, encoding="utf-8").read()
+                        .splitlines() if l.startswith("- ")]
+            body = "最近修订示范:\n" + "\n".join(([line] + prev)[:2])
+            with open(demo_p, "w", encoding="utf-8") as fh:
+                fh.write(body + "\n")
+        except OSError as exc:
+            sys.stderr.write("revision demo 落盘失败: %s\n" % exc)
+        revised.append(fm)
+    return {"revised": revised, "skipped": None}
 
 
 def lessons_context(task: str, k: int = 3) -> str:

@@ -1,0 +1,72 @@
+{
+ "round": "R258",
+ "date": "2026-10-14",
+ "主题": "ReHarness后向修订双轨落地(版本链+diagnostic gate+demo环+grounding)",
+ "verify": {
+  "pytest": "1626 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 258,
+  "at": "2026-10-14T04:25:00+08:00",
+  "parent_gen": 255,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 276,
+   "pytest": 1626,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R258 ReHarness后向修订双轨: ①MemoryKernel.revise版本链 ②diagnostic gate+检索留痕 ③修订对demo环 ④grounding必填source_traj ⑤agent主链接线revision_lessons(文件轨.md+.hist存档)",
+   "files": [
+    "src/dwc/organs/memory.py",
+    "src/dwc/organs/revision.py",
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_agent.py",
+    "tests/test_r258_revision.py",
+    "docs/papers/2610.12668.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r258_revision.py 10锁",
+     "claim": "版本链/无源raise/事件流拒绝/检索留痕/gate零调用/done触发/零检索不修/demo/hist/固化不覆盖"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1626 rc=0+gate+双e2e; 抓2真bug(D6五字段/MemoryNode未取id)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1626 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r258_revision.py",
+   "user_decision": "用户'1234全做'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "memory轨SKILL主链写入仅实验脚本; 修订质量无评分(回滚是安全网); 文件轨命中依赖token重叠检索"
+  }
+ }
+}
