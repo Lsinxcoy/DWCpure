@@ -4,7 +4,36 @@
 #   做四件事: venv → 依赖 → 目录初始化 → 冒烟（不碰你的任何配置）
 # ============================================================
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# ===== bootstrap（R250）: 支持一条命令安装, 免手动 clone =====
+#   irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1 | iex
+#   -File 模式: 当前目录即仓库 ⇒ 用脚本所在目录;
+#   iex 模式 : 无脚本路径 ⇒ 自动 clone/pull 到 %USERPROFILE%\.dwc
+$RepoUrl = "https://github.com/Lsinxcoy/divine-wisdom-core.git"
+$Dest    = Join-Path $env:USERPROFILE ".dwc"
+$Self    = $MyInvocation.MyCommand.Path
+if ($Self) {
+    $Dir0 = Split-Path -Parent $Self
+    if (Test-Path (Join-Path $Dir0 "pyproject.toml")) { $Root = $Dir0 }
+}
+if (-not $Root) {
+    if (-not (Test-Path (Join-Path $Dest "pyproject.toml"))) {
+        Write-Host "克隆仓库到 $Dest ..."
+        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            Write-Host "需要 git（未找到 git 命令）— 安装 git 后重试: https://git-scm.com" -ForegroundColor Red
+            exit 1
+        }
+        git clone $RepoUrl $Dest
+        if ($LASTEXITCODE -ne 0) { Write-Host "clone 失败" -ForegroundColor Red; exit 1 }
+    } else {
+        Write-Host "已存在 $Dest — 拉取最新..."
+        git -C $Dest pull --ff-only
+        if ($LASTEXITCODE -ne 0) { Write-Host "pull 失败（本地改动?）" -ForegroundColor Yellow }
+    }
+    $Root = $Dest
+}
+# ===== bootstrap 结束 =====
+
 Write-Host "== DWC 安装 ==" -ForegroundColor Cyan
 Write-Host "仓库根: $Root"
 
@@ -59,6 +88,6 @@ Write-Host "== 安装完成 ==" -ForegroundColor Green
 Write-Host "下一步（首次配置向导, 交互式设置 LLM 端点）:"
 Write-Host "  dwc setup"
 Write-Host "之后:"
-Write-Host "  $Py scripts\dwc_cli.py doctor   # 自检"
-Write-Host "  $Py scripts\dwc_chat.py        # 交互界面"
-Write-Host "  $Py scripts\dwc_agent.py --llm # 常驻 agent"
+Write-Host "  dwc          # 交互界面（重开终端生效）"
+Write-Host "  dwc start --llm   # 常驻 agent"
+Write-Host "  dwc update   # 从 GitHub 更新"

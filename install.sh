@@ -4,7 +4,27 @@
 #   用法: bash install.sh
 # ============================================================
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# ===== bootstrap（R250）: 一条命令安装, 免手动 clone =====
+#   curl -fsSL https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.sh | bash
+#   脚本模式: $0 所在目录即仓库; curl|bash: 自动 clone/pull 到 ~/.dwc
+REPO_URL="https://github.com/Lsinxcoy/divine-wisdom-core.git"
+DEST="${DWC_HOME:-$HOME/.dwc}"
+SELF_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
+if [ -n "${SELF_DIR:-}" ] && [ -f "$SELF_DIR/pyproject.toml" ]; then
+  ROOT="$SELF_DIR"
+else
+  if [ ! -f "$DEST/pyproject.toml" ]; then
+    echo "克隆仓库到 $DEST ..."
+    git clone "$REPO_URL" "$DEST"
+  else
+    echo "已存在 $DEST — 拉取最新..."
+    git -C "$DEST" pull --ff-only || echo "pull 失败（本地改动?）继续装现有版本"
+  fi
+  ROOT="$DEST"
+fi
+# ===== bootstrap 结束 =====
+
 echo "== DWC 安装 =="
 echo "仓库根: $ROOT"
 
@@ -48,7 +68,20 @@ PYEOF
 
 echo ""
 echo "== 安装完成 =="
+# ⑤ dwc 命令进 PATH（~/.local/bin — 跨工具惯例）
+BIN="$HOME/.local/bin"
+mkdir -p "$BIN"
+printf '#!/bin/sh\nexec "%s" -m dwc.cli_main "$@"\n' "$PY" > "$BIN/dwc"
+chmod +x "$BIN/dwc"
+case ":$PATH:" in
+  *":$BIN:"*) : ;;
+  *) echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+     echo "已把 $BIN 写入 ~/.bashrc（重开终端生效）" ;;
+esac
+
+echo ""
+echo "== 安装完成 =="
 echo "首次配置向导:  dwc setup"
-echo "自检:          $PY $ROOT/scripts/dwc_cli.py doctor"
-echo "交互界面:      $PY $ROOT/scripts/dwc_chat.py"
-echo "常驻 agent:    $PY $ROOT/scripts/dwc_agent.py --llm"
+echo "交互界面:      dwc"
+echo "常驻 agent:    dwc start --llm"
+echo "从 GitHub 更新: dwc update"

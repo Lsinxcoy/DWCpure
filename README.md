@@ -110,22 +110,19 @@ dwc/
 
 ## 安装与上手（新机器三步 · R228-R230）
 
-**① 克隆 + 一键安装**（venv + 依赖 + 目录 + 冒烟, 不碰你的任何配置）:
-
-```bash
-git clone https://github.com/Lsinxcoy/divine-wisdom-core.git
-cd divine-wisdom-core
-```
+**① 一条命令安装**（自动 clone 到 `~/.dwc` + venv + 依赖 + dwc 命令注册）:
 
 ```powershell
-# Windows
-powershell -ExecutionPolicy Bypass -File install.ps1
+# Windows（PowerShell 5.1+）
+irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1 | iex
 ```
 
 ```bash
 # macOS / Linux / WSL
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.sh | bash
 ```
+
+（已 clone 的仓库内: `powershell -File install.ps1` / `bash install.sh` — 同一脚本双模式）
 
 **② 首次配置向导**（交互式: LLM 端点/key 遮蔽输入不回显 → 通知可选 → 真实冒烟）:
 
