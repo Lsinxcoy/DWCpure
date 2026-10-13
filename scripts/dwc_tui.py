@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-"""R239 · DWC 全屏 TUI（textual — Python 版组件化界面, 参考 MiMoCode/OpenTUI 形态）。
+"""R239 · DWC 全屏 TUI（textual — 参考 MiMoCode/OpenTUI 形态）。
 
 ★★★ 定位（G1）: **DWC-AUTO 用户界面层** — 只渲染与派单, 不做判定;
   执行核仍是 task_exec.execute_user_task（progress 事件直喂面板, 核零改动）。
 
-★ 形态（对齐头部 agent 全屏 TUI）:
-  · 左面板=对话区（问/答/流式答案）  · 右面板=工具动作日志（round/action/token 摘要）
-  · 顶部=状态栏（agent 心跳/队列）   · 底部=输入行 + 快捷提示
-  · 斜杠命令与 chat REPL 同一套（/status /help /bg /quit）
+★ R240 设计语言 · "Deep Space Terminal"（DESIGN 纪律: 一个主色 + 一个点缀,
+  层级靠留白与细线不靠框, 品牌要有记忆点）:
+  · 主色 teal 青 #7EE0E6（线条/标题/图标） · 点缀 amber 橙 #FFB86B（❯/焦点/切模式）
+  · 深空底 #0B0F14 → surface #11161D → panel #161D26（三级灰阶纵深）
+  · 面板**去框** — 只留 1px 细竖线分隔（避免"两个方框"平庸病）
+  · 顶栏品牌条 ◆ DWC ┊ 模式 ┊ 心跳 ┊ 时钟 · 首屏块字记忆点 · 动作行带时间戳
 
 ★ 降级纪律: textual 不可用/终端不支持 ⇒ 如实报错回退 dwc_chat（不硬撑）。
 """
@@ -21,8 +23,9 @@ import time as _time
 try:
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal, Vertical
-    from textual.widgets import Footer, Header, Input, RichLog, Static
+    from textual.widgets import Footer, Input, RichLog, Static
     from textual.binding import Binding
+    from textual.theme import Theme
     _TUI_OK = True
     _TUI_ERR = ""
 except Exception as _e:                        # noqa: BLE001 — 降级必留痕
@@ -34,20 +37,71 @@ _ROOT = (os.environ.get("DWC_ROOT", "").strip()
 if _ROOT not in sys.path:
     sys.path.insert(0, os.path.join(_ROOT, "src"))
 
-_BUSY = "●"
 _ICON = {"read": "⌕", "write": "✎", "run": "▶", "final": "✓",
          "delegate": "⇄", "mcp": "⚙", "ask": "?"}
 
+#: ★ 首屏品牌记忆点（纯 ASCII — 任何码页零错位）
+_MARK = ["   ####   #   #    ####",
+         "   #  #   # # #    #  #",
+         "   ####   #   #    ####"]
+
 
 class DwcApp(App):
-    """★ 全屏 TUI: 对话区 | 动作区 | 输入 | 状态栏。"""
+    """★ 全屏 TUI: 品牌顶栏 | 对话区 ╎ 动作区 | 底线输入。"""
 
     CSS = """
+    /* ── R240 · Deep Space Terminal ───────────────────────── */
+    Screen { background: $background; }
+    #topbar {
+        dock: top; height: 1;
+        background: $panel;
+        color: $primary;
+        text-style: bold;
+        padding: 0 1;
+    }
     #body { height: 1fr; }
-    #chat-pane { width: 2fr; border: solid $accent; }
-    #tool-pane { width: 1fr; border: solid $panel; }
-    #status { height: 1; background: $panel; color: $text-muted; padding: 0 1; }
-    Input { dock: bottom; }
+    #chat-pane { width: 3fr; background: $background; padding: 0 1; }
+    #tool-pane {
+        width: 2fr;
+        background: $background;
+        border-left: solid $panel;        /* 细竖线分隔 — 不用方框 */
+        padding: 0 1;
+    }
+    #empty-hint {
+        color: $text-muted;
+        padding: 0 0 1 1;
+    }
+    .pane-title {
+        color: $primary; text-style: bold;
+        background: $panel; padding: 0 1;
+    }
+    #chat, #tools {
+        background: $background;
+        height: 1fr;
+        scrollbar-color: $panel;
+    }
+    #inputbar {
+        dock: bottom; height: 3;
+        background: $surface;
+        border-top: solid $primary;      /* 主色分隔线 — 输入区一眼可见 */
+        padding: 0 1;
+    }
+    #prompt-label {
+        width: 3;
+        content-align: left middle;
+        color: $accent;               /* amber 焦点 — 输入的视觉锚 */
+        text-style: bold;
+    }
+    #ask {
+        width: 1fr;
+        background: $surface;
+        border: none;
+        border-bottom: tall $primary; /* 底线式 — 去框留呼吸 */
+        height: 2;
+    }
+    #ask:focus { border-bottom: tall $accent; }
+    #hint { color: $text-muted; width: 34; content-align: right middle; }
+    Footer { background: $surface; color: $text-muted; }
     """
     BINDINGS = [
         Binding("ctrl+c", "quit", "退出"),
@@ -61,25 +115,61 @@ class DwcApp(App):
         self._bg_mode = False
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        yield Static("  探测 agent…", id="status")
+        yield Static(self._topbar_text(), id="topbar")
         with Horizontal(id="body"):
             with Vertical(id="chat-pane"):
-                yield RichLog(id="chat", wrap=True, highlight=True)
+                yield Static("  ─ 对话 ", classes="pane-title")
+                yield RichLog(id="chat", wrap=True, highlight=False, markup=True)
+                yield Static("   [dim]输入任务开始对话 · 答案将在这里逐字流出[/]",
+                             id="empty-hint")
             with Vertical(id="tool-pane"):
-                yield RichLog(id="tools", wrap=True)
-        yield Input(placeholder="说点什么执行 · /help 命令 · /bg 切后台投单",
-                    id="ask")
+                yield Static("  ─ 动作 ─ 实时 ", classes="pane-title")
+                yield RichLog(id="tools", wrap=True, markup=True)
+        with Horizontal(id="inputbar"):
+            yield Static("❯", id="prompt-label")
+            yield Input(placeholder="输入任务，回车执行…", id="ask")
+            yield Static("/help  ·  /bg 后台", id="hint")
         yield Footer()
 
     # ── 生命周期 ──────────────────────────────────────
 
     def on_mount(self) -> None:
+        try:
+            self.register_theme(Theme(
+                name="dwc-deep-space",
+                primary="#7EE0E6",       # 主色: teal 青
+                secondary="#4A6670",
+                accent="#FFB86B",        # 点缀: amber 橙
+                success="#5AF78E",
+                error="#FF5F56",
+                warning="#F3D99D",
+                background="#0B0F14",    # 深空底
+                surface="#11161D",
+                panel="#161D26",
+                foreground="#C9D1D9",
+                dark=True))
+            self.theme = "dwc-deep-space"
+        except Exception:                       # noqa: BLE001 — 主题失败用默认
+            pass
         chat = self.query_one("#chat", RichLog)
-        chat.write("[bold cyan]  D W C  [/] [dim]· 全屏 TUI · "
-                   "左=对话 右=动作 · 输入任务回车即执行[/]")
+        for ln in _MARK:
+            chat.write("[bold #7EE0E6]%s[/]" % ln)
+        chat.write("[bold]DIVINE WISDOM CORE[/]  "
+                   "[dim]· 独立常驻 agent · v0.1.0[/]")
+        chat.write("[dim]输入任务回车即执行 · /help 全部命令[/]")
+        chat.write("")
         self._refresh_status()
         self.set_interval(15.0, self._refresh_status)
+
+    def _topbar_text(self) -> str:
+        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
+        clock = _time.strftime("%H:%M")
+        return ("  [bold #FFB86B]◆[/] [bold]DWC[/]   "
+                "[on #1E2733] %s [/]  [on #1E2733] %s [/]  [dim]ctrl+c[/]"
+                % (mode, clock))
+
+    def _set_topbar(self) -> None:
+        self.query_one("#topbar", Static).update(self._topbar_text())
 
     def _refresh_status(self) -> None:
         # ★ 走线程 + call_from_thread（thread-safe 回 UI — 不依赖 worker 协议）
@@ -98,13 +188,16 @@ class DwcApp(App):
     def _apply_status(self, s: dict) -> None:
         q = s.get("queue") or {}
         hb = s.get("heartbeat") or {}
-        mark = ("[bold green]● alive[/]" if s.get("pid")
-                else "[bold red]● down[/]")
-        mode = "[yellow]bg投单[/]" if self._bg_mode else "[cyan]同步直驱[/]"
-        self.query_one("#status", Static).update(
-            " %s · pid=%s · terms=%s · queue p=%s d=%s · 模式=%s"
-            % (mark, s.get("pid"), hb.get("terms", "-"),
-               q.get("pending", 0), q.get("done", 0), mode))
+        mark = ("[#5AF78E]●[/] agent alive" if s.get("pid")
+                else "[#FF5F56]●[/] agent down")
+        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
+        clock = _time.strftime("%H:%M")
+        self.query_one("#topbar", Static).update(
+            "  [bold #FFB86B]◆[/] [bold]DWC[/]   "
+            "[on #1E2733] %s [/]  [on #1E2733] %s·%s·%s/%s [/]  "
+            "[on #1E2733] %s [/]  [dim]ctrl+c[/]"
+            % (mark, mode, hb.get("terms", "─"),
+               q.get("pending", 0), q.get("done", 0), clock))
 
     # ── 输入处理 ──────────────────────────────────────
 
@@ -119,20 +212,24 @@ class DwcApp(App):
             return
         if line == "/bg":
             self._bg_mode = True
-            chat.write("[yellow]已切后台投单模式（常驻 agent 消费）[/]")
+            self._set_topbar()
+            chat.write("[#FFB86B]✦ 已切后台投单模式[/] "
+                       "[dim]（常驻 agent 消费）[/]")
             return
         if line == "/fg":
             self._bg_mode = False
-            chat.write("[cyan]已切同步直驱模式[/]")
+            self._set_topbar()
+            chat.write("[#7EE0E6]✦ 已切同步直驱模式[/]")
             return
         if line == "/help":
-            chat.write("[dim]/bg /fg 模式切换 · /status 刷新 · /quit 退出 · "
-                       "直接输入任务=同步执行 · /bg 后=投单[/]")
+            chat.write("[dim]/bg /fg 模式 · /status 刷新 · /quit 退出 · "
+                       "直接输入任务=同步执行[/]")
             return
         if line == "/status":
             self._refresh_status()
             return
-        chat.write("[bold]❯ %s[/]" % line)
+        chat.write("")
+        chat.write("[bold #FFB86B]❯[/] [bold]%s[/]" % line)
         if self._bg_mode:
             self._submit_bg(line)
         else:
@@ -163,14 +260,15 @@ class DwcApp(App):
         def _progress(ev: dict) -> None:
             kind = ev.get("ev")
             if kind == "round":
-                _post("[dim]│ 轮 %d · 思考中…[/]" % ev.get("n", 0), True)
+                _post("[dim]%s │  轮 %d · 思考中…[/]"
+                      % (_time.strftime("%H:%M:%S"), ev.get("n", 0)), True)
             elif kind == "action":
-                mark = "[green]✓[/]" if ev.get("ok") else "[red]✗[/]"
-                _post("%s [cyan]%s[/] %s %s"
-                      % (_ICON.get(ev.get("op"), "·"), ev.get("op", ""),
-                         str(ev.get("target", ""))[:60], mark), True)
-            elif kind == "token":
-                self._buf = getattr(self, "_buf", "") + ev.get("t", "")
+                mark = ("[#5AF78E]✓[/]" if ev.get("ok")
+                        else "[#FF5F56]✗[/]")
+                _post("[dim]%s[/] [bold #7EE0E6]%-2s[/] %-5s %s %s"
+                      % (_time.strftime("%H:%M:%S"),
+                         _ICON.get(ev.get("op"), "·"), ev.get("op", ""),
+                         str(ev.get("target", ""))[:50], mark), True)
 
         def _work():
             from dwc.llm.client import LLMClient
@@ -182,12 +280,14 @@ class DwcApp(App):
             secs = round(_time.time() - t0, 1)
             ans = str(rep.get("answer", ""))
             if rep.get("status") == "done":
-                _post("[bold green]── ✓ 完成[/][dim]  · %d 轮 · %.1fs[/]"
+                _post("[bold #5AF78E]── ✓ 完成[/]"
+                      "[dim]  · %d 轮 · %.1fs[/]"
                       % (rep.get("rounds", 0), secs))
             else:
-                _post("[bold red]── ✗ %s[/][dim]  · %d 轮 · %.1fs[/]  %s"
+                _post("[bold #FF5F56]── ✗ %s[/]"
+                      "[dim]  · %d 轮 · %.1fs · %s[/]"
                       % (rep.get("status"), rep.get("rounds", 0), secs,
-                         str(rep.get("why", ""))[:160]))
+                         str(rep.get("why", ""))[:140]))
             if ans:
                 for ln in ans.splitlines() or [""]:
                     _post(ln)

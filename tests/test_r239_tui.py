@@ -23,12 +23,16 @@ def _run(app_fn):
 
 
 def test_widgets_compose():
-    """★★★ 四件套合成锁: 对话区/动作区/输入/状态栏（全屏形态的骨架）。"""
+    """★★★ 五件套合成锁: 品牌顶栏/对话区/动作区/输入/提示行（全屏骨架）。
+    ★ R240 结构校准: #status 状态行并入品牌顶栏 #topbar（锁跟结构语义）。"""
     async def _check(app, pilot):
+        assert app.query_one("#topbar") is not None
         assert app.query_one("#chat") is not None
         assert app.query_one("#tools") is not None
         assert app.query_one("#ask") is not None
-        assert app.query_one("#status") is not None
+        assert app.query_one("#prompt-label") is not None
+        # 主题注册成功（Deep Space）
+        assert app.theme == "dwc-deep-space"
     _run(_check)
 
 

@@ -1,0 +1,63 @@
+{
+ "round": "R240",
+ "date": "2026-10-13",
+ "主题": "TUI 高级感: Deep Space 主题注册+去框细线布局+品牌顶栏chip+截图自检迭代; r239锁跟结构(#status→#topbar)",
+ "verify": {
+  "pytest": "1567 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 240,
+  "at": "2026-10-13T12:51:00+08:00",
+  "parent_gen": 239,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 258,
+   "pytest": 1567,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R240: Deep Space Terminal设计语言 — 注册自定义主题(teal主色+amber点缀+三级深空灰阶)/面板去框留细竖线/品牌顶栏chip化/首屏块字记忆点/时间戳动作行/底线式输入; 截图自检两轮迭代(7/10)",
+   "files": [
+    "scripts/dwc_tui.py",
+    "tests/test_r239_tui.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r239_tui.py 4锁 + 截图自检",
+     "claim": "五件套+主题注册断言; textual SVG截图两轮vision复检(布局/对齐/配色逐项修)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1567 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r239_tui.py",
+   "user_decision": "用户'设计有点丑 尽你所能提升页面高级感'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "真实终端观感待用户回报(截图为headless模拟); diff视图/会话切换未做"
+  }
+ }
+}
