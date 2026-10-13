@@ -73,8 +73,29 @@ def load_lessons() -> List[Dict[str, Any]]:
     return out
 
 
+def lesson_contrast(task_id: str) -> bool:
+    """★ R234 · 调整C 落点: 该任务的教训有无「成败对照」。
+
+    对照源（按强度序）: ① predictor 台账 bench:{task_id} 键成+败都有
+    ② 世界树组键 — 同 group 下谱系有成有败（读树, predictor 树族口径）。
+    只见过失败的教训可能是噪声; 有对照 ⇒ 信息量高（incumbent.py contrast
+    同构）。读取失败静默降级 False（对照是排序加分项, 不是门）。"""
+    try:
+        from dwc.organs.predictor import OutcomePredictor
+        r = OutcomePredictor().predict("bench:" + str(task_id))
+        # ★ Layer 22 判据校准: p̂∈(0,1) 在 Laplace 平滑下恒真（无信息量）——
+        #   真对照 = 两侧都有**先验外**观测: succ>0 且 fail>0。
+        #   还原: p=(1+succ)/(2+n) ⇒ succ=p·(n+2)−1; fail=n−succ。
+        n, pp = r["n"], r["p"]
+        succ = pp * (n + 2) - 1
+        return bool(succ > 1e-9 and (n - succ) > 1e-9)
+    except Exception:                        # noqa: BLE001 — 加分项不许拖垮检索
+        return False
+
+
 def recall_lessons(task: str, k: int = 3) -> List[Dict[str, Any]]:
-    """★ 接单检索: 任务文本 token 重叠打分 top-k（历史失败教训优先）。"""
+    """★ 接单检索: 任务文本 token 重叠打分 top-k（历史失败教训优先）。
+    ★ R234: 同 overlap 分下 contrast（有成败对照）优先 —— 强证据先注入。"""
     qt = set(_tokens(task))
     if not qt:
         return []
@@ -85,7 +106,13 @@ def recall_lessons(task: str, k: int = 3) -> List[Dict[str, Any]]:
         overlap = len(qt & lt)
         if overlap:
             scored.append((overlap, les))
-    scored.sort(key=lambda x: -x[0])
+    def _contrast(tid):
+        try:
+            return lesson_contrast(tid)
+        except Exception:                    # noqa: BLE001 — 加分项绝不炸检索
+            return False
+    scored.sort(key=lambda x: (-x[0],            # 主键: overlap 降序
+                               not _contrast(x[1].get("task_id", ""))))
     return [x[1] for x in scored[:k]]
 
 

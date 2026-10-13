@@ -1,0 +1,63 @@
+{
+ "round": "R233",
+ "date": "2026-10-13",
+ "主题": "保留协议: 四臂配对检查(Δ_exec=D−B/Δ_pred=D−C)+双判据晋升(gain≥0.02且cost≤1.2)+test冻结程序锁(freeze→仅开一次)+拒绝留痕全四臂",
+ "verify": {
+  "pytest": "1552 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 233,
+  "at": "2026-10-13T09:12:00+08:00",
+  "parent_gen": 232,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 248,
+   "pytest": 1552,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "保留协议: 四臂配对检查(Δ_exec=D−B/Δ_pred=D−C)+双判据晋升(gain≥0.02且cost≤1.2)+test冻结程序锁(freeze→仅开一次)+拒绝留痕全四臂",
+   "files": [
+    "src/dwc/foundation/retention.py",
+    "tests/test_r233_retention.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r233_retention.py 6锁",
+     "claim": "晋升三态/配对不兼容拒(论文动机句机器化)/四臂不全拒/冻结程序锁/拒绝留痕/组件delta"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1552 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r233_retention.py 6锁",
+   "user_decision": "用户'按修正后方案开工逐步落地'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "bench 四臂 runner(worktree 双版本)未接 — 协议层先行, runner随首个真实候选接入"
+  }
+ }
+}

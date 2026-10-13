@@ -1,0 +1,63 @@
+{
+ "round": "R234",
+ "date": "2026-10-13",
+ "主题": "contrast 教训检索: lesson_contrast=先验外两侧观测(succ>0且fail>0, Laplace下p∈(0,1)恒真不可用—Layer22判据校准)+recall同分contrast优先+抛错降级不炸检索",
+ "verify": {
+  "pytest": "1552 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 234,
+  "at": "2026-10-13T09:12:00+08:00",
+  "parent_gen": 233,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 248,
+   "pytest": 1552,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "contrast 教训检索: lesson_contrast=先验外两侧观测(succ>0且fail>0, Laplace下p∈(0,1)恒真不可用—Layer22判据校准)+recall同分contrast优先+抛错降级不炸检索",
+   "files": [
+    "src/dwc/agent_quality.py",
+    "tests/test_r234_contrast.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r234_contrast.py 3锁",
+     "claim": "对照标注数学/排序优先/故障降级"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1552 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r234_contrast.py 3锁",
+   "user_decision": "用户'按修正后方案开工逐步落地'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "树组兄弟对照(调整C②)待世界树组观测积累后接入 — 当前仅台账族对照"
+  }
+ }
+}
