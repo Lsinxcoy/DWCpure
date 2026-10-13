@@ -73,12 +73,15 @@ def test_mode_toggle_and_quit(monkeypatch):
     async def _go(app, pilot):
         await pilot.click("#ask")
         await pilot.press(*list("/bg"))
+        # ★ R243 行为语义: 候选打开时 Enter=补全(关浮层), 再 Enter 执行
+        await pilot.press("enter")
         await pilot.press("enter")
         await pilot.pause()
         assert app._bg_mode is True
         await pilot.click("#ask")
         await pilot.press(*list("/fg"))
-        await pilot.press("enter")
+        await pilot.press("enter")   # 补全
+        await pilot.press("enter")   # 执行
         await pilot.pause()
         assert app._bg_mode is False
         await pilot.click("#ask")

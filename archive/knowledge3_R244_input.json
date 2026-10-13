@@ -1,0 +1,69 @@
+{
+ "round": "R244",
+ "date": "2026-10-13",
+ "主题": "界面冲刺②: 输入系统升级(/命令+@文件补全浮层、历史、焦点直达)",
+ "verify": {
+  "pytest": "1576 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 244,
+  "at": "2026-10-13T16:10:00+08:00",
+  "parent_gen": 243,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 264,
+   "pytest": 1576,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R243输入升级: /命令+@文件补全浮层(OptionList级)、↑↓输入历史、启动焦点直达输入框; 两个实测bug修复(markup拼接泄露样式码/补全setter触发候选重开致Enter被吞)",
+   "files": [
+    "scripts/dwc_tui.py",
+    "tests/test_r243_input.py",
+    "tests/test_r239_tui.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r243_input.py 5锁(候选/Tab补全/@过滤/历史/焦点不抖)",
+     "claim": "vision复检8/10无样式码泄露; enter流实测: 补全→执行两段式"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r239_tui.py Layer22更新",
+     "claim": "Enter候选期=补全语义(行为变更诚实更新)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1576 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r243_input.py",
+   "user_decision": "用户拍板'界面冲刺R243(输入升级)'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "R244排期: Ctrl+P命令面板+session切换+文件树侧栏; R245动效"
+  }
+ }
+}

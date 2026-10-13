@@ -103,8 +103,18 @@ class DwcApp(App):
         height: 1fr;
         scrollbar-color: $panel;
     }
-    #inputbar {
-        dock: bottom; height: 3;
+    #suggest {
+        height: auto; max-height: 9;
+        background: $panel;
+        border-top: solid $accent;
+        padding: 0 1;
+    }
+    #inputrow {
+        height: 3;
+        background: $surface;
+        padding: 0 1;
+    }
+    #inputbar { dock: bottom; height: auto; background: $surface;
         background: $surface;
         border-top: solid $primary;      /* 主色分隔线 — 输入区一眼可见 */
         padding: 0 1;
@@ -148,10 +158,13 @@ class DwcApp(App):
             with Vertical(id="tool-pane"):
                 yield Static("  ─ 动作 ─ 实时 ", classes="pane-title")
                 yield RichLog(id="tools", wrap=True, markup=True)
-        with Horizontal(id="inputbar"):
-            yield Static("❯", id="prompt-label")
-            yield Input(placeholder="输入任务，回车执行…", id="ask")
-            yield Static("/help  ·  /bg 后台", id="hint")
+        with Vertical(id="inputbar"):
+            yield Static("", id="suggest")     # ★ R243 补全浮层(输入行上方)
+            with Horizontal(id="inputrow"):
+                yield Static("❯", id="prompt-label")
+                yield Input(placeholder="输入任务，回车执行…"
+                             "  / 命令 · @ 文件 · ↑ 历史", id="ask")
+                yield Static("/help · /bg", id="hint")
         yield Footer()
 
     # ── 生命周期 ──────────────────────────────────────
@@ -187,6 +200,111 @@ class DwcApp(App):
         msgs.mount(Static(head, classes="msg-sys"))
         self._refresh_status()
         self.set_interval(15.0, self._refresh_status)
+        # ★ R243: @ 文件候选缓存（glob 一次）+ 输入历史 + 补全状态
+        self._files = _scan_repo_files()
+        self._in_hist = []
+        self._sug = []              # [(展示, 填充值)]
+        self._sug_idx = -1
+        self.query_one("#ask", Input).focus()   # ★ 启动即可输入(免 Tab)
+
+    # ── R243 · 输入升级（/ 命令补全 · @ 文件补全 · ↑ 历史） ──────
+
+    def _suggest_show(self, items) -> None:
+        """★ 候选浮层: [(展示, 填充值)]; 空列表=隐藏。"""
+        w = self.query_one("#suggest", Static)
+        self._sug = items
+        self._sug_idx = 0
+        if not items:
+            w.update("")
+            w.display = False
+            return
+        rows = []
+        for i, (label, _fill) in enumerate(items):
+            mark = "▸ " if i == 0 else "  "
+            # ★ tag 先闭合再放文字(曾拼进 tag → 样式码泄露实测);
+            #   非选中行无开 tag ⇒ 不写闭合(曾致 MarkupError)
+            if i == 0:
+                rows.append("[#FFB86B bold]%s%s[/]" % (mark, label))
+            else:
+                rows.append("%s%s" % (mark, label))
+        w.update("\n".join(rows))
+        w.display = True
+
+    def _suggest_apply(self) -> None:
+        """★ Tab/Enter: 选中项填入输入框（候选关闭 — 再回车执行）。"""
+        if not self._sug or self._sug_idx < 0:
+            return
+        _label, fill = self._sug[self._sug_idx]
+        inp = self.query_one("#ask", Input)
+        self._sug_applied = fill      # ★ 吞掉 setter 触发的同值 Changed(防重开)
+        inp.value = fill
+        inp.cursor = len(fill)
+        self._suggest_show([])
+
+    def on_input_changed(self, ev) -> None:
+        """★ 输入变化驱动候选: / 开头=命令; @ 开头=文件。"""
+        text = ev.value or ""
+        if text == getattr(self, "_sug_applied", ""):
+            self._sug_applied = None  # ★ 应用候选引发的 Changed — 不重开浮层
+            return
+        if text.startswith("/") and " " not in text:
+            q = text[1:].lower()
+            items = [(c + "  [dim]" + d + "[/]", c)
+                     for c, d in _CMDS if c[1:].startswith(q)]
+            self._suggest_show(items)
+        elif text.startswith("@") and " " not in text:
+            q = text[1:].lower()
+            hits = [f for f in self._files
+                    if q and (q in f.lower() or f.lower().startswith(q))]
+            self._suggest_show([(f, "@" + f) for f in hits[:8]])
+        else:
+            self._suggest_show([])
+
+    def on_key(self, ev) -> None:
+        """★ 候选导航(↓↑) + Tab/Enter 补全 + Esc 关 + ↑ 历史(无候选时)。
+        焦点始终在输入框（不跳焦 — 避免布局抖动）。"""
+        k = ev.key
+        if self._sug:
+            if k in ("down",):
+                self._sug_idx = (self._sug_idx + 1) % max(len(self._sug), 1)
+                self.on_input_changed(
+                    type("E", (), {"value": self.query_one("#ask", Input).value})())
+                ev.stop(); ev.prevent_default(); return
+            if k in ("up",):
+                self._sug_idx = (self._sug_idx - 1) % max(len(self._sug), 1)
+                self.on_input_changed(
+                    type("E", (), {"value": self.query_one("#ask", Input).value})())
+                ev.stop(); ev.prevent_default(); return
+            if k in ("tab", "enter"):
+                self._suggest_apply()
+                ev.stop(); ev.prevent_default(); return
+            if k == "escape":
+                self._suggest_show([])
+                ev.stop(); ev.prevent_default(); return
+        # 无候选: ↑↓ = 输入历史（光标行导航默认行为已被单行 Input 废）
+        if k == "up" and self._in_hist:
+            hist = list(reversed(self._in_hist))
+            cur = self.query_one("#ask", Input).value
+            try:
+                idx = hist.index(cur) + 1
+            except ValueError:
+                idx = 0
+            if idx < len(hist):
+                inp = self.query_one("#ask", Input)
+                inp.value = hist[idx]
+                inp.cursor = len(hist[idx])
+            ev.stop(); ev.prevent_default(); return
+        if k == "down" and self._in_hist:
+            hist = list(reversed(self._in_hist))
+            cur = self.query_one("#ask", Input).value
+            try:
+                idx = hist.index(cur) - 1
+                inp = self.query_one("#ask", Input)
+                inp.value = hist[idx] if idx >= 0 else ""
+                inp.cursor = len(inp.value)
+            except ValueError:
+                pass
+            ev.stop(); ev.prevent_default(); return
 
     # ── R242 · 消息卡 API（mount widget 而非日志行） ──────────
 
@@ -285,6 +403,10 @@ class DwcApp(App):
         if line == "/status":
             self._refresh_status()
             return
+        if not line.startswith("/"):
+            self._in_hist.append(line)     # ★ R243 历史(命令不入)
+            if len(self._in_hist) > 200:
+                self._in_hist = self._in_hist[-200:]
         self._say_user(line)
         if self._bg_mode:
             self._submit_bg(line)
@@ -385,6 +507,36 @@ class DwcApp(App):
             except Exception as e:                  # noqa: BLE001 — 如实报
                 self.call_from_thread(self._say_sys, "投单失败: %s" % e)
         threading.Thread(target=_work, daemon=True).start()
+
+
+#: ★ R243: / 命令候选表（展示, 说明）
+_CMDS = [("/bg", "切后台投单模式"),
+         ("/fg", "切同步直驱模式"),
+         ("/help", "全部命令"),
+         ("/status", "刷新状态"),
+         ("/quit", "退出")]
+
+
+def _scan_repo_files(limit=400):
+    """★ R243: @ 文件候选源（src+scripts+config+根文档 — 一次 glob）。"""
+    from dwc.foundation.paths import find_root
+    try:
+        root = find_root()
+    except Exception:                       # noqa: BLE001 — 降级空表留痕
+        sys.stderr.write("dwc_tui: 找不到仓库根 — @ 文件候选为空\n")
+        return []
+    out = []
+    for pat in ("src/dwc/**/*.py", "scripts/*.py",
+                "config/*.yaml", "config/*.json", "*.md"):
+        import glob as _g
+        for f in _g.glob(root + "/" + pat, recursive=True):
+            rel = f.replace("\\", "/").replace(root + "/", "")
+            out.append(rel)
+            if len(out) >= limit:
+                break
+        if len(out) >= limit:
+            break
+    return sorted(set(out))[:limit]
 
 
 def main(argv=None) -> int:
