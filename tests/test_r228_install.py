@@ -48,7 +48,10 @@ def test_install_scripts_exist_with_steps():
     sh = io.open(os.path.join(ROOT, "install.sh"), encoding="utf-8").read()
     for content, name in ((ps1, "ps1"), (sh, "sh")):
         assert "requirements.txt" in content, name
-        assert "dwc_setup.py" in content, name + " 缺配置向导指引"
+        # ★ 判据语义: 装完有配置向导指引 —— R235 后指引形态是 "dwc setup"
+        #   （console_scripts 命令, 不再是脚本路径 — 锁跟语义不跟字面）
+        assert ("dwc_setup.py" in content or "dwc setup" in content), \
+            name + " 缺配置向导指引"
         assert "冒烟" in content or "smoke" in content.lower() or "自检" in content
     assert os.path.exists(os.path.join(ROOT, "requirements.txt"))
 

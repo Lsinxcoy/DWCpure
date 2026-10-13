@@ -22,6 +22,11 @@ Write-Host "[2/4] 安装依赖..."
 & $Py -m pip install -q -r (Join-Path $Root "requirements.txt")
 if ($LASTEXITCODE -ne 0) { Write-Host "依赖安装失败" -ForegroundColor Red; exit 1 }
 
+# ②b 注册 dwc 命令（console_scripts — venv 内 dwc 直接可用, R235）
+Write-Host "注册 dwc 命令..."
+& $Py -m pip install -q -e $Root
+if ($LASTEXITCODE -ne 0) { Write-Host "dwc 命令注册失败" -ForegroundColor Red; exit 1 }
+
 # ③ 目录初始化（运行时区; 已有不动）
 Write-Host "[3/4] 初始化运行时目录..."
 foreach ($d in @("var\inbox_work", "var\dwc_reports", "var\dwc_sessions",
@@ -39,7 +44,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "冒烟失败 — 请把上面报错发给
 Write-Host ""
 Write-Host "== 安装完成 ==" -ForegroundColor Green
 Write-Host "下一步（首次配置向导, 交互式设置 LLM 端点）:"
-Write-Host "  $Py scripts\dwc_setup.py"
+Write-Host "  dwc setup"
 Write-Host "之后:"
 Write-Host "  $Py scripts\dwc_cli.py doctor   # 自检"
 Write-Host "  $Py scripts\dwc_chat.py        # 交互界面"

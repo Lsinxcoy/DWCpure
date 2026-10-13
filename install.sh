@@ -21,6 +21,10 @@ fi
 echo "[2/4] 安装依赖..."
 "$PY" -m pip install -q -r "$ROOT/requirements.txt"
 
+# ②b 注册 dwc 命令（console_scripts — R235）
+echo "注册 dwc 命令..."
+"$PY" -m pip install -q -e "$ROOT"
+
 # ③ 目录
 echo "[3/4] 初始化运行时目录..."
 mkdir -p "$ROOT"/var/inbox_work "$ROOT"/var/dwc_reports "$ROOT"/var/dwc_sessions \
@@ -44,7 +48,7 @@ PYEOF
 
 echo ""
 echo "== 安装完成 =="
-echo "首次配置向导:  $PY $ROOT/scripts/dwc_setup.py"
+echo "首次配置向导:  dwc setup"
 echo "自检:          $PY $ROOT/scripts/dwc_cli.py doctor"
 echo "交互界面:      $PY $ROOT/scripts/dwc_chat.py"
 echo "常驻 agent:    $PY $ROOT/scripts/dwc_agent.py --llm"

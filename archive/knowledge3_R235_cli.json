@@ -1,0 +1,67 @@
+{
+ "round": "R235",
+ "date": "2026-10-13",
+ "主题": "dwc 专属命令: console_scripts entry point + 路由 dispatcher(单实现委托) + install 注册 + r228锁语义校准",
+ "verify": {
+  "pytest": "1556 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 235,
+  "at": "2026-10-13T09:35:00+08:00",
+  "parent_gen": 234,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 251,
+   "pytest": 1556,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R235: dwc 专属命令(console_scripts entry) — 无参=chat REPL(opencode惯例)+九指令路由agent_rpc单实现+start/stop生命周期+install双平台注册; r228指引锁跟语义更新",
+   "files": [
+    "pyproject.toml",
+    "src/dwc/cli_main.py",
+    "install.ps1",
+    "install.sh",
+    "tests/test_r235_cli.py",
+    "tests/test_r228_install.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r235_cli.py 4锁",
+     "claim": "dwc.exe注册实测/路由委托单实现/无参默认chat/entry声明"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1556 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r235_cli.py",
+   "user_decision": "用户'为什么不设计专属的CLI交互界面呢'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "dwc.exe 注册在 hermes venv(本机) — 新机器经 install 脚本 -e 注册; PATH 全局化(shell 配置)未做"
+  }
+ }
+}

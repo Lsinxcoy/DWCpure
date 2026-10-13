@@ -87,10 +87,10 @@ dwc/
 定位    已定：独立 agent，记忆 + 自进化（丙方向为未来扩展）
 架构    已定 → ARCHITECTURE.md v4（器官式骨架 + 进化循环七环节）
 代码    67 个 .py / 22,070 行（七器官 + core.py 主类 + experiments 实验包 + trial）
-测试    161 文件 / 1501 函数 → pytest 1552 项全过（191.6s）
+测试    162 文件 / 1505 函数 → pytest 1556 项全过（137.9s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R234 · 251 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R235 · 252 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
@@ -125,16 +125,16 @@ bash install.sh
 **② 首次配置向导**（交互式: LLM 端点/key 遮蔽输入不回显 → 通知可选 → 真实冒烟）:
 
 ```bash
-.venv/Scripts/python.exe scripts/dwc_setup.py    # Windows
-.venv/bin/python scripts/dwc_setup.py            # 其他
+dwc setup      # 安装脚本已注册 dwc 命令（venv 内直接可用）
 ```
 
 **③ 自检 + 使用**:
 
 ```bash
-python scripts/dwc_cli.py doctor    # 环境/配置/LLM/db 七项自检
-python scripts/dwc_chat.py          # 交互界面（REPL）
-python scripts/dwc_agent.py --llm   # 常驻 agent（自触发循环）
+dwc              # 无参 = 原生交互界面（REPL, 头部 agent 同款惯例）
+dwc doctor       # 环境/配置/LLM/db 七项自检
+dwc start --llm  # 常驻 agent（后台自触发循环）; dwc stop 停止
+dwc status       # 实时状态; dwc ask "任务" 单发派单
 ```
 
 ★ 路径零硬编码: 仓库位置由发现机制定位（`DWC_ROOT` 环境变量可覆盖）——
