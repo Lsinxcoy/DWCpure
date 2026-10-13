@@ -87,9 +87,33 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                             "会明确报错）"}
         with io.open(p, encoding="utf-8", errors="replace") as fh:
             txt = fh.read()
-        n = txt.count("\n") + 1
-        return {"ok": True, "n_lines": n,
-                "content": txt[:8000] + ("\n…(截断)" if len(txt) > 8000 else "")}
+        lines = txt.splitlines()
+        n = len(lines)
+        # ★ R247 翻页: offset/limit 行级定位（恒定截断曾致"读后半部分"
+        #   无动作可做 — 17:12 实测 4 轮复读同段至上限）
+        try:
+            off = max(0, int(args.get("offset", 0) or 0))
+        except (TypeError, ValueError):
+            off = 0
+        try:
+            lim = min(400, max(1, int(args.get("limit", 0) or 0)))
+        except (TypeError, ValueError):
+            lim = 0
+        seg = lines[off:] if not lim else lines[off:off + lim]
+        body = "\n".join(seg)
+        truncated = bool(lim) and (off + len(seg)) < n
+        if not lim and len(body) > 8000:          # 无 limit 的旧路径
+            body, truncated = body[:8000], True
+        out = {"ok": True, "n_lines": n, "offset": off,
+               "returned_lines": len(seg),
+               "truncated": truncated,
+               "content": body + ("\n…(截断 — 用 offset=%d 继续)"
+                                   % (off + len(seg)) if truncated else "")}
+        if truncated and not args.get("offset"):
+            out["hint"] = ("文件共 %d 行, 本段只到第 %d 行 — 继续读后面: "
+                           "同 path + offset=%d"
+                           % (n, off + len(seg), off + len(seg)))
+        return out
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
         content = str(args.get("content", ""))
@@ -120,7 +144,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             # ★ R222 · 人工授权通道: ctx 带 '人工授权: <词>' ⇒ 放行 + 留痕
             r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                 capture_output=True, text=True, timeout=60,
-                                errors="replace")
+                                encoding="utf-8", errors="replace")
             return {"ok": r0.returncode == 0, "rc": r0.returncode,
                     "stdout": (r0.stdout or "")[:4000],
                     "stderr": (r0.stderr or "")[:1000],
@@ -133,7 +157,8 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             if ans is True:
                 r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                     capture_output=True, text=True,
-                                    timeout=60, errors="replace")
+                                    timeout=60, encoding="utf-8",
+                                    errors="replace")
                 return {"ok": r0.returncode == 0, "rc": r0.returncode,
                         "stdout": (r0.stdout or "")[:4000],
                         "stderr": (r0.stderr or "")[:1000],
@@ -144,7 +169,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         try:
             r = subprocess.run([str(x) for x in cmd], cwd=ROOT,
                                capture_output=True, text=True, timeout=60,
-                               errors="replace")
+                               encoding="utf-8", errors="replace")
             return {"ok": r.returncode == 0, "rc": r.returncode,
                     "out": (r.stdout or "")[:6000],
                     "err": (r.stderr or "")[:1500]}
@@ -279,7 +304,7 @@ def _parse_confirmed(ctx: Optional[str]) -> set:
     return out
 
 
-def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
+def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                       ctx: Optional[str] = None,
                       task_id: Optional[str] = None,
                       _depth: int = 0,
@@ -330,13 +355,24 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         " {\"op\":\"delegate\",\"task\":\"子任务描述\"}"
         " · 任务完成时: {\"op\":\"final\",\"answer\":\"结论(中文)\","
         "\"artifacts\":[\"写出的文件相对路径\"]}"
-        " 有充分信息就尽快 final；不确定就先 read 探查。禁止越权写路径。")
+        " 有充分信息就尽快 final；不确定就先 read 探查。禁止越权写路径。"
+        " · read 截断提示: obs 带 truncated/hint 时用同 path+offset=行号"
+        " 翻页读后面（★ 没有 offset 参数时永远只会读到同一段 — "
+        "禁止原地重读）。"
+        " ★ 运行环境: 本机是 Windows 主机, cmd 是**原生 argv 直接执行**"
+        "（无 wsl、无 bash、不要经任何 shell 包装）; python 可直接用"
+        "（['python', '-c', ...]）; 命令输出按 utf-8 解码。"
+        " ★ 复读熔断: 连续做同一个动作读到同样结果说明此路不通 — "
+        "换 offset/换路径/换参数, 或基于已有信息尽快 final, 不要原地重复。")
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     log: List[Dict[str, Any]] = []
+    dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
+        obs: Dict[str, Any] = {}   # ★ R247: final 轮不走 _do_action —
+        #   每轮开头重置, 留痕段引用不至 UnboundLocal
         if progress:
             progress({"ev": "round", "n": rnd})
         _imgs = [last_image] if last_image else None
@@ -381,7 +417,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
 
                     def _one(k_sub):
                         return execute_user_task(
-                            str(k_sub[1]), llm=llm, max_rounds=3,
+                            str(k_sub[1]), llm=llm, max_rounds=999,
                             task_id="%s_sub%d_%d" % (sid, rnd, k_sub[0]),
                             _depth=_depth + 1)
                     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -395,7 +431,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                                     for r in results]}
                 else:
                     sub = execute_user_task(str(step.get("task", "")),
-                                            llm=llm, max_rounds=3,
+                                            llm=llm, max_rounds=999,
                                             task_id="%s_sub%d" % (sid, rnd),
                                             _depth=_depth + 1)
                     obs = {"ok": True, "subagent": True,
@@ -444,6 +480,29 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                       "target": str(_tgt)[:80],
                       "ok": bool((obs or {}).get("ok", True)),
                       "detail": str((obs or {}).get("error", ""))[:120]})
+        # ★ R247 留痕: target + 观察摘要（曾只有 analysis — 17:13 wsl 乱码
+        #   案无现场可查, 只能靠 LLM 自述反推）
+        _sess({"round": rnd, "op": op, "phase": "obs",
+               "target": str(step.get("path") or step.get("cmd")
+                             or step.get("task") or "")[:160],
+               "ok": bool((obs or {}).get("ok", True)),
+               "obs": json.dumps(obs, ensure_ascii=False)[:400]})
+        # ★ R247 复读熔断: 999 轮开放后必须有硬出口 — 连续 3 轮同
+        #   动作同目标同结果 = 此路不通（17:12 实测: read 同段×3 至上限）
+        import hashlib as _hl
+        _tgt_sig = str(step.get("path") or step.get("cmd")
+                       or step.get("task") or "")[:160]
+        _sig = "%s|%s|%s" % (op, _tgt_sig, _hl.sha1(
+            json.dumps(obs, ensure_ascii=False, sort_keys=True)
+            .encode("utf-8", "replace")).hexdigest()[:12])
+        dup_sigs.append(_sig)
+        if len(dup_sigs) >= 3 and len(set(dup_sigs[-3:])) == 1:
+            return {"task": task, "task_id": sid, "status": "incomplete",
+                    "rounds": rnd,
+                    "why": ("复读熔断: 连续 3 轮同动作同结果（%s / %s…）"
+                            " — 换 offset/路径/参数或直接 final"
+                            % (op, _tgt_sig[:60])),
+                    "actions_log": log}
         # ★ R221 · 会话 compaction（滑动窗口+摘要 — 头部 agent 的上下文
         #   管理最小形态）: 窗口=最近 2 轮原文; 更早轮压成前情摘要注入 ——
         #   旧形态只带"上一步", 第 3 轮起 LLM 已忘了第 1 轮干了什么（长任务

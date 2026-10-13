@@ -1,0 +1,69 @@
+{
+ "round": "R247",
+ "date": "2026-10-13",
+ "主题": "执行核可靠性: read翻页+环境声明+utf8+复读熔断+999轮+失败现场留痕",
+ "verify": {
+  "pytest": "1590 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "真端点复刻": "两失败单全 done(12轮/7轮)"
+ },
+ "inheritance": {
+  "gen": 247,
+  "at": "2026-10-13T17:38:00+08:00",
+  "parent_gen": 246,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 267,
+   "pytest": 1590,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R247执行核可靠性包(用户两单实测失败驱动): ①read offset/limit行级翻页+truncated/hint ②system环境声明(Windows原生argv无wsl)+翻页/复读指引 ③run三处encoding=utf-8 ④复读熔断(连续3同sig→硬出口, 999轮的安全阀) ⑤max_rounds 4→999 ⑥session记target/obs失败现场",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "tests/test_r247_readfix.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r247_readfix.py 6锁",
+     "claim": "翻页/999/熔断/环境声明/utf8源/留痕"
+    },
+    {
+     "type": "test",
+     "ref": "真端点复刻两原始失败单",
+     "claim": "任务1 world_model: done 12轮123s(答案含世界树/W1/W2/信息增益); 任务2 为何没执行: done 7轮75s, run无wsl, 基于ask留痕真实归因"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1590 + gate + 双e2e + 真端点两单转绿",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r247_readfix.py",
+   "user_decision": "用户'全做 轮上限改成999'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "resident agent 跑旧码—重启后TUI/投单全走新执行核; 任务2答中提到SESSIONS路径LLM未知(下轮system注入仓库布局)"
+  }
+ }
+}
