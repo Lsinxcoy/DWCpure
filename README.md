@@ -4,8 +4,8 @@
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
 [![pytest](https://img.shields.io/badge/pytest-1598%20passed-brightgreen)](#开发)
-[![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R250-FFB86B)](docs/PROGRESS.md)
-[![commits](https://img.shields.io/badge/commits-271-blue)](docs/PROGRESS.md)
+[![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R253-FFB86B)](docs/PROGRESS.md)
+[![commits](https://img.shields.io/badge/commits-274-blue)](docs/PROGRESS.md)
 
 ---
 

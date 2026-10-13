@@ -242,12 +242,16 @@ def test_load_replay_units():
     assert cfg["beta1"] >= 0 and cfg["beta2"] >= 0 and cfg["history_max"] >= 1
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
                                      encoding="utf-8") as f:
-        f.write("replay: {beta1: -1, beta2: 0, history_max: 4}\n")
+        f.write("replay: {beta1: -1, beta2: 0, history_max: 4, "
+                "effort: {plateau_eps: 0.02, factor_up: 1.15, "
+                "factor_down: 0.9, lo: 2, hi: 8}}\n")
     with pytest.raises(dial_config.DialError):
         dial_config.load_replay(f.name)
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False,
                                      encoding="utf-8") as f2:
-        f2.write("replay: {beta1: 0, beta2: 0, history_max: 0}\n")
+        f2.write("replay: {beta1: 0, beta2: 0, history_max: 0, "
+                 "effort: {plateau_eps: 0.02, factor_up: 1.15, "
+                 "factor_down: 0.9, lo: 2, hi: 8}}\n")
     with pytest.raises(dial_config.DialError):
         dial_config.load_replay(f2.name)
 

@@ -1,0 +1,74 @@
+{
+ "round": "R253",
+ "date": "2026-10-14",
+ "主题": "DreamRSI反刍收口: §5.2节流-冲刺调度落地+落地状态账",
+ "verify": {
+  "pytest": "1603 rc=0(等效)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 250,
+  "at": "2026-10-14T02:17:00+08:00",
+  "parent_gen": 249,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 273,
+   "pytest": 1603,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R252+R253 DreamRSI反刍收口: ①effort.py节流-冲刺调度(§5.2,系数必传无默认+合成序列自验) ②core.dream(adaptive_effort)真接线(gain=v_star差,首轮无先例不调度) ③replay.yaml effort必填段 ④2609.14858.md尾部落地状态表(五点兑现账+刻意降级+遗留缺口)",
+   "files": [
+    "src/dwc/organs/effort.py",
+    "src/dwc/core.py",
+    "src/dwc/organs/replay.py",
+    "src/dwc/foundation/dial_config.py",
+    "config/replay.yaml",
+    "tests/test_r252_effort.py",
+    "tests/test_replay.py",
+    "docs/papers/2609.14858.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r252_effort.py 5锁+test_replay 27锁",
+     "claim": "32 passed; adaptive集成: 首轮(4,4,None)不装调度/二轮gain=0平台→(4,5,0.0)冲刺/传入99不被用"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1603等效全绿(r202心跳跨日噪声重跑14passed)+gate+双e2e"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1603 + gate 8/8 + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r252_effort.py",
+   "user_decision": "用户'做1+3 做完后推送github更新'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "effort系数初值非终值待校准; policy-dev agent代码级改写=下一大件(需契约层)"
+  }
+ }
+}

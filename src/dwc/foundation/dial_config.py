@@ -205,7 +205,28 @@ def load_replay(path: str = REPLAY_PATH) -> Dict[str, Any]:
     if not isinstance(hm, int) or isinstance(hm, bool) or hm < 1:
         raise DialError(
             "R80: replay.history_max 须为 ≥1 整数, 实为 %r" % (hm,))
-    return {"beta1": float(b1), "beta2": float(b2), "history_max": hm}
+    # ★ R252 · §5.2 effort 段必填（论文未报系数 ⇒ 无默认, β 同款纪律）
+    ef = _need(rep, "effort", "replay.replay")
+    eps = _need(ef, "plateau_eps", "replay.effort")
+    fu = _need(ef, "factor_up", "replay.effort")
+    fd = _need(ef, "factor_down", "replay.effort")
+    lo = _need(ef, "lo", "replay.effort")
+    hi = _need(ef, "hi", "replay.effort")
+    if not isinstance(eps, (int, float)) or isinstance(eps, bool) or eps < 0:
+        raise DialError("R252: effort.plateau_eps 须 ≥0 数值, 实为 %r" % (eps,))
+    if not isinstance(fu, (int, float)) or isinstance(fu, bool) or fu <= 1:
+        raise DialError("R252: effort.factor_up 须 >1, 实为 %r" % (fu,))
+    if not isinstance(fd, (int, float)) or isinstance(fd, bool) \
+            or not 0 < fd < 1:
+        raise DialError("R252: effort.factor_down 须 ∈(0,1), 实为 %r" % (fd,))
+    for name, v in (("lo", lo), ("hi", hi)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 1:
+            raise DialError("R252: effort.%s 须 ≥1 整数, 实为 %r" % (name, v))
+    if hi < lo:
+        raise DialError("R252: effort.hi=%r < lo=%r" % (hi, lo))
+    return {"beta1": float(b1), "beta2": float(b2), "history_max": hm,
+            "effort": {"plateau_eps": float(eps), "factor_up": float(fu),
+                       "factor_down": float(fd), "lo": lo, "hi": hi}}
 
 
 # ══════════════════════════════════════════════════════════

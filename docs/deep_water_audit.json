@@ -63,17 +63,17 @@
     "src\\dwc\\agent_quality.py:86:# ★ Layer 22 判据校准: p̂∈(0,1) 在 Laplace 平滑下恒真（无信息量）——",
     "src\\dwc\\core.py:379:from dwc.organs.weakness import task_delta_map",
     "src\\dwc\\core.py:380:self._delta_map = task_delta_map(",
-    "src\\dwc\\core.py:655:# δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）",
-    "src\\dwc\\core.py:663:（z=失败签名族 (c,q), 经 store.evidence 拉回）→ DifficultyEstimator",
-    "src\\dwc\\core.py:671:DifficultyEstimator, z_history_from_scores)"
+    "src\\dwc\\core.py:685:# δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）",
+    "src\\dwc\\core.py:693:（z=失败签名族 (c,q), 经 store.evidence 拉回）→ DifficultyEstimator",
+    "src\\dwc\\core.py:701:DifficultyEstimator, z_history_from_scores)"
    ],
    "wire_evidence": [
     "src\\dwc\\core.py:374:def _task_deltas(self) -> Dict[str, float]:",
     "src\\dwc\\core.py:379:from dwc.organs.weakness import task_delta_map",
     "src\\dwc\\core.py:380:self._delta_map = task_delta_map(",
     "src\\dwc\\core.py:399:dmap = self._task_deltas()",
-    "src\\dwc\\core.py:496:与任务源采样同源 _task_deltas; 同 δ 字典序小者先, 可复现）;",
-    "src\\dwc\\core.py:517:dmap = self._task_deltas()"
+    "src\\dwc\\core.py:497:与任务源采样同源 _task_deltas; 同 δ 字典序小者先, 可复现）;",
+    "src\\dwc\\core.py:529:dmap = self._task_deltas()"
    ],
    "doc_note": " weakness.py 332 行(器官⑥探索, 路线丙组内基线: δⁱ=[−log r]₊, Laplace k=1) + core._task_deltas L331/356 已接进 step = LIVE(R136 误判 partial, R137 修正)"
   },

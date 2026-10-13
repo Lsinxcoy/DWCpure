@@ -331,6 +331,9 @@ class DreamReport:
     segments: Tuple[str, ...] = ()
     #: ★ R102 探针②原料: {pid: pick 轨迹}（w=0 vs w=1 轨迹必须不同 — R90 靶）
     picks: Optional[Dict[str, Tuple[str, ...]]] = None
+    #: ★ R252 · §5.2 effort 调度: (本轮回放前预算, 回放后经 gain 调整的下轮预算,
+    #:   本轮 gain); None = 非 adaptive（旧行为）或首轮无先例
+    effort: Optional[Tuple[int, int, Optional[float]]] = None
 
 
 # ══════════════════════════════════════════════════════════

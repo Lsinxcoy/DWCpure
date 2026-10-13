@@ -479,7 +479,8 @@ class DWC:
     # ══════════════════════════════════════════════════════
     def dream(self, *, k2_max: int,
               seg_budget: int = 4,
-              policy_variants: Optional[List[PolicySpec]] = None
+              policy_variants: Optional[List[PolicySpec]] = None,
+              adaptive_effort: bool = False
               ) -> DreamReport:
         """★ 离线 Dreaming（2609.14858 §2.5–2.7 编排, 零新机制）。
 
@@ -509,6 +510,17 @@ class DWC:
         from dwc.foundation.dial_config import load_replay
         cfg = load_replay()
         b1, b2 = cfg["beta1"], cfg["beta2"]
+        # ★ R252 · §5.2 交替节流-冲刺: adaptive 时 k2 由调度器给
+        #   （gain=本轮 v_star 相对上轮差; judge 观测分经 V 公式传入 — G2 不自判）;
+        #   首轮无先例 ⇒ gain=None, k2 保持传入值（不装有先例）。
+        effort_info: Optional[Tuple[int, int, Optional[float]]] = None
+        if adaptive_effort:
+            from dwc.organs.effort import next_effort
+            st = getattr(self, "_effort_state", None)
+            if st is None:
+                st = {"prev_k2": k2_max, "last_v": None}
+                self._effort_state = st
+            k2_max = st["prev_k2"]          # ★ 调度接管: 用上轮调出的预算
         worlds = list(self._replay_history) or \
             [(tid, deepcopy(t)) for tid, t in sorted(
                 self.world_model.trees.items())]
@@ -636,6 +648,23 @@ class DWC:
         m_star, v_star = select_policy(v_by, current="π0")
         ok = no_worse_than_current(v_by, current="π0")
         per = per_by[m_star]                # 报告 = 胜者版本的逐世界评估
+        if adaptive_effort:
+            from dwc.organs.effort import next_effort as _ne
+            _ef = cfg["effort"]
+            _prev_v = self._effort_state.get("last_v")
+            _gain = None if _prev_v is None else (v_star - _prev_v)
+            _prev_k2 = self._effort_state["prev_k2"]
+            if _gain is None:
+                # 首轮无先例: 记录现状不调度（不装有先例）
+                nxt = _prev_k2
+            else:
+                nxt = _ne(gain=_gain, prev=_prev_k2,
+                          plateau_eps=_ef["plateau_eps"],
+                          factor_up=_ef["factor_up"],
+                          factor_down=_ef["factor_down"],
+                          lo=_ef["lo"], hi=_ef["hi"])
+            self._effort_state = {"prev_k2": nxt, "last_v": v_star}
+            effort_info = (_prev_k2, nxt, _gain)
         return DreamReport(
             n_worlds=len(per), v_by_version=v_by, m_star=m_star,
             v_star=v_star, betas=(b1, b2), per_world=per,
@@ -649,7 +678,8 @@ class DWC:
                     " 评估当前策略 — 单调性平凡成立显式记录, 非改进声明"
                     if len(specs) == 1 else " 修订域=纯选择参数(锁值不进), "
                     "网格变体=搜索非反馈开发(R85 稿边界)",
-                    b1, b2))
+                    b1, b2),
+            effort=effort_info)
 
     # ══════════════════════════════════════════════════════
     # δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）
