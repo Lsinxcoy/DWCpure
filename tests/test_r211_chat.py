@@ -46,10 +46,13 @@ def test_repl_pipe_session():
 
 
 def test_natural_language_submits_and_tracks(monkeypatch=None):
-    """★★ 自然语言 = 投单+跟踪: handle(纯文本) 走 submit 并触发 watch
-    （watch 打桩不真等）; 单子随后 cancel 清理。"""
+    """★★ 自然语言(异步模式) = 投单+跟踪: handle(纯文本) 走 submit 并触发
+    watch（watch 打桩不真等）; 单子随后 cancel 清理。
+    ★ R236 语义校准: 默认已改同步直驱（见 test_r236_interact）——
+      本锁改测 /bg 异步通道（两形态各有锁, 行为变锁跟语义不删）。"""
     import dwc_chat as C
     import dwc_agent as A
+    C.BG_MODE = True                        # ★ 切异步投单模式
     watched = []
     orig_watch = C.watch
     C.watch = lambda tid, **kw: watched.append(tid)
@@ -62,6 +65,7 @@ def test_natural_language_submits_and_tracks(monkeypatch=None):
         assert C.handle("帮我读一下 core.py") is True
     finally:
         C.watch = orig_watch
+        C.BG_MODE = False
     assert watched and watched[0].startswith("T_"), "没触发跟踪: %s" % watched
     # 清理刚投的单
     import agent_rpc as R

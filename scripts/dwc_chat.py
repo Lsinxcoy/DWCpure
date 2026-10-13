@@ -133,10 +133,82 @@ def watch(tid: str, max_wait: int = 180):
     print(yellow("\n超时（%ds）仍未终态 — 用 /query %s 随时查" % (max_wait, tid)))
 
 
+BG_MODE = False          # ★ R236: False=同步直驱(默认, 对话感); True=异步投单
+_HISTORY = []            # 多轮上下文: 上轮任务+答案摘要进下轮 ctx
+
+
+def _md(text: str) -> str:
+    """★ 轻 markdown 渲染: 代码块保原 + 标题上色/粗体标记去除（零依赖 ANSI）。"""
+    out, in_code = [], False
+    for ln in str(text).splitlines():
+        if ln.strip().startswith("```"):
+            in_code = not in_code
+            out.append(cyan(ln))
+            continue
+        if in_code:
+            out.append("  " + ln)
+            continue
+        if ln.startswith("#"):
+            out.append(bold(ln.lstrip("#").strip()))
+        else:
+            out.append(ln.replace("**", ""))
+    return "\n".join(out)
+
+
+def _run_sync(task: str) -> None:
+    """★ 同步直驱: 本进程直接执行, 过程逐动作实时打印（Claude Code 式）。"""
+    global _HISTORY
+    import sys as _sys, time as _time
+    root = os.environ.get("DWC_ROOT", "").strip() or os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))
+    if root not in _sys.path:
+        _sys.path.insert(0, os.path.join(root, "src"))
+    from dwc.llm.client import LLMClient
+    from dwc.llm.task_exec import execute_user_task
+    ctx = None
+    if _HISTORY:
+        last = _HISTORY[-1]
+        ctx = "上轮对话摘要: 任务=%s; 答案要点=%s" % (
+            last["task"][:120], str(last.get("answer", ""))[:400])
+    _ICON = {"read": "⌕", "write": "✎", "run": "▶", "final": "✓",
+             "delegate": "⇄", "mcp": "⚙", "ask": "?"}
+
+    def _prog(ev):
+        if ev.get("ev") == "action":
+            mark = green("✓") if ev.get("ok") else red("✗")
+            print("  %s %-8s %s %s" % (_ICON.get(ev.get("op"), "·"),
+                                       ev.get("op", ""),
+                                       dim(str(ev.get("target", ""))[:70]), mark))
+    print(dim("▸ 执行中（同步直驱 — 过程实时; /bg 切异步投单）"))
+    t0 = _time.time()
+    rep = execute_user_task(task, llm=LLMClient(), ctx=ctx, progress=_prog)
+    secs = round(_time.time() - t0, 1)
+    status = rep.get("status", "?")
+    mark = green("完成") if status == "done" else yellow(status)
+    print("\n%s  %s · %d 轮 · %.1fs" % (mark, bold(task[:50]),
+                                         rep.get("rounds", 0), secs))
+    if rep.get("answer"):
+        print(_md(rep["answer"]))
+    if rep.get("why") and status != "done":
+        print(dim("原因: %s" % str(rep["why"])[:300]))
+    _HISTORY.append({"task": task, "answer": rep.get("answer", ""),
+                     "status": status})
+    if len(_HISTORY) > 8:
+        _HISTORY = _HISTORY[-8:]
+
+
 def handle(line: str) -> bool:
     """处理一行; 返回 False = 退出。"""
     line = line.strip()
     if not line:
+        return True
+    if line == "/bg":
+        globals()["BG_MODE"] = True
+        print(yellow("已切异步投单模式（常驻 agent 消费; /fg 切回同步）"))
+        return True
+    if line == "/fg":
+        globals()["BG_MODE"] = False
+        print(green("已切同步直驱模式（对话感 — 输入即执行）"))
         return True
     if line in ("/quit", "/q", "/exit"):
         return False
@@ -174,7 +246,11 @@ def handle(line: str) -> bool:
         else:
             m()
         return True
-    # 自然语言 = 投单 + 跟踪（结果在这里显示）
+    # ★ R236: 默认同步直驱（Claude Code 式: 输入即执行, 过程实时可见）;
+    #   /bg 切回异步投单模式（常驻 agent 消费 — 两种形态都在）
+    if not BG_MODE:
+        _run_sync(line)
+        return True
     r = call("submit", task=line)
     tid = (r or {}).get("id")
     if not tid:

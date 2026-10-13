@@ -1,0 +1,65 @@
+{
+ "round": "R236",
+ "date": "2026-10-13",
+ "主题": "Claude Code 式交互: 同步直驱+progress事件流+实时动作可视化+多轮上下文+轻markdown; r211锁语义校准(异步通道改/bg专属)",
+ "verify": {
+  "pytest": "1559 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0"
+ },
+ "inheritance": {
+  "gen": 236,
+  "at": "2026-10-13T10:25:00+08:00",
+  "parent_gen": 235,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 253,
+   "pytest": 1559,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R236: 同步直驱交互(Claude Code式) — task_exec progress事件流(round/action/final)+chat默认本进程直跑+逐动作实时可视化(⌕read✓)+多轮上下文+轻markdown+/bg异步可切; 实测同任务180s超时→19s完成",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "scripts/dwc_chat.py",
+    "tests/test_r236_interact.py",
+    "tests/test_r211_chat.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r236_interact.py 3锁 + 实跑",
+     "claim": "事件流round→action→final全链/路由同步异步双形态/渲染; 实测'读paths.py'19.2s完成带实时动作行"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1559 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r236_interact.py",
+   "user_decision": "用户'和Claude之类的互动式交互方式差距有点大'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "token级流式未做(client整段返回 — 逐轮实时已覆盖主要体验; 端点支持SSE时补)"
+  }
+ }
+}

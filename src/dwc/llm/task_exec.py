@@ -282,7 +282,8 @@ def _parse_confirmed(ctx: Optional[str]) -> set:
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
                       ctx: Optional[str] = None,
                       task_id: Optional[str] = None,
-                      _depth: int = 0) -> Dict[str, Any]:
+                      _depth: int = 0,
+                      progress: Optional[Any] = None) -> Dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
 
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
@@ -336,6 +337,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
+        if progress:
+            progress({"ev": "round", "n": rnd})
         _imgs = [last_image] if last_image else None
         res = llm.complete(prompt, system=system, max_tokens=1600,
                            json_mode=True, images=_imgs)
@@ -403,6 +406,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
         _sess({"round": rnd, "op": op,
                "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
+            if progress:
+                progress({"ev": "final",
+                          "answer": str(step.get("answer", ""))[:400]})
             _sess({"round": rnd, "op": "final", "answer":
                    str(step.get("answer", ""))[:200]})
             return {"task": task, "task_id": sid, "status": "done",
@@ -422,6 +428,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 4,
             obs = {"ok": False, "error": str(exc)}
         except Exception as exc:               # noqa: BLE001
             obs = {"ok": False, "error": "%s: %s" % (type(exc).__name__, exc)}
+        if progress:
+            _tgt = step.get("path") or step.get("cmd") or step.get("tasks") \
+                or step.get("task") or ""
+            progress({"ev": "action", "round": rnd, "op": op,
+                      "target": str(_tgt)[:80],
+                      "ok": bool((obs or {}).get("ok", True)),
+                      "detail": str((obs or {}).get("error", ""))[:120]})
         # ★ R221 · 会话 compaction（滑动窗口+摘要 — 头部 agent 的上下文
         #   管理最小形态）: 窗口=最近 2 轮原文; 更早轮压成前情摘要注入 ——
         #   旧形态只带"上一步", 第 3 轮起 LLM 已忘了第 1 轮干了什么（长任务
