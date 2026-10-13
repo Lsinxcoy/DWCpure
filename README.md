@@ -114,7 +114,7 @@ dwc/
 
 ```powershell
 # Windows（PowerShell 5.1+）
-irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1 | iex
+(irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1).TrimStart([char]0xfeff) | iex
 ```
 
 ```bash

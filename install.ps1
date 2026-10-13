@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 
 # ===== bootstrap（R250）: 支持一条命令安装, 免手动 clone =====
-#   irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1 | iex
+#   (irm https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.ps1).TrimStart([char]0xfeff) | iex
 #   -File 模式: 当前目录即仓库 ⇒ 用脚本所在目录;
 #   iex 模式 : 无脚本路径 ⇒ 自动 clone/pull 到 %USERPROFILE%\.dwc
 $RepoUrl = "https://github.com/Lsinxcoy/divine-wisdom-core.git"
