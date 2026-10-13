@@ -1,0 +1,70 @@
+{
+ "round": "R249",
+ "date": "2026-10-13",
+ "主题": "安装修复: ps1 UTF-8 BOM(PS5.1 GBK乱码案)+备份判据对齐",
+ "verify": {
+  "pytest": "1598 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "PS5.1真跑": "install.ps1 rc=0"
+ },
+ "inheritance": {
+  "gen": 249,
+  "at": "2026-10-13T21:23:00+08:00",
+  "parent_gen": 248,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 269,
+   "pytest": 1598,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R248b安装修复(用户家机实测报错): ①install.ps1加UTF-8 BOM(PS5.1按ANSI读无BOM中文→乱码破坏字符串边界→级联3 ParseError; 负向对照无BOM=3错/BOM=0错; 真跑rc=0安装全绿) ②BOM回归锁(含中文ps1必须BOM,排外仓缓存) ③r206备份测试判据对齐(只取目录—dev_seed.json混入致sorted[-1]取到文件)",
+   "files": [
+    "install.ps1",
+    "tests/test_r228_install.py",
+    "tests/test_r206_safety_net.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "PS5.1 Parser 三重对照",
+     "claim": "BOM版PARSE_ERRORS=0/无BOM负向3错(复现用户报错行)/真跑rc=0四步安装全绿"
+    },
+    {
+     "type": "test",
+     "ref": "test_r206_safety_net 6passed + BOM锁入集",
+     "claim": "1598全绿"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1598 + gate 8/8 + 双e2e + PS真跑rc0",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r228_install.py",
+   "user_decision": "用户贴出家机安装报错→修复"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "家机 clone 是无BOM旧版 — 需 git pull 后重跑 install.ps1"
+  }
+ }
+}

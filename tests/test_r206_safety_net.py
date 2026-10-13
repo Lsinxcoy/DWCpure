@@ -75,7 +75,11 @@ def test_backup_snapshots_all_objects():
                        capture_output=True, text=True, cwd=ROOT, timeout=180)
     assert r.returncode == 0, "rc=%d stderr=%s" % (r.returncode, r.stderr[-200:])
     bdir = os.path.join(ROOT, "var", "backup")
-    newest = sorted(os.listdir(bdir))[-1]
+    # ★ Layer-22 判据校准(2026-10-13): 目录里可能混入普通文件
+    #   (dev_seed.json) — sorted(listdir)[-1] 会取到文件而非快照目录。
+    #   只取目录; 与 dwc_backup.py 的 dirs 过滤同款。
+    newest = sorted(x for x in os.listdir(bdir)
+                    if os.path.isdir(os.path.join(bdir, x)))[-1]
     got = set()
     for dp, dn, fn in os.walk(os.path.join(bdir, newest)):
         for f in fn:

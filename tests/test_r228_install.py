@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 import json
 import os
 import subprocess
@@ -85,3 +86,24 @@ def test_doctor_has_env_section():
     assert ck["python"].startswith("ok"), ck["python"]
     assert ck["deps"].startswith("ok"), ck["deps"]
     assert ck["config_validators"].startswith("ok"), ck["config_validators"]
+
+def test_ps1_with_chinese_needs_bom():
+    """★★★ R248b 锁: 含中文的 .ps1 必须带 UTF-8 BOM。
+
+    ★ 起因(2026-10-13 用户实测): install.ps1 中文无 BOM, PS5.1 按 ANSI(GBK)
+      读 ⇒ '已把' 变 '宸叉妸' 破坏字符串边界 ⇒ 级联 3 个 ParseError
+      (第13行缺 }/第53行意外token)。负向对照: 无 BOM 副本 PARSE_ERRORS=3。
+    """
+    for dirpath, _d, files in os.walk(ROOT):
+        if any(x in dirpath for x in (".git", ".venv", ".cache", "gh_clones")):
+            continue          # 只锁本仓自有 ps1（外仓克隆缓存不归此锁）
+        for f in files:
+            if not f.endswith(".ps1"):
+                continue
+            p = os.path.join(dirpath, f)
+            raw = io.open(p, "rb").read()
+            if not raw.startswith(b"\xef\xbb\xbf"):
+                body = raw.decode("utf-8")
+                assert not re.search(r"[\u4e00-\u9fff]", body), (
+                    "%s 含中文但无 UTF-8 BOM — PS5.1 会按 GBK 乱码解析"
+                    % os.path.relpath(p, ROOT))
