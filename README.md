@@ -1,116 +1,15 @@
-# DWC · Divine Wisdom Core · 神智核
+# DWC · Divine Wisdom Core
 
-> **一个全新的项目。** 不沿用任何既有项目的架构。
-> 它的形态由自己的目标决定，不由别人的教训决定。
+> **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
+> 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
----
-
-## 定位
-
-**DWC 是一个独立的 agent。两大核心能力：**
-
-1. **记忆** —— 拥有并有效使用记忆
-2. **自进化** —— 改进自身，从而变得更强
-
-就这样。**没有第三件事。**
+[![pytest](https://img.shields.io/badge/pytest-1598%20passed-brightgreen)](#开发)
+[![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R250-FFB86B)](docs/PROGRESS.md)
+[![commits](https://img.shields.io/badge/commits-271-blue)](docs/PROGRESS.md)
 
 ---
 
-## 与其他项目的关系（这一节必须先读）
-
-```text
-DWC 不是母巢（SYNTHEX Autopoiesis）的延续、继承或重构。
-DWC 不沿用母巢的任何架构决策。
-```
-
-母巢（已停）提供的是一个**反面案例库**——
-它的失败告诉我们"哪些坑真实存在"，但**没有**告诉我们 DWC 该长什么样。
-
-### 教训 ≠ 架构（本文档最重要的一条区分）
-
-| | 属于教训 | 不属于 DWC 架构 |
-|---|---|---|
-| 自评系统会塌缩 | ✅ 是经验 | ❌ 因此 DWC 必须分成几个子系统 |
-| 声称 ≠ 实测 | ✅ 是经验 | ❌ 因此 DWC 要写某种双栏文档 |
-| 只生不汰会长歪 | ✅ 是经验 | ❌ 因此 DWC 要有淘汰器 / 池上限 |
-| 母巢有 25 子系统 / 7MB / 445万行台账 | — | ❌ **完全无关**，DWC 不继承这些 |
-
-**教训的正确用法**：验证"这个坑真实存在"。
-**架构的正确来源**：目标 + 约束 + 选择。
-**混淆两者 = 把别人的形状当成自己的必然** —— 这是最该避免的。
-
----
-
-## 已知经验（设计评审的检查项，不是架构）
-
-以下陷阱全部来自实测，不是推测。它们是**提问清单**，不是**要在代码里建的东西**。
-
-| # | 陷阱 | 事实依据 |
-|---|---|---|
-| 1 | 自评系统会塌缩成"永远通过" | 塌缩评分器得分 **0.811** > 认真评分器 **0.767**，差 0.038（`2607.12790`） |
-| 2 | 下游任务分无法验证评估器 | 同上论文实测：塌缩后下游分看不出问题 |
-| 3 | 无淘汰机制 = 只生不汰 | 编译成功 1,447 / 实际停用 **5**（母巢实测） |
-| 4 | 挂载 ≠ 活着 | "从未被调用"被计入 `stale`（母巢实测） |
-| 5 | 声称与实测长期背离 | 立项文档核心三方法零实现（母巢实测） |
-| 6 | 产品层面只加不减 | git 删除 88% 是出库，功能未减（母巢实测） |
-| 7 | 形状正确 ≠ 有价值 | 行为占位符把"编译成功率"撑到 **96%**（母巢实测） |
-| 8 | 失败可能无法定位 | 调用策略的故障是"非事件"，普通日志显示不出（`2608.24876`） |
-| 9 | 纯形式框架常缺证据 | 19 篇里 6 篇无方差/无消融/自陈不可复现（`docs/papers/COMPARISON.md`） |
-
-**这九条不规定 DWC 长什么样。**
-
----
-
-## 目录
-
-```text
-dwc/
-├─ README.md                本文件（定位）
-├─ ARCHITECTURE.md          ★ 架构 v3 器官式(参照 ARSI 骨架)
-├─ docs/
-│  ├─ adr/                  架构决策记录
-│  ├─ lessons/              既有项目的实测教训（仅作检查项）
-│  ├─ papers/               19 篇 RSI 论文深读（研究材料，非设计依据）
-│  └─ PROGRESS.md           进度
-├─ src/dwc/                 承重代码（七器官 + core 主类 + experiments）
-├─ tests/
-├─ scripts/
-├─ config/
-└─ archive/
-```
-
----
-
-## 当前状态
-
-```text
-定位    已定：独立 agent，记忆 + 自进化（丙方向为未来扩展）
-架构    已定 → ARCHITECTURE.md v4（器官式骨架 + 进化循环七环节）
-代码    67 个 .py / 22,070 行（七器官 + core.py 主类 + experiments 实验包 + trial）
-测试    165 文件 / 1515 函数 → pytest 1563 项全过（128.5s）
-质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
-进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R249 · 270 commits（每轮一知识档 archive/knowledge3_R*.json）
-研究    论文深读报告 30 份（docs/papers/）
-```
-
-★ 上表逐项可复跑：`find src -name '*.py' -exec cat {} + | wc -l` ·
-  `python -m pytest tests/ -q` · `python scripts/gate.py` ·
-  `python scripts/e2e_loop.py` · `git rev-list --count HEAD`
-★ 本节最后实测 **2026-10-08（R90 · w_delta 分化三迭代 → 架构边界实证: dream 揭示语义(非根深挖+空转break+root兜底)下 nonroot≥2 不可达 ⇒ w 无多选窗口; 真主场=任务源采样(R77); M>1 区分维度=r 开关; trial 恢复 R89 6/6 版）** —— 旧版曾停在「代码 0 行」(10-04)，别回退
-★ 代码规模刷新 **2026-10-12（R202）**: 承重代码 66 .py / 21,738 行 · 测试 129 文件 / 1,374 函数 → pytest 1,425 项全过 · e2e rc=0 三段绿 · 真值源 35 处全 read 零写 + evolver FORBIDDEN_TARGETS 硬闸 · 端到端生灭闭环真端点跑通
-
-**架构第一性原则**：所有进化都生长在记忆之上 —— 记忆是唯一载体，判据必须在记忆之外。
-
----
-
-*建档 2026-10-02 · 当前状态实测刷新 2026-10-08（R58）*
-
----
-
-## 安装与上手（新机器三步 · R228-R230）
-
-**① 一条命令安装**（自动 clone 到 `~/.dwc` + venv + 依赖 + dwc 命令注册）:
+## 一行安装
 
 ```powershell
 # Windows（PowerShell 5.1+）
@@ -122,28 +21,71 @@ dwc/
 curl -fsSL https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.sh | bash
 ```
 
-（已 clone 的仓库内: `powershell -File install.ps1` / `bash install.sh` — 同一脚本双模式）
+自动完成: clone 到 `~/.dwc` → venv → 依赖 → 注册 `dwc` 命令 → 冒烟自检。
+**重跑同一行 = 更新到最新版。**
 
-**② 首次配置向导**（交互式: LLM 端点/key 遮蔽输入不回显 → 通知可选 → 真实冒烟）:
-
-```bash
-dwc setup      # 安装脚本已注册 dwc 命令（venv 内直接可用）
-```
-
-**③ 自检 + 使用**:
+## 快速开始
 
 ```bash
-dwc              # 无参 = 原生交互界面（REPL, 头部 agent 同款惯例）
-dwc doctor       # 环境/配置/LLM/db 七项自检
-dwc start --llm  # 常驻 agent（后台自触发循环）; dwc stop 停止
-dwc status       # 实时状态; dwc ask "任务" 单发派单
-dwc update       # ★ R248 自更新: 从 GitHub 拉取 + 自动重启 agent
-dwc update --check   # 只查不更（落后几个提交/是否最新）
+dwc setup           # 首次配置向导（LLM 端点/key 遮蔽输入, 真实冒烟）
+dwc                 # 全屏 TUI（消息卡片 · 命令面板 Ctrl+P · 文件树 · / 与 @ 补全）
+dwc start --llm     # 常驻 agent（后台自触发循环, watchdog 守护）
+dwc status          # 实时状态; dwc ask "任务" 单发派单
 ```
 
-★ 交互界面内同款: `/update`（执行）· `/update --check`（只查）。
+## 能力一览
 
-★ 路径零硬编码: 仓库位置由发现机制定位（`DWC_ROOT` 环境变量可覆盖）——
-装到任何盘任何目录都能跑。
-★ 配置面: `config/llm.json`（向导写入, key 不回显）· `config/mcp.json`
-（可选: MCP server 命令清单）· 真值源 `config/anchors/`（agent 结构上只读）。
+| 能力 | 形态 |
+|---|---|
+| **任务执行核** | 999 轮自主循环 · read 翻页(offset) · 复读熔断(3 连同→硬出口) · 危险命令 ask 人工授权 · delegate 并行子代理 · 失败现场全留痕 |
+| **原生 TUI** | 深空设计语言(白字+琥珀) · 消息卡片+Markdown · 思考 spinner · Ctrl+P 命令面板 · 文件树侧栏 · 智能滚动(不打断阅读) |
+| **七器官** | memory · judge · evolver · loop · world_tree · predictor · world_model |
+| **八质量门** | 定位/真值/活性/生灭/声称/加减/静默/契约 — `scripts/gate.py` |
+| **自更新** | `dwc update` 从 GitHub ff-only 拉取 + 依赖变更检测 + agent 自动重启(心跳验证) |
+| **常驻体** | inbox 接单 · 独立指令集/RPC(:8802) · watchdog 崩溃拉活+飞书告警 · cron 健康/备份/漂移巡检 |
+
+## 常用命令
+
+```bash
+dwc                  # TUI           dwc --plain         # 旧版 REPL
+dwc doctor           # 七项自检       dwc update [--check] # 自更新
+dwc start --llm      # 起 agent       dwc stop            # 停 agent
+dwc ask "任务"        # 单发派单       dwc status          # 状态/队列
+```
+
+TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步直驱) · `@` 文件补全 · `↑` 历史。
+
+## 架构
+
+[架构图 ARCHITECTURE_MAP.html](docs/ARCHITECTURE_MAP.html) · [设计理据 DESIGN_RATIONALE.md](docs/DESIGN_RATIONALE.md)
+
+```text
+记忆唯一载体 · 判据在记忆之外 — 所有进化都生长在记忆之上
+七器官: memory · judge · evolver · loop · world_tree · predictor · world_model
+进化循环七环节 · 三入口(dwc 主类收拢) · 真值源 agent 结构上只读
+```
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [PROGRESS.md](docs/PROGRESS.md) | 轮次账 R1–R250（每轮一知识档 archive/knowledge3_R*.json） |
+| [ARCHITECTURE_MAP.html](docs/ARCHITECTURE_MAP.html) | 架构图（浏览器打开） |
+| [DESIGN_RATIONALE.md](docs/DESIGN_RATIONALE.md) | 设计理据 · 与母巢的关系 · 九条实测陷阱 |
+| [PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md) | 生产运维手册 |
+| [REPORT_RSI_JEPA.html](docs/REPORT_RSI_JEPA.html) | RSI/JEPA 研究报告 |
+
+## 开发
+
+四层验证每轮必过: `pytest`（1598 全绿）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
+
+```bash
+git clone https://github.com/Lsinxcoy/divine-wisdom-core.git && cd divine-wisdom-core
+pip install -r requirements.txt && pip install -e .
+python -m pytest tests -q        # ~4-5 分钟
+```
+
+---
+
+*R1–R250 · 271 commits · 2026-10-13*
