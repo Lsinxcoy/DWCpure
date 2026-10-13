@@ -164,7 +164,7 @@ class DwcApp(App):
     def _topbar_text(self) -> str:
         mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
         clock = _time.strftime("%H:%M")
-        return ("  [bold #FFB86B]◆[/] [bold]DWC[/]   "
+        return ("  [bold #FFB86B]◆[/] [bold]D W C[/]   "
                 "[on #1E2733] %s [/]  [on #1E2733] %s [/]  [dim]ctrl+c[/]"
                 % (mode, clock))
 
@@ -193,7 +193,7 @@ class DwcApp(App):
         mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "[#7EE0E6]同步[/]"
         clock = _time.strftime("%H:%M")
         self.query_one("#topbar", Static).update(
-            "  [bold #FFB86B]◆[/] [bold]DWC[/]   "
+            "  [bold #FFB86B]◆[/] [bold]D W C[/]   "
             "[on #1E2733] %s [/]  [on #1E2733] %s·%s·%s/%s [/]  "
             "[on #1E2733] %s [/]  [dim]ctrl+c[/]"
             % (mark, mode, hb.get("terms", "─"),
