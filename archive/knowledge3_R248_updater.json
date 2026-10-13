@@ -1,0 +1,73 @@
+{
+ "round": "R248",
+ "date": "2026-10-13",
+ "主题": "自更新链: GitHub为源(check/update/三面指令/agent自动重启/安全拦截)",
+ "verify": {
+  "pytest": "1597 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "真端": "dwc update --check ✓已是最新"
+ },
+ "inheritance": {
+  "gen": 248,
+  "at": "2026-10-13T18:28:00+08:00",
+  "parent_gen": 247,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 268,
+   "pytest": 1597,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R248自更新(用户: 以GitHub仓库为源): updater.check/update(ff-only+脏/领先拦截+sha双验+依赖变更检测+agent自动重启心跳验证) · /update+--check(TUI/chat线程化) · dwc update(CLI) · README clone步 · G7降级计数 · 零硬编码修双反斜杠venv路径bug",
+   "files": [
+    "src/dwc/foundation/updater.py",
+    "scripts/dwc_tui.py",
+    "scripts/dwc_chat.py",
+    "src/dwc/cli_main.py",
+    "tests/test_r248_update.py",
+    "README.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "tests/test_r248_update.py 7锁(behind/ff拉新/脏拦/领先拦/noop/CLI路由/三面注册)",
+     "claim": "双仓模拟全绿; 真端 dwc update --check → '✓已是最新 8591d8c08'"
+    },
+    {
+     "type": "test",
+     "ref": "test_r228_install(路径零硬编码)回归",
+     "claim": "修了硬编码用户路径+双反斜杠bug — _venv_python真解析存在=True"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1597 + gate 8/8 + 双e2e + 真端fetch",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r248_update.py",
+   "user_decision": "用户'以这个仓库为源 给dwc增加更新功能和相关指令'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "回家另一台机: clone→install.ps1→dwc setup; 更新链=dwc update或/update; update在分叉时拦截(需先push)"
+  }
+ }
+}

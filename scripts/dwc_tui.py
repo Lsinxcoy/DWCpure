@@ -239,6 +239,46 @@ class DwcApp(App):
         self._spin_i = 0
         self._spin_t = self.set_interval(0.12, self._spin_tick)
 
+    # ── R248 · 自更新（GitHub 为源） ────────────────────────────
+
+    def _update_flow(self, check_only: bool) -> None:
+        """线程 fetch/pull — 完成回 UI 显示（不冻界面）。"""
+        import threading
+
+        def _work():
+            from dwc.foundation import updater
+            rep2 = updater.check() if check_only else updater.update()
+
+            def _show():
+                if check_only:
+                    if not rep2.get("ok"):
+                        self._say_sys("✗ 更新检查失败: %s" % rep2.get("why"))
+                    elif rep2.get("update_available"):
+                        self._say_sys("⬆ 可更新: 落后 %d 个提交 "
+                                      "(本地 %s → 远端 %s) — 敲 /update 执行"
+                                      % (rep2["behind"], rep2["local"][:9],
+                                         rep2["remote"][:9]))
+                    else:
+                        self._say_sys("✓ 已是最新 (%s)"
+                                      % rep2.get("local", "")[:9])
+                elif rep2.get("changed"):
+                    msg = ("✓ 已更新 %s → %s (%d 个提交)"
+                           % (rep2["from"], rep2["to"], rep2["commits"]))
+                    ag = rep2.get("agent", {})
+                    if ag.get("ok"):
+                        msg += " · agent 已重启(pid=%s)" % ag.get("pid")
+                    else:
+                        msg += " · agent 重启: %s" % ag.get("why", "?")
+                    if rep2.get("deps_changed"):
+                        msg += " · ⚠ 依赖变更: %s" % rep2["deps_hint"]
+                    self._say_sys(msg)
+                else:
+                    self._say_sys("— 未更新: %s" % rep2.get("why", "?"))
+            self.call_from_thread(_show)
+        threading.Thread(target=_work, daemon=True).start()
+        self._say_sys("⏳ %s…" % ("检查更新(fetch origin)" if check_only
+                                   else "从 GitHub 更新"))
+
     # ── R245 · 动效打磨（spinner · 智能滚动 · 忙态占位） ──────────
 
     _SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"      # braille 族(UTF-8 终端标准)
@@ -514,6 +554,9 @@ class DwcApp(App):
         if line in ("/new", "/clear"):
             self.action_clear_chat()
             return
+        if line.split()[0] in ("/update", "/u"):   # ★ R248 自更新
+            self._update_flow("--check" in line)
+            return
         if not line.startswith("/"):
             self._in_hist.append(line)     # ★ R243 历史(命令不入)
             if len(self._in_hist) > 200:
@@ -627,6 +670,7 @@ _CMDS = [("/bg", "切后台投单模式"),
          ("/help", "全部命令"),
          ("/status", "刷新状态"),
          ("/new", "新会话(清上下文)"),
+            ("/update", "从 GitHub 拉取更新并重启 agent"),
          ("/quit", "退出")]
 
 

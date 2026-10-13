@@ -313,6 +313,31 @@ def handle(line: str) -> bool:
         globals()["BG_MODE"] = False
         print(green("已切同步直驱模式（对话感 — 输入即执行）"))
         return True
+    if line.split()[0] in ("/update", "/u"):      # ★ R248 自更新
+        from dwc.foundation.updater import check, update
+        if "--check" in line or "-c" in line:
+            st = check()
+            if not st.get("ok"):
+                print(red("✗ 检查失败: %s" % st.get("why")))
+            elif st.get("update_available"):
+                print(yellow("⬆ 可更新: 落后 %d 个提交 (本地 %s → 远端 %s)"
+                             % (st["behind"], st["local"][:9],
+                                st["remote"][:9])))
+            else:
+                print(green("✓ 已是最新 (%s)" % st.get("local", "")[:9]))
+        else:
+            rep2 = update()
+            if rep2.get("changed"):
+                ag = rep2.get("agent", {})
+                print(green("✓ 已更新 %s → %s (%d 个提交) · %s"
+                            % (rep2["from"], rep2["to"], rep2["commits"],
+                               "agent 已重启(pid=%s)" % ag.get("pid")
+                               if ag.get("ok") else "agent: " + ag.get("why", "?"))))
+                if rep2.get("deps_changed"):
+                    print(yellow("⚠ 依赖变更: %s" % rep2["deps_hint"]))
+            else:
+                print("— 未更新: %s" % rep2.get("why", "?"))
+        return True
     if line in ("/quit", "/q", "/exit"):
         return False
     if line in ("/help", "/h", "/?"):

@@ -90,7 +90,7 @@ dwc/
 测试    165 文件 / 1515 函数 → pytest 1563 项全过（128.5s）
 质量门  scripts/gate.py rc=0 · 端到端 scripts/e2e_loop.py rc=0 三段绿
 进度    七器官 **7/7** · 七环节 **7/7** · 三入口 **3/3**（DWC 主类收拢, R62）
-轮次    R1–R247 · 268 commits（每轮一知识档 archive/knowledge3_R*.json）
+轮次    R1–R248 · 269 commits（每轮一知识档 archive/knowledge3_R*.json）
 研究    论文深读报告 30 份（docs/papers/）
 ```
 
@@ -110,7 +110,12 @@ dwc/
 
 ## 安装与上手（新机器三步 · R228-R230）
 
-**① 一键安装**（venv + 依赖 + 目录 + 冒烟, 不碰你的任何配置）:
+**① 克隆 + 一键安装**（venv + 依赖 + 目录 + 冒烟, 不碰你的任何配置）:
+
+```bash
+git clone https://github.com/Lsinxcoy/divine-wisdom-core.git
+cd divine-wisdom-core
+```
 
 ```powershell
 # Windows
@@ -135,7 +140,11 @@ dwc              # 无参 = 原生交互界面（REPL, 头部 agent 同款惯例
 dwc doctor       # 环境/配置/LLM/db 七项自检
 dwc start --llm  # 常驻 agent（后台自触发循环）; dwc stop 停止
 dwc status       # 实时状态; dwc ask "任务" 单发派单
+dwc update       # ★ R248 自更新: 从 GitHub 拉取 + 自动重启 agent
+dwc update --check   # 只查不更（落后几个提交/是否最新）
 ```
+
+★ 交互界面内同款: `/update`（执行）· `/update --check`（只查）。
 
 ★ 路径零硬编码: 仓库位置由发现机制定位（`DWC_ROOT` 环境变量可覆盖）——
 装到任何盘任何目录都能跑。

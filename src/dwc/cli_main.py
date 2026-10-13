@@ -7,7 +7,8 @@
 ★ 形态（opencode/claude 惯例: 无参 = 进交互界面）:
   dwc                       # 无参 ⇒ chat REPL（原生交互界面）
   dwc chat / dwc ask "任务"  # 显式交互 / 单发派单
-  dwc status|doctor|...     # agent_rpc 九指令（与 HTTP RPC / CLI 同一实现）
+  dwc update [--check]      # 从 GitHub 拉取更新 + 重启 agent
+dwc status|doctor|...     # agent_rpc 九指令（与 HTTP RPC / CLI 同一实现）
   dwc start [--llm] / stop  # 常驻 agent 生命周期
   dwc setup / bench         # 配置向导 / 任务基准
 """
@@ -109,6 +110,31 @@ def main(argv=None) -> int:
         return 0
     if cmd == "stop":
         return _stop_agent()
+    if cmd == "update":        # ★ R248 自更新（GitHub 为源）
+        from dwc.foundation.updater import check, update
+        if rest and rest[0] in ("--check", "-c", "check"):
+            st = check()
+            if not st.get("ok"):
+                print("✗ 检查失败: %s" % st.get("why"))
+                return 1
+            if st.get("update_available"):
+                print("⬆ 可更新: 落后 %d 个提交 (本地 %s → 远端 %s)"
+                      % (st["behind"], st["local"][:9], st["remote"][:9]))
+            else:
+                print("✓ 已是最新 (%s)" % st.get("local", "")[:9])
+            return 0
+        rep = update()
+        if rep.get("changed"):
+            print("✓ 已更新 %s → %s (%d 个提交)"
+                  % (rep["from"], rep["to"], rep["commits"]))
+            ag = rep.get("agent", {})
+            print(("agent 已重启 (pid=%s)" % ag.get("pid")) if ag.get("ok")
+                  else ("agent 重启: %s" % ag.get("why", "?")))
+            if rep.get("deps_changed"):
+                print("⚠ 依赖变更: %s" % rep["deps_hint"])
+            return 0
+        print("— 未更新: %s" % rep.get("why", "?"))
+        return 1 if rep.get("why", "").startswith(("fetch", "pull")) else 0
     if cmd == "setup":
         return _run_script("dwc_setup.py", rest)
     if cmd == "bench":

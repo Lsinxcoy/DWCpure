@@ -141,7 +141,7 @@
    "code_hits": 14,
    "wire_hits": 0,
    "code_evidence": [
-    "src\\dwc\\cli_main.py:40:\"\"\"scripts/ 下的脚本以子进程跑（保持各脚本独立可跑 — dispatcher 只路由）。\"\"\"",
+    "src\\dwc\\cli_main.py:41:\"\"\"scripts/ 下的脚本以子进程跑（保持各脚本独立可跑 — dispatcher 只路由）。\"\"\"",
     "src\\dwc\\core.py:303:dispatch: Dict[str, Any]",
     "src\\dwc\\core.py:305:dispatch = {\"kind\": \"remember\", \"dispatched\": True,",
     "src\\dwc\\core.py:309:dispatch = {\"kind\": \"dream\", \"dispatched\": True,",
