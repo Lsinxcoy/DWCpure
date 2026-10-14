@@ -31,8 +31,8 @@ def test_widgets_compose():
         assert app.query_one("#tools") is not None
         assert app.query_one("#ask") is not None
         assert app.query_one("#prompt-label") is not None
-        # 主题注册成功（Deep Space）
-        assert app.theme == "dwc-deep-space"
+        # 主题注册成功（R273 起双主题 deep|warm，默认 deep）
+        assert app.theme == "dwc-deep"
     _run(_check)
 
 

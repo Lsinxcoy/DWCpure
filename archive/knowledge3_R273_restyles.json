@@ -1,0 +1,72 @@
+{
+ "round": "R273",
+ "date": "2026-10-15",
+ "主题": "TUI改版ABCD(语义上色/边框化/换肤/呼吸感)",
+ "verify": {
+  "pytest": "1771 rc=0",
+  "new_tests": "17/17",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "live": "pilot三眼换肤+粉框+俏皮词"
+ },
+ "inheritance": {
+  "gen": 273,
+  "at": "2026-10-15T03:01:00+08:00",
+  "parent_gen": 272,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 292,
+   "pytest": 1755,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R273 TUI改版ABCD: A主题token表(dwc_theme.py, deep零回归)+字面收敛+done褪色; B工具块边框化(圆角/双线, 标题嵌框, 蓝跑/黄等/灰完/粉败)+回执块+失败粉框卡; C/theme deep|warm可切换(持久var, textual原生双主题注册); D俏皮思考词12+shimmer+/status末轮耗时+子代理八色预留",
+   "files": [
+    "scripts/dwc_theme.py",
+    "scripts/dwc_tui.py",
+    "tests/test_r273_theme.py",
+    "tests/test_r239_tui.py",
+    "tests/test_r245_motion.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试17/17(raises 12%)+全量1771+gate 8/8+双e2e rc=0",
+     "claim": "ABCD全对, 旧TUI零回归(2旧契约随改版更新)"
+    },
+    {
+     "type": "test",
+     "ref": "pilot三眼: 默认deep→warm即时生效→失败粉框→hint琢磨→切回deep, 主题文件终deep无污染; 旧全量1挂系午夜心跳flake(已自愈)",
+     "claim": "换肤链路生产验证"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1771+gate+双e2e+pilot三眼",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r273b.log",
+   "user_decision": "'A B C D 都做'+主代理直做默认"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "/bg需裸敲进模式(连写进同步, 待修); r243/r202各1次顺序flake(单跑绿, 机制待察); token数无来源D用本地耗时代替"
+  }
+ }
+}

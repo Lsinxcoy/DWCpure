@@ -21,6 +21,30 @@ import threading
 import time as _time
 
 try:
+    import dwc_theme as _TH  # ★ R273-A · 主题 token（颜色只走 token）
+except ImportError:  # ★ R263b fallback：无 textual/单文件运行时退回字面
+    _TH = None
+
+
+def _C(k: str) -> str:
+    """★ 当前主题 token 值（失败→deep 回退，不炸）。"""
+    try:
+        return _TH.get()[k] if _TH is not None else _FALLBACK[k]
+    except Exception:                            # noqa: BLE001
+        return _FALLBACK[k]
+
+
+_FALLBACK = {"accent": "#FFB86B", "success": "#5AF78E",
+             "error": "#FF5F56", "muted": "#8A8E94",
+             "surface": "#2A2A2C", "warn": "#F3D99D",
+             "bg": "#0B0F14", "fg": "#ECEDEE"}
+
+
+def _wrap_dim(text: str) -> str:
+    """★ R273-A · done 褪色（文本包 dim）。"""
+    return "[dim]%s[/]" % text
+
+try:
     from textual.app import App, ComposeResult
     from textual.screen import ModalScreen
     from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -224,21 +248,23 @@ class DwcApp(App):
 
     def on_mount(self) -> None:
         try:
-            self.register_theme(Theme(
-                name="dwc-deep-space",
-                primary="#ECEDEE",       # 主体字色: 纯白(R242c 用户: 字用白不要蓝)
-                secondary="#8A8E94",   # 中性次级灰(原蓝绿灰)
-                accent="#FFB86B",        # 点缀: amber 橙
-                success="#5AF78E",
-                error="#FF5F56",
-                warning="#F3D99D",
-                background="#0B0F14",    # 深空底
-                surface="#11161D",
-                panel="#24282E",      # 中性深灰(蓝灰被看成蓝线)
-                foreground="#ECEDEE",  # 纯白主文字
-                dark=True,
-                variables={"text-muted": "#9B9B9B"}))
-            self.theme = "dwc-deep-space"
+            for _tn in ("deep", "warm"):  # ★ R273-C · 双主题注册（token 驱动）
+                _t = _TH.get(_tn)
+                self.register_theme(Theme(
+                    name="dwc-%s" % _tn,
+                    primary=_t["fg"],        # 主体字色
+                    secondary=_t["muted"],   # 中性次级灰
+                    accent=_t["accent"],      # 点缀
+                    success=_t["success"],
+                    error=_t["error"],
+                    warning=_t["warn"],
+                    background=_t["bg"],
+                    surface=_t["surface"],
+                    panel=_t["surface"],
+                    foreground=_t["fg"],
+                    dark=True,
+                    variables={"text-muted": _t["muted"]}))
+            self.theme = "dwc-%s" % _TH.current_name()
         except Exception:                       # noqa: BLE001 — 主题失败用默认
             pass
         msgs = self.query_one("#msgs", VerticalScroll)
@@ -246,7 +272,7 @@ class DwcApp(App):
             self.query_one("#empty-hint").remove()
         except Exception:                       # noqa: BLE001 — 已移除不炸
             pass
-        head = ("[bold black on #FFB86B] D W C [/]  "
+        head = ("[bold black on " + _C("accent") + "] D W C [/]  "
                 "[bold]DIVINE WISDOM CORE[/]  "
                 "[dim]· 独立常驻 agent · v0.1.0[/]\n"
                 "[dim]输入任务回车即执行 · /help 全部命令[/]")
@@ -326,7 +352,11 @@ class DwcApp(App):
             return
         if self._busy:
             self._spin_i = (self._spin_i + 1) % len(self._SPIN)
-            hint.update("[#FFB86B]%s[/] 执行中…" % self._SPIN[self._spin_i])
+            _shimmer = _C("accent") if self._spin_i % 2 == 0 else "#FFD9A0"
+            _word = (_TH.think_line(self._spin_i) if _TH is not None
+                 else "执行中")  # ★ R273-D · 俏皮思考词＋微光
+            hint.update("[%s]%s[/] %s…" % (_shimmer, self._SPIN[self._spin_i],
+                                           _word))
             if not inp.placeholder.startswith("执行中"):
                 inp.placeholder = "执行中… 输入将排队"
         else:
@@ -391,7 +421,7 @@ class DwcApp(App):
         msgs = self._msgs()
         msgs.remove_children()
         msgs.mount(Static(
-            "[bold black on #FFB86B] D W C [/]  [dim]新会话 · "
+            "[bold black on " + _C("accent") + "] D W C [/]  [dim]新会话 · "
             "输入任务回车即执行[/]", classes="msg-sys"))
 
     def _render_tree(self) -> None:
@@ -423,7 +453,7 @@ class DwcApp(App):
             # ★ tag 先闭合再放文字(曾拼进 tag → 样式码泄露实测);
             #   非选中行无开 tag ⇒ 不写闭合(曾致 MarkupError)
             if i == 0:
-                rows.append("[#FFB86B bold]%s%s[/]" % (mark, label))
+                rows.append("[%s bold]%s%s[/]" % (_C("accent"), mark, label))
             else:
                 rows.append("%s%s" % (mark, label))
         w.update("\n".join(rows))
@@ -531,6 +561,21 @@ class DwcApp(App):
         self._msgs().mount(Markdown(markdown, classes="msg-ans"))
         self._follow()
 
+    def _say_block(self, tid: str, card_text: str) -> None:
+        """★ R273-B · 回执块（四态边框卡；done 褪色 dim）。"""
+        if _TH is None:  # ★ fallback：无主题退回裸行
+            self._msgs().mount(Static(card_text, classes="msg-sys"))
+            self._follow()
+            return
+        st = _card_state_of(card_text)
+        block = _TH.card_block("后台回执 %s · %s" % (tid, st),
+                               card_text.splitlines() or [card_text],
+                               state=st)
+        if st == "done":
+            block = _wrap_dim(block)
+        self._msgs().mount(Static(block, classes="msg-sys"))
+        self._follow()
+
     def _stream_open(self) -> Static:
         """★ 流式临时区: 逐字打; 完成后 remove 并换 Markdown 卡。"""
         w = Static("", classes="msg-stream", id="streaming")
@@ -545,10 +590,12 @@ class DwcApp(App):
             pass
 
     def _topbar_text(self) -> str:
-        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "同步"
+        mode = ("[" + _C("accent") + "]bg 投单[/]" if self._bg_mode
+                else "同步")
         clock = _time.strftime("%H:%M")
-        return ("  ◆ [bold black on #FFB86B] D W C [/]  "
-                "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
+        return (("  ◆ [bold black on " + _C("accent") + "] D W C [/]  "
+                 "[on " + _C("surface") + "] %s [/]  [on " + _C("surface")
+                 + "] %s [/]  [dim]ctrl+c[/]")
                 % (mode, clock))
 
     def _set_topbar(self) -> None:
@@ -589,6 +636,20 @@ class DwcApp(App):
             self._say_sys("/mem 视图：lessons · night · "
                           "episodes(ep <task>) · workflows")
 
+    def _apply_theme(self, name: str) -> None:
+        """★ R273-C · /theme 换肤（非法名提示不炸；即时生效）。"""
+        try:
+            _TH.set_current(name)
+            self.theme = "dwc-%s" % name
+            self._set_topbar()
+            self._say_sys("→ 主题已切 %s（%s）" % (name, _C("bg")))
+        except ValueError:
+            self._say_sys("/theme 用法：/theme deep|warm（当前 %s）"
+                          % _TH.current_name())
+        except Exception as exc:                 # noqa: BLE001 — 换肤坏不炸
+            sys.stderr.write("换肤失败: %s\n" % exc)
+            self._say_sys("换肤失败，已保持当前主题")
+
     def _mem_summary(self) -> str:
         """★ R271 · 顶栏记忆摘要（记M·触T，失败记—）。"""
         try:
@@ -615,18 +676,21 @@ class DwcApp(App):
     def _apply_status(self, s: dict) -> None:
         q = s.get("queue") or {}
         hb = s.get("heartbeat") or {}
-        mark = ("[#5AF78E]●[/] agent alive" if s.get("pid")
-                else "[#FF5F56]●[/] agent down")
-        mode = "[#FFB86B]bg 投单[/]" if self._bg_mode else "同步"
+        mark = ("[" + _C("success") + "]●[/] agent alive" if s.get("pid")
+                else "[" + _C("error") + "]●[/] agent down")
+        mode = ("[" + _C("accent") + "]bg 投单[/]" if self._bg_mode
+                else "同步")
         clock = _time.strftime("%H:%M")
         self.query_one("#topbar", Static).update(
-            "  ◆ [bold black on #FFB86B] D W C [/]  "
-            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s·%s·%s/%s [/]  "
-            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  "
-            "[dim]ctrl+c[/]"
-            % (mark, mode, hb.get("terms", "─"),
-               q.get("pending", 0), q.get("done", 0), self._mem_summary(),
-               self._llm_summary(), clock))
+            (("  ◆ [bold black on " + _C("accent") + "] D W C [/]  "
+              "[on " + _C("surface") + "] %s [/]  [on " + _C("surface")
+              + "] %s·%s·%s/%s [/]  "
+              "[on " + _C("surface") + "] %s [/]  [on " + _C("surface")
+              + "] %s [/]  [on " + _C("surface") + "] %s [/]  "
+              "[dim]ctrl+c[/]")
+             % (mark, mode, hb.get("terms", "─"),
+                q.get("pending", 0), q.get("done", 0), self._mem_summary(),
+                self._llm_summary(), clock)))
 
     # ── 输入处理 ──────────────────────────────────────
 
@@ -654,9 +718,15 @@ class DwcApp(App):
             return
         if line == "/status":
             self._refresh_status()
+            _s = getattr(self, "_last_secs", None)  # ★ R273-D · 末轮耗时
+            self._say_sys("末轮耗时：%s" % (
+                ("%.1fs" % _s) if _s is not None else "—（本会话未跑）"))
             return
         if line.split()[0] == "/mem":   # ★ R271 · 记忆看板（只渲染不判定）
             self._show_mem(line.split()[1:])
+            return
+        if line.split()[0] == "/theme":  # ★ R273-C · 换肤 deep|warm
+            self._apply_theme((line.split()[1:] or [""])[0])
             return
         if line in ("/new", "/clear"):
             self.action_clear_chat()
@@ -721,9 +791,9 @@ class DwcApp(App):
                 _post_tool("[dim]%s │  轮 %d · 思考中…[/]"
                            % (_time.strftime("%H:%M:%S"), ev.get("n", 0)))
             elif kind == "action":
-                for row in _format_action(ev):
-                    _post_tool("[dim]%s[/] %s"
-                               % (_time.strftime("%H:%M:%S"), row))
+                for row in _render_action(
+                        ev, _time.strftime("%H:%M:%S")):
+                    _post_tool(row)
             elif kind == "token":
                 _stream_put(ev.get("t", ""))
 
@@ -735,6 +805,7 @@ class DwcApp(App):
             rep = execute_user_task(task, llm=LLMClient(), ctx=ctx,
                                     progress=_progress)
             secs = round(_time.time() - t0, 1)
+            self._last_secs = secs  # ★ R273-D · 末轮耗时（本地实测）
             ans = str(rep.get("answer", ""))
 
             def _finalize():
@@ -769,7 +840,7 @@ class DwcApp(App):
                 self.call_from_thread(self._say_sys,
                                       "→ 已投单 %s（结果自动回填）" % tid)
                 card = _poll_bg(R.cmd_query, tid, sleep_fn=_time.sleep)
-                self.call_from_thread(self._say_ans, card)
+                self.call_from_thread(self._say_block, tid, card)
             except Exception as e:                  # noqa: BLE001 — 如实报
                 self.call_from_thread(self._say_sys, "投单失败: %s" % e)
         threading.Thread(target=_work, daemon=True).start()
@@ -806,13 +877,39 @@ def _poll_bg(query_fn, tid: str, sleep_fn=None, tries: int = 60) -> str:
     return "→ %s 超时未归（末态 %s，可 /status 查）" % (tid, last)
 
 
+def _render_action(ev: dict, ts: str) -> list:
+    """★ R273-B · 动作行渲染（成功＝旧单行逐字；失败＝整块粉框卡）。
+
+    成功路径复用 _format_action（零重复）；失败卡无时间戳前缀
+    （块级元素，边框对齐要求）。
+    """
+    rows = _format_action(ev)
+    if ev.get("ok") or _TH is None:  # ★ fallback 无主题时走旧两行
+        return ["[dim]%s[/] %s" % (ts, r) for r in rows]
+    title = "%s %s" % (ev.get("op", ""), str(ev.get("target", ""))[:30])
+    lines = [str(ev.get("target", ""))]
+    if ev.get("why"):
+        lines.append("· " + str(ev.get("why"))[:120])
+    return [_TH.card_block(title, lines, state="fail")]
+
+
+def _card_state_of(card_text: str) -> str:
+    """★ R273-B · 回执卡文本→四态（显示映射，不重判）。"""
+    if "归：done" in card_text or "归：cancelled" in card_text:
+        return "done"
+    if "归：fail" in card_text:
+        return "fail"
+    return "pending"
+
+
 def _format_action(ev: dict) -> list:
     """★ R272-④ · 动作行格式化（成功单行现状；失败追加 dim 详情行）。
 
     只展示 ev 原文字段（target 全文＋why），不推断。成功行与旧格式
     逐字一致（时间戳由调用方加）。
     """
-    mark = "[#5AF78E]✓[/]" if ev.get("ok") else "[#FF5F56]✗[/]"
+    mark = ("[" + _C("success") + "]✓[/]" if ev.get("ok")
+            else "[" + _C("error") + "]✗[/]")
     first = ("[bold]%-2s[/] %-5s %s %s"
              % (_ICON.get(ev.get("op"), "·"), ev.get("op", ""),
                 str(ev.get("target", ""))[:50], mark))
@@ -830,13 +927,15 @@ _CMDS = [("/bg", "切后台投单模式"),
          ("/help", "全部命令"),
          ("/status", "刷新状态"),
          ("/mem", "记忆看板 lessons|night|episodes|workflows"),
+         ("/theme", "换肤 deep|warm"),
          ("/new", "新会话(清上下文)"),
             ("/update", "从 GitHub 拉取更新并重启 agent"),
          ("/quit", "退出")]
 
 #: ★ R272-③ · 二级补全表（命令＋空格 → 参数候选）
 _SUBS = {"/mem": ["lessons", "night", "episodes", "workflows"],
-         "/update": ["--check"]}
+         "/update": ["--check"],
+         "/theme": ["deep", "warm"]}
 
 _HIST_PATH = os.path.join(_ROOT, "var", "dwc_tui_hist.jsonl")
 
@@ -917,7 +1016,7 @@ class PaletteScreen(ModalScreen):
         for i, (label, _fn) in list(enumerate(self._matched(q)))[:12]:
             mark = "▸ " if i == self._idx else "  "
             if i == self._idx:
-                log.write("[#FFB86B bold]%s%s[/]" % (mark, label))
+                log.write("[%s bold]%s%s[/]" % (_C("accent"), mark, label))
             else:
                 log.write("%s%s" % (mark, label))
 

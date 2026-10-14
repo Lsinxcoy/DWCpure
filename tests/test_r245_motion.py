@@ -30,11 +30,13 @@ def test_spinner_busy_and_idle():
         app._spin_tick()
         assert "/help" in str(hint.content)
         assert not inp.placeholder.startswith("执行中")
-        # 忙态
+        # 忙态（R273-D：braille 转字符＋中文俏皮思考词＋微光）
         app._busy = True
         app._spin_tick()
         body = str(hint.content)
-        assert "执行中" in body
+        assert any(w in body for w in
+                   ["酝酿", "推演", "琢磨", "参透", "权衡", "溯源",
+                    "编织", "打磨", "深潜", "复盘", "勾连", "落子"])
         assert any(ch in body for ch in "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
         assert inp.placeholder.startswith("执行中")
         # 恢复
