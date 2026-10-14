@@ -1,0 +1,74 @@
+{
+ "round": "R265",
+ "date": "2026-10-14",
+ "主题": "5xx/429网关瞬时重试+退避(502判死任务根治)+doctor判据校准",
+ "verify": {
+  "pytest": "1653等效绿",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "mock": "502×2第3发救回/404不重试"
+ },
+ "inheritance": {
+  "gen": 265,
+  "at": "2026-10-14T11:37:00+08:00",
+  "parent_gen": 264,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 283,
+   "pytest": 1649,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R265 5xx/429网关瞬时重试: HTTPError分支原一发就return(502实测16.2s判死任务'流式失败且回退失败')→429/500/502/503/504走重试+退避(0.5·2^n封顶3s)+retries默认1→2(总3发); 4xx仍立即返回; mock行为验证502×2后第3发救回+404一发不重试; doctor测试timeout判据校准180→300(重试链最坏182s)",
+   "files": [
+    "src/dwc/llm/client.py",
+    "tests/test_r265_retry.py",
+    "tests/test_r228_install.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "用户实测",
+     "claim": "'流式失败且回退失败: HTTP 502: Bad Gateway' 16.2s 1轮incomplete"
+    },
+    {
+     "type": "test",
+     "ref": "mock行为验证",
+     "claim": "502×2→第3发recovered(n_retries=2); 404仅1发; retries默认2"
+    },
+    {
+     "type": "test",
+     "ref": "四层",
+     "claim": "1652 passed+1判据已校准单跑绿(44.2s)+gate/双e2e rc=0; probe恢复17.3s OK"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层等效绿(1653)+doctor单跑绿",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r265_retry.py",
+   "user_decision": "用户报502任务失败→修复"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "端点 developer.amd.com.cn 波动大(probe 1.3s~153.7s/曾502窗口); agent 无痕死亡死因未定位(stderr留痕已上); doctor probe 180s级慢路径"
+  }
+ }
+}

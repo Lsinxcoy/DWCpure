@@ -86,7 +86,10 @@ def test_doctor_has_env_section():
     r = subprocess.run(
         [sys.executable, os.path.join(ROOT, "scripts", "dwc_cli.py"),
          "doctor", "--json"],
-        capture_output=True, text=True, timeout=180, cwd=ROOT,
+        # ★ 判据校准(2026-10-14 Layer-22): 180→300 — llm_probe 走完整重试链
+        #   (R265 5xx退避)在端点故障窗口最坏 3×30s 超时+退避 ≈ 182s, 180 曾
+        #   把"慢但成功(rc=0)"误判为红。校准不是放水: rc/内容断言原样保留。
+        capture_output=True, text=True, timeout=300, cwd=ROOT,
         encoding="utf-8", errors="replace")
     d = json.loads(r.stdout)
     ck = d.get("checks", d)

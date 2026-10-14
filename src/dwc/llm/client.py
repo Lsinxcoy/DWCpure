@@ -179,11 +179,12 @@ class LLMClient:
         #   ⇒⇒ ⇒★ 但**只**对 transport/timeout 重试:
         #     · 4xx（key错/欠费）重试**必然**再失败 ⇒ 浪费
         #     · 解析失败重试也没用（同样的 prompt 大概率同样返回）
-        #   ⇒ 配 DWC_LLM_RETRIES 可关（默认 1 次）
+        #   ⇒ 配 DWC_LLM_RETRIES 可关（默认 2 次; R265 起 5xx/429
+#     网关瞬时类同样重试+退避 — 502 实测曾零韧性判死任务）
         try:
-            self.retries = int(os.environ.get("DWC_LLM_RETRIES", "") or 1)
+            self.retries = int(os.environ.get("DWC_LLM_RETRIES", "") or 2)
         except ValueError:
-            self.retries = 1
+            self.retries = 2
         #: 调用账本（可审计: 试了几次、成几次）
         self.n_calls = 0
         self.n_ok = 0
@@ -306,20 +307,35 @@ class LLMClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 raw = resp.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
+            # ★★★ R265 · 5xx/429 **网关瞬时类**也重试（2026-10-14 用户实测:
+            #   "流式失败且回退失败: HTTP 502" 16.2s 任务判死 — 原 R36 只重试
+            #   传输异常, HTTPError 分支一发就 return ⇒ 瞬时 502 零韧性）。
+            #   判据: 5xx/429=上游瞬时(重试有意义); 4xx=请求错(重试无意义)。
+            #   ★★ 只读 e.code/e.reason — 不读 body（可能含 Authorization）。
+            if e.code in (429, 500, 502, 503, 504) and self.retries > 0 \
+                    and self._attempts < self.retries:
+                self.n_retries += 1
+                self._attempts += 1
+                import time as _t
+                _t.sleep(min(0.5 * (2 ** (self._attempts - 1)), 3.0))  # 退避
+                return self.complete(prompt, system=system,
+                                     max_tokens=max_tokens,
+                                     json_mode=json_mode, images=images)
             self.n_fail += 1
-            # ★★ 只读 e.code/e.reason —— 不要读 body（可能回显你的请求，
-            #   含 Authorization ⇒ 会把 key 带进 error 字符串）
             return LLMResult(ok=False, source="error",
                              error="HTTP %s: %s" % (e.code, e.reason),
-                             meta={"http_code": e.code})
+                             meta={"http_code": e.code,
+                                   "n_retry_used": self._attempts})
         except Exception as e:      # ★ 网络/超时 —— 统一收敛
             # ★★★ R36: **传输类**错误才重试（见 __init__ 的理由）
             if self.retries > 0 and self._attempts < self.retries:
                 self.n_retries += 1
                 self._attempts += 1
+                import time as _t
+                _t.sleep(min(0.5 * (2 ** (self._attempts - 1)), 3.0))  # 退避
                 return self.complete(prompt, system=system,
                                      max_tokens=max_tokens,
-                                     json_mode=json_mode)
+                                     json_mode=json_mode, images=images)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="%s: %s" % (type(e).__name__, e),
