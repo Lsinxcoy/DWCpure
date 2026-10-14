@@ -255,7 +255,7 @@ class DwcApp(App):
         self.set_interval(15.0, self._refresh_status)
         # ★ R243: @ 文件候选缓存（glob 一次）+ 输入历史 + 补全状态
         self._files = _scan_repo_files()
-        self._in_hist = []
+        self._in_hist = _hist_load()      # ★ R272-③ · 历史落盘恢复
         self._sug = []              # [(展示, 填充值)]
         self._sug_idx = -1
         self.query_one("#ask", Input).focus()   # ★ 启动即可输入(免 Tab)
@@ -451,6 +451,13 @@ class DwcApp(App):
             items = [(c + "  [dim]" + d + "[/]", c)
                      for c, d in _CMDS if c[1:].startswith(q)]
             self._suggest_show(items)
+        elif text.startswith("/") and " " in text:
+            # ★ R272-③ · 二级补全（/mem lessons…）
+            try:
+                self._suggest_show(_complete_cmd(text))
+            except Exception as exc:             # noqa: BLE001 — 补全坏不炸
+                sys.stderr.write("二级补全失败: %s\n" % exc)
+                self._suggest_show([])
         elif text.startswith("@") and " " not in text:
             q = text[1:].lower()
             hits = [f for f in self._files
@@ -593,6 +600,18 @@ class DwcApp(App):
         except Exception:                        # noqa: BLE001
             return "记—"
 
+    def _llm_summary(self) -> str:
+        """★ R272-② · 顶栏 LLM 位（只 model 名＋host，key 绝不碰）。"""
+        try:
+            from dwc.llm.client import LLMClient
+            c = LLMClient()
+            if not getattr(c, "configured", False):
+                return "LLM—"
+            host = c._host_only() if hasattr(c, "_host_only") else ""
+            return "模%s·%s" % (getattr(c, "_model", "?"), host or "?")
+        except Exception:                        # noqa: BLE001
+            return "LLM—"
+
     def _apply_status(self, s: dict) -> None:
         q = s.get("queue") or {}
         hb = s.get("heartbeat") or {}
@@ -603,10 +622,11 @@ class DwcApp(App):
         self.query_one("#topbar", Static).update(
             "  ◆ [bold black on #FFB86B] D W C [/]  "
             "[on #2A2A2C] %s [/]  [on #2A2A2C] %s·%s·%s/%s [/]  "
-            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
+            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  "
+            "[dim]ctrl+c[/]"
             % (mark, mode, hb.get("terms", "─"),
                q.get("pending", 0), q.get("done", 0), self._mem_summary(),
-               clock))
+               self._llm_summary(), clock))
 
     # ── 输入处理 ──────────────────────────────────────
 
@@ -648,6 +668,10 @@ class DwcApp(App):
             self._in_hist.append(line)     # ★ R243 历史(命令不入)
             if len(self._in_hist) > 200:
                 self._in_hist = self._in_hist[-200:]
+            try:  # ★ R272-③ · 历史落盘（失败留痕，内存照用）
+                _hist_save(_HIST_PATH, self._in_hist)
+            except OSError as exc:
+                sys.stderr.write("tui hist 落盘失败: %s\n" % exc)
         self._say_user(line)
         if self._bg_mode:
             self._submit_bg(line)
@@ -697,12 +721,9 @@ class DwcApp(App):
                 _post_tool("[dim]%s │  轮 %d · 思考中…[/]"
                            % (_time.strftime("%H:%M:%S"), ev.get("n", 0)))
             elif kind == "action":
-                mark = ("[#5AF78E]✓[/]" if ev.get("ok")
-                        else "[#FF5F56]✗[/]")
-                _post_tool("[dim]%s[/] [bold]%-2s[/] %-5s %s %s"
-                           % (_time.strftime("%H:%M:%S"),
-                              _ICON.get(ev.get("op"), "·"), ev.get("op", ""),
-                              str(ev.get("target", ""))[:50], mark))
+                for row in _format_action(ev):
+                    _post_tool("[dim]%s[/] %s"
+                               % (_time.strftime("%H:%M:%S"), row))
             elif kind == "token":
                 _stream_put(ev.get("t", ""))
 
@@ -744,11 +765,63 @@ class DwcApp(App):
             try:
                 from dwc import agent_rpc as R
                 r = R.cmd_submit(task) or {}
+                tid = r.get("id", "?")
                 self.call_from_thread(self._say_sys,
-                                      "→ 已投单 %s" % r.get("id", "?"))
+                                      "→ 已投单 %s（结果自动回填）" % tid)
+                card = _poll_bg(R.cmd_query, tid, sleep_fn=_time.sleep)
+                self.call_from_thread(self._say_ans, card)
             except Exception as e:                  # noqa: BLE001 — 如实报
                 self.call_from_thread(self._say_sys, "投单失败: %s" % e)
         threading.Thread(target=_work, daemon=True).start()
+
+
+def _poll_bg(query_fn, tid: str, sleep_fn=None, tries: int = 60) -> str:
+    """★ R272-① · bg 回执轮询（纯逻辑，可单测；线程里跑）。
+
+    state 照抄不重判；report 摘要前 200 字；60 轮不到→超时提示。
+    sleep_fn=None 时测试零等待（生产传 time.sleep）。
+    """
+    _sleep = sleep_fn if sleep_fn is not None else (lambda s: None)
+    last = ""
+    for _ in range(max(1, tries)):
+        try:
+            r = query_fn(tid) or {}
+        except Exception as exc:                 # noqa: BLE001 — 记次不炸
+            last = "查询失败：%s" % exc
+            _sleep(5)
+            continue
+        state = str(r.get("state", "?"))
+        rep = r.get("report")
+        if state == "unknown" and rep is None:
+            return "→ %s 查无此单（可能已被消费清走）" % tid
+        if rep is not None or state in ("done", "fail", "failed",
+                                          "cancelled"):
+            ans = ""
+            if isinstance(rep, dict):
+                ans = str(rep.get("answer", rep.get("why", "")))[:200]
+            return "→ %s 归：%s%s" % (
+                tid, state, (" · " + ans) if ans else "")
+        last = state
+        _sleep(5)
+    return "→ %s 超时未归（末态 %s，可 /status 查）" % (tid, last)
+
+
+def _format_action(ev: dict) -> list:
+    """★ R272-④ · 动作行格式化（成功单行现状；失败追加 dim 详情行）。
+
+    只展示 ev 原文字段（target 全文＋why），不推断。成功行与旧格式
+    逐字一致（时间戳由调用方加）。
+    """
+    mark = "[#5AF78E]✓[/]" if ev.get("ok") else "[#FF5F56]✗[/]"
+    first = ("[bold]%-2s[/] %-5s %s %s"
+             % (_ICON.get(ev.get("op"), "·"), ev.get("op", ""),
+                str(ev.get("target", ""))[:50], mark))
+    if ev.get("ok"):
+        return [first]
+    detail = "  [dim]↳ %s%s[/]" % (
+        str(ev.get("target", "")),
+        (" · " + str(ev.get("why", ""))[:120]) if ev.get("why") else "")
+    return [first, detail]
 
 
 #: ★ R243: / 命令候选表（展示, 说明）
@@ -760,6 +833,48 @@ _CMDS = [("/bg", "切后台投单模式"),
          ("/new", "新会话(清上下文)"),
             ("/update", "从 GitHub 拉取更新并重启 agent"),
          ("/quit", "退出")]
+
+#: ★ R272-③ · 二级补全表（命令＋空格 → 参数候选）
+_SUBS = {"/mem": ["lessons", "night", "episodes", "workflows"],
+         "/update": ["--check"]}
+
+_HIST_PATH = os.path.join(_ROOT, "var", "dwc_tui_hist.jsonl")
+
+
+def _hist_load(path: str = _HIST_PATH, limit: int = 200) -> list:
+    """★ 历史读盘（缺席→[]，坏行跳过计数留痕）。"""
+    import json as _j
+    if not os.path.exists(path):
+        return []
+    out = []
+    for ln in open(path, encoding="utf-8").read().splitlines():
+        if ln.strip():
+            try:
+                out.append(str(_j.loads(ln)))
+            except ValueError as exc:
+                sys.stderr.write("tui hist 坏行跳过: %s\n" % exc)
+    return out[-limit:]
+
+
+def _hist_save(path: str, items: list) -> None:
+    """★ 历史落盘（全量覆写 200 封顶；目录等 OSError 大声抛）。"""
+    import json as _j
+    with open(path, "w", encoding="utf-8") as fh:
+        for t in list(items)[-200:]:
+            fh.write(_j.dumps(t, ensure_ascii=False) + "\n")
+
+
+def _complete_cmd(text: str) -> list:
+    """★ R272-③ · / 二级补全纯函数（[(展示, 填充值)]）。"""
+    if not isinstance(text, str):
+        raise TypeError("text 须为 str（实收 %s）" % type(text).__name__)
+    if not text.startswith("/") or " " not in text:
+        return []
+    cmd, rest = text.split(" ", 1)
+    cands = _SUBS.get(cmd, [])
+    q = rest.lower()
+    return [("%s %s" % (cmd, s), "%s %s" % (cmd, s))
+            for s in cands if s.startswith(q)]
 
 
 class PaletteScreen(ModalScreen):

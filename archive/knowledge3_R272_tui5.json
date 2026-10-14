@@ -1,0 +1,70 @@
+{
+ "round": "R272",
+ "date": "2026-10-14",
+ "主题": "TUI五项细化(bg回执/LLM位/历史落盘/动作展开/sparkline)",
+ "verify": {
+  "pytest": "1755 rc=0",
+  "new_tests": "16/16",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "live": "pilot投单回执+night真卡"
+ },
+ "inheritance": {
+  "gen": 272,
+  "at": "2026-10-14T21:21:00+08:00",
+  "parent_gen": 271,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 291,
+   "pytest": 1739,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R272 TUI五项细化: ①bg回执轮询(cmd_query照抄state, 60轮/timeout/cancelled终止) ②顶栏LLM位(只model+host, key不碰) ③历史落盘var/dwc_tui_hist.jsonl+/mem二级补全 ④失败动作行dim展开(target全文+why) ⑤night sparkline(▇▁+滚动成功率, n<2诚实门); 布局零改动",
+   "files": [
+    "scripts/dwc_tui.py",
+    "src/dwc/organs/memory_view.py",
+    "tests/test_r272_tui5.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试16/16(raises 12.5%)+全量1755+gate 8/8+双e2e rc=0",
+     "claim": "五项全对, 旧TUI零回归"
+    },
+    {
+     "type": "test",
+     "ref": "pilot真走: /mem night真curve出卡, /bg投单T_1014_211007回填提示(事后cancelled, 促终止态补丁)",
+     "claim": "回执链路生产验证, smoke单已取消不污染"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1755+gate+双e2e+pilot生产smoke",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r272b.log",
+   "user_decision": "'1-5全做'+主代理直做默认"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "bg轮询60x5s上限; /bg需裸敲进模式(/bg xxx连写进同步, 待修); sparkline等02:30多轮后才有曲线"
+  }
+ }
+}

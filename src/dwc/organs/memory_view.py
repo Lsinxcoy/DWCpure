@@ -108,6 +108,23 @@ def workflow_panel(path: str | None = None) -> str:
     return "\n".join(lines)
 
 
+def sparkline(path: str | None = None, width: int = 24) -> str:
+    """★ R272-⑤ · 成功率 sparkline（最近 width 单，✓▇/✗▁＋滚动成功率）。
+
+    n<2 →"点太少"（诚实门）；缺 ok 键行跳过并注数。
+    """
+    rows = _read(path or CURVE_PATH)
+    known = [r for r in rows if "ok" in r]
+    skipped = len(rows) - len(known)
+    if len(known) < 2:
+        return "走势：点太少（n<2）"
+    sub = known[-width:]
+    bars = "".join("▇" if r.get("ok") else "▁" for r in sub)
+    rate = round(sum(1 for r in sub if r.get("ok")) * 100 / len(sub))
+    tail = "" if not skipped else "（跳过 %d 行）" % skipped
+    return "走势：%s %d%%%s" % (bars, rate, tail)
+
+
 def night_panel(path: str | None = None, limit: int = 8) -> str:
     """★ night 终态看板：DONE/FAIL/STALLED＋成功率＋早停。"""
     rows = _read(path or CURVE_PATH)
@@ -125,6 +142,7 @@ def night_panel(path: str | None = None, limit: int = 8) -> str:
                  terms.get("STALLED", 0)),
              "成功率 %d%% · 早停 %d" % (
                  round(n_ok * 100 / len(rows)), n_stop),
+             sparkline(path=path),
              "最近： " + " / ".join(
                  ("✓" if r.get("ok") else "✗") + str(r.get("tid", "?"))
                  for r in rows[-limit:])]

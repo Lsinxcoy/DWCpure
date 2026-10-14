@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>DWC TUI 改版灵感报告 · R273 前瞻</title>
+<style>
+*{box-sizing:border-box}body{background:#111113;color:#e8e4da;font-family:"JetBrains Mono","Noto Sans SC",monospace;margin:0;line-height:1.7}
+nav{position:sticky;top:0;background:#1a1a1e;padding:10px 24px;border-bottom:1px solid #333;z-index:9}
+nav a{color:#FFB86B;margin-right:18px;text-decoration:none;font-size:14px}
+.wrap{max-width:960px;margin:0 auto;padding:28px 22px 80px}
+h1{color:#fff;font-size:26px}h1 small{color:#FFB86B}
+h2{color:#FFB86B;border-bottom:1px solid #333;padding-bottom:6px;margin-top:44px}
+.card{background:#1c1c20;border:1px solid #333;border-radius:10px;padding:18px 20px;margin:16px 0}
+.card h3{margin:0 0 8px;color:#fff}
+.tag{display:inline-block;font-size:12px;border:1px solid #FFB86B;color:#FFB86B;border-radius:20px;padding:1px 10px;margin-right:8px}
+.dim{color:#8a8578}.amber{color:#FFB86B}.green{color:#5AF78E}.red{color:#FF5F56}.pink{color:#fd5db1}.blue{color:#87afff}.terra{color:#d77757}
+pre{background:#0c0c0e;border:1px solid #2a2a2e;border-radius:8px;padding:14px;overflow-x:auto;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+th,td{border:1px solid #333;padding:6px 10px;text-align:left}
+th{background:#222;color:#FFB86B}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.rec{background:#141a14;border-color:#2c4a2e}
+.warn{background:#1a1510;border-color:#4a3a22}
+.src{font-size:12px;color:#8a8578}
+</style></head><body>
+<nav><a href="#s0">总览</a><a href="#s1">Claude Code</a><a href="#s2">Gemini CLI</a><a href="#s3">Retro 琥珀</a><a href="#s4">给 DWC 的四套方案</a><a href="#s5">落子建议</a></nav>
+<div class="wrap">
+<h1>DWC 交互界面改版灵感 <small>R273 前瞻 · 2026-10-14</small></h1>
+<p class="dim">素材源：<span class="src">cola-runner/awesome-tui-design（MIT，Claude Code / k9s / btop 源码级 DESIGN.md）＋ dev-tool design-system 方法论文章。DWC 现状：Deep Space 纯白＋amber 三级灰，textual，顶栏/对话/动作/输入四段。</span></p>
+
+<h2 id="s0">0 · 三条跨方案共识（先抄这些，不犯错）</h2>
+<div class="card"><h3>① 颜色是语义，不是装饰</h3>
+<p>所有高分 TUI 都把颜色当 token 用（<span class="amber">status.error / text.muted / accent.primary</span>），而不是 raw hex。dev-tool 系的原话：深色画布上<span class="amber">颜色是被配给的信息载体</span>——语法、diff、日志级别、状态在深色上才读得清。DWC 已经是深色＋amber，方向正确，缺的是一套 token 表（现在颜色散落在代码里）。</p></div>
+<div class="card"><h3>② 空间记忆＞花样</h3>
+<p>lazygit/k9s/btop 七大经典布局的第一戒律：<span class="amber">面板一旦定居就不许动</span>——"focus 换位是最恶劣的设计罪"。改版只换皮、不搬家：顶栏还是顶栏，对话还是对话。</p></div>
+<div class="card"><h3>③ 内容前流，chrome 极简</h3>
+<p>Claude Code 的 AI 回答<span class="amber">无边框、无前缀、白字直排</span>；工具块才有框。消息之间只有一条 <span class="dim">#505050</span> 细线。DWC 的 Markdown 卡已经是这个路子——保持。</p></div>
+
+<h2 id="s1">1 · Claude Code 暖陶土系 <span class="tag">最对味</span></h2>
+<div class="card"><h3>调子：暖、俏、内容为王</h3>
+<table><tr><th>角色</th><th>Hex</th><th>给 DWC 的映射</th></tr>
+<tr><td>底 #1a1a1a</td><td><span class="sw" style="background:#1a1a1a"></span>#1a1a1a</td><td>已是近似值，保持</td></tr>
+<tr><td><span class="terra">主 accent 陶土</span></td><td><span class="sw" style="background:#d77757"></span>#d77757</td><td>顶栏 DWC 字标底色候选（现 amber #FFB86B，可二选一）</td></tr>
+<tr><td><span class="pink">工具框热粉</span></td><td><span class="sw" style="background:#fd5db1"></span>#fd5db1</td><td>动作区"失败行"边框——成功绿/失败粉，一眼区分</td></tr>
+<tr><td>用户泡 Surface</td><td><span class="sw" style="background:#373737"></span>#373737</td><td>用户行底（现无底，信息层＋1）</td></tr>
+<tr><td>题字 muted</td><td><span class="sw" style="background:#888888"></span>#888</td><td>时间戳/进度（已有）</td></tr></table>
+<h3>可偷的部件</h3>
+<p>① <span class="amber">工具块标题嵌在边框上</span>：<br><pre>┌─ Bash ─────────────────────────┐
+│ $ npm test                      │
+│   ✓ handles input (12ms)       │
+└─────────────────────────────────┘</pre>
+DWC 动作区现在是裸行——失败行展开后套这个粉框，档次立刻上来。<br>② <span class="amber">思考动词</span>："✳ Percolating…"（184 个俏皮词、6 符号 120ms 反转）。DWC 的"轮 n·思考中…"可换成中文俏皮词（"酝酿中…""推演中…"），成本 5 行。<br>③ 底部状态行：<span class="dim">Opus · 12.4K tokens · $0.04 · 3.2s</span>——DWC 顶栏已有 pending/done，缺 token/耗时位（R272 刚加了模型位，拼一起就是完整状态行）。</p></div>
+
+<h2 id="s2">2 · Gemini CLI 语义边框 <span class="tag">最实用</span></h2>
+<div class="card"><h3>核心一招：边框颜色＝工具状态</h3>
+<table><tr><th>状态</th><th>颜色</th><th>DWC 映射</th></tr>
+<tr><td>运行中 shell</td><td><span class="blue">蓝 #87afff</span></td><td>执行中动作行边框</td></tr>
+<tr><td>等待中</td><td><span class="amber">黄 #ffffaf</span></td><td>bg 轮询中回执卡</td></tr>
+<tr><td>完成</td><td><span class="dim">灰 #808080（沉下去）</span></td><td> done 行变灰——历史感，对话区自动"褪色"</td></tr></table>
+<p>另有 <span class="amber">15＋ 内置主题 JSON token 架构</span>（ui.active / status.warning / border.default）——DWC 将来做主题切换（amber↔陶土↔琥珀）时照抄这个 token 表即可。圆角框 <span class="dim">╭─╮╰─╯</span> 全套，textual 原生支持。</p></div>
+
+<h2 id="s3">3 · Retro CRT 琥珀 <span class="tag">与 Deep Space 同源</span></h2>
+<div class="card"><h3>现 amber 语言的"加强版"</h3>
+<p>底 <span class="sw" style="background:#1a1200"></span>#1a1200（暖黑）＋字 <span class="amber">#ffb000 琥珀</span>＋双线框 <span class="dim">╔═╗║╚╝</span>＋分节符 <span class="dim">══╡ SECTION ╞══</span>＋点线 <span class="dim">······</span>。DWC 的 Deep Space 是"冷高级"，Retro 是"暖高级"——两套都是 amber 系，切过去只需要换底色＋框线字符，<span class="amber">零布局改动</span>。ALL CAPS 题头＋reverse 反白数值是点睛。</p>
+<p class="dim">注意：全套 Retro（figlet 大字＋全大写）会挤占信息密度，只建议取"暖底＋双线＋分节符"三件，不取大字。</p></div>
+
+<h2 id="s4">4 · 给 DWC 的四套改版方案（按工程量排）</h2>
+<div class="card rec"><h3>方案 A · 语义上色 <span class="tag">≈80 行</span></h3>
+<p>不动任何结构：建 <span class="amber">theme.py token 表</span>（accent/success/warn/error/muted/surface 六 token 收敛散落 hex）＋动作行按 ok 上色（成功行保持、失败行粉框＋详情）＋done 历史行变灰。风险最低，R273 可直接做。</p></div>
+<div class="card rec"><h3>方案 B · 工具块边框化 <span class="tag">≈120 行</span></h3>
+<p>A ＋动作/回执/mem 卡统一套圆角边框（标题嵌框线，抄 Claude Code），Gemini 式四态边框色（蓝跑/黄等/灰完/红败）。对话区从"行流"升级为"块流"，现代感主要来源。</p></div>
+<div class="card"><h3>方案 C · 暖底换肤 <span class="tag">≈60 行</span></h3>
+<p>B ＋底色切暖黑 #1a1200、双线框、══╡ 分节 ╞══（取 Retro 三件）。DWC 气质从"冷高级"转"暖高级"，和 amber 一脉相承。建议做成 <span class="amber">/theme deep|warm</span> 可切换（token 表天然支持）。</p></div>
+<div class="card"><h3>方案 D · 呼吸感 <span class="tag">≈100 行</span></h3>
+<p>C ＋思考俏皮词、shimmer 输入框、状态行 token/耗时（R272 模型位已就位）、subagent 多彩（Claude Code 八色盘，DWC 暂无子代理——先空出 token 位）。动效全部走现有 spinner 节拍，不引入新时钟。</p></div>
+
+<h2 id="s5">5 · 落子建议（你醒来拍板）</h2>
+<div class="card warn"><h3>推荐：A→B 连做一轮 R273，C 以 /theme 可切换跟上，D 看心情</h3>
+<p>① A＋B 是"现代感"的 80% 且零布局风险（守"面板不搬家"戒律）；② C 的暖底是品味分歧项，做成可切换谁都不得罪；③ 全程 G1 不动（只换皮，不碰判定/执行）；④ 主题 token 表一旦建立，以后换肤都是改表不动代码——这才是"高级"的工程底子。</p>
+<p>回一句 <span class="amber">"动手 A+B"</span> 即开工（默认主代理直做）；或者单点其中一项。R272 的回归＋提交在我这边挂着，回来即办，不耽误。</p></div>
+<p class="src">索引：designs/claude-code·gemini-cli·retro DESIGN.md 已存 Temp/tuidesign；codex（单色自适应＋▌│└槽线）·k9s（黑底aqua 选中行）·btop（盲文点阵图）摘要见 awesome-tui-design 索引。</p>
+</div></body></html>
