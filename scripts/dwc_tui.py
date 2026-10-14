@@ -561,6 +561,38 @@ class DwcApp(App):
                 pass
         threading.Thread(target=_work, daemon=True).start()
 
+    def _show_mem(self, args: list) -> None:
+        """★ R271 · /mem 子视图分发（纯函数出 markdown → 答案卡）。"""
+        try:
+            from dwc.organs import memory_view as _MV
+        except Exception as exc:                 # noqa: BLE001 — 降级留痕
+            self._say_sys("记忆看板不可用：%s" % exc)
+            return
+        sub = (args[0].lower() if args else "lessons")
+        if sub == "lessons":
+            self._say_ans(_MV.lessons_panel())
+        elif sub == "night":
+            self._say_ans(_MV.night_panel())
+        elif sub in ("ep", "episodes"):
+            tid = args[1] if len(args) > 1 else None
+            self._say_ans(_MV.episode_panel(task_id=tid))
+        elif sub in ("wf", "workflows"):
+            self._say_ans(_MV.workflow_panel())
+        else:
+            self._say_sys("/mem 视图：lessons · night · "
+                          "episodes(ep <task>) · workflows")
+
+    def _mem_summary(self) -> str:
+        """★ R271 · 顶栏记忆摘要（记M·触T，失败记—）。"""
+        try:
+            from dwc.agent_quality import load_lessons
+            rows = load_lessons()
+            used = sum(1 for r in rows
+                       if int(r.get("use_count", 0) or 0) > 0)
+            return "记%d·触%d" % (len(rows), used)
+        except Exception:                        # noqa: BLE001
+            return "记—"
+
     def _apply_status(self, s: dict) -> None:
         q = s.get("queue") or {}
         hb = s.get("heartbeat") or {}
@@ -571,9 +603,10 @@ class DwcApp(App):
         self.query_one("#topbar", Static).update(
             "  ◆ [bold black on #FFB86B] D W C [/]  "
             "[on #2A2A2C] %s [/]  [on #2A2A2C] %s·%s·%s/%s [/]  "
-            "[on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
+            "[on #2A2A2C] %s [/]  [on #2A2A2C] %s [/]  [dim]ctrl+c[/]"
             % (mark, mode, hb.get("terms", "─"),
-               q.get("pending", 0), q.get("done", 0), clock))
+               q.get("pending", 0), q.get("done", 0), self._mem_summary(),
+               clock))
 
     # ── 输入处理 ──────────────────────────────────────
 
@@ -601,6 +634,9 @@ class DwcApp(App):
             return
         if line == "/status":
             self._refresh_status()
+            return
+        if line.split()[0] == "/mem":   # ★ R271 · 记忆看板（只渲染不判定）
+            self._show_mem(line.split()[1:])
             return
         if line in ("/new", "/clear"):
             self.action_clear_chat()
@@ -720,6 +756,7 @@ _CMDS = [("/bg", "切后台投单模式"),
          ("/fg", "切同步直驱模式"),
          ("/help", "全部命令"),
          ("/status", "刷新状态"),
+         ("/mem", "记忆看板 lessons|night|episodes|workflows"),
          ("/new", "新会话(清上下文)"),
             ("/update", "从 GitHub 拉取更新并重启 agent"),
          ("/quit", "退出")]

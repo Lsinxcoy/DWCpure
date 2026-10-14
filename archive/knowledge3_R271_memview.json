@@ -1,0 +1,70 @@
+{
+ "round": "R271",
+ "date": "2026-10-14",
+ "主题": "记忆机制可视化(/mem四视图+顶栏摘要)",
+ "verify": {
+  "pytest": "1739 rc=0",
+  "new_tests": "13/13",
+  "gate": "8/8(初验G7挂→修静默except→全绿)",
+  "e2e": "双rc=0",
+  "live": "生产四视图真读对数"
+ },
+ "inheritance": {
+  "gen": 271,
+  "at": "2026-10-14T20:41:00+08:00",
+  "parent_gen": 270,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 290,
+   "pytest": 1726,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R271 记忆看板: memory_view纯函数四视图(lessons分层/top/quality/效用门, night三态/成功率/早停, episode链尾+related全链, workflow模板表)+TUI /mem分发+顶栏记M触T; 布局零改动, 只渲染不判定",
+   "files": [
+    "src/dwc/organs/memory_view.py",
+    "scripts/dwc_tui.py",
+    "tests/test_r271_memview.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试13/13(raises 15%)+全量1739+gate 8/8+双e2e rc=0",
+     "claim": "看板全对, 旧TUI零回归"
+    },
+    {
+     "type": "test",
+     "ref": "生产真读smoke: lessons 12行short/quality均值0.50(老行), curve 1单100%, episodes/workflows待今夜首轮",
+     "claim": "看板数字与wc -l对得上, 空态诚实"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1739+gate+双e2e+生产真读",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r271.log",
+   "user_decision": "'记忆机制可视化先做1'+主代理直做默认"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "看板空态多(今夜02:30首轮后episode/night/分层陆续有数); CURVE真路径var/eval/success_curve.jsonl已纠正"
+  }
+ }
+}
