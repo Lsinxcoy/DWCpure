@@ -41,9 +41,27 @@ Write-Host "仓库根: $Root"
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Py)) {
     Write-Host "[1/4] 创建虚拟环境..."
-    $SysPy = (Get-Command python -ErrorAction SilentlyContinue).Source
-    if (-not $SysPy) { Write-Host "需要 Python 3.11+（未找到 python 命令）" -ForegroundColor Red; exit 1 }
-    & $SysPy -m venv (Join-Path $Root ".venv")
+    # ★ R250c（用户实测）: `python` 常解析到微软商店 stub
+    #   （…\WindowsApps\…AppInstallerPythonRedirector.exe，无真实解释器 —
+    #   `-m venv` 静默失败、$ErrorActionPreference=Stop 拦不住原生退出码，
+    #   带病进 [2/4] 炸 CommandNotFound）。候选顺序: py 启动器 > 真 python；
+    #   stub 一律跳过；建完必须校验 $Py 在位，失败就大声停。
+    $SysPy = $null; $SysArgs = @()
+    $pyL = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyL) { $SysPy = $pyL.Source; $SysArgs = @("-3") }
+    if (-not $SysPy) {
+        foreach ($n in @("python", "python3")) {
+            $c = Get-Command $n -ErrorAction SilentlyContinue
+            if ($c -and $c.Source -notmatch "WindowsApps") {
+                $SysPy = $c.Source; break
+            }
+        }
+    }
+    if (-not $SysPy) { Write-Host "需要 Python 3.11+（未找到可用解释器；若 python 跳微软商店请先装 Python: https://www.python.org）" -ForegroundColor Red; exit 1 }
+    & $SysPy @SysArgs -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Host "解释器版本需 3.11+（$SysPy 不满足）" -ForegroundColor Red; exit 1 }
+    & $SysPy @SysArgs -m venv (Join-Path $Root ".venv")
+    if (($LASTEXITCODE -ne 0) -or (-not (Test-Path $Py))) { Write-Host "venv 创建失败（$SysPy -m venv 未产出 $Py）— 查磁盘/权限/杀软后重试" -ForegroundColor Red; exit 1 }
 } else { Write-Host "[1/4] venv 已存在 ✓" }
 
 # ② 依赖

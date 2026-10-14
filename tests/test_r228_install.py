@@ -158,3 +158,41 @@ def test_step_smoke_probe_uses_object_api(capsys, monkeypatch):
     assert mod.step_smoke() is False
     out = capsys.readouterr().out
     assert "未通过 — boom-503" in out and "probe 异常" not in out, out
+
+
+def test_install_ps1_skips_store_stub_and_gates_venv():
+    """★★★ R250c 锁（用户实测）: `python` 常是微软商店 stub
+    （AppInstallerPythonRedirector，无真实解释器）— 旧脚本拿它 `-m venv`
+    静默失败（Stop 拦不住原生退出码），带病进 [2/4] 炸 CommandNotFound。
+
+    静态锁三件（PS 解析器行为＋文本语义）:
+    ① 跳过 WindowsApps stub；② 解释器版本门 3.11+；③ venv 建完必须校验
+    $Py 在位＋大声停，不许走到 [2/4]。
+    """
+    ps1 = io.open(os.path.join(ROOT, "install.ps1"),
+                   encoding="utf-8-sig").read()
+    assert "WindowsApps" in ps1, "未跳过商店 stub"
+    assert "-m venv" in ps1
+    assert "venv 创建失败" in ps1, "venv 失败不大声停"
+    # ★ 建完校验门：-m venv 之后必须有 Test-Path $Py  gate
+    assert ps1.index("-m venv") < ps1.rindex("Test-Path $Py"), \
+        "venv 后无 $Py 在位校验"
+
+
+def test_install_ps1_parses_clean():
+    """★ R250c 行为锁：install.ps1 经 PS5.1 解析器零错误。
+
+    powershell 缺席（如 CI 纯 py 环境）则跳过；PS 在就必须零错误 —
+    R248b 的 ParseError 级联不许回潮。
+    """
+    import shutil
+    if shutil.which("powershell") is None:
+        pytest.skip("无 powershell")
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-Command",
+         "$e=$null; [void][System.Management.Automation.Language.Parser]::"
+         "ParseFile('%s', [ref]$null, [ref]$e); "
+         "\"PARSE_ERRORS=\" + $e.Count" % os.path.join(ROOT, "install.ps1")],
+        capture_output=True, text=True, timeout=60,
+        encoding="utf-8", errors="replace")
+    assert "PARSE_ERRORS=0" in r.stdout, r.stdout[-500:]
