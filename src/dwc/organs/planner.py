@@ -185,6 +185,14 @@ def craft(task_view: Dict[str, Any], llm: Any, *,
     if llm is None or not getattr(llm, "configured", False):
         return None, {"outcome": "no_llm", "why": "llm 未配置 ⇒ 不合成",
                       "attempts": 0, "trace": trace}
+    try:  # ★ R270-④ · 程序模板 hint（空库恒 None，零行为变化）
+        from dwc.organs.workflow_templates import suggest_workflow
+        _hint = suggest_workflow(str(task_view.get("kind", "")),
+                                 dict(task_view))
+        if _hint:
+            task_view = dict(task_view, workflow_hint=_hint)
+    except Exception:                            # noqa: BLE001
+        pass
     prompt = compose_prompt(task_view)
     err: Optional[str] = None
     for attempt in range(1, max(1, budget) + 1):

@@ -16,6 +16,7 @@ import io
 import json
 import os
 import sys
+import time
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
@@ -44,6 +45,59 @@ def _group_by_mode(lessons: list) -> dict:
     for row in lessons:
         g.setdefault(str(row.get("fail_mode", "?")), []).append(row)
     return g
+
+
+def _age_days(row: dict, now: str) -> float:
+    """行 at/last_used 距 now 的天数（缺席按 90 天计——未知即旧）。"""
+    stamp = str(row.get("last_used") or row.get("at") or "")
+    try:
+        then = time.mktime(time.strptime(stamp[:19], "%Y-%m-%dT%H:%M:%S"))
+        ref = time.mktime(time.strptime(now[:19], "%Y-%m-%dT%H:%M:%S"))
+        return max(0.0, (ref - then) / 86400.0)
+    except (ValueError, OverflowError):
+        return 90.0
+
+
+def forget_score(row: dict, now: str) -> tuple:
+    """★ R270-⑤ · 遗忘分（MSTAR 同款公式 DWC 口径）。
+
+    fitness×0.4＋recency×0.3＋quality×0.3 → (分, 策略, why)。
+    策略：≥0.5 keep；0.25–0.5 archive；0.15–0.25 merge；<0.15 drop。
+    """
+    fitness = min(1.0, int(row.get("use_count", 0) or 0) / 5.0)
+    recency = 1.0 - min(_age_days(row, now) / 90.0, 1.0)
+    quality = float(row.get("quality", 0.5) or 0.5)
+    s = round(fitness * 0.4 + recency * 0.3 + quality * 0.3, 4)
+    if s >= 0.5:
+        strat = "keep"
+    elif s >= 0.25:
+        strat = "archive"
+    elif s >= 0.15:
+        strat = "merge"
+    else:
+        strat = "drop"
+    return (s, strat, "fit=%.2f rec=%.2f qual=%.2f" % (
+        fitness, recency, quality))
+
+
+def _merge_rows(rows: list) -> dict:
+    """★ 同 mode 中档行合并：detail 按句去重拼接（≤300 字），标来源数。"""
+    if not rows:
+        raise ValueError("merge 空行（调用方 bug）")
+    seen: list = []
+    for row in rows:
+        for sent in str(row.get("detail", "")).replace("！", "。").split("。"):
+            s = sent.strip()
+            if s and s not in seen:
+                seen.append(s)
+    base = dict(rows[0])
+    body = "。".join(seen)
+    if body:
+        body += "。"
+    tag = " [merged_from:%d]" % len(rows)
+    base["detail"] = (body + tag)[:300]
+    base["use_count"] = sum(int(r.get("use_count", 0) or 0) for r in rows)
+    return base
 
 
 def _exact_dupes(items: list) -> list:
@@ -123,18 +177,52 @@ def main(argv=None) -> int:
     if not args.apply:
         print("dry-run：未写文件（--apply 才落盘）")
         return 0
+    # ★ R270-⑤ · --apply 执行遗忘四策（keep 留 / archive 移归档 /
+    #   merge 按 mode 合 / drop 弃，每条带 why）
+    now = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
+    final_keep: list = []
+    to_archive: list = []
+    merge_groups: dict = {}
+    strat_drop = 0
+    for row in kept_all:
+        s, strat, why = forget_score(row, now)
+        row["forget_score"] = s
+        if strat == "keep":
+            final_keep.append(row)
+        elif strat == "archive":
+            to_archive.append(row)
+        elif strat == "merge":
+            merge_groups.setdefault(
+                str(row.get("fail_mode", "?")), []).append(row)
+        else:
+            strat_drop += 1
+            print("    - forget-drop [%s] %s (%s)" % (
+                row.get("task_id"), str(row.get("detail"))[:50], why))
+    for mode, items in sorted(merge_groups.items()):
+        if len(items) >= 2:
+            final_keep.append(_merge_rows(items))
+            print("    ~ merge [%s] %d→1" % (mode, len(items)))
+        else:
+            final_keep.append(items[0])
     tmp = LESSONS_PATH + ".tmp"
     try:
         with io.open(tmp, "w", encoding="utf-8") as fh:
-            for row in kept_all:
+            for row in final_keep:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         os.replace(tmp, LESSONS_PATH)
+        if to_archive:
+            from dwc.agent_quality import LESSONS_ARCHIVE
+            os.makedirs(os.path.dirname(LESSONS_ARCHIVE), exist_ok=True)
+            with io.open(LESSONS_ARCHIVE, "a", encoding="utf-8") as fh:
+                for row in to_archive:
+                    fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     except OSError as exc:
         global _FAILS
         _FAILS += 1
         sys.stderr.write("reconcile 落盘失败: %s\n" % exc)
         return 1
-    print("已落盘：keep=%d drop=%d" % (len(kept_all), total_drop))
+    print("已落盘：keep=%d archive=%d drop=%d(+dupe %d)" % (
+        len(final_keep), len(to_archive), strat_drop, total_drop))
     return 0
 
 

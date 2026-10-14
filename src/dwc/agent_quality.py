@@ -23,6 +23,7 @@ from dwc.foundation.paths import find_root
 ROOT = find_root()
 VAR = os.path.join(ROOT, "var")
 LESSONS = os.path.join(VAR, "dwc_lessons.jsonl")
+LESSONS_ARCHIVE = os.path.join(VAR, "dwc_lessons_archive.jsonl")
 # ★ R266B · 任务知识（信源/论文/发现）检索 — lessons 同族管线
 SOURCES = os.path.join(VAR, "dwc_sources.jsonl")
 
@@ -54,14 +55,84 @@ def classify_fail(report: Dict[str, Any], passed) -> str:
 
 
 def record_lesson(task_id: str, fail_mode: str, task: str,
-                  detail: str) -> None:
+                  detail: str, gate: bool = True) -> None:
+    quality = 0.5
+    if gate:  # ★ R270-③ · 写门（drop 只计数写 stderr，不落盘）
+        try:
+            hist = [r.get("detail", "") for r in load_lessons()
+                    if r.get("fail_mode") == fail_mode]
+            scored = score_lesson_quality(str(detail), hist)
+            quality = scored["quality"]
+            if scored["verdict"] == "drop":
+                sys.stderr.write("lesson 门 drop [%s] %s\n"
+                                 % (fail_mode, str(detail)[:60]))
+                return
+        except Exception:                            # noqa: BLE001
+            pass  # 门自坏不阻断记录
     os.makedirs(VAR, exist_ok=True)
     with open(LESSONS, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(
             {"at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
              "task_id": task_id, "fail_mode": fail_mode,
              "task": str(task)[:200], "detail": str(detail)[:300],
-             "gen": 213}, ensure_ascii=False) + "\n")
+             "gen": 213, "use_count": 0, "last_used": "",
+             "utility": 0.5, "tier": "short", "quality": quality},
+            ensure_ascii=False) + "\n")
+
+
+def _trigrams(text: str) -> set:
+    if len(text) < 3:
+        return {text} if text else set()
+    return {text[i:i + 3] for i in range(len(text) - 2)}
+
+
+_EVIDENCE_WORDS = ("verdict=", "answer contains", "rc=", "status=",
+                   "0x", ".py", "EMU", "http")
+
+
+def score_lesson_quality(detail: str, history: list) -> dict:
+    """★ R270-③ · 写门四因子（母巢 knowledge_scorer 同款思想，DWC 口径）。
+
+    format=动作句＋长度；factuality=证据词三档；consistency=1−trigram
+    最大相似；realism=建议长度。verdict∈pass/review/drop。
+    """
+    text = str(detail or "").strip()
+    if not text:
+        return {"factors": {"format": 0.0, "factuality": 0.0,
+                            "consistency": 0.0, "realism": 0.0},
+                "quality": 0.0, "verdict": "drop"}
+    f_format = (0.4 if len(text) >= 8 else 0.0) \
+        + (0.3 if len(text) <= 300 else 0.0) \
+        + (0.3 if any(s in text for s in ("。", ".", "：", ":")) else 0.0)
+    low = text.lower()
+    if any(w.lower() in low for w in _EVIDENCE_WORDS):
+        f_fact = 1.0
+    elif "http" in low or "见" in text or "据" in text:
+        f_fact = 0.8
+    else:
+        f_fact = 0.5
+    cur = _trigrams(text)
+    max_sim = 0.0
+    for h in (history or []):
+        prev = _trigrams(str(h or ""))
+        if prev and cur and (cur | prev):
+            max_sim = max(max_sim, len(cur & prev) / len(cur | prev))
+    f_cons = round(1.0 - max_sim, 4)
+    f_real = 1.0 if len(text) >= 10 else (0.6 if len(text) >= 4 else 0.0)
+    q = round((f_format + f_fact + f_cons + f_real) / 4.0, 4)
+    # ★ 去重与计数并存：纯重复（cons==0）但底子可用 ⇒ review 留行
+    #   （重复出现本身是"被纠 N 次"的固化信号 — SKILL_MIN 靠它计数）；
+    #   底子也差 ⇒ drop。
+    q_base = round((f_format + f_fact + f_real) / 3.0, 4)
+    if q >= 0.6:
+        verdict = "pass"
+    elif q >= 0.4 or (f_cons == 0.0 and q_base >= 0.4):
+        verdict = "review"
+    else:
+        verdict = "drop"
+    return {"factors": {"format": f_format, "factuality": f_fact,
+                        "consistency": f_cons, "realism": f_real},
+            "quality": q, "verdict": verdict}
 
 
 def load_lessons() -> List[Dict[str, Any]]:
@@ -71,10 +142,122 @@ def load_lessons() -> List[Dict[str, Any]]:
     for ln in open(LESSONS, encoding="utf-8").read().splitlines():
         if ln.strip():
             try:
-                out.append(json.loads(ln))
+                row = json.loads(ln)
             except Exception:                  # noqa: BLE001
-                pass
+                continue
+            # ★ R270-① · 旧行兼容：缺席字段补默认
+            row.setdefault("use_count", 0)
+            row.setdefault("last_used", "")
+            row.setdefault("utility", 0.5)
+            row.setdefault("tier", "short")
+            row.setdefault("quality", 0.5)
+            out.append(row)
     return out
+
+
+def touch_lessons(ids: list) -> int:
+    """★ R270-① · 命中即 touch（母巢 facade 同款语义）。
+
+    use_count+1、last_used=now，原子写回；返回 touch 数。
+    不存在的 id 忽略不炸。
+    """
+    if not os.path.exists(LESSONS):
+        return 0
+    try:
+        lines = open(LESSONS, encoding="utf-8").read().splitlines()
+    except OSError:
+        return 0
+    want = set(str(i) for i in (ids or []))
+    n = 0
+    now = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
+    out = []
+    for ln in lines:
+        if ln.strip():
+            try:
+                row = json.loads(ln)
+            except Exception:                  # noqa: BLE001
+                out.append(ln)
+                continue
+            if str(row.get("task_id")) in want:
+                row["use_count"] = int(row.get("use_count", 0) or 0) + 1
+                row["last_used"] = now
+                n += 1
+                ln = json.dumps(row, ensure_ascii=False)
+        out.append(ln)
+    if not n:
+        return 0
+    tmp = LESSONS + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(out) + "\n")
+        os.replace(tmp, LESSONS)
+    except OSError:
+        return 0
+    return n
+
+
+def _rewrite_lessons(rows: list) -> bool:
+    """原子写回全表（晋升/归档/效用共用）。"""
+    tmp = LESSONS + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            for row in rows:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        os.replace(tmp, LESSONS)
+    except OSError:
+        return False
+    return True
+
+
+def promote_lessons(use_threshold: int = 5) -> dict:
+    """★ R270-② · 三层晋升（Protogonos 同款阈值）。
+
+    use_count≥阈值 short→medium；同 fail_mode≥3 条给 long 提示
+    （只提示不自动建 skill——建 skill 是进化面的事）。
+    """
+    rows = load_lessons()
+    to_medium = 0
+    for row in rows:
+        if row.get("tier", "short") == "short" and int(
+                row.get("use_count", 0) or 0) >= use_threshold:
+            row["tier"] = "medium"
+            to_medium += 1
+    modes: dict = {}
+    for row in rows:
+        modes.setdefault(str(row.get("fail_mode", "?")), []).append(row)
+    long_hints = sum(1 for items in modes.values() if len(items) >= 3)
+    _rewrite_lessons(rows)
+    return {"to_medium": to_medium, "long_hints": long_hints,
+            "n": len(rows)}
+
+
+def enforce_tier_capacity(short: int = 300, medium: int = 1000) -> int:
+    """★ R270-② · 超容归档（末位移入 dwc_lessons_archive.jsonl）。
+
+    short 层按 use_count 保前 N，其余进归档；medium 层同理。
+    返回归档行数。
+    """
+    rows = load_lessons()
+    keep: list = []
+    arch: list = []
+    for tier, cap in (("short", short), ("medium", medium)):
+        sub = [r for r in rows if r.get("tier", "short") == tier]
+        # ★ R270-⑦ · 次级键 utility（主键 use_count 不动 — 排序冻结延续）
+        sub.sort(key=lambda r: (-int(r.get("use_count", 0) or 0),
+                                -float(r.get("utility", 0.5) or 0.5)))
+        keep.extend(sub[:cap])
+        arch.extend(sub[cap:])
+    keep.extend(r for r in rows if r.get("tier") not in ("short", "medium"))
+    if arch:
+        try:
+            os.makedirs(VAR, exist_ok=True)
+            with open(LESSONS_ARCHIVE, "a", encoding="utf-8") as fh:
+                for row in arch:
+                    fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        except OSError:
+            return 0
+    _rewrite_lessons(keep)
+    return len(arch)
 
 
 def memory_snapshot_hash() -> str:
@@ -135,7 +318,12 @@ def recall_lessons(task: str, k: int = 3) -> List[Dict[str, Any]]:
             return False
     scored.sort(key=lambda x: (-x[0],            # 主键: overlap 降序
                                not _contrast(x[1].get("task_id", ""))))
-    return [x[1] for x in scored[:k]]
+    hits = [x[1] for x in scored[:k]]
+    try:  # ★ R270-① · 命中即 touch（失败降级不阻断召回）
+        touch_lessons([h.get("task_id") for h in hits])
+    except Exception:                            # noqa: BLE001
+        pass
+    return hits
 
 
 #: R214 · 技能固化阈值: 同 fail_mode ≥ N 条教训 ⇒ 固化成规避技能

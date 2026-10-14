@@ -1,0 +1,75 @@
+{
+ "round": "R270",
+ "date": "2026-10-14",
+ "主题": "跨任务执行记忆7件(touch/分层/写门/模板/遗忘/episode/效用)",
+ "verify": {
+  "pytest": "1725 rc=0",
+  "new_tests": "23/23",
+  "gate": "8/8(初验2道挂→修定位声明+静默except→全绿)",
+  "e2e": "双rc=0",
+  "live": "reconcile dry-run正常+旧门回归修好"
+ },
+ "inheritance": {
+  "gen": 270,
+  "at": "2026-10-14T19:35:00+08:00",
+  "parent_gen": 269,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 288,
+   "pytest": 1702,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R270 执行记忆7件: touch(命中即+1)/三层晋升(use≥5→medium,同mode≥3给long提示,超容归档)/写门四因子(去重与计数并存,纯重复留行)/程序模板库(planner hint,空库零变化)/遗忘四策forget分+--apply执行merge-archive-drop/ episode链nightbench自动续链/效用更新+readiness休眠门",
+   "files": [
+    "src/dwc/agent_quality.py",
+    "src/dwc/organs/planner.py",
+    "src/dwc/organs/workflow_templates.py",
+    "scripts/dwc_lesson_reconcile.py",
+    "scripts/dwc_nightbench.py",
+    "scripts/dwc_episodes.py",
+    "scripts/dwc_memory_utility.py",
+    "tests/test_r270_exec_memory.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试23/23(raises 8.7%)+全量1725+gate 8/8+双e2e rc=0",
+     "claim": "七机制全对, 旧体系零回归"
+    },
+    {
+     "type": "test",
+     "ref": "门回归实证: 写门曾误杀技能固化流(test_r214挂)→修 verdict(纯重复留行)+锁测试",
+     "claim": "去重与计数并存语义已验证"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1725+gate+双e2e+dry-run",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r270.log",
+   "user_decision": "'1-7全做 先出完整计划再动手'+主代理直做"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "utility readiness待use>0行≥20(每夜nightbench积累touch); reconcile --apply遗忘四策首跑待人工复核; workflow模板库待首个bench模板沉淀"
+  }
+ }
+}

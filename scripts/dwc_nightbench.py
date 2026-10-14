@@ -169,6 +169,11 @@ def main() -> int:
                "status": rep.get("status"), "rounds": rep.get("rounds")}
         row["lesson"] = _promote_row({**row, "task": t["task"]})
         row["terminal"] = _terminal_state(ok, rep, tid=tid, task=t["task"])
+        try:  # ★ R270-⑥ · episode 链（失败不阻断主链）
+            import dwc_episodes as _EP
+            _EP.append_episode(t["id"], t["kind"], ok)
+        except Exception:                            # noqa: BLE001
+            pass
         with io.open(CURVE, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         print("  → %s (%s)" % ("✓" if ok else "✗", how[:60]), flush=True)
