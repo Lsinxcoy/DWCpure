@@ -294,14 +294,20 @@ class LLMClient:
         if not hasattr(self, "_attempts"):
             self._attempts = 0
         url = self._base.rstrip("/") + "/chat/completions"
+        # ★ R267 session: 单实例稳定 id — per-client 家族稳定，
+        #   无显式 session ⇒ 生成一个 ephemeral（需求由 OpenCode Go 执行）
+        if not getattr(self, "_session_id", None):
+            import uuid as _uuid
+            self._session_id = "dwc-" + _uuid.uuid4().hex[:16]
+        _headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + self._key,
+            "User-Agent": "Divine-Wisdom-Core/1.0 (+dwccore)",
+            "x-opencode-session": self._session_id,
+        }
         req = urllib.request.Request(
             url, data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                # ★★★ 纪律①: key 只出现在这一处请求头里，
-                #   不落日志、不进异常、不进 repr
-                "Authorization": "Bearer " + self._key,
-            },
+            headers=_headers,
             method="POST")
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -343,7 +349,15 @@ class LLMClient:
                                    "n_retry_used": self._attempts})
         try:
             data = json.loads(raw)
-            text = data["choices"][0]["message"]["content"]
+            # ★ opencode reasoning models: content may be null when max_tokens eaten by reasoning;
+            # prefer content, then reasoning_content; if content null but reasoning present, keep both
+            msg = data["choices"][0]["message"]
+            text = msg.get("content")
+            if not isinstance(text, str) or not text.strip():
+                rc = msg.get("reasoning_content")
+                if isinstance(rc, str) and rc.strip():
+                    # use reasoning as answer last-resort (stop reason "stop")
+                    text = rc
         except Exception as e:
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
@@ -407,10 +421,15 @@ class LLMClient:
             body["response_format"] = {"type": "json_object"}
         self.n_calls += 1
         url = self._base.rstrip("/") + "/chat/completions"
+        if not getattr(self, "_session_id", None):
+            import uuid as _uuid
+            self._session_id = "dwc-" + _uuid.uuid4().hex[:16]
         req = urllib.request.Request(
             url, data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json",
-                     "Authorization": "Bearer " + self._key},
+                     "Authorization": "Bearer " + self._key,
+                     "User-Agent": "Divine-Wisdom-Core/1.0 (+dwccore)",
+                     "x-opencode-session": self._session_id},
             method="POST")
         chunks: List[str] = []
         try:
@@ -431,6 +450,8 @@ class LLMClient:
                     except (ValueError, KeyError, IndexError):
                         continue                # 单帧坏不炸流
                     piece = delta.get("content")
+                    if not piece:
+                        piece = delta.get("reasoning_content")
                     if piece:
                         chunks.append(piece)
                         if on_delta:

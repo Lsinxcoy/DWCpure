@@ -1,0 +1,75 @@
+{
+ "round": "R267",
+ "date": "2026-10-14",
+ "主题": "LLM配置流程优化(厂商预设)+OpenCode Go新协议对齐",
+ "verify": {
+  "pytest": "1660 rc=0",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "live": "opencode-go complete/stream全通"
+ },
+ "inheritance": {
+  "gen": 267,
+  "at": "2026-10-14T16:38:00+08:00",
+  "parent_gen": 266,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 285,
+   "pytest": 1660,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R267/R267b LLM配置优化+OpenCode Go协议对齐: presets.py六厂商预设(选厂商→填key→选模型, opencode-go走/inference/go/v1, 17个chat/completions模型); dwc_setup向导预设优先+手动覆盖口; client.py发UA+稳定x-opencode-session+空content回退reasoning_content(含流式)",
+   "files": [
+    "src/dwc/llm/presets.py",
+    "scripts/dwc_setup.py",
+    "src/dwc/llm/client.py",
+    "docs/opencode_go/R267_config.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "opencode.ai/docs/go实测",
+     "claim": "无UA→403/1010; 无x-opencode-session→400 MissingSessionID; 思考模型content null时reasoning_content有值"
+    },
+    {
+     "type": "test",
+     "ref": "活体",
+     "claim": "cat-jam-free与deepseek-v4-flash的complete/stream全通"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1660 rc=0+gate 8/8+双e2e rc=0"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1660+8/8+双e2e+活体",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r267b.log",
+   "user_decision": "'执行1'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "client仅chat/completions; /responses与/messages模型不在presets内"
+  }
+ }
+}

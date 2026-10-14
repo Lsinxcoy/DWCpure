@@ -50,9 +50,34 @@ def step_llm(non_interactive: bool) -> bool:
         model = cur.get("model", "")
         key = cur.get("api_key", "")
     else:
-        base = _ask("  OpenAI 兼容端点 base_url", cur.get(
-            "base_url", "https://api.openai.com/v1"))
-        model = _ask("  模型名", cur.get("model", "gpt-4o-mini"))
+        # ★ R267b 预设选择（厂商 → base_url+model）, 仍留手动覆盖口
+        try:
+            from dwc.llm.presets import list_presets, get_preset, preset_model_choices
+            print("  可用厂商预设:")
+            for i, nm in enumerate(list_presets(), 1):
+                p = get_preset(nm)
+                print("    %d. %-16s %s (模型: %s%s)" % (
+                    i, nm, p["base_url"], ", ".join(preset_model_choices(nm)[:3]),
+                    "..." if len(preset_model_choices(nm)) > 3 else ""))
+            choice = _ask("  厂商编号或手动回车", "")
+            if choice and choice.isdigit() and 1 <= int(choice) <= len(list_presets()):
+                nm = list_presets()[int(choice) - 1]
+                pr = get_preset(nm)
+                base = _ask("  OpenAI 兼容端点 base_url",
+                            pr["base_url"])
+                choices = preset_model_choices(nm)
+                mc = _ask("  模型名 (可从 %s)" % ", ".join(choices[:5]),
+                          cur.get("model", choices[0] if choices else "gpt-4o-mini"))
+                model = mc
+            else:
+                base = _ask("  OpenAI 兼容端点 base_url", cur.get(
+                    "base_url", "https://api.openai.com/v1"))
+                model = _ask("  模型名", cur.get("model", "gpt-4o-mini"))
+        except Exception as exc:  # noqa: BLE001
+            print("  预设跳过: %s" % exc)
+            base = _ask("  OpenAI 兼容端点 base_url", cur.get(
+                "base_url", "https://api.openai.com/v1"))
+            model = _ask("  模型名", cur.get("model", "gpt-4o-mini"))
         key = getpass.getpass("  API key（遮蔽输入, 不回显）: ").strip()
         if not key:
             key = cur.get("api_key", "")
