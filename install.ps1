@@ -71,7 +71,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "依赖安装失败" -ForegroundColor Red;
 
 # ②b 注册 dwc 命令（console_scripts — venv 内 dwc 直接可用, R235）
 Write-Host "注册 dwc 命令..."
-& $Py -m pip install -q -e $Root
+& $Py -m pip install -q -e "${Root}[tui]"  # ★ R250d: TUI 是 chat 默认，
+    # 不带 [tui] 则新机器必回退 REPL（textual 缺席）— ${} 防 [tui] 被当数组下标
 if ($LASTEXITCODE -ne 0) { Write-Host "dwc 命令注册失败" -ForegroundColor Red; exit 1 }
 
 # ③ 目录初始化（运行时区; 已有不动）

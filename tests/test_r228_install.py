@@ -196,3 +196,17 @@ def test_install_ps1_parses_clean():
         capture_output=True, text=True, timeout=60,
         encoding="utf-8", errors="replace")
     assert "PARSE_ERRORS=0" in r.stdout, r.stdout[-500:]
+
+
+def test_install_ps1_installs_tui_extra():
+    """★★★ R250d 锁（新机器用户实测）: `dwc` 启动回退 REPL —
+    `textual 不可用`。根因：安装器 `pip install -e .` 没带 `[tui]`，
+    而 TUI 自 R239 起是 chat 默认。新机器必现。
+
+    锁：安装器必须以 `[tui]` extra 安装（且用 ${} 包裹防 PS 当数组下标）。
+    """
+    import re
+    ps1 = io.open(os.path.join(ROOT, "install.ps1"),
+                   encoding="utf-8-sig").read()
+    assert re.search(r'pip install.*-e\s+["\']?\$\{?Root\}?\[tui\]', ps1), \
+        "安装器未带 [tui] extra — 新机器 TUI 必回退 REPL"
