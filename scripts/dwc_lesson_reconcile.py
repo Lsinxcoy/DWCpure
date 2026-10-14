@@ -65,10 +65,16 @@ def forget_score(row: dict, now: str) -> tuple:
     策略：≥0.5 keep；0.25–0.5 archive；0.15–0.25 merge；<0.15 drop。
     """
     fitness = min(1.0, int(row.get("use_count", 0) or 0) / 5.0)
-    recency = 1.0 - min(_age_days(row, now) / 90.0, 1.0)
+    age = _age_days(row, now)
+    recency = 1.0 - min(age / 90.0, 1.0)
     quality = float(row.get("quality", 0.5) or 0.5)
     s = round(fitness * 0.4 + recency * 0.3 + quality * 0.3, 4)
-    if s >= 0.5:
+    # ★ 保护期（MSTAR 同款）：14 天内的新行不判死刑 —— use_count
+    #   需要时间积累，年轻行至多进 archive（R270 smoke 实证：无保护期
+    #   会把 3 天大的新行全归档，生产库归零）。
+    if age < 14.0:
+        strat = "keep" if s >= 0.25 else "archive"
+    elif s >= 0.5:
         strat = "keep"
     elif s >= 0.25:
         strat = "archive"
@@ -76,8 +82,8 @@ def forget_score(row: dict, now: str) -> tuple:
         strat = "merge"
     else:
         strat = "drop"
-    return (s, strat, "fit=%.2f rec=%.2f qual=%.2f" % (
-        fitness, recency, quality))
+    return (s, strat, "fit=%.2f rec=%.2f qual=%.2f age=%.0fd" % (
+        fitness, recency, quality, age))
 
 
 def _merge_rows(rows: list) -> dict:

@@ -163,6 +163,14 @@ class TestForgetting:
         assert "第一句" in m["detail"] and "第三句" in m["detail"]
         assert len(m["detail"]) <= 300
 
+    def test_protection_period(self):
+        """保护期：14 天内的新行不判 archive 以下。"""
+        import dwc_lesson_reconcile as RC
+        young = self._row("young", use_count=0, quality=0.4,
+                          last_used="2026-10-13T00:00:00+08:00")
+        assert RC.forget_score(young, "2026-10-15T00:00:00+08:00")[1] \
+            in ("keep", "archive")
+
 
 # ── Task 4 · 程序模板 ─────────────────────────────────────────
 class TestTemplates:
