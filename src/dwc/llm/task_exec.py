@@ -45,9 +45,10 @@ _ASK = ("git push", "git commit", "curl ", "wget ", "ssh ", "scp ",
 #: ★ R218 · 自我认知（维护者写入, agent 只读 — 结构性: write 白名单写不进 config）
 SELF_MD = os.path.join(ROOT, "config", "dwc_self.md")
 #: ★ R218 · 会话留痕（头部 agent 的 session 概念最小形态: 每任务一个 jsonl）
-SESSIONS = os.path.join(ROOT, "var", "dwc_sessions")
+SESSIONS = os.path.join(os.environ.get("DWC_VAR_DIR")
+                        or os.path.join(ROOT, "var"), "dwc_sessions")   # ★ R264: 跟随隔离 env
 _PAIRS_FAIL = 0   # ★ G7: 修订对落盘失败计数（不静默）
-PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认 ROOT/var/dwc_pairs.jsonl）
+PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认; conftest 设 env 时落到 tmp）
 
 
 def _ask_level(cmd_joined: str) -> Optional[str]:
@@ -589,7 +590,9 @@ def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
         _PAIRS_FAIL += 1   # ★ G7: 留痕失败计数（_sess_fails 同族）
     # ★ 修订对落盘（retention 4 臂的候选原料 — 接入留后续轮, 诚实 gap）
     try:
-        pair_p = PAIRS_PATH or os.path.join(ROOT, "var", "dwc_pairs.jsonl")
+        pair_p = PAIRS_PATH or os.path.join(
+            os.environ.get("DWC_VAR_DIR") or os.path.join(ROOT, "var"),
+            "dwc_pairs.jsonl")
         os.makedirs(os.path.dirname(pair_p), exist_ok=True)
         with io.open(pair_p, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(res2["revision_pair"], ensure_ascii=False) + "\n")

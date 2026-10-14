@@ -18,7 +18,22 @@
 """
 from __future__ import annotations
 
+import atexit
+import os
+import shutil
+import tempfile
+
 import pytest
+
+# ★★★ R264 · 生产 var 全局隔离（2026-10-14 实锤: test_r211 清理时 cancel 了
+#   **所有 pending 单** ⇒ 用户 10:10:31 真实派的 "帮我读一下 core.py" 被
+#   测试误杀(cancelled 无报告); 此前已有 pairs/session 污染三例）。
+#   机制: agent_rpc.VAR 读 DWC_VAR_DIR（既有开关）⇒ 本 conftest 在**任何
+#   测试模块 import dwc 之前**设它 ⇒ 全进程 INBOX/DONE/REPORTS/LOG/DB 落
+#   tmp ⇒ 真生产 inbox 永不进测试视野。生产不设该 env ⇒ 零行为变化。
+_DWC_TEST_VAR = tempfile.mkdtemp(prefix="dwc_test_var_")
+os.environ["DWC_VAR_DIR"] = _DWC_TEST_VAR
+atexit.register(shutil.rmtree, _DWC_TEST_VAR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

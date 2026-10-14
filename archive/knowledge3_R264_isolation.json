@@ -1,0 +1,75 @@
+{
+ "round": "R264",
+ "date": "2026-10-14",
+ "主题": "测试隔离防误杀(conftest DWC_VAR_DIR)+TUI三路滚动修复",
+ "verify": {
+  "pytest": "1649 rc=0",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "isolation": "43测试零污染(md5全等)"
+ },
+ "inheritance": {
+  "gen": 264,
+  "at": "2026-10-14T10:56:00+08:00",
+  "parent_gen": 263,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 282,
+   "pytest": 1645,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R264 双修: ①测试隔离(conftest设DWC_VAR_DIR→全进程INBOX/DONE/REPORTS/SESSIONS/PAIRS落tmp; 实锤test_r211'cancel所有pending'误杀用户真任务T_1014_101030; 验证=43测试过且真生产文件md5零变化) ②TUI滚动(pgup/pgdn priority绑定+action_scroll_history焦点分支+mouse默认开+on_mount补关1003h留1000h滚轮=textual windows_driver写死1003h移动风暴根因)",
+   "files": [
+    "tests/conftest.py",
+    "src/dwc/llm/task_exec.py",
+    "scripts/dwc_tui.py",
+    "tests/test_r264_scroll.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "用户实测",
+     "claim": "①'最新一轮任务执行失败'=test_r211清理cancel了用户pending单(cancelled无报告无session) ②'所有框体无法滚动'=鼠标关+无滚动键+Input吞PgUp三路全堵"
+    },
+    {
+     "type": "test",
+     "ref": "隔离验证",
+     "claim": "43测试过+r210/r211/r209/r255/r258跑前后真inbox/done/pairs md5全等+sessions 395不变; INBOX落tmp"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1649 rc=0+gate+双e2e(隔离后e2e跑真var仍绿)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1649 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r264_scroll.py",
+   "user_decision": "用户报任务失败+无法滚动→修复"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "watchdog 端口10048矛盾(pid丢但进程占端口→拉活失败+10:25死亡18min空窗)未修; e2e 仍跑真 var; .dwc 副本无常驻同步机制"
+  }
+ }
+}

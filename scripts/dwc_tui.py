@@ -185,6 +185,10 @@ class DwcApp(App):
         Binding("ctrl+d", "quit", "退出"),
         Binding("ctrl+p", "palette", "面板"),
         Binding("ctrl+l", "clear_chat", "清屏"),
+        # ★ R264 · 滚动兜底(2026-10-14 用户: "所有框体无法滚动, 信息错过就
+        #   看不到"): pgup/pgdn priority — 输入框聚焦时也抢过来滚历史区。
+        Binding("pgup", "scroll_history(-1)", "上翻", priority=True),
+        Binding("pgdn", "scroll_history(1)", "下翻", priority=True),
     ]
 
     def __init__(self):
@@ -259,6 +263,15 @@ class DwcApp(App):
         # ★ R245: 思考 spinner（120ms 轮转 — 忙时输入区右侧动效）
         self._spin_i = 0
         self._spin_t = self.set_interval(0.12, self._spin_tick)
+        # ★ R264 · 鼠标滚动可用化: textual windows_driver 无差别写
+        #   1000h+1003h+1015h — 1003h(ANY_EVENT 移动全上报)正是 R241 整屏
+        #   抖动的根因 ⇒ 开滚轮必须**补关** 1003h: 1000h 留下按钮+滚轮,
+        #   移动不再进程序 ⇒ 滚轮能滚且无重绘风暴。
+        try:
+            sys.stdout.write("\x1b[?1003l")
+            sys.stdout.flush()
+        except Exception as exc:              # noqa: BLE001 — 补丁失败留痕
+            sys.stderr.write("关1003h失败: %s\n" % exc)
 
     # ── R248 · 自更新（GitHub 为源） ────────────────────────────
 
@@ -354,6 +367,23 @@ class DwcApp(App):
             inp.value = cmd
             self.on_input_submitted(type("E", (), {"value": cmd})())
         return _go
+
+    def action_scroll_history(self, delta: int) -> None:
+        """★ R264 · 滚历史: 焦点在动作区滚动作区, 否则滚消息区。
+        每步 ~6 行（pgup/pgdn 连按即连续翻页）。"""
+        step = 6 * int(delta)
+        try:
+            focused = self.focused
+            if focused is not None and focused.id == "tools":
+                focused.scroll_relative(y=step * 3, animate=False)
+                return
+            m = self.query_one("#msgs", VerticalScroll)
+            m.scroll_relative(y=step * 6, animate=False)
+            # 手动翻页时暂停自动跟底, 翻回底部恢复（_follow 只在底才续跟）
+            if delta < 0 and m.scroll_y < m.max_scroll_y - 2:
+                pass                          # 保持当前位置（不强制回底）
+        except Exception as exc:              # noqa: BLE001 — 滚动失败留痕
+            sys.stderr.write("scroll 失败: %s: %s\n" % (type(exc).__name__, exc))
 
     def action_clear_chat(self) -> None:
         """★ R244 /new: 新会话 — 清多轮上下文 + 清对话流(留品牌头)。"""
@@ -795,10 +825,10 @@ def main(argv=None) -> int:
         import dwc_chat
         return dwc_chat.main(["dwc_chat"] + list(argv or []))
     app = DwcApp()
-    # ★ R241 抖动修: textual Windows 驱动开 1003h(任何鼠标事件都上报) ⇒
-    #   点击/移动全进程序触发重绘风暴(用户实测整屏抖)。本 TUI 键盘导向 ⇒
-    #   默认关鼠标(终端原生行为不再进程序); 想开: DWC_TUI_MOUSE=1。
-    app.run(mouse=(os.environ.get("DWC_TUI_MOUSE", "").strip() == "1"))
+    # ★ R264 · 默认开鼠标（用户: 框体全不能滚 ⇒ 滚轮是刚需）。R241 的抖动
+    #   根因(textual 无条件写 1003h ANY_EVENT)由 on_mount 的 1003l 补丁
+    #   关掉 — 留 1000h 滚轮/点击。DWC_TUI_MOUSE=0 关回纯键盘（旧默认）。
+    app.run(mouse=(os.environ.get("DWC_TUI_MOUSE", "").strip() != "0"))
     return 0
 
 
