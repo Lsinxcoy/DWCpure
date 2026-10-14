@@ -37,7 +37,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
-VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "final")
+VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "web_search", "final")
 
 
 class JudgeError(ValueError):

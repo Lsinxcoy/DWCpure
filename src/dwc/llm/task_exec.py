@@ -77,6 +77,71 @@ def _guard_path(path: str, *, write: bool) -> str:
     return p
 
 
+def _parse_ddg(html: str) -> list:
+    """★ R263 · DDG HTML 结果解析（活体结构 2026-10-14:
+    a.result__a href=//duckduckgo.com/l/?uddg=<urlenc> + result__snippet
+    — uddg 参数解出真实 URL, rut 是追踪签名丢弃）。"""
+    from html.parser import HTMLParser
+    import html as _html
+    import urllib.parse as _up
+
+    class _P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.items, self._cur, self._cap, self._in_snip = [], None, "", False
+
+        def handle_starttag(self, tag, attrs):
+            if tag != "a":
+                return
+            a = dict(attrs)
+            cls = a.get("class") or ""
+            if "result__a" in cls and "href" in a:
+                # ★ 新 result 起点: 旧的（若 title 已完）先收 — snippet 是
+                #   **兄弟**元素（活体结构）, title </a> 不能清 _cur（清了
+                #   就丢 snippet — 测试抓到的 bug）
+                if self._cur is not None and self._cap != "title":
+                    self.items.append(self._cur)
+                href = a["href"]
+                if "uddg=" in href:         # DDG 重定向 → 真实 URL
+                    try:
+                        href = _up.unquote(
+                            _up.parse_qs(_up.urlparse(href).query)
+                            .get("uddg", [href])[0])
+                    except Exception:       # noqa: BLE001 — 解链失败保原文
+                        pass
+                self._cur = {"url": href, "title": "", "snippet": ""}
+                self._cap, self._in_snip = "title", False
+            elif "result__snippet" in cls and self._cur is not None:
+                self._in_snip = True
+                self._cap = "snippet"
+
+        def handle_endtag(self, tag):
+            if tag == "a" and self._cur is not None and self._cap == "title":
+                self._cap = ""              # title 完 — 保留 _cur 收 snippet
+            elif tag == "a" and self._in_snip:
+                self._in_snip = False
+
+        def handle_data(self, data):
+            if self._cur is None:
+                return
+            if self._cap == "title":
+                self._cur["title"] += data
+            elif self._in_snip:
+                self._cur["snippet"] += data
+
+    p = _P()
+    p.feed(html)
+    if p._cur is not None:
+        p.items.append(p._cur)          # 文档尾残留
+    out = []
+    for it in p.items:
+        it["title"] = _html.unescape(it["title"]).strip()
+        it["snippet"] = _html.unescape(it["snippet"]).strip()
+        if it["title"] or it["url"]:
+            out.append(it)
+    return out
+
+
 def _html_to_text(html: str) -> str:
     """★ R261 · 轻量 html→text（标准库 HTMLParser — 零依赖）。"""
     from html.parser import HTMLParser
@@ -110,6 +175,43 @@ def _html_to_text(html: str) -> str:
 
 def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
+    if op == "web_search":
+        # ★ R263 · 网页搜索（研究任务的起点是"查 X" — 只能抓已知 URL 就是
+        #   死路; DDG HTML 版免 key 零依赖 — 结构 2026-10-14 活体探测:
+        #   10×result__a + uddg 重定向链接 + 浏览器 UA 才 200）
+        import urllib.request
+        import urllib.parse
+        query = str(args.get("query", "")).strip()
+        if not query:
+            return {"ok": False, "error": "web_search 需要 query"}
+        try:
+            limit = min(10, max(1, int(args.get("limit", 8) or 8)))
+        except (TypeError, ValueError):
+            limit = 8
+        s_url = ("https://html.duckduckgo.com/html/?q="
+                 + urllib.parse.quote(query))
+        req = urllib.request.Request(s_url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/126.0.0.0 Safari/537.36"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read(2_000_000)
+        except Exception as exc:            # noqa: BLE001 — 网络失败如实报
+            return {"ok": False, "error": "web_search 失败: %s: %s"
+                    % (type(exc).__name__, exc)}
+        results = _parse_ddg(raw.decode("utf-8", errors="replace"))[:limit]
+        if not results:
+            return {"ok": True, "query": query, "n": 0,
+                    "content": "(无结果 — 换个更通用的 query 重试)"}
+        lines = []
+        for i, r in enumerate(results, 1):
+            lines.append("%d. %s\n   %s%s" % (
+                i, r["title"], r["url"],
+                ("\n   " + r["snippet"][:200]) if r["snippet"] else ""))
+        return {"ok": True, "query": query, "n": len(results),
+                "content": "\n".join(lines) +
+                           "\n\n(拿到目标 URL 后用 web_read 抓正文)"}
     if op == "web_read":
         # ★ R261 · 网页抓取（研究类任务最疼的缺口 — urllib 零依赖;
         #   协议白名单 http/https; 超时 20s; 体积 2MB 上限）
@@ -144,9 +246,32 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             return {"ok": True, "image_path": p,
                     "note": "图片已挂到下一轮 LLM 输入（若端点不支持视觉"
                             "会明确报错）"}
-        with io.open(p, encoding="utf-8", errors="replace") as fh:
-            txt = fh.read()
-        lines = txt.splitlines()
+        if os.path.splitext(p)[1].lower() == ".pdf":
+            # ★ R263 · PDF 读（研究任务高频 — 曾按 utf-8 读二进制=乱码;
+            #   抽文本后走**同一** offset/limit 分页 — 零新分页逻辑）
+            try:
+                import pypdf            # noqa: PLC0415 — 缺依赖时明确报
+            except ImportError:
+                return {"ok": False, "error": "读 PDF 缺依赖 pypdf — "
+                        "安装: pip install pypdf"}
+            try:
+                reader = pypdf.PdfReader(p)
+                if reader.is_encrypted:
+                    return {"ok": False, "error": "PDF 已加密: %s"
+                            % os.path.relpath(p, ROOT)}
+                pages = []
+                for i, pg in enumerate(reader.pages, 1):
+                    pages.append("--- p.%d ---\n%s"
+                                 % (i, (pg.extract_text() or "").strip()))
+                txt = "\n".join(pages)
+            except Exception as exc:     # noqa: BLE001 — 损坏 PDF 如实报
+                return {"ok": False, "error": "PDF 解析失败: %s: %s"
+                        % (type(exc).__name__, exc)}
+            lines = txt.splitlines()
+        else:
+            with io.open(p, encoding="utf-8", errors="replace") as fh:
+                txt = fh.read()
+            lines = txt.splitlines()
         n = len(lines)
         # ★ R247 翻页: offset/limit 行级定位（恒定截断曾致"读后半部分"
         #   无动作可做 — 17:12 实测 4 轮复读同段至上限）
@@ -234,8 +359,8 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                     "err": (r.stderr or "")[:1500]}
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "timeout 60s"}
-    raise TaskExecError("未知动作 op=%r（白名单: read/write/run/web_read/"
-                        "mcp/delegate/ask/final）" % op)
+    raise TaskExecError("未知动作 op=%r（白名单: read/write/run/"
+                        "web_read/web_search/mcp/delegate/ask/final）" % op)
 
 
 def _extract_json(text: str):
@@ -522,6 +647,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         " · 跑命令(argv列表,60s超时): {\"op\":\"run\",\"cmd\":[\"python\",\"-c\",\"...\"]}"
         " · 抓网页(研究查资料; http/https, 20s超时, 自动转纯文本):"
         " {\"op\":\"web_read\",\"url\":\"https://...\"}"
+        " · 搜索(研究起点=查 X; 免 key, 返回 Top 标题+URL+摘要, "
+        "拿到 URL 再 web_read 抓正文):"
+        " {\"op\":\"web_search\",\"query\":\"关键词\"}"
         " · 调 MCP 外部工具（标准协议口; server 须在 config/mcp.json 配）:"
         " {\"op\":\"mcp\",\"server\":\"名\",\"tool\":\"工具名\",\"args\":{}}"
         " · 派独立子代理（隔离上下文做子研究, 返回摘要; 限 1 层）:"

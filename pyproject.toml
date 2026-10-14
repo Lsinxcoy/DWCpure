@@ -7,7 +7,8 @@ name = "dwc"
 version = "0.1.0"
 description = "DWC · Divine Wisdom Core — an independent resident agent"
 requires-python = ">=3.11"
-dependencies = ["PyYAML>=6.0", "psutil>=6.0", "requests>=2.31", "httpx>=0.27"]
+dependencies = ["PyYAML>=6.0", "psutil>=6.0", "requests>=2.31",
+                "httpx>=0.27", "pypdf>=4.0"]  # R263 PDF 读
 
 [project.optional-dependencies]
 tui = ["textual>=1.0"]      # R239 全屏 TUI（dwc chat 默认; --plain 可退 REPL）

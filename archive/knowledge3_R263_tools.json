@@ -1,0 +1,76 @@
+{
+ "round": "R263",
+ "date": "2026-10-14",
+ "主题": "短板3 ①web_search ②PDF读 — 研究闭环端到端打通",
+ "verify": {
+  "pytest": "1640 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "live": "search→read 闭环 4821chars"
+ },
+ "inheritance": {
+  "gen": 263,
+  "at": "2026-10-14T09:14:00+08:00",
+  "parent_gen": 262,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 279,
+   "pytest": 1634,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R263 短板3①+②: web_search op(DDG HTML免key零依赖, uddg解链+snippet, 活体8条带摘要; _parse_ddg parser测试抓到兄弟snippet丢失bug已修) + PDF read分支(pypdf抽文本走同一offset/limit分页; 真PDF 2697行活体; pypdf进pyproject) — 研究闭环端到端: 搜→拿arxiv URL→web_read抓4821chars正文",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/llm/step_judge.py",
+    "pyproject.toml",
+    "tests/test_r263_tools.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "活体研究闭环",
+     "claim": "web_search 搜 2610.12668 → 8条结果 → web_read 抓 arxiv abs 4821chars; STOP论文搜索snippet完整"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r263_tools.py",
+     "claim": "6锁: uddg离线解析/接线三处/空query/真PDF文本分页/缺文件honest error/pypdf依赖回归"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1640 rc=0 + gate + 双e2e"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1640 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r263_tools.py",
+   "user_decision": "用户'做1+2'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "web_search 依赖 DDG HTML 结构(活体探测 2026-10-14, 变结构需适配); MCP 通而空待真需求; nightbench 曲线积累中"
+  }
+ }
+}
