@@ -79,7 +79,7 @@ def score(limit: int = 0) -> int:
             "\"supported\": true/false}], \"note\": \"…\"}"
             % (src or "(无源教训记录 — 全部按 unsupported 计)", new[:800]))
         try:
-            r = llm.complete(prompt, json_mode=True, tag="rev_score")
+            r = llm.complete(prompt, json_mode=True)
             obj = json.loads(r.text or "{}") if getattr(r, "ok", False) else {}
         except Exception as exc:                    # noqa: BLE001
             print("  ✗ %s: judge 失败 %s" % (mode, exc))

@@ -60,7 +60,7 @@ def revise_from_outcome(memory: MemoryKernel, llm: Any, *,
                            if not k.startswith("_")},
                           ensure_ascii=False)[:800]))
         try:
-            r = llm.complete(prompt, json_mode=True, tag="mem_revise")
+            r = llm.complete(prompt, json_mode=True)
             obj = json.loads(r.text or "{}") if getattr(r, "ok", False) else {}
         except Exception as exc:                # noqa: BLE001 — 修订失败不阻断
             sys.stderr.write("mem_revise LLM 失败: %s\n" % exc)

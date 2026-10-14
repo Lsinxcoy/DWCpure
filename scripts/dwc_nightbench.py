@@ -36,8 +36,9 @@ sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 
 TASKS = os.path.join(_ROOT, "config", "eval_tasks.jsonl")
-INBOX = os.path.join(_ROOT, "var", "dwc_inbox.json")
-REPORTS = os.path.join(_ROOT, "var", "reports")
+# ★ 路径单源纪律（agent_rpc 为权威 — 自拼路径三处全错被抓: json/jsonl、
+#   var/reports vs var/dwc_reports）:
+from dwc.agent_rpc import INBOX, REPORTS   # noqa: E402
 STATE = os.path.join(_ROOT, "var", "eval", "nightbench_state.json")
 CURVE = os.path.join(_ROOT, "var", "eval", "success_curve.jsonl")
 
@@ -49,16 +50,12 @@ _spec.loader.exec_module(B2)
 
 
 def _inbox_push(task: str, tid: str) -> None:
-    items = []
-    if os.path.exists(INBOX):
-        try:
-            items = json.load(io.open(INBOX, encoding="utf-8"))
-        except (ValueError, OSError):
-            items = []
-    items.append({"id": tid, "task": task, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    """★ JSONL 逐行追加（agent take_inbox 读法 — 数组文件会被逐行跳过）。"""
     os.makedirs(os.path.dirname(INBOX), exist_ok=True)
-    with io.open(INBOX, "w", encoding="utf-8") as fh:
-        json.dump(items, fh, ensure_ascii=False, indent=1)
+    with io.open(INBOX, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"id": tid, "task": task,
+                             "ts": time.strftime("%Y-%m-%dT%H:%M:%S")},
+                            ensure_ascii=False) + "\n")
 
 
 def _wait_report(tid: str, timeout_min: int) -> dict:

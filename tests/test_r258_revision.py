@@ -84,7 +84,8 @@ class _FakeLLM:
         self._t = text
         self.calls = 0
 
-    def complete(self, prompt, **kw):
+    def complete(self, prompt, *, system=None, max_tokens=1200,
+                 json_mode=False, images=None):
         self.calls += 1
         return SimpleNamespace(ok=True, text=self._t, error="", meta={})
 

@@ -157,8 +157,15 @@ def main() -> int:
     _flags = (getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
               | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
               | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+    # ★ G7: stderr 留痕（07:04 无痕死亡后 — 崩溃必须有尸检材料）
+    _errf = open(os.path.join(os.path.dirname(HERE), "var",
+                              "dwc_agent_stderr.log"), "a",
+                 encoding="utf-8", errors="replace")
+    _errf.write("\n===== 拉活 %s (%s) =====\n"
+                % (time.strftime("%Y-%m-%dT%H:%M:%S"), reason))
+    _errf.flush()
     subprocess.Popen([py, agent], cwd=os.path.dirname(HERE),
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=_errf,
                      creationflags=_flags, close_fds=True)
     ts = time.strftime("%Y-%m-%d %H:%M")
     try:

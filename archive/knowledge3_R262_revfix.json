@@ -1,0 +1,81 @@
+{
+ "round": "R262",
+ "date": "2026-10-14",
+ "主题": "修订链真修复(tag= TypeError)+夜批三bug+agent stderr留痕+判据校准",
+ "verify": {
+  "pytest": "1634 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "smoke": "nightbench 1/1 ✓"
+ },
+ "inheritance": {
+  "gen": 262,
+  "at": "2026-10-14T08:34:00+08:00",
+  "parent_gen": 259,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 278,
+   "pytest": 1634,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R262 修订链真修复+夜批三bug: ①LLMClient.complete无tag参数—5处修订调用全TypeError被静默吞(B臂46次修订全灭根因)→清tag=+except改stderr留痕 ②测试FakeLLM契约收窄(**kw吞错→对齐真签名) ③pairs落盘隔离(测试fixture曾污染生产14条) ④nightbench路径/格式三错(单源改agent_rpc导入+JSONL) ⑤agent stderr留痕(07:04无痕死亡→watcher+手动拉活都改文件) ⑥inbox 444行积压修剪 ⑦setup冒烟timeout判据校准120→300(重试链实证120.77s)",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/organs/revision.py",
+    "src/dwc/agent_quality.py",
+    "scripts/score_revisions.py",
+    "scripts/dwc_nightbench.py",
+    "scripts/dwc_agent_watch.py",
+    "tests/test_r255_stepjudge.py",
+    "tests/test_r258_revision.py",
+    "tests/test_r228_install.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "B臂session取证",
+     "claim": "46次revision全fallback:revision_llm_failed→根因complete无tag参数TypeError被静默except吞"
+    },
+    {
+     "type": "test",
+     "ref": "活体验证",
+     "claim": "_revise_step真LLM修订成功(幻觉路径→换读README); nightbench smoke投单→agent消费→0xfeff→机器验收✓→曲线落盘"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1634 rc=0+gate+双e2e; setup冒烟实测120.77s(重试链)判据校准后绿"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1634 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r255_stepjudge.py",
+   "user_decision": "用户'继续推进'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "nightbench 曲线积累中(smoke 1/1 ✓); agent 07:04 无痕死因未定位(stderr 留痕已上待下次尸检); 修订真修好后 B 臂重测待跑"
+  }
+ }
+}

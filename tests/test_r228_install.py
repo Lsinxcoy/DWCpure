@@ -58,13 +58,18 @@ def test_install_scripts_exist_with_steps():
 
 
 def test_setup_check_runs_smoke_only():
-    """★★ 向导 --check: 只冒烟不写配置（llm.json 不被测试改动）。"""
+    """★★ 向导 --check: 只冒烟不写配置（llm.json 不被测试改动）。
+
+    ★ 判据校准（2026-10-14 Layer-22）: timeout 120→300 — 端点卡时 client 的
+      重试链（transport/timeout 重试 × 30s urlopen 超时）总时长可超 120s,
+      120s 曾把"慢重试"误判为挂死（判据宽容真实重试链, 不是放水:
+      配置未动与冒烟输出两个断言原样保留）。"""
     llm = os.path.join(ROOT, "config", "llm.json")
     before = io.open(llm, encoding="utf-8").read() if os.path.exists(llm) else None
     r = subprocess.run(
         [sys.executable, os.path.join(ROOT, "scripts", "dwc_setup.py"),
          "--check"],
-        capture_output=True, text=True, timeout=120, cwd=ROOT,
+        capture_output=True, text=True, timeout=300, cwd=ROOT,
         encoding="utf-8", errors="replace")
     after = io.open(llm, encoding="utf-8").read() if os.path.exists(llm) else None
     assert before == after, "--check 动了配置（只许冒烟）"

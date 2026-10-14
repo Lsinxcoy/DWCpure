@@ -93,8 +93,11 @@ class _FakeLLM:
         self._steps = list(steps)
         self.calls = []
 
-    def complete(self, prompt, **kw):
-        self.calls.append(kw.get("tag", "?"))
+    def complete(self, prompt, *, system=None, max_tokens=1200,
+                 json_mode=False, images=None):
+        """★ 契约对齐真 LLMClient.complete（曾因 **kw 吞掉 tag= 的
+        TypeError — B 臂 46 次修订全灭的根因没被测试抓到）。"""
+        self.calls.append("complete")
         step = (self._steps.pop(0) if self._steps
                 else {"analysis": "done", "op": "final", "answer": "完"})
         return SimpleNamespace(ok=True, text=json.dumps(step, ensure_ascii=False),
@@ -116,7 +119,9 @@ def test_noisy_triggers_revision(monkeypatch):
     llm = _FakeLLM(steps)
     rep = TE.execute_user_task("t", llm=llm, retry_on_fail=False)
     assert rep["status"] == "done"
-    assert "revise" in llm.calls                     # 修订被调
+    # ★ tag 参数已除（真接口无）— 修订被调 = complete 多出 1 次:
+    #   read(noisy步) + 修订 + final = 3 次
+    assert len(llm.calls) == 3, llm.calls
     # 执行的是修订版（drift.yaml 真读）而非幻觉路径
     obs_lines = [e for e in rep["actions_log"]
                  if isinstance(e, dict) and e.get("phase") == "obs"]

@@ -210,7 +210,7 @@ def revision_lessons(task: str, *, status: str, fail_why: str = "",
             % (task[:300], status,
                ("失败原因: " + fail_why[:200]) if fail_why else "", old_txt[:600]))
         try:
-            r = llm.complete(prompt, tag="lesson_revise")
+            r = llm.complete(prompt)
             new_txt = (r.text or "").strip() if getattr(r, "ok", False) else ""
         except Exception as exc:                # noqa: BLE001 — 修订失败不阻断
             sys.stderr.write("lesson_revise LLM 失败: %s\n" % exc)
