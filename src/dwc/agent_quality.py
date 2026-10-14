@@ -22,6 +22,8 @@ from dwc.foundation.paths import find_root
 ROOT = find_root()
 VAR = os.path.join(ROOT, "var")
 LESSONS = os.path.join(VAR, "dwc_lessons.jsonl")
+# ★ R266B · 任务知识（信源/论文/发现）检索 — lessons 同族管线
+SOURCES = os.path.join(VAR, "dwc_sources.jsonl")
 
 
 def _tokens(text: str) -> List[str]:
@@ -262,3 +264,55 @@ def lessons_context(task: str, k: int = 3) -> str:
                 lines.append("已固化规矩（务必遵守）: "
                              + open(sp, encoding="utf-8").read()[:500])
     return "\n".join(lines)
+
+
+# ═══ R266B · 任务知识（信源/知识/论文）检索注入 ══════════════════
+# 用户 2026-10-14: "任务执行的记忆包括搜索到的信源/知识/论文是驱动系统
+# 进化的重要组成部分" — A 层沉淀, 本层检索; lessons 同款 _tokens overlap。
+
+def load_sources() -> List[Dict[str, Any]]:
+    if not os.path.exists(SOURCES):
+        return []
+    out = []
+    for ln in open(SOURCES, encoding="utf-8").read().splitlines():
+        ln = ln.strip()
+        if ln:
+            try:
+                out.append(json.loads(ln))
+            except (ValueError, TypeError):
+                continue
+    return out
+
+
+def recall_sources(task: str, k: int = 3) -> List[Dict[str, Any]]:
+    """★ 接单检索: 任务文本 vs 历史任务/queries/urls/findings 重叠 top-k。"""
+    qt = set(_tokens(task))
+    if not qt:
+        return []
+    scored = []
+    for rec in load_sources():
+        hay = " ".join([str(rec.get("task", "")),
+                        " ".join(str(q) for q in rec.get("queries", [])),
+                        " ".join(u.get("url", "") for u in rec.get("urls", [])),
+                        str(rec.get("findings", ""))])
+        overlap = len(qt & set(_tokens(hay)))
+        if overlap:
+            scored.append((overlap, rec))
+    scored.sort(key=lambda x: -x[0])
+    return [x[1] for x in scored[:k]]
+
+
+def sources_context(task: str, k: int = 3) -> str:
+    """★ 注入用文本块: 此前任务找到的相关信源+发现（零命中零开销）。"""
+    hits = recall_sources(task, k)
+    if not hits:
+        return ""
+    lines = ["历史任务找到的相关材料（可复用, 不必重搜）:"]
+    for r in hits[:k]:
+        for u in (r.get("urls") or [])[:3]:
+            lines.append("- [%s] %s" % (u.get("kind", "doc"), u.get("url", "")))
+        if r.get("queries"):
+            lines.append("  检索词: %s" % " / ".join(r["queries"][:3]))
+        if r.get("findings"):
+            lines.append("  发现: %s" % str(r["findings"])[:260])
+    return "\n".join(lines)[:2500]

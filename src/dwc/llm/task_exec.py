@@ -47,6 +47,13 @@ SELF_MD = os.path.join(ROOT, "config", "dwc_self.md")
 #: ★ R218 · 会话留痕（头部 agent 的 session 概念最小形态: 每任务一个 jsonl）
 SESSIONS = os.path.join(os.environ.get("DWC_VAR_DIR")
                         or os.path.join(ROOT, "var"), "dwc_sessions")   # ★ R264: 跟随隔离 env
+# ★ R266A · 任务知识沉淀（用户 2026-10-14: "搜索到的信源/知识/论文是驱动
+#   系统进化的重要组成部分" — 实测断路: web_read/web_search 结果此前只进
+#   session 死档, 零进化消费）。材料≠真值 — 落 var/ 不碰 anchors。
+SOURCES = os.path.join(os.environ.get("DWC_VAR_DIR")
+                       or os.path.join(ROOT, "var"), "dwc_sources.jsonl")
+READING = os.path.join(os.environ.get("DWC_VAR_DIR")
+                       or os.path.join(ROOT, "var"), "dwc_reading_list.jsonl")
 _PAIRS_FAIL = 0   # ★ G7: 修订对落盘失败计数（不静默）
 PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认; conftest 设 env 时落到 tmp）
 
@@ -528,6 +535,72 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
         return None
 
 
+_SRC_FAIL = globals().setdefault("_SOURCES_FAIL", [0])   # G7: 沉淀失败必须计数
+
+
+def _extract_sources(log: List[Dict[str, Any]], *, task_id: str, task: str,
+                     answer: str = "", artifacts: Optional[List[str]] = None) -> None:
+    """★ R266A · 任务知识沉淀: actions_log 的 web_search/web_read 信源 +
+    final 结论/产物 → dwc_sources.jsonl; 论文类 URL 分拣进 dwc_reading_list
+    （C 层进化投单的候选池）。G7: 写失败计数+stderr, 不阻断主链。"""
+    queries: List[str] = []
+    urls: List[Dict[str, str]] = []
+    for row in log:
+        if not isinstance(row, dict) or row.get("phase") != "obs":
+            continue
+        op = row.get("op")
+        target = str(row.get("target") or "")
+        obs: Dict[str, Any] = {}
+        try:
+            obs = json.loads(row.get("obs") or "{}")
+        except (ValueError, TypeError):
+            obs = {}
+        if op == "web_search":
+            if target:
+                queries.append(target[:200])
+        elif op == "web_read" and target.startswith(("http://", "https://")):
+            low = target.lower()
+            kind = ("paper" if ("arxiv.org" in low or low.endswith(".pdf")
+                                or "openreview.net" in low)
+                    else "doc")
+            urls.append({"url": target, "kind": kind,
+                         "snippet": str(obs.get("content", ""))[:300]})
+    if not queries and not urls and not (answer or "").strip():
+        return                       # 零信源零发现不写（不刷账本）
+    rec = {"task_id": task_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+           "task": task[:300], "queries": queries[:10], "urls": urls[:20],
+           "findings": (answer or "")[:600],
+           "artifacts": list(artifacts or [])[:10]}
+    try:
+        os.makedirs(os.path.dirname(SOURCES), exist_ok=True)
+        with io.open(SOURCES, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        papers = [u for u in urls if u["kind"] == "paper"]
+        if papers:
+            known = set()
+            if os.path.exists(READING):
+                for ln in io.open(READING, encoding="utf-8"):
+                    ln = ln.strip()
+                    if ln:
+                        try:
+                            known.add(json.loads(ln).get("url", ""))
+                        except (ValueError, TypeError):
+                            continue
+            with io.open(READING, "a", encoding="utf-8") as fh:
+                for u in papers:
+                    if u["url"] not in known:
+                        fh.write(json.dumps(
+                            {"url": u["url"], "first_seen": rec["at"],
+                             "task_id": task_id, "dispatched_at": None},
+                            ensure_ascii=False) + "\n")
+    except OSError as exc:           # G7: 记不了不许杀主链, 也不许无痕
+        _SRC_FAIL[0] += 1
+        if _SRC_FAIL[0] <= 3:
+            import sys as _sys
+            _sys.stderr.write("sources 沉淀失败×%d: %s\n"
+                              % (_SRC_FAIL[0], exc))
+
+
 def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
                     sid: str, progress: Any = None) -> Optional[Dict[str, Any]]:
     """★ R256 · 任务级修订重试（2609.28416 §3.3 AEWM-RFT 数据策略的 DWC 落地）。
@@ -670,6 +743,20 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "换 offset/换路径/换参数, 或基于已有信息尽快 final, 不要原地重复。")
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
+    # ★ R266B · 任务记忆注入（同 self_md 语义=持久记忆每单加载; lessons
+    #   属外部管线 ctx 保持 A/B 口径不变, sources 归"记忆文件"族内部注入。
+    #   检索/写入失败留痕不炸单 — G7）
+    try:
+        from dwc.agent_quality import sources_context
+        _sc = sources_context(task)
+        if _sc:
+            system += ("\n\n# 任务记忆（你此前找到的相关信源/知识）\n" + _sc)
+    except Exception as _exc:        # noqa: BLE001
+        _SRC_FAIL[0] += 1
+        if _SRC_FAIL[0] <= 3:
+            import sys as _sys
+            _sys.stderr.write("sources_context 注入失败×%d: %s\n"
+                              % (_SRC_FAIL[0], _exc))
     log: List[Dict[str, Any]] = []
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
@@ -761,6 +848,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                           "answer": str(step.get("answer", ""))[:400]})
             _sess({"round": rnd, "op": "final", "answer":
                    str(step.get("answer", ""))[:200]})
+            _extract_sources(log, task_id=sid, task=task,      # ★ R266A
+                             answer=str(step.get("answer", "")),
+                             artifacts=list(step.get("artifacts") or []))
             return {"task": task, "task_id": sid, "status": "done",
                     "rounds": rnd,
                     "answer": str(step.get("answer", "")),
@@ -820,14 +910,16 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         #   案无现场可查, 只能靠 LLM 自述反推）
         _sess({"round": rnd, "op": op, "phase": "obs",
                "target": str(step.get("path") or step.get("cmd")
-                             or step.get("task") or "")[:160],
+                             or step.get("task") or step.get("url")  # R266A
+                             or step.get("query") or "")[:160],
                "ok": bool((obs or {}).get("ok", True)),
                "obs": json.dumps(obs, ensure_ascii=False)[:400]})
         # ★ R255 修正: obs 行进 actions_log — judge 的 recent_obs 需要结构化
         #   历史（target/ok）; 此前 log 只有 op 行 ⇒ 判别历史恒空（真bug）。
         log.append({"round": rnd, "phase": "obs", "op": op,
                     "target": str(step.get("path") or step.get("cmd")
-                                  or step.get("task") or "")[:160],
+                                  or step.get("task") or step.get("url")  # R266A
+                                  or step.get("query") or "")[:160],
                     "ok": bool((obs or {}).get("ok", True)),
                     "obs": json.dumps(obs, ensure_ascii=False)[:300]})
         # ★ R247 复读熔断: 999 轮开放后必须有硬出口 — 连续 3 轮同
@@ -888,6 +980,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                               progress=progress)
         if _r2 is not None:
             return _r2
+    _extract_sources(log, task_id=sid, task=task)   # ★ R266A: 没完成也沉淀
     return {"task": task, "task_id": sid, "status": "incomplete",
             "rounds": max_rounds,
             "why": "达轮数上限未 final", "actions_log": log}

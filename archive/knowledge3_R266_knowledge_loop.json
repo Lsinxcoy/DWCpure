@@ -1,0 +1,75 @@
+{
+ "round": "R266",
+ "date": "2026-10-14",
+ "主题": "任务知识回流闭环(信源/论文→沉淀→检索→进化投单)",
+ "verify": {
+  "pytest": "1660 rc=0",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "live": "web_read→sources+reading→C投单真inbox→多库消费"
+ },
+ "inheritance": {
+  "gen": 266,
+  "at": "2026-10-14T13:09:00+08:00",
+  "parent_gen": 265,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 284,
+   "pytest": 1653,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R266 ABC任务知识回流: A=_extract_sources→dwc_sources.jsonl+arxiv分拣reading_list; B=sources_context注入system; C=maybe_dispatch_reading深读投单(日限/查重/多库含.dwc副本)",
+   "files": [
+    "src/dwc/llm/task_exec.py",
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_agent.py",
+    "tests/test_r266_knowledge_loop.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "用户论断+实测",
+     "claim": "web_read/web_search 消费方=仅task_exec+step_judge(零进化侧); dream ℋ=run_term快照; lessons只记失败"
+    },
+    {
+     "type": "test",
+     "ref": "活体闭环",
+     "claim": "web_read任务→sources落盘(findings+urls)+arxiv分拣reading_list→C投单T_read_07b431进真inbox→多库: E: agent消费.dwc候选并标dispatched; 活体抓出log.append target空(target扩展只改了_sess处)"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1660 rc=0+gate+双e2e; 7锁(A提取分拣去重/B检索/注入行为/C投单/日限/G7/多库)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层 1660 + 7锁 + 活体闭环",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r266_knowledge_loop.py",
+   "user_decision": "'完整执行ABC'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "深读 notes 的人工评审回路未接(docs/papers 仍人工); dream/ℋ 未接外部材料(守 R73); sources 无 embedding 检索(overlap 版)"
+  }
+ }
+}

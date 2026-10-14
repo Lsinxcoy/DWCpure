@@ -60,7 +60,7 @@
    "code_hits": 49,
    "wire_hits": 15,
    "code_evidence": [
-    "src\\dwc\\agent_quality.py:87:# ★ Layer 22 判据校准: p̂∈(0,1) 在 Laplace 平滑下恒真（无信息量）——",
+    "src\\dwc\\agent_quality.py:89:# ★ Layer 22 判据校准: p̂∈(0,1) 在 Laplace 平滑下恒真（无信息量）——",
     "src\\dwc\\core.py:379:from dwc.organs.weakness import task_delta_map",
     "src\\dwc\\core.py:380:self._delta_map = task_delta_map(",
     "src\\dwc\\core.py:685:# δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）",
@@ -138,7 +138,7 @@
     "uncovered": 3,
     "fully_routed": false
    },
-   "code_hits": 14,
+   "code_hits": 15,
    "wire_hits": 0,
    "code_evidence": [
     "src\\dwc\\cli_main.py:41:\"\"\"scripts/ 下的脚本以子进程跑（保持各脚本独立可跑 — dispatcher 只路由）。\"\"\"",

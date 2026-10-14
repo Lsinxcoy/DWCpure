@@ -137,6 +137,107 @@ def take_inbox():
     return None
 
 
+def _reading_sources() -> list:
+    """★ R266C(多库): reading 候选源 — 自己 ROOT 的 + 用户安装副本 .dwc 的
+    （双副本纪律: TUI 直驱跑 .dwc 沉淀在 .dwc/var, E: agent 必须能扫到,
+    否则用户链找到的论文永远无人消费 — 2026-10-14 活体发现）。"""
+    out = []
+    try:
+        from dwc.llm.task_exec import READING
+        out.append(READING)
+    except Exception:                          # noqa: BLE001 — 导入失败如实
+        _log({"event": "reading_source_import_failed"})
+    import os.path as _op
+    _ext = _op.expanduser("~/.dwc/var/dwc_reading_list.jsonl")
+    if _op.exists(_ext) and all(_op.abspath(_ext) != _op.abspath(x)
+                                for x in out):
+        out.append(_ext)
+    return out
+
+
+def maybe_dispatch_reading() -> dict:
+    """★ R266C · 进化投单（用户 2026-10-14 ABC 拍板的 C 层）: reading_list
+    里未派发的论文/资料 → 自产"深读找强化点"任务进 inbox。
+
+    节律: 每轮最多 1 单; 24h 内深读投单 ≤3（防刷爆 LLM）; inbox 有同 url
+    待办不重投; 派发即标 dispatched_at（一次投递）。G7: 全程 try 留痕。
+    """
+    try:
+        from dwc.llm.task_exec import READING
+        rows, rp = [], None
+        for cand in _reading_sources():
+            if not os.path.exists(cand):       # ★ 不存在的源跳过（E: 常无本文件）
+                continue
+            _r = []
+            for ln in open(cand, encoding="utf-8"):
+                ln = ln.strip()
+                if ln:
+                    try:
+                        _r.append(json.loads(ln))
+                    except Exception:          # noqa: BLE001 — 坏行跳过留痕
+                        _log({"event": "reading_row_bad", "raw": ln[:80]})
+            _t = next((x for x in _r if not x.get("dispatched_at")), None)
+            if _t is not None:
+                rows, rp = _r, cand             # 有 pending 的源胜出
+                break
+        if rp is None:
+            return None
+        READING = rp                            # 本单的回写目标=该源文件
+        target = next((r for r in rows if not r.get("dispatched_at")), None)
+        if target is None:
+            return None
+        # 24h 投单限
+        day_ago = time.time() - 86400
+        n_disp = 0
+        for r in rows:
+            da = r.get("dispatched_at")
+            if da:
+                try:
+                    import datetime as _dt
+                    ts = _dt.datetime.strptime(
+                        str(da)[:19], "%Y-%m-%dT%H:%M:%S").timestamp()
+                    if ts > day_ago:
+                        n_disp += 1
+                except Exception:              # noqa: BLE001
+                    continue
+        if n_disp >= 3:
+            return None
+        url = str(target.get("url", ""))
+        if not url:
+            return None
+        # inbox 查重（pending 中已有同 url 深读单 ⇒ 不重投）
+        if os.path.exists(INBOX):
+            for ln in open(INBOX, encoding="utf-8"):
+                if url in ln:
+                    return None
+        tid = "T_read_%06x" % (abs(hash(url)) % 10 ** 6)
+        task = ("深读这份外部资料并提炼对 DWC 的强化点: %s\n"
+                "要求: ①web_read 抓正文(超长用分页) ②提炼 3-5 个"
+                "**可落地**的 DWC 强化点 ③详细笔记写 "
+                "var/inbox_work/reading_notes_%s.md ④final 输出强化点清单"
+                % (url, tid[-6:]))
+        st = _done_state()
+        if tid in st:
+            return None                      # 曾投过并处理 ⇒ 不重投
+        with open(INBOX, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"id": tid, "task": task,
+                                 "by": "reading_dispatch",
+                                 "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
+                                ensure_ascii=False) + "\n")
+        target["dispatched_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
+        tmp = READING + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            for r in rows:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        os.replace(tmp, READING)
+        _log({"event": "reading_dispatched", "id": tid, "url": url[:100]})
+        return {"id": tid, "url": url}
+    except Exception as exc:                  # noqa: BLE001 — 不许炸主循环
+        _log({"event": "reading_dispatch_failed",
+              "error": "%s: %s" % (type(exc).__name__, exc)})
+        return None
+
+
 def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
     from dwc.llm.task_exec import execute_user_task
@@ -331,6 +432,8 @@ def main(argv) -> int:
         # 日界滚动（次日自动复位计数）
         if _day["key"] != time.strftime("%Y-%m-%d"):
             _day.update(key=time.strftime("%Y-%m-%d"), terms=0, cost=0.0)
+        # ★ R266C · 进化投单（每轮开头: 未派发论文 → 深读任务候选）
+        maybe_dispatch_reading()
         # ── R209 · 收件箱优先（用户委托 > 自我改进锚任务 — 独立 agent 接单）──
         item = take_inbox()
         if item is not None:
