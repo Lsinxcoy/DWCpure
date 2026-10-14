@@ -101,9 +101,12 @@ def step_smoke() -> bool:
     try:
         from dwc.llm.client import LLMClient
         r = LLMClient().probe()
-        print("  LLM probe: %s" % ("OK（%s）" % r.get("ms") if r.get("ok")
-                                   else "未通过 — %s" % r.get("error")))
-        ok = ok and bool(r.get("ok"))
+        # ★ 修(2026-10-14 用户实测): probe 返回 **LLMResult 对象**不是 dict —
+        #   原 r.get("ms") 直接 AttributeError("没有 attribute 'get'")被
+        #   except 兜成"probe 异常"（冒烟从未真跑通过）。字段: ok/error/meta,
+        #   **无 ms**（耗时不存在 ⇒ 不显示 — 如实）。
+        print("  LLM probe: %s" % ("OK" if r.ok else "未通过 — %s" % r.error))
+        ok = ok and bool(r.ok)
     except Exception as exc:                    # noqa: BLE001
         print("  ✗ LLM probe 异常: %s" % exc); ok = False
     return ok

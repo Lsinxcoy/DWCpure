@@ -235,7 +235,10 @@ class LLMClient:
         if not self.configured:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
-        return self.complete("ping", max_tokens=8)
+        # ★ 修(2026-10-14 实测阶梯): max_tokens=8 时思考型模型(MiMo-V2.6)
+        #   的 reasoning 吃光预算 ⇒ content 恒空 ⇒ probe 假报"端点坏"。
+        #   阶梯: 8=空 / 64=OK / 512=OK ⇒ 256 留足思考余量。
+        return self.complete("ping", max_tokens=256)
 
     # ── 调用 ──────────────────────────────────────────
 

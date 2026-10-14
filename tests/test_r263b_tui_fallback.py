@@ -66,3 +66,18 @@ def test_sentinel_covers_all_textual_imports():
     i_end = src.find("):", i_loop)
     sentinel = re.findall(r'"(\w+)"', src[i_loop:i_end])
     assert sorted(imported) == sorted(sentinel), (imported, sentinel)
+
+
+def test_probe_max_tokens_budget():
+    """★ 源锁(2026-10-14): probe 的 max_tokens 必须 >= 64 — 思考型模型
+    在 8 预算下 reasoning 吃光 token ⇒ content 恒空 ⇒ 假报"端点坏"
+    （实测阶梯 8=空/64=OK/512=OK — setup 冒烟连挂的第二层根因）。"""
+    import re
+    from dwc.llm.client import LLMClient
+    import inspect
+    src = inspect.getsource(LLMClient.probe)
+    # ★ 判据: 只匹配**调用处**（complete("ping", max_tokens=N)）— 注释里的
+    #   "max_tokens=8" 字样曾把本锁绊红（Layer-22 修判据不修实现）
+    m = re.search(r'complete\("ping",\s*max_tokens=(\d+)\)', src)
+    assert m, src
+    assert int(m.group(1)) >= 64, "probe 预算过小: %s" % m.group(1)

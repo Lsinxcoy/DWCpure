@@ -1,0 +1,75 @@
+{
+ "round": "R263c",
+ "date": "2026-10-14",
+ "主题": "setup冒烟双根因(LLMResult对象API+probe 8token预算)+副本127文件同步",
+ "verify": {
+  "pytest": "1645等效绿",
+  "gate": "8/8",
+  "e2e": "双rc=0",
+  "live": "dwc_setup --check rc=0 probe OK"
+ },
+ "inheritance": {
+  "gen": 263,
+  "at": "2026-10-14T10:15:00+08:00",
+  "parent_gen": 263,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 281,
+   "pytest": 1645,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R263c setup冒烟双根因修: ①step_smoke把LLMResult对象当dict用.get()→AttributeError被except兜成'probe异常'(冒烟从未真跑通)→属性访问+ms字段不存在不显示 ②probe max_tokens=8思考型模型(MiMo)reasoning吃光预算content恒空假报端点坏(阶梯8=空/64=OK/512=OK)→256 ③.dwc副本127文件漂移全量sync ④R228测试判据补'probe异常不得出现'(曾只断言标题崩了也过)+行为锁两态+源锁probe预算",
+   "files": [
+    "scripts/dwc_setup.py",
+    "src/dwc/llm/client.py",
+    "tests/test_r228_install.py",
+    "tests/test_r263b_tui_fallback.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "用户实测报错",
+     "claim": "dwc setup 冒烟: LLM probe 异常 'LLMResult' object has no attribute 'get'"
+    },
+    {
+     "type": "test",
+     "ref": "阶梯实验",
+     "claim": "max_tokens 8=空/64=OK/512=OK; 复测 --check rc=0 probe OK(3.69s)"
+    },
+    {
+     "type": "test",
+     "ref": "四层",
+     "claim": "1644 passed+1锁判据已修单跑绿(注释里max_tokens=8字样绊红正则)+gate/双e2e rc=0"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层等效绿+复测 --check rc=0",
+   "verdict": "accepted",
+   "evidence_ref": "dwc_setup --check 活体 rc=0",
+   "user_decision": "用户报冒烟异常→修复"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": ".dwc 副本 127 文件已全量同步但无常驻同步机制; llm.yaml 零引用死文件未处理"
+  }
+ }
+}

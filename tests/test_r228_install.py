@@ -74,6 +74,10 @@ def test_setup_check_runs_smoke_only():
     after = io.open(llm, encoding="utf-8").read() if os.path.exists(llm) else None
     assert before == after, "--check 动了配置（只许冒烟）"
     assert "冒烟自检" in r.stdout
+    # ★ 判据补(2026-10-14 Layer-22): 曾只断言标题 — probe 段把 LLMResult
+    #   当 dict 用 .get() 崩成"probe 异常"也照样过。代码级异常=红;
+    #   端点"未通过"是环境态允许（不产生"异常"行）。
+    assert "LLM probe 异常" not in r.stdout, r.stdout[-400:]
 
 
 def test_doctor_has_env_section():
@@ -112,3 +116,42 @@ def test_ps1_with_chinese_needs_bom():
                 assert not re.search(r"[\u4e00-\u9fff]", body), (
                     "%s 含中文但无 UTF-8 BOM — PS5.1 会按 GBK 乱码解析"
                     % os.path.relpath(p, ROOT))
+
+
+def test_step_smoke_probe_uses_object_api(capsys, monkeypatch):
+    """★ 行为锁(2026-10-14): probe 返回 LLMResult **对象** — step_smoke 曾用
+    dict 的 .get() ⇒ AttributeError 被 except 兜成"probe 异常"（用户实测
+    "LLM probe 异常: 'LLMResult' object has no attribute 'get'"）。
+
+    两态: ok=True → 返回 True 打 OK; ok=False → 返回 False 打"未通过"（**不**异常）。
+    """
+    import importlib.util
+    import sys
+    from types import SimpleNamespace
+
+    import dwc.llm.client as CL
+    from dwc.llm.client import LLMResult
+
+    spec = importlib.util.spec_from_file_location(
+        "dwc_setup_probe_lock",
+        os.path.join(ROOT, "scripts", "dwc_setup.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class _FakeOk:
+        def probe(self):
+            return LLMResult(ok=True, source="llm", text="pong")
+
+    class _FakeBad:
+        def probe(self):
+            return LLMResult(ok=False, source="error", error="boom-503")
+
+    monkeypatch.setattr(CL, "LLMClient", _FakeOk)
+    assert mod.step_smoke() is True
+    out = capsys.readouterr().out
+    assert "LLM probe: OK" in out and "probe 异常" not in out, out
+
+    monkeypatch.setattr(CL, "LLMClient", _FakeBad)
+    assert mod.step_smoke() is False
+    out = capsys.readouterr().out
+    assert "未通过 — boom-503" in out and "probe 异常" not in out, out
