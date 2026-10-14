@@ -32,6 +32,27 @@ try:
 except Exception as _e:                        # noqa: BLE001 — 降级必留痕
     _TUI_OK = False
     _TUI_ERR = "%s: %s" % (type(_e).__name__, _e)
+    # ★ 降级哨兵（全量 — class DwcApp 的**类体**也用 Binding 等裸名,
+    #   只补 App 会 NameError 于类体（测试抓到）— 13 名与 try 块导入集
+    #   一致, 有源锁保证不漂移）
+    class _Any:                      # 吃任意参数/属性 — 类体 Binding(...) 调用
+        def __init__(self, *_a, **_k):
+            pass
+        def __call__(self, *_a, **_k):
+            return self
+        def __getattr__(self, _n):
+            return _Any()
+        @classmethod
+        def __class_getitem__(cls, _x):
+            return cls
+    for _n in ("App", "ComposeResult", "ModalScreen", "Horizontal", "Vertical",
+               "VerticalScroll", "Footer", "Input", "Markdown", "RichLog",
+               "Static", "Binding", "Theme"):
+        globals()[_n] = _Any
+    # ★ 降级哨兵（2026-10-14 用户实测"dwc 无法唤醒": .dwc venv 缺 textual 时
+    #   import 失败 → 模块级 class DwcApp(App) 在 main() 回退**之前**就
+    #   NameError 短路 — 回退设计有但永远到不了。哨兵让 class 定义过,
+    #   实际回退仍由 main() 的 if not _TUI_OK 执行（App 不会实例化）。
 
 _ROOT = (os.environ.get("DWC_ROOT", "").strip()
          or os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

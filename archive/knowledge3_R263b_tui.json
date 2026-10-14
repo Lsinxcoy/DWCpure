@@ -1,0 +1,74 @@
+{
+ "round": "R263b",
+ "date": "2026-10-14",
+ "主题": "TUI降级哨兵 — 'dwc无法唤醒'三重根因修复",
+ "verify": {
+  "pytest": "1643 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "live": "链A pty TUI 进程驻留不再崩"
+ },
+ "inheritance": {
+  "gen": 263,
+  "at": "2026-10-14T09:47:00+08:00",
+  "parent_gen": 263,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 280,
+   "pytest": 1640,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R263b TUI降级哨兵(用户报'dwc无法唤醒'三重根因): .dwc venv缺textual→模块级class DwcApp(App)在main()回退前NameError短路→补13名全量_any哨兵(吃任意参, 类体Binding(...)可过)让回退可达+两环境都装textual 8.2.8/pypdf; 3锁(行为:屏蔽textual模块级不炸/源:哨兵在except内/源:哨兵集==try导入集防漂移)",
+   "files": [
+    "scripts/dwc_tui.py",
+    "tests/test_r263b_tui_fallback.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "用户实测复现",
+     "claim": "链A(dwc.cmd→.dwc venv)无参 rc=1 NameError: App; .dwc venv无textual而hermes venv 8.2.8"
+    },
+    {
+     "type": "test",
+     "ref": "tests/test_r263b_tui_fallback.py",
+     "claim": "3锁: 屏蔽textual模块级加载不炸(测试两次抓到哨兵不全: 类体Binding/带参调用)/哨兵位置/哨兵集==导入集"
+    },
+    {
+     "type": "test",
+     "ref": "全量四层",
+     "claim": "1643 rc=0 + gate + 双e2e"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "pytest 1643 + gate + 双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "tests/test_r263b_tui_fallback.py",
+   "user_decision": "用户报障'dwc无法唤醒'→修复"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": ".dwc 副本非 git 管理—本次手工同步; 双环境依赖漂移(.dwc venv vs hermes venv)无自动对齐机制"
+  }
+ }
+}
