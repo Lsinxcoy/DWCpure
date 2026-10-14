@@ -1,0 +1,74 @@
+{
+ "round": "R269",
+ "date": "2026-10-14",
+ "主题": "RSIAgent营养吸收(经验闭环/对账/语义停止/记忆快照/终态机)",
+ "verify": {
+  "pytest": "1702 rc=0",
+  "new_tests": "22/22",
+  "gate": "全部通过",
+  "e2e": "双rc=0",
+  "live": "reconcile dry-run真抓出4条dupe"
+ },
+ "inheritance": {
+  "gen": 269,
+  "at": "2026-10-14T18:45:00+08:00",
+  "parent_gen": 268,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 287,
+   "pytest": 1680,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R269 RSIAgent营养吸收: nightbench经验闭环(success_pattern进lessons+分段渲染)/对账脚本(dry-run默认, 全等dupe必drop)/语义停止(3连过SATURATED+新失败类加练 cap2)/记忆快照md5进bench2-ablation summary/终态三态机(STALLED升级inbox)",
+   "files": [
+    "scripts/dwc_nightbench.py",
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_lesson_reconcile.py",
+    "scripts/dwc_bench2.py",
+    "scripts/dwc_organ_ablation.py",
+    "tests/test_r269_rsi_absorb.py",
+    "docs/REPORT_RSIAGENT.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试22/22(raises 9%)+全量1702+gate+双e2e rc=0",
+     "claim": "五机制全对, 旧体系零回归"
+    },
+    {
+     "type": "test",
+     "ref": "活体dry-run",
+     "claim": "生产lessons真有全等dupe(llm_format 11→7), 对账有效; nightbench --help解析正常"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1702+gate+双e2e+活体dry-run",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r269.log",
+   "user_decision": "'先做出完整计划'+主代理直做"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "SATURATED/加练/STALLED随02:30 cron首轮上线验证; reconcile --apply与--llm待人工复核首份dry-run后执行"
+  }
+ }
+}

@@ -71,6 +71,59 @@ def _wait_report(tid: str, timeout_min: int) -> dict:
     return {}
 
 
+def _promote_row(row: dict) -> dict:
+    """★ R269-① · 跑批行 → lessons 记忆（成功经验也沉淀）。
+
+    ok=True 记 fail_mode="success_pattern:<kind>"（recall 靠文本 overlap，
+    渲染头区分成败）；ok=False 记 "nightbench_fail"。返回 lesson 摘要。
+    """
+    from dwc import agent_quality as Q
+    if row.get("ok"):
+        mode = "success_pattern:%s" % (row.get("kind") or "?")
+        detail = "成功做法（%s）：%s" % (row.get("verify", "?")[:80],
+                                        row.get("task", "")[:120])
+    else:
+        mode = "nightbench_fail"
+        detail = "失败（%s）：%s" % (row.get("verify", "?")[:80],
+                                    row.get("task", "")[:120])
+    Q.record_lesson(str(row.get("task_id") or row.get("tid")),
+                    mode, str(row.get("task", "")), detail)
+    return {"mode": mode, "task_id": row.get("task_id")}
+
+
+def _fail_sig(how: str) -> str:
+    """★ R269-③ · 失败签名（机判）：verify 文本首 40 字符。"""
+    return str(how or "")[:40]
+
+
+def _should_stop(hist: list, k: int = 3) -> tuple:
+    """★ R269-③ · 最近 k 单全 ok 即 SATURATED（期望价值不足即停）。"""
+    if len(hist) >= k and all(r.get("ok") for r in hist[-k:]):
+        return (True, "SATURATED")
+    return (False, "")
+
+
+def _unseen_fail(ok: bool, how: str, seen: set, bonus_used: int) -> bool:
+    """★ R269-③ · 新失败类加练（整轮至多 +2，防发散）。"""
+    return (not ok) and (_fail_sig(how) not in seen) and bonus_used < 2
+
+
+def _terminal_state(ok: bool, rep: dict, tid: str = "",
+                    task: str = "") -> str:
+    """★ R269-⑤ · 终态三态机：DONE / FAIL / STALLED。
+
+    STALLED（超时无报告）升级进 inbox（agent 真实消费路径），不再是
+    沉默的一行 timeout。
+    """
+    if ok:
+        return "DONE"
+    if not rep:
+        _inbox_push("【STALLED升级】%s 超时无报告，请人工查看：%s"
+                    % (tid, task[:120]), "esc_" + tid)
+        return "STALLED"
+    return "FAIL"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=8)
@@ -92,10 +145,17 @@ def main() -> int:
     day = time.strftime("%m%d")
     n_ok = 0
     done = 0
-    for i, t in enumerate(picks, 1):
+    order = list(picks)   # ★ R269-③: 加练单可追加（至多 +2）
+    hist: list = []
+    seen: set = set()
+    bonus_used = 0
+    i = 0
+    while i < len(order):
+        t = order[i]
+        i += 1
         tid = "nb_%s_%02d" % (day, i)
         _inbox_push(t["task"], tid)
-        print("[投单 %d/%d] %s (%s)" % (i, len(picks), tid, t["kind"]),
+        print("[投单 %d/%d] %s (%s)" % (i, len(order), tid, t["kind"]),
               flush=True)
         rep = _wait_report(tid, args.wait_min)
         ok = False
@@ -107,11 +167,28 @@ def main() -> int:
         row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tid": tid,
                "task_id": t["id"], "kind": t["kind"], "ok": ok, "verify": how,
                "status": rep.get("status"), "rounds": rep.get("rounds")}
+        row["lesson"] = _promote_row({**row, "task": t["task"]})
+        row["terminal"] = _terminal_state(ok, rep, tid=tid, task=t["task"])
         with io.open(CURVE, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         print("  → %s (%s)" % ("✓" if ok else "✗", how[:60]), flush=True)
+        hist.append({"ok": ok, "verify": how})  # ★ R269-③
+        if _unseen_fail(ok, how, seen, bonus_used):
+            seen.add(_fail_sig(how))
+            order.append(tasks[(rot + len(order)) % len(tasks)])
+            bonus_used += 1
+            print("  ★ 新失败类，加练一单（+%d/2）" % bonus_used, flush=True)
+        else:
+            seen.add(_fail_sig(how))
+        stop, reason = _should_stop(hist)
+        if stop:
+            st["saturated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with io.open(STATE, "w", encoding="utf-8") as fh:
+                json.dump(st, fh)
+            print("  ★ %s：连续 3 单全过，提前收工" % reason, flush=True)
+            break
         time.sleep(10)      # 单间隔（端点限流教训）
-    print("\n本轮: %d/%d（%d 单等到报告）" % (n_ok, len(picks), done))
+    print("\n本轮: %d/%d（%d 单等到报告）" % (n_ok, len(order), done))
     return 0
 
 

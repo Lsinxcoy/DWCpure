@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RSIAgent 递归自改进 · 最细颗粒度研究报告</title>
+<style>
+:root{--bg:#0d1117;--card:#1c2330;--line:#2d3646;--txt:#dbe2ee;
+--dim:#8b98ad;--acc:#e8a33d;--grn:#3fb950;--red:#f47067;--blu:#6cb6ff;--pur:#c678dd}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--txt);font:15px/1.75 -apple-system,"Microsoft YaHei",sans-serif;margin:0}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 22px 80px}
+h1{font-size:26px;margin:6px 0 2px}h2{font-size:20px;color:var(--acc);border-bottom:1px solid var(--line);padding:10px 0;margin:38px 0 14px}
+h3{font-size:16px;color:var(--blu);margin:22px 0 8px}
+.sub{color:var(--dim);font-size:13px}
+nav{position:sticky;top:0;background:rgba(13,17,23,.96);border-bottom:1px solid var(--line);padding:10px 22px;z-index:5;font-size:13px}
+nav a{color:var(--blu);text-decoration:none;margin-right:12px;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.card b{color:var(--acc)}.num{color:var(--grn);font-weight:700}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#222b3a;color:var(--acc)}
+code{background:#0a0d12;padding:1px 6px;border-radius:5px;font-size:13px;color:var(--grn)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:13px;line-height:1.6}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--acc);color:var(--acc);border-radius:20px;padding:1px 10px;margin:2px 4px 2px 0}
+.warn{border-left:4px solid var(--red);padding:10px 14px;background:#241418;border-radius:0 8px 8px 0;margin:12px 0}
+.good{border-left:4px solid var(--grn);padding:10px 14px;background:#12241a;border-radius:0 8px 8px 0;margin:12px 0}
+ul{margin:6px 0}li{margin:4px 0}
+a{color:var(--blu)}
+footer{color:var(--dim);font-size:12px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<nav>
+<a href="#s0">总览</a><a href="#s1">问题形式化</a><a href="#s2">方法</a><a href="#s3">实验数字</a><a href="#s4">口径审计</a><a href="#s5">失败模式</a><a href="#s6">案例</a><a href="#s7">停止策略</a><a href="#s8">代码架构</a><a href="#s9">验证体系</a><a href="#s10">局限</a><a href="#s11">落地清单</a><a href="#s12">引用</a>
+</nav>
+<div class="wrap">
+
+<h1>RSIAgent：在新环境中自主探索的递归自改进</h1>
+<div class="sub">论文 arXiv:2609.15364（v2 2026-09-18，Zhu 等，Aether AI＋UCSD/UIC，50 页）· 仓库 AetherLabsAI/RSIAgent（Apache-2.0，~42k 行 Python，54 个测试文件）· 本报告基于 PDF 全文精读（§1–§7＋附录 A–E）与核心模块逐文件审计（core/loop、core/verifier、explore/practice_loop、unified_evolution、target_learning、provisioning、llm/client、config、benchmarks）；未实际跑 VM 基准，数字全部引自原文及仓库文档。</div>
+<div><span class="tag">recursive self-improvement</span><span class="tag">computer use</span><span class="tag">multi-agent</span><span class="tag">training-free</span><span class="tag">causal memory</span></div>
+
+<h2 id="s0">0 · 一句话总览与硬结论</h2>
+<div class="card">RSIAgent 是<b>免训练</b>的三智能体递归自改进框架：Curriculum 出题、Actor 用代码执行、Verifier 独立验收，经验经"蒸馏→对账→诊断"三步进可演化记忆；探索分 <b>BRS 先并行铺广度、DRS 再串行打深度</b>，记忆冻结后直接复用，全程不动模型参数。OSWorld-2 partial <span class="num">71.97→78.98</span>、ALE <span class="num">83.75→84.82</span>，开源 GLM-5.3＋Kimi-K3 超 GPT-6 Astra（partial 口径）。</div>
+<div class="card"><b>阅读本报告前必须先看的三句</b>：① 作者自承 RSI 列<b>不是纯 RSI 均值</b>——OSWorld 82 单里 41 个是 RSI 分、41 个是保留的基线分，ALE 是 19＋48，且"非 matched 协议对照"（§4 有详审）；② Binary 全对率 ALE <span class="num">50.75 vs GPT-6 的 52.24——partial 超了，binary 没超</span>；③ 四任务阶段消融的 cohort 是<b>按"有过提升"挑出来的</b>，Full RSI 值是两次历史评估的均值。这三条不影响方法的真实价值，但决定你怎么引用它的数字。</div>
+
+<h2 id="s1">1 · 问题形式化（§2）</h2>
+<div class="card">任务指令 q，环境 E，动作序列 a<sub>1..T</sub>；t 步智能体 <code>π<sub>θ</sub>(·|q,h<sub>t</sub>,M)</code>，h<sub>t</sub> 为交互史（切任务即重置），<b>M 为跨任务持久记忆</b>（唯一的学习载体）。动作空间取 <b>code-as-policy</b>：每个动作是一段可执行程序（Python/Bash），runtime 回 combined stdout＋exit code——GUI 应用也靠程序驱动，不靠点坐标。RSI 问题定义：给新环境 E，先自主探索建 M，再冻结复用做下游题；θ 全程不动。</div>
+
+<h2 id="s2">2 · 方法深读（三角色＋两阶段＋冻结）</h2>
+<h3>2.1 三角色与信息边界（§3.2＋附录 A.1/Table A1，论文最硬的设计）</h3>
+<table>
+<tr><th>角色</th><th>看到什么</th><th>产出什么、有何禁区</th></tr>
+<tr><td>Actor（可演化记忆）</td><td>任务＋环境＋执行反馈＋持久记忆</td><td>可执行动作与候选产物；<b>验证通过后才亲自</b>做记忆更新（加/改/删都行，也可不动）；更新被后继 Actor 实例继承</td></tr>
+<tr><td>Verifier（环境反馈）</td><td>任务要求＋候选所处环境。<b>禁区</b>：Actor 私有推理、记忆、执行日志全不可见</td><td>基于证据的 PASS/FAIL（target 口还有 UNVERIFIED）；<b>零记忆写权</b>。隔离是为了去相关错误</td></tr>
+<tr><td>Curriculum（探索总控）</td><td>target query＋已完成探索结果＋记忆的<b>一次性拷贝</b>＋Actor 的学习诊断</td><td>出练习题/输入夹具/继续-or-停止；<b>禁区</b>：不给候选打分、不改记忆一字（本地改动不同步回去）</td></tr>
+</table>
+<div class="card">三权分立的本质：<b>出题的不判分，判分的不写记忆，写记忆的不出题</b>。学习诊断（learning diagnosis）是 Actor 给 Curriculum 的专用 handoff——只讲结论与不确定性，不给私有 CoT 与逐轮 transcript（Prompt P7）。</div>
+<h3>2.2 BRS → DRS → 冻结（§3.3＋Algorithm A1）</h3>
+<div class="card"><b>BRS（广度）</b>：每轮 Curriculum 并行提多个方向的题（名义预算 8 个、至多 4 并发，预算只在整波完成后检查——实际数可超 8），Actor 并行执行、Verifier 并行验收，收齐后再定下一波。<b>DRS（深度）</b>：从一次真实 target 尝试起步，串行"尝试→验证→进记忆→Curriculum 复盘→出针对性练习"，难度递增；成功的练习不自动停，失败才优先出"能区分 competing 解释"的题。<b>冻结评估</b>：记记忆文件树 hash、拷进评估环境、关 Curriculum、禁写回，Actor–Verifier 照常跑，最后官方 evaluator 在一切智能体上下文之外打分。<br>六步 A1：初始化 M→BRS 波循环→DRS 首尝试→（verifier_pass 直接跳 7，否则问 Curriculum）→串行练习→target 通过＋无新练习则收→冻结评估。<b>护栏</b>：UNVERIFIED 与 infra 失败挂起推进，不转成败；走完流程不要求 target 一定过。</div>
+<h3>2.3 记忆更新：三步全 Actor-owned（附录 A.2＋Prompt P5–P7）</h3>
+<div class="card">一次 verified 经历进记忆要过：<b>蒸馏</b>（什么程序/约束/教训值得留，FAIL 也可留证据但不许记成 verified 成功）→<b>对账</b>（全文 review 记忆库，修矛盾、砍过期、给没证据的结论加限定——<b>不许只 append</b>）→<b>诊断</b>（给 Curriculum 的 handoff）。记忆是 Actor 写的<b>无 schema 文件集合</b>（几个文件、多长都行）；工作期编辑在进学习前丢弃，Curriculum 的拷贝只读。并行波内：同波各分支从<b>同一不可变快照</b>出发、互相不可见； verdicts 收齐后原 Actor 上下文按 Curriculum 定的顺序逐个 resume 提交——<b>并发采集、串行提交</b>。</div>
+
+<h2 id="s3">3 · 实验数字（§4，全抄表1＋消融＋游戏）</h2>
+<table>
+<tr><th>模型/方法</th><th>OSWorld-2 partial</th><th>OSWorld binary</th><th>ALE partial</th><th>ALE binary</th></tr>
+<tr><td>Kimi-K3（裸）</td><td>58.30</td><td>—</td><td>71.60</td><td>40.30</td></tr>
+<tr><td>Claude Opus 5</td><td>70.19</td><td>34.72</td><td>79.54</td><td>46.27</td></tr>
+<tr><td>GPT-5.6 Sol</td><td>64.13</td><td>28.10</td><td>78.82</td><td>47.76</td></tr>
+<tr><td>GPT-6 Astra</td><td>72.60</td><td>—</td><td>82.26</td><td>52.24</td></tr>
+<tr><td><b>RSIAgent（w/o RSI，同 harness）</b></td><td><b>71.97</b></td><td><b>37.80</b></td><td><b>83.75</b></td><td><b>49.25</b></td></tr>
+<tr><td><b>RSIAgent（RSI 记忆冻结）</b></td><td><b>78.98</b></td><td><b>42.68</b></td><td><b>84.82</b></td><td><b>50.75</b></td></tr>
+</table>
+<div class="card">① 注意 w/o RSI 本身已 <span class="num">71.97</span>——同套 harness＋GLM-5.3/Kimi-K3 就接近 GPT-6（72.60），RSI 的净增益是 <span class="num">＋7.01pp（OSWorld）/＋1.07pp（ALE）</span>，harness  engineering 与记忆各占多少，论文没拆。② RSI 轮曲线（Fig 3，T044/T049/T065 三单）：8 步内到 100%/80%/100%，呈"长期攒记忆＋过瓶颈突跳"形。③ 四任务消融（Fig 4）：Full <span class="num">74.54%</span> vs broad-only 65.52% vs deep-only 56.50%；<b>deep-only 在 T085/T089 上比基线还差</b>——空记忆直接上难度是有害的，这是 broad-then-deep 顺序的直接证据。④ 游戏（GameCraft 40 题×4 档 generator）：RSI 四档全升（弱基 30.55→48.72、强基 52.77→61.28）；Play2Code 在强基上 <b>51.05 < 52.77 基线，反而搞坏好游戏</b>，RSI 无此退化。</div>
+
+<h2 id="s4">4 · 报告口径审计（附录 C.3/C.4＋仓库 PAPER.md，本报告最重要的一节）</h2>
+<div class="card">作者把什么都写出来了，摘关键：<b>OSWorld RSI 行＝41 个 RSI 分＋41 个保留基线分</b>（含回归与 recorded 重试）；<b>ALE＝19＋48</b>（含本地修正分、ECG 公共标签迁移分、一个 no-BRS Tax Form 变体）；T082 搭环境失败计零（两边都计）；T100 入选时基线 0、主表用修正后 1；"selected runs/checkpoints/budgets/scopes 非完全匹配"，<b>不是 matched 协议对照</b>，跨系统比较沿用各家原 harness 和预算。消融四任务是"有过提升" exploratory cohort，Full RSI 是两次历史冻结评估的均值（T080 0.6869/0.6869、T085 0.9417/0.9413、T089 0.7950/0.8300、T106 0.4976/0.5836）。仓库 README 更把"Full RSI bars average two historical evaluations"和"not a matched-protocol leaderboard submission"写进正文——<b>引用时必须带这句限定，否则就是误读</b>。<br>对称性核查：ALE binary <span class="num">50.75 < GPT-6 的 52.24</span>——"反超"只在 partial 口径成立，binary 口径 GPT-6 仍领先 1.5pp。OSWorld binary 栏 GPT-6 是"—"（未报），这格没法比。</div>
+
+<h2 id="s5">5 · 失败模式三机制（§4.6＋Fig 5，递归自改进的"三漏"）</h2>
+<table>
+<tr><th>机制</th><th>含义</th><th>子类型（审计计数）</th></tr>
+<tr><td>探索不对靶</td><td>练了一堆，没练到 target 真弱点；缺失信息的坏规则一直留在记忆里</td><td>target-skill mismatch 3/4；unchallenged assumptions 1/4</td></tr>
+<tr><td>验证不完全</td><td>Verifier PASS 了，但官方 rubric 下仍有未满足项；错进记忆→带偏后学</td><td>grounding gaps 2/6；coverage gaps 1/6；fidelity gaps 3/6</td></tr>
+<tr><td>记忆 consolidation 不可靠</td><td>坏规则被复用（缺数据标记当答案、"没拿到"当"否定答案"）；教训：记忆要存条件＋不确定性，不存"局部通过＝普遍成立"</td><td>rule scope loss 2/3；uncertainty not enforced 1/3</td></tr>
+</table>
+
+<h2 id="s6">6 · 案例：记忆长什么样（附录 E，数字全）</h2>
+<div class="card">记忆量：T044（剪视频）BRS 10 项目→<span class="num">109,647 字节/12 文件</span>，冻结 <span class="num">316,541 字节/12 文件</span>（文件数不动、内容加密——是改写不是堆）；T049 89k/13→141k/16；T065 159k/17→281k/23。39 个 journal 快照对得上字节数。<br>代表性学到的东西：seatwatch（FREE 列 ~72px vs 占用列 ~36px，冻结网格误分类 #3/#4 发布——663 帧/335 秒证据）；T049 connector 69 起点误差 <span class="num">121,104/145,345 EMU → 0</span>（tolerance 100,000/轴），slide3 0→0.40，总分 0.40→0.80，轮数 35→19、耗时 5105s→2697s；T044 native Shotcut crop（top=76 落 75–85 区间＋Center-off）0.40→1.00（但轮数 26→42——<b>赢的是完成度不是速度</b>）；T085 分量：sentence gaps 0.825→1.000、processed ending 0.2837→0.8996（顺带解除 0.68 封顶）；T103 FreeCAD 基线 0.25→0.6789/0.6897（对比用 archival 基线非 matched 消融）。<br>T065 的诚实注脚：终跑分 0→1 但同时收到"当前日期澄清"（基线把票订到 2027 年）——作者明说 T065 只作记忆获取演示，artifact 级对照看 T049/T044。</div>
+
+<h2 id="s7">7 · 停止策略与执行护栏（配置级事实）</h2>
+<div class="card">BRS 停：Curriculum 自判 SATURATED（附证据）或 STALLED（实在没题出）；8 项目是名义预算、波不断半。DRS 停（默认 <code>curriculum_review</code>）：target PASS 后无新练习即可收；练了必须再考一次 target；另有 <code>verifier_pass</code> 变体（PASS＋进记忆即收）。READY_FOR_TARGET 只是"练的期望价值不如回去考"，<b>不是"题对了"</b>。执行护栏：target actor 500 iters＋10 小时 watchdog（practice/curriculum 2000 iters＋24h，单程序调用 600s）；primary 采样 temp 1.0/top-p 1.0、单调用 65,536 tokens；卡住可切一次角色（Kimi-K3 当 actor、GLM-5.3 当 verifier）；evaluator 用 GPT-5.4、user sim 用 GPT-4o；baseline 记忆禁用。<br>Loop 微机制（core/loop.py，1805 行）：done-bounce（空 declare 打回）、split-gate（视觉分歧未闭合卡首 done）、witness-gate、doubt-gated 复检、repetition detector（program md5＋stdout md5）、summary-mode 折叠（WORK LOG 压 history）、eyes 归档（v32.5：把模型实际看到的图存下来复核——曾有 alpha-flatten bug 藏了 3 轮）。</div>
+
+<h2 id="s8">8 · 代码架构审计（逐模块）</h2>
+<table>
+<tr><th>模块（行数）</th><th>职责</th><th>关键实现细节</th></tr>
+<tr><td>core/loop.py（1805）</td><td>单次 attempt 执行循环</td><td><code>run_attempt()</code> 参数 20＋（budgets、resume handoff、verifier 路由回调、transport 暂停回调）；同一函数服务 Actor 与 Verifier（system_prompt/nudge/transform 注入切换角色契约）；surface 快照 diff（_snapshot/_surface_delta）；transport 暂停不吃 wall budget（provider 宕机不背锅）；<code>uv_accept_ok</code> 门；_ActionRecurrence 复发追踪</td></tr>
+<tr><td>core/verifier.py（1732）</td><td>三 verdict 验证</td><td><code>verify_agentic</code>（持久会话 VerifierSession：inspections/orientation_runs/candidate_generation 计数；AgenticVerifierExecutor 把候选 FS 只读＋私有 scratch 可写；checkpoint 先拍照、验完恢复）；<code>verify_independent</code>；<code>second_opinion</code>；PASS/FAIL/UNVERIFIED，UNVERIFIED 要 actor 补证据、不转成功</td></tr>
+<tr><td>core/actor.py（762）</td><td>动作解析＋prompt 件</td><td>Program/Bash/Look/Ask/Done 五动作；<code>parse_turn</code>；look 带问题＋路径校验；ask 需 user channel；done 只读检查</td></tr>
+<tr><td>explore/practice_loop.py（1812）</td><td>Phase 1 波＋记忆提交</td><td>_run_handoff_phase（terminal token 即停、actionless 三段熔断、draft handoff 不 commit lifecycle）；_run_learning_diagnosis；_promote_learning（蒸馏→对账→诊断→pull→audit→journal→install 全链）；_pull_terminal_memory 用 <code>RSI_MEMORY_FILES</code> 计数对拉取完整性（防 transport 空 dict 哨兵）；resume 只认 closed 边界（state.json 七项全对＋memory manifest＋episode 全闭环，否则 fail-closed）；PracticeHooks 全接缝可注入 fake（测试性设计）</td></tr>
+<tr><td>explore/charter.py（1352）</td><td>全部角色 prompt</td><td>memory_preamble、unified/self-evolving curriculum/actor/verifier charters、phase1_wave 宪章（WAVE/SATURATED/STALLED 三 decision、JSON 只是 transport 信封、禁夹带 solution/evaluator/shell/记忆改写）</td></tr>
+<tr><td>explore/unified_evolution.py（754）</td><td>DRS 演进编排</td><td>route_target_pass/failure、evolve_until_ready；三种 trigger authority（curriculum_route/verifier_fail_protocol/phase2_outcome_protocol）；curriculum 记忆访问 read_only/none（none 需 phase2 协议；resume 不许变）；stall/隔离/infra 不转重试</td></tr>
+<tr><td>explore/target_learning.py（479）</td><td>单次练习学习</td><td>_promote_learning；_run_practice_attempt；fixture 上台→guest 内校验→形态检查三步</td></tr>
+<tr><td>explore/provisioning.py（618）</td><td>材料捕获回放</td><td>capture→manifest（tgz 盘点）→replay→verify（文件集精确比对＋symlink 校验）；_verify_candidate fail-closed</td></tr>
+<tr><td>explore/target_isolation.py（1284）</td><td>target 边界审计</td><td>audit_text/audit_captured：防 benchmark 题面/答案泄进 prompt 与记忆（_outcome_text 只给 Curriculum 看 project＋terminal outcome＋verifier 原文，Actor handoff 与 manifest 不进 curriculum 上下文）</td></tr>
+<tr><td>llm/client.py（502）</td><td>OpenRouter 传输</td><td><code>chat()</code>；durable images（图随包走、恢复可重见同像素）；reasoning knob 机型差异（MiniMax-M3 无视档位、GLM-5.3 关不掉思考）；provider_order 出错不丢（防实验中途换路）；transport pause 计数；pop_last_reasoning</td></tr>
+<tr><td>config/settings.py（509）+ roles（6 yaml）</td><td>配置</td><td>Config：temp 0、primary 采样、max_iters 24（loop 级；paper 的 500/2000 是 benchmark 层覆盖）、wall 2h（同上，bench 层覆盖到 10h/24h）；actor/curriculum/verifier/practice_verifier/target/verifier_escalation 六档（Kimi-K3 兼 verifier＋curriculum 但上下文隔离）；evidence 锁文件（baseline/evaluation/rsi.example 三 lock json）</td></tr>
+<tr><td>benchmarks/osworld（12）/ale（17）</td><td>两基准适配</td><td>pipeline（协议校验＋三阶段编排）、phase1/phase2（可单独 <code>python -m</code> 跑）、task（冻结执行＋sealed 评分）、evaluator_corrections（修正单列、可审计）、actor_boundary、provider/runtime/setup；ale 另有 host/worker 双进程＋checkpoint_runner（Dockerfile＋boot.sh）＋transport/windows 适配</td></tr>
+<tr><td>env/（5）＋tools/（8）＋scripts/（2）</td><td>隔离与运维</td><td>vm.py（713 行，guest 传输＋隔离）；check_rsi_release.py（portable 套件入口）；smoke_osworld、recover_phase1_wave、exam_fence；setup_ale</td></tr>
+</table>
+<div class="card">架构总评：<b>三层 harness 解耦干净</b>（core 只管单次执行与验证、explore 管学习与编排、benchmarks 管基准适配），信息边界用"禁区＋审计函数"双保险（audit_text 处处设卡），恢复语义 fail-closed（宁可 infra 错误不猜）。代价是单 attempt 可调参数 20＋、Phase 语义靠 charter 文本约束——<b>机制在 prompt 里，不在类型里</b>，改 prompt 即改协议，回归全靠 54 个测试文件兜。</div>
+
+<h2 id="s9">9 · 验证体系（RELEASE.md＋CI）</h2>
+<div class="card">发布校验（2026-09-14）：<span class="num">718 portable tests</span>（54 文件、562 test funcs，参数化展开后 718）＋ pinned OSWorld 环境内 2 个 evaluator 专项（opt-in）＋ 108 题 batch dry-run（432 命令）＋ 7 档 model profile 设置复核。真机 smoke：OSWorld HTTP/virtio 各 10 项、ALE Linux 16 项（<b>ALE Windows 与 GPU 没在真机测过</b>，明示）。<code>tools/check_rsi_release.py</code> 一键跑 portable 套件（phase 边界、恢复、记忆完整性、VM 归属、角色配置、batch、ALE 适配）。测试命名即覆盖面：phase1_wave_authoring/recovery、phase2_stop_policy、verifier_isolation/continuity/control、practice_loop/memory_recovery、target_isolation、no_leakage、exam_fence、evaluator_corrections、rsi_infrastructure_recovery……<b>与论文 §4.6 三失败机制一一对应</b>（探索/验证/记忆各有回归网）。CI（tests.yml）＋blocklist_012.txt。官方分永远在环外：audit 文件放 results/ 不进 prompt；evaluator 修正必须单列上报；infra 失败是 unscored 不是 0 分。</div>
+
+<h2 id="s10">10 · 局限与伦理（§7 原文四条＋一条）</h2>
+<div class="card">① 探索即成本（500 iters/10h 量级 × N 题——复现门槛首先是钱）；② 天花板＝预算＋停止策略＋记忆质量三者；③ <b>verifier 误判会进记忆再带偏后学</b>（§4.6 已实证，fidelity gaps 3/6）；④ 各环境组件贡献没拆开（harness vs 记忆 vs 模型，分不清）。伦理：自主探索＋执行程序＋持久记忆＝误操作/越权/隐私泄漏风险，实验限受控环境——<b>这套东西跑在生产网就是武器化自改进 agent</b>，落地必须配 sandbox＋审计。</div>
+
+<h2 id="s11">11 · 落地清单（给 DWC 的六条可复用＋三条红线）</h2>
+<div class="good"><b>① 三权分立＋信息边界</b>：DWC 的 judge 现在既判分又进记忆（R266 回流），可借"判分的不写记忆"——judge 只出 verdict＋findings，记忆措辞权还给执行方。<br><b>② 蒸馏→对账两步更新</b>：DWC 的 reflect 一次写 EXPERIENCE，缺"全文 review 旧记忆修矛盾"步；T065 的 index 教训（跨分支记录要重枚举）可直接抄。<br><b>③ SATURATED 语义停止</b>：nightbench 现在是固定 N 单，BRS 式"期望价值不足即停"可省 LLM 钱——先给 curriculum 配预算计数器。<br><b>④ 冻结＋hash 评估</b>：DWC 的 A/B 臂现在只控 judge/ctx，记忆快照 hash（_manifest 式）可让"哪次记忆赢的"可归因。<br><b>⑤ FAIL 也学</b>：revision_pair 已在做（R258），P5 的"失败不记成功、但留证据"措辞可直接进 prompt。<br><b>⑥ handoff 机判</b>：Curriculum 的 WAVE/SATURATED/STALLED 三 decision＋JSON 信封是现成的机判协议，DWC 的 planner 输出可借此收敛格式。</div>
+<div class="warn"><b>红线 ①</b> 引用数字必须带口径（RSI 列＝混合列、非 matched、binary 没超）——报告里不许写"开源反超闭源"不加限定。<br><b>红线 ②</b> verifier 误判污染是已实证风险：DWC 若让 judge 直写记忆，必须配对账步，否则坏规则永生。<br><b>红线 ③</b> 成本量级：单题 500 iters/10h watchdog——DWC 的 nightbench 照搬前先算钱，BRS 并发 4 的 VM/端点成本另计。</div>
+
+<h2 id="s12">12 · 引用与链接</h2>
+<div class="card">Zhu, Sibo 等《RSIAgent: Autonomous Exploration for Recursive Self-improvement in New Environments》, arXiv:2609.15364 [cs.AI], 2026-09-14（v2 09-18）。<br><code>@misc{zhu2026rsiagentautonomousexplorationrecursive, title={RSIAgent: Autonomous Exploration for Recursive Self-improvement in New Environments}, author={Sibo Zhu and Shicheng Fan and Xinyue Wang and Wenyi Wu and Kun Zhou and Biwei Huang}, year={2026}, eprint={2609.15364}, archivePrefix={arXiv}, primaryClass={cs.AI}, url={https://arxiv.org/abs/2609.15364}}</code><br>论文：https://arxiv.org/abs/2609.15364 ｜ 官网：https://aetherlabsai.github.io/RSIAgent/ ｜ 代码：https://github.com/AetherLabsAI/RSIAgent（Apache-2.0）｜ 姊妹篇 RSIGame（游戏自改进）：https://arxiv.org/abs/2609.39045 ｜ 中文报道：机器之心（43.8K 阅读，见仓库 README）。</div>
+
+<footer>报告生成：2026-10-14 · 方法：PDF 全文精读（§1–§7＋附录 A–E）＋仓库核心模块审计 · 数字均引自原文/仓库文档，§号可回查 · 未执行 VM 基准复现；测试数为静态计数（54 文件/562 funcs），未运行其套件。</footer>
+</div>
+</body>
+</html>

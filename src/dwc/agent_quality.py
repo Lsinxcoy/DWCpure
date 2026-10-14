@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -74,6 +75,24 @@ def load_lessons() -> List[Dict[str, Any]]:
             except Exception:                  # noqa: BLE001
                 pass
     return out
+
+
+def memory_snapshot_hash() -> str:
+    """★ R269-④ · 记忆快照（md5 <lessons 字节><skills 文件名排序>）。
+
+    跑批 summary 存它，"哪次记忆赢的"可归因。文件缺席记 "empty" 不炸。
+    """
+    if not os.path.exists(LESSONS):
+        return "empty"
+    h = hashlib.md5()
+    with open(LESSONS, "rb") as fh:
+        h.update(fh.read())
+    names: list = []
+    if os.path.isdir(SKILLS_DIR):
+        for f in sorted(os.listdir(SKILLS_DIR)):
+            names.append(f)
+    h.update("\n".join(names).encode("utf-8"))
+    return h.hexdigest()[:16]
 
 
 def lesson_contrast(task_id: str) -> bool:
@@ -251,10 +270,19 @@ def lessons_context(task: str, k: int = 3) -> str:
     """★ 注入用文本块: 检索到的教训 + 已固化技能 → 上下文（零命中零开销）。"""
     hits = recall_lessons(task, k)
     lines = []
-    if hits:
+    fails = [h for h in hits
+             if not str(h.get("fail_mode", "")).startswith(
+                 "success_pattern")]
+    wins = [h for h in hits
+            if str(h.get("fail_mode", "")).startswith("success_pattern")]
+    if fails:
         lines.append("历史教训（同类任务曾失败, 请规避）:")
         lines.extend("- [%s] %s" % (h.get("fail_mode"), h.get("detail"))
-                     for h in hits[:k])
+                     for h in fails[:k])
+    if wins:
+        lines.append("历史成功做法（可复用）:")
+        lines.extend("- [%s] %s" % (h.get("task_id"), h.get("detail"))
+                     for h in wins[:k])
     # ★ 技能注入: 检索命中的 fail_mode 若已固化 ⇒ 规矩全文注入
     modes = {h.get("fail_mode") for h in hits}
     if os.path.isdir(SKILLS_DIR):

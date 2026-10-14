@@ -152,6 +152,11 @@ def run_arm(arm: str, limit: int = 0, max_rounds: int = 30) -> dict:
     summ = {"arm": arm, "n": len(tasks), "ok": n_ok,
             "success": round(n_ok / max(1, len(tasks)), 3),
             "by_kind": {}}
+    try:  # ★ R269-④ · 记忆快照（哪次记忆赢的，可归因）
+        from dwc.agent_quality import memory_snapshot_hash
+        summ["memory_sha"] = memory_snapshot_hash()
+    except Exception:                            # noqa: BLE001
+        summ["memory_sha"] = "unknown"
     for k in sorted({r["kind"] for r in rows}):
         sub = [r for r in rows if r["kind"] == k]
         summ["by_kind"][k] = "%d/%d" % (sum(r["ok"] for r in sub), len(sub))
