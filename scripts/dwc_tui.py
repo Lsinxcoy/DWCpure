@@ -761,6 +761,8 @@ class DwcApp(App):
             last = self._hist[-1]
             ctx = "上轮对话摘要: 任务=%s; 答案要点=%s" % (
                 last["task"][:120], str(last.get("answer", ""))[:400])
+        from dwc.agent_quality import chat_ctx as _chat_ctx  # ★ R274-① 聊天读口
+        ctx = _chat_ctx(task, ctx)
 
         def _post_tool(msg: str) -> None:
             try:
@@ -807,6 +809,8 @@ class DwcApp(App):
             secs = round(_time.time() - t0, 1)
             self._last_secs = secs  # ★ R273-D · 末轮耗时（本地实测）
             ans = str(rep.get("answer", ""))
+            from dwc.agent_quality import record_chat_outcome  # ★ R274-② 写口
+            record_chat_outcome(task, rep)
 
             def _finalize():
                 self._stream_close()

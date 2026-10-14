@@ -1,0 +1,72 @@
+{
+ "round": "R274",
+ "date": "2026-10-15",
+ "主题": "聊天跨任务记忆读+写口",
+ "verify": {
+  "pytest": "1782 rc=0",
+  "new_tests": "8/8",
+  "gate": "8/8",
+  "e2e": "双rc=0"
+ },
+ "inheritance": {
+  "gen": 274,
+  "at": "2026-10-15T04:27:00+08:00",
+  "parent_gen": 273,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 295,
+   "pytest": 1771,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R274 聊天跨任务记忆: agent_quality+chat_ctx读口(上轮摘要+lessons_context合并, 空库零变化)+record_chat_outcome写口(done→success_pattern:chat/其余→chat_fail, 走R270写门); dwc_chat与TUI _run_sync各3行接线; 安装器补[tui] extra(R250d)",
+   "files": [
+    "src/dwc/agent_quality.py",
+    "scripts/dwc_chat.py",
+    "scripts/dwc_tui.py",
+    "tests/test_r274_chat_memory.py",
+    "install.ps1",
+    "tests/test_r228_install.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新8/8(raises 12.5%)+全量1782+gate 8/8+双e2e rc=0",
+     "claim": "聊天路读写记忆, 旧链零回归"
+    },
+    {
+     "type": "test",
+     "ref": "生产var/dwc_lessons.jsonl保持12行(测试全隔离tmp)",
+     "claim": "无生产污染"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1782+gate+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r274.log",
+   "user_decision": "'123全做'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "新机器底料空: 待用户跑nightbench --n 8; 空答案不记(success空记)"
+  }
+ }
+}

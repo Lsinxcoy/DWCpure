@@ -482,6 +482,45 @@ def lessons_context(task: str, k: int = 3) -> str:
     return "\n".join(lines)
 
 
+def chat_ctx(task, prev=None):
+    """★ R274-① · 聊天记忆读口：上轮摘要＋lessons_context 合并。
+
+    空库/坏文件 ⇒ 原样回 prev（聊天永不因记忆崩）。mode 口径：
+    chat_fail 进规避段，success_pattern:chat 进成功做法段（见 lessons_context）。
+    """
+    try:
+        lc = lessons_context(str(task))
+    except Exception:                            # noqa: BLE001 — 读坏不炸
+        return prev
+    if lc:
+        return (prev + "\n" + lc) if prev else lc
+    return prev
+
+
+def record_chat_outcome(task, rep):
+    """★ R274-② · 聊天记忆写口：done→success_pattern:chat，其余→chat_fail。
+
+    走 record_lesson 写门（垃圾进不来）；空答案直接返 "" 不记；
+    任何异常 stderr 留痕返 ""（交互永不因记崩）。
+    """
+    try:
+        rep = rep or {}
+        if rep.get("status") == "done":
+            mode = "success_pattern:chat"
+            detail = str(rep.get("answer", "") or "").strip()
+        else:
+            mode = "chat_fail"
+            detail = "%s | %s" % (rep.get("status", "?"),
+                                  str(rep.get("why", ""))[:200])
+        if not detail.strip():
+            return ""
+        record_lesson("chat", mode, str(task), detail)
+        return mode
+    except Exception as exc:                     # noqa: BLE001
+        sys.stderr.write("chat 记忆写口跳过: %s\n" % exc)
+        return ""
+
+
 # ═══ R266B · 任务知识（信源/知识/论文）检索注入 ══════════════════
 # 用户 2026-10-14: "任务执行的记忆包括搜索到的信源/知识/论文是驱动系统
 # 进化的重要组成部分" — A 层沉淀, 本层检索; lessons 同款 _tokens overlap。

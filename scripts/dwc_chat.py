@@ -251,6 +251,8 @@ def _run_sync(task: str) -> None:
         last = _HISTORY[-1]
         ctx = "上轮对话摘要: 任务=%s; 答案要点=%s" % (
             last["task"][:120], str(last.get("answer", ""))[:400])
+    from dwc.agent_quality import chat_ctx as _chat_ctx  # ★ R274-① 聊天记忆读口
+    ctx = _chat_ctx(task, ctx)
     _ICON = {"read": "⌕", "write": "✎", "run": "▶", "final": "✓",
              "delegate": "⇄", "mcp": "⚙", "ask": "?"}
 
@@ -298,6 +300,8 @@ def _run_sync(task: str) -> None:
                      "status": status})
     if len(_HISTORY) > 8:
         _HISTORY = _HISTORY[-8:]
+    from dwc.agent_quality import record_chat_outcome  # ★ R274-② 聊天记忆写口
+    record_chat_outcome(task, rep)
 
 
 def handle(line: str) -> bool:
