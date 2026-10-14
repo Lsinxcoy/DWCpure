@@ -1,0 +1,73 @@
+{
+ "round": "R268",
+ "date": "2026-10-14",
+ "主题": "J-lens营养吸收ABCD(反思探针/器官消融/评估意识/外化完整度)",
+ "verify": {
+  "pytest": "1680 rc=0",
+  "new_tests": "20/20",
+  "gate": "全部通过",
+  "e2e": "双rc=0",
+  "live": "A/B/C/D smoke全通"
+ },
+ "inheritance": {
+  "gen": 268,
+  "at": "2026-10-14T18:09:00+08:00",
+  "parent_gen": 267,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 286,
+   "pytest": 1660,
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "rule",
+   "exec_form": "R268 J-lens营养吸收ABCD: 反思探针(反事实截断提问+风险词机判, 缺测记null)/器官消融(judge×lessons四臂+价值表)/评估意识探针(双framing+自述三分类+行为差异率)/外化完整度(四项各0.25零LLM成本, 空组报无意义)",
+   "files": [
+    "scripts/dwc_reflect_probe.py",
+    "scripts/dwc_organ_ablation.py",
+    "scripts/dwc_eval_awareness.py",
+    "scripts/dwc_externalization.py",
+    "tests/test_r268_jlens_absorb.py",
+    "docs/REPORT_JACOBIAN_LENS.html"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "新测试20/20+全量1680+gate+e2e双rc=0",
+     "claim": "四脚本机判逻辑全对, 旧体系零回归"
+    },
+    {
+     "type": "test",
+     "ref": "活体smoke",
+     "claim": "A探针3单链路通(2瞬断记null, 反思质量高); B-A0臂2/2; C发现framing改变结果(rf01对/错), 自述不守格式记None; D首张难度表52单+高组n=0诚实报无意义"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "acac083d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层1680+gate+双e2e+活体smoke",
+   "verdict": "accepted",
+   "evidence_ref": "pytest_r268.log",
+   "user_decision": "'abcd都做'"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "四臂全量/J-L-F价值表/探针预测力需nightbench多轮积累; D高组待reports关联"
+  }
+ }
+}
