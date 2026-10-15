@@ -1818,6 +1818,109 @@ class Mutator:
 
 
 # ══════════════════════════════════════════════════════════
+# ★ R278 · LLM-Mutator（第二个 Mutator，可插拔）。
+#   · Mutator（查表，确定性）认不出 ⇒ unmapped ⇒ 到这里问 LLM 起草新条目。
+#   · 只新增：diagnose/propose/consolidate 零改；默认不用（调用方显式开）。
+#   · m_source 强制 "llm"（防冒充规则推导 — R30 分工）。
+#   · 坏 JSON/缺字段 ⇒ None + last_reason 留痕（禁静默）；
+#     llm 抛异常 ⇒ 原样上抛（大声，不吞）。
+# ══════════════════════════════════════════════════════════
+
+
+class LLMMutator:
+    """★ 由失败签名簇 ⇒ LLM 起草新 RULES 条目 ⇒ Proposal（新键）。"""
+
+    def __init__(self, llm: Any = None):
+        self.llm = llm
+        self.last_reason: str = ""
+
+    def _prompt(self, sigs: List[Dict[str, Any]]) -> str:
+        s0 = dict(sigs[0])
+        lines = [
+            "你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
+            "（c/q/fn 一致，n=%d）：" % (len(sigs),),
+            "c=%s q=%s fn=%s" % (s0.get("c"), s0.get("q"),
+                                 s0.get("fn", "")),
+            "m 样本=%s" % ([str(s.get("m", ""))[:60] for s in sigs[:3]],),
+            "任务=%s" % (s0.get("task", ""),),
+            "只输出一个 JSON 对象（无解释），字段必须齐：",
+            "component（只能是这9个词之一：client_tool/config/context_mgmt/",
+            "control_flow/memory/output_plumbing/prompt/skill/subagent）、",
+            "dimension（如 D7）、target_layer（如 assets）、",
+            "target（修哪里：函数名）、m（新机制名）、",
+            "patch（怎么改：一句话修法）、rationale（为什么：依据事实）。",
+        ]
+        return "\n".join(lines)
+
+    def _extract(self, text: str) -> Optional[Dict[str, Any]]:
+        # ★ 多候选取末尾真 JSON（R277b-4 同款纪律：推理前言在前，真答案在后）。
+        cands: List[str] = []
+        depth = 0
+        start = -1
+        for i, ch in enumerate(text or ""):
+            if ch == "{":
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                if depth > 0:
+                    depth -= 1
+                    if depth == 0 and start >= 0:
+                        cands.append(text[start:i + 1])
+                        start = -1
+        for raw in reversed(cands):
+            try:
+                obj = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(obj, dict):
+                return obj
+        return None
+
+    def propose_from_cluster(self, sigs: List[Dict[str, Any]]
+                             ) -> Optional["Proposal"]:
+        if not sigs:
+            self.last_reason = "空簇：无签名可起草"
+            return None
+        if self.llm is None:
+            self.last_reason = "未注入 llm（显式开才用 — 默认不用）"
+            return None
+        s0 = dict(sigs[0])
+        if not all(s0.get(k) for k in ("c", "q", "fn")):
+            self.last_reason = "首签名缺 c/q/fn：%r" % (s0,)
+            return None
+        text = self.llm(self._prompt(sigs))  # ★ 抛异常 ⇒ 上抛（大声）
+        if not isinstance(text, str):
+            text = str(text)
+        entry = self._extract(text)
+        if entry is None:
+            self.last_reason = "LLM 输出无可用 JSON（前80字：%s）" \
+                % (text[:80],)
+            return None
+        entry = dict(entry)
+        entry["m_source"] = "llm"  # ★ 强制（防冒充 — R30 分工）
+        missing = Mutator.check_entry(Mutator.key_for(s0), entry)
+        if missing:
+            self.last_reason = "缺字段：%s" % (missing,)
+            return None
+        key = Mutator.key_for(s0)
+        full = dict(s0)
+        full["m"] = entry.get("m", "")
+        full["m_source"] = "llm"
+        return Proposal(
+            proposal_id="P_" + hashlib.sha256(
+                ("LLM:" + key).encode()).hexdigest()[:8],
+            failure_signature=full,
+            component=entry["component"], target=entry["target"],
+            patch=entry["patch"],
+            rationale=("LLM 起草（n=%d 同簇失败）: %s"
+                       % (len(sigs), entry["rationale"])),
+            dimension=entry.get("dimension"),
+            target_layer=(entry.get("target_layer")
+                          or layer_of(entry["component"])))
+
+
+# ══════════════════════════════════════════════════════════
 # 门（约束 1：先过门再采纳）
 # ══════════════════════════════════════════════════════════
 
