@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R282 · 十二机制设计意图对照表</title>
+<style>body{background:#0B0F14;color:#ECEDEE;font-family:"Microsoft YaHei",sans-serif;max-width:1080px;margin:auto;padding:24px}
+.card{background:#141920;border:1px solid #2A2A2C;border-radius:10px;padding:16px;margin:14px 0}
+.g{color:#5AF78E}.y{color:#F3D99B}.r{color:#FF5F56}.m{color:#8A8E94}
+h1{color:#FFB86B}h2{color:#FFB86B;border-bottom:1px solid #2A2A2C;padding-bottom:6px}
+code{color:#F3D99B}.small{font-size:13px;color:#8A8E94}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left;vertical-align:top}th{color:#FFB86B}</style></head>
+<body>
+<h1>R282 · 十二机制设计意图对照表 <span class="small">2026-10-15 · 只读设计文档，非代码推测</span></h1>
+<h2>◐ 半步 9 个：当初为什么存在</h2>
+<div class="card"><table>
+<tr><th>机制</th><th>设计意图（出处）</th><th>特殊性一句话</th></tr>
+<tr><td>memory</td><td>MEMORY_SYSTEM v2：前版只定"记什么"，本版补"怎么流转"（母巢七管数据链）</td><td>EXPERIENCE是dream/maintain的消费对象——没写入，那两件就没米下锅</td></tr>
+<tr><td>agent_quality</td><td>EVOLUTION_CORE_AUDIT EffectTracker：执行前后测量＋candidate vs base对比→SelectionGate影子A/B</td><td>优则promote劣则prune的唯一数据脊柱——阈值5零触发不是它懒，是喂得不够</td></tr>
+<tr><td>world任务源</td><td>WORLD_MODEL_AS_EVENT_SOURCE：世界模型有一项工作就是驱动事件（legal_actions→任务源）</td><td>供任务是它的一半，另一半select收束才是决策——半边脸</td></tr>
+<tr><td>predictor</td><td>R231 预测引导选择（RSI-Anything落地）：Beta后验＋Brier校准，视图层非事实源</td><td>预测是给选择用的——只记分不用它选，等于白算（R280记了分，消费还没接）</td></tr>
+<tr><td>nightbench</td><td>EVAL_REPORT：困难面真实流量（52单池轮换8单）＋成功率曲线收敛证据</td><td>bench测的是平均分，它测的是难事——替代不了，时间换收敛</td></tr>
+<tr><td>metric adopt</td><td>QUALITY_GATE Γ：记录"本应调用但未调用"负事件（已采纳未实现≠通过≠未采用）</td><td>adopt不是采纳，是调用诚实性——母巢"调用失败看不出"的病，DWC靠它防</td></tr>
+<tr><td>direction</td><td>R188 方向控制器：时空统一，pick/stagnant/fallback三路</td><td>只出方向不出候选是设计（AB半边）——它要配candidates才完整</td></tr>
+<tr><td>applier</td><td>APPLIER_DESIGN：21个可进化对象的"应用"断点，进化第4步，三闸落地</td><td>R279新路绕过它落了首条——闸还在，人走了；要么回迁要么双轨并存，不能当它死了</td></tr>
+<tr><td>credit</td><td>EVOLUTION_CORE_DESIGN §4.2(2)：证据感知信用分配，赢家a_i=1，"admissible but lost"=0也是有用信息</td><td>归因账——没有它，进化不知道功劳归谁，下次还瞎试</td></tr>
+</table></div>
+<h2>○ 纯壳 3 个：当初为什么存在</h2>
+<div class="card"><table>
+<tr><th>机制</th><th>设计意图（出处）</th><th>特殊性一句话</th></tr>
+<tr><td>candidates</td><td>PIPE_VS_WORLDMODEL_DRIVING §2.2：三层决策的输入（世界模型打分主力＋LLM governor＋启发式）</td><td class="r">★认错：它是决策候选集，搭档是select不是diagnose——跟LLMMutator不是一条赛道，"退役"说收回</td></tr>
+<tr><td>planner</td><td>EVOLUTION_CORE_DESIGN §4.2：运行时契约现场合成（Flexibility）＋局部学习目标抽出＋fallback同契约</td><td>现场合成契约——FGGM那套，没有它就没有拒绝采样＋fallback，全是裸调</td></tr>
+<tr><td>world select</td><td>WORLD_MODEL_AUTHORITY：收束决策消费（select被调用才算数）</td><td>"不动select"旧址字串已搬迁，需重定位现状——先读后定</td></tr>
+</table></div>
+<h2>连线图（谁跟谁是一对）</h2>
+<div class="card"><p>① candidates＋select＋direction＝<b>决策三件套</b>（出候选→打分选→给方向），缺select全趴<br>
+② predictor＋select＝<b>预测引导选择</b>（RSI原文分工），predictor只记分不用等于白算<br>
+③ diagnose＋applier＋credit＝<b>进化三件套</b>（诊断→落地→归因），现在诊断新路通了，落地走的野路子，归因还没账<br>
+④ memory EXPERIENCE＋dream/maintain＝<b>记忆消费链</b>，上游没米</p></div>
+</body></html>
