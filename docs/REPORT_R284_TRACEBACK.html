@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R284 · executor/candidates 论文溯源重读</title>
+<style>body{background:#0B0F14;color:#ECEDEE;font-family:"Microsoft YaHei",sans-serif;max-width:1080px;margin:auto;padding:24px}
+nav{position:sticky;top:0;background:#0B0F14;padding:10px 0;border-bottom:1px solid #2A2A2C}
+nav a{color:#FFB86B;margin-right:16px;text-decoration:none}
+.card{background:#141920;border:1px solid #2A2A2C;border-radius:10px;padding:16px;margin:14px 0}
+.g{color:#5AF78E}.y{color:#F3D99B}.r{color:#FF5F56}.m{color:#8A8E94}
+h1{color:#FFB86B}h2{color:#FFB86B;border-bottom:1px solid #2A2A2C;padding-bottom:6px}
+code{color:#F3D99B}.small{font-size:13px;color:#8A8E94}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left;vertical-align:top}th{color:#FFB86B}</style></head>
+<body>
+<nav><a href="#a">HarnessX</a><a href="#b">MetaRSI</a><a href="#c">裁决</a></nav>
+<h1>R284 · executor / candidates 论文溯源重读 <span class="small">2026-10-15 · L1→L5 · 全文已抓（1.1M＋1.1M）</span></h1>
+<h2 id="a">2606.14249 HarnessX（candidates 的来源）</h2>
+<div class="card"><table>
+<tr><th>原文</th><th>DWC 落点</th><th>状态</th></tr>
+<tr><td>Definition 2 Harness Edit：ℰ open-ended，edit＝meta-agent LLM 生成的 code-level artifact，Planner 从 trace-grounded hypotheses 提案</td><td>candidates.generate（diffs 推导非预枚举，合法确定性形态）</td><td class="g">对得上</td></tr>
+<tr><td>edit 四形态：new processor source / <b>modified prompt template</b> / reconfigured tool registry / control-flow rewrite</td><td><b>④的原文依据</b>：只改 prompt 的 patch 是原文认可的 edit 形态，不需要 baseline_source</td><td class="g">④成立</td></tr>
+<tr><td>AEGIS 四阶段 Digester→Planner→Evolver→Critic＋deterministic gating</td><td>Evolver＝generate，Critic＝judge（P1 双跑同判正是 Critic 位）</td><td class="g">对得上</td></tr>
+<tr><td>关键结果：15 配置平均 +14.5%（14/15 改进）；variant-isolation 治异构任务集停滞（GAIA +13.6% 15 轮不退化）</td><td>007/008/009 三类异构失败——单规则进化会停滞，key 里 fn 维度正是隔离键，设计对</td><td class="y">警告已收</td></tr>
+<tr><td>Harness-Model Co-Evolution：trajectories 同时做 harness 更新＋model 训练信号（+4.7%）</td><td>DWC 只有前半（落盘规则），无后者——缺口登记，不本次做</td><td class="m">缺口</td></tr>
+</table></div>
+<h2 id="b">2609.06396 MetaRSI Eq.10（m 分工的来源＋executor 语义的来源）</h2>
+<div class="card"><table>
+<tr><th>原文</th><th>DWC 落点</th><th>状态</th></tr>
+<tr><td>Eq.10 φ(τ)＝(χ terminal cause，ψ causal role，<b>μ reusable mechanism</b>)；χ/ψ 灰色＝trace＋verifier grounding，只有 μ 是模型假设</td><td>failure_sig c/q＝χ，m 前半＝ψ，m 机制＋patch＝μ；R278 m_source=llm 正是此式</td><td class="g">对得上</td></tr>
+<tr><td>三 operator 共享同一 signature vocabulary（路由判据人人可读）</td><td>key＝c:q:fn 全链同口径——诊断/起草/落地说的是一种语言</td><td class="g">对得上</td></tr>
+<tr><td>verifier 不许进 operator 写 surface（否则 deployment-time reward hacking：分数涨能力没涨）</td><td>judge 只判分不回写树/不改判据——DWC 早守了，原文背书</td><td class="g">对得上</td></tr>
+<tr><td>executor 无独立出处</td><td>DWC 自研执行通道；其"LLM 断言即观测"语义与上两篇"候选与 m 由模型生成"同源（client.py:7 已注）</td><td class="y">自研＋同源</td></tr>
+</table></div>
+<h2 id="c">对 P1 改道的裁决（五条）</h2>
+<div class="card"><p>1. <b>④成立</b>：prompt-template edit 有 Definition 2 背书，无-baseline 形态合法——但 patch 必须对 prompt 模板施改（空话不上墙）。<br>
+2. <b>R1/R2 是 DWC 自加的退化形态，原文没有</b>：原文要的是 LLM 生成；deterministic R1/R2 只覆盖"有源码可改"的任务，007 类断言失败天然无米——不是接点错，是形态错。<br>
+3. <b>新 R3 方向</b>：由 diffs 里 expected/actual 真值直接转"铁律句"（0.15000000000000002→"输出完整精度"），deterministic，不编（真值全来自 diffs＋anchor）。<br>
+4. <b>Critic 位确认</b>：deterministic R3 与 LLM draft 同跑同判，正是 AEGIS Critic——P1 Step 4 设计不变，接点改到"形态"而非"位置"。<br>
+5. <b>variant-isolation 警告</b>：规则按 fn 隔离已对；后续新规则不许跨 fn 复用 patch（007 的铁律不许粘到 008 头上）。</p>
+<p class="small">诚实：HarnessX 全文 20955 行取关键节精读（§3 定义＋§4 AEGIS＋§6 结果），非逐行；MetaRSI 取 Eq.10 上下文＋路由/防作弊节。未读：两附录、HarnessX §5 co-evolution 细则。</p></div>
+</body></html>
