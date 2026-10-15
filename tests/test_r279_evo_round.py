@@ -1,0 +1,109 @@
+# -*- coding: utf-8 -*-
+"""★★★ R279 · 进化收尾链（读库→聚簇→起草→试跑→报告，默认不落盘）。
+
+★ 隔离：sqlite 用 tmp 库；llm/trial 全 fake；禁碰生产。
+★ 落盘默认关（--apply 才写，且先备份）。
+"""
+import io
+import json as _json
+import os
+import sqlite3
+import sys
+
+import pytest
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(_HERE)
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+
+import dwc_evo_round as EVO
+from dwc.organs.evolver import Evolver, LLMMutator
+
+
+def _tmpdb(path):
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+    con.execute("INSERT INTO failure_sig VALUES(?,?,?,?)",
+                ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n1"))
+    con.execute("INSERT INTO failure_sig VALUES(?,?,?,?)",
+                ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n2"))
+    con.commit()
+    con.close()
+    return path
+
+
+def _sig():
+    return {"c": "E_VALUE", "q": "wrong_magnitude",
+            "m": "llm_asserted:0.15", "fn": "average", "task": "code_fix_007"}
+
+
+_GOOD = {"component": "prompt", "dimension": "D7",
+         "target_layer": "assets", "target": "average",
+         "m": "float_repr", "patch": "p", "rationale": "r"}
+
+
+class TestCollect:
+    def test_unmapped_cluster_found(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        cls = EVO.collect_unmapped(db, Evolver(), fn_of=lambda r: "average",
+                                   task_of=lambda r: "code_fix_007")
+        assert len(cls) == 1 and len(cls[0]["sigs"]) == 2
+
+    def test_empty_db_no_clusters(self, tmp_path):
+        con = sqlite3.connect(str(tmp_path / "e.sqlite"))
+        con.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+        con.commit()
+        con.close()
+        assert EVO.collect_unmapped(str(tmp_path / "e.sqlite"), Evolver(),
+                                    fn_of=lambda r: "x",
+                                    task_of=lambda r: "y") == []
+
+    def test_bad_db_loud(self):
+        with pytest.raises(Exception):
+            EVO.collect_unmapped("/nonexistent/x.sqlite", Evolver(),
+                                 fn_of=lambda r: "x", task_of=lambda r: "y")
+
+
+class TestRound:
+    def test_draft_and_trial_pass(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
+        rep = EVO.run_round(db, Evolver(), mu, context="",
+                            trial_fn=lambda task, patch: True, apply=False,
+                            rules_path=str(tmp_path / "rules.json"),
+                            fn_of=lambda r: "average",
+                            task_of=lambda r: "code_fix_007")
+        assert rep["n_clusters"] == 1
+        assert rep["results"][0]["drafted"] is True
+        assert rep["results"][0]["trial"] is True
+        assert rep["results"][0]["landed"] is False  # 默认不落
+        assert not os.path.exists(str(tmp_path / "rules.json"))
+
+    def test_apply_lands_with_backup(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        rp = str(tmp_path / "rules.json")
+        mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
+        rep = EVO.run_round(db, Evolver(), mu, context="",
+                            trial_fn=lambda task, patch: True, apply=True,
+                            rules_path=rp,
+                            backup_dir=str(tmp_path),
+                            fn_of=lambda r: "average",
+                            task_of=lambda r: "code_fix_007")
+        assert rep["results"][0]["landed"] is True
+        data = _json.load(io.open(rp, encoding="utf-8"))
+        assert "E_VALUE:wrong_magnitude:average" in data["learned"]
+        assert rep["results"][0]["backup"] is not None
+
+    def test_trial_fail_never_lands(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        rp = str(tmp_path / "rules.json")
+        mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
+        rep = EVO.run_round(db, Evolver(), mu, context="",
+                            trial_fn=lambda task, patch: False, apply=True,
+                            rules_path=rp,
+                            backup_dir=str(tmp_path),
+                            fn_of=lambda r: "average",
+                            task_of=lambda r: "code_fix_007")
+        assert rep["results"][0]["trial"] is False
+        assert rep["results"][0]["landed"] is False
+        assert not os.path.exists(rp)

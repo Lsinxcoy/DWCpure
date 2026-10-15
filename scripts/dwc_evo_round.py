@@ -1,0 +1,155 @@
+# -*- coding: utf-8 -*-
+"""★★★ R279 · 进化收尾链（自动链的最后一公里）。
+
+★ 读生产 failure_sig → diagnose 找 unmapped 簇 → LLMMutator 起草 →
+  真执行试跑 → 报告；默认不落盘（--apply 且试跑通过才落，落前必备份）。
+★ daemon/nightbench 零改：独立脚本，cron/手工调。
+"""
+import argparse
+import io
+import json
+import os
+import sqlite3
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "src"))
+
+from dwc.organs.evolver import Evolver, LLMMutator, Mutator
+
+
+def collect_unmapped(db_path, evolver, fn_of, task_of):
+    """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。"""
+    con = sqlite3.connect(db_path)
+    try:
+        rows = con.execute(
+            "select c,q,m,node_id from failure_sig").fetchall()
+    finally:
+        con.close()
+    sigs = [{"c": r[0], "q": r[1], "m": r[2],
+             "fn": fn_of(r), "task": task_of(r), "node_id": r[3]}
+            for r in rows]
+    if not sigs:
+        return []
+    out = evolver.diagnose(sigs)
+    groups = {}
+    for s in out.get("unmapped", []):
+        k = Mutator.key_for(s)
+        groups.setdefault(k, []).append(s)
+    return [{"key": k, "sigs": v} for k, v in groups.items()]
+
+
+def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
+              backup_dir=None, fn_of=None, task_of=None, max_clusters=3):
+    """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。"""
+    fn_of = fn_of or (lambda r: "")
+    task_of = task_of or (lambda r: "")
+    clusters = collect_unmapped(db_path, evolver, fn_of, task_of)
+    results = []
+    for cl in clusters[:max(1, max_clusters)]:
+        item = {"key": cl["key"], "n": len(cl["sigs"]),
+                "drafted": False, "trial": None,
+                "landed": False, "backup": None}
+        p = mu.propose_from_cluster(cl["sigs"], context)
+        if p is None:
+            item["reason"] = mu.last_reason
+            results.append(item)
+            continue
+        item["drafted"] = True
+        item["proposal_id"] = p.proposal_id
+        t = trial_fn(cl["sigs"][0].get("task", ""), p.patch)
+        item["trial"] = t
+        if apply and t is True:
+            entry = {"component": p.component, "dimension": p.dimension,
+                     "target_layer": p.target_layer, "target": p.target,
+                     "m": p.failure_signature.get("m", ""),
+                     "m_source": "llm", "patch": p.patch,
+                     "rationale": p.rationale}
+            item["backup"] = _land(rules_path, cl["key"], entry, backup_dir)
+            item["landed"] = True
+        results.append(item)
+    return {"n_clusters": len(clusters), "results": results}
+
+
+def _land(rules_path, key, entry, backup_dir):
+    """★ 落盘：先写备份收据（pre_absent 如实记），再合并（保旧条目）。"""
+    pre_absent = not os.path.exists(rules_path)
+    data = {"learned": {}}
+    if not pre_absent:
+        with io.open(rules_path, encoding="utf-8") as f:
+            data = json.load(f)
+        data.setdefault("learned", {})
+    data["learned"][key] = entry
+    bdir = backup_dir or os.path.join(os.path.dirname(rules_path), "..",
+                                      "..", "..", "Temp")
+    os.makedirs(bdir, exist_ok=True)
+    receipt = os.path.join(
+        bdir, "rules_backup_%s.json" % time.strftime("%Y%m%d_%H%M%S"))
+    with io.open(receipt, "w", encoding="utf-8") as f:
+        json.dump({"pre_absent": pre_absent, "key": key,
+                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")},
+                  f, ensure_ascii=False)
+    _d = os.path.dirname(rules_path)
+    if _d and not os.path.exists(_d):
+        os.makedirs(_d)
+    with io.open(rules_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    return receipt
+
+
+def _real_trial(judge, llm, task, patch, max_tokens=1500):
+    """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分（True/False/None）。"""
+    from dwc.llm.executor import (build_observed_prompt, obs_skeleton,
+                                  parse_llm_observed)
+    skel = obs_skeleton(judge.anchors, task)
+    prompt = build_observed_prompt(task, skel, "") + "\n" + patch
+    r = llm.complete(prompt, max_tokens=max_tokens)
+    if not r.ok:
+        return None
+    obs = parse_llm_observed(r.text or "", skel)
+    if obs is None:
+        return None
+    return judge.evaluate(task, "dev",
+                          observed={"observed": obs,
+                                    "★_executed": True}).success
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--db", default="")
+    ap.add_argument("--rules", default="")
+    ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--backup-dir", default="")
+    ap.add_argument("--max-clusters", type=int, default=3)
+    # ★ R279 范围诚实声明：failure_sig 表无 fn/task 列 ⇒ fn/task 由参数指定，
+    #   默认对准已知的 007 簇；多任务泛化等 node_id→task 映射落地后再做。
+    ap.add_argument("--fn", default="average")
+    ap.add_argument("--task", default="code_fix_007")
+    args = ap.parse_args()
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(here)
+    db = args.db or os.path.join(root, "var", "dwc_prod.sqlite")
+    rules = args.rules or os.path.join(root, "config", "anchors",
+                                       "rules.json")
+    from dwc.llm.client import LLMClient
+    from dwc.organs.judge import Judge
+    judge = Judge()
+    llm = LLMClient()
+    mu = LLMMutator(llm=lambda p: (
+        lambda r: r.text if r.ok else (_ for _ in ()).throw(
+            RuntimeError(r.error)))(llm.complete(p, max_tokens=800)))
+    ctx = "anchors tasks: %s" % (sorted(judge.anchors.keys())[:12],)
+    rep = run_round(db, Evolver(), mu, ctx,
+                    trial_fn=lambda t, pa: _real_trial(judge, llm, t, pa),
+                    apply=args.apply, rules_path=rules,
+                    backup_dir=args.backup_dir or None,
+                    fn_of=lambda r: args.fn,
+                    task_of=lambda r: args.task,
+                    max_clusters=args.max_clusters)
+    print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
