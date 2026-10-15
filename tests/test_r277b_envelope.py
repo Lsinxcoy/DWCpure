@@ -57,3 +57,29 @@ def test_judge_rejects_train_split():
     j = Judge()
     with pytest.raises(JudgeError):
         j.evaluate("code_fix_001", "train", observed=_good_obs())
+
+
+def test_abstain_all_null_envelope_is_none():
+    """★ R277b-6 · 执行通道全 null 回声 ⇒ 未评价 None（不当失败）。"""
+    j = Judge()
+    env = {"observed": {"sum_first_n": [[3, None], [5, None]]},
+           "★_executed": True}
+    v = j.evaluate("code_fix_001", "dev", observed=env)
+    assert v.success is None
+
+
+def test_abstain_partial_null_still_graded():
+    """★ R277b-6 · 部分 null 仍正常判分（残疾对子该挂就挂）。"""
+    j = Judge()
+    env = {"observed": {"sum_first_n": [[3, None], [5, 15]]},
+           "★_executed": True}
+    v = j.evaluate("code_fix_001", "dev", observed=env)
+    assert v.success is False
+
+
+def test_abstain_rule_era_unaffected():
+    """★ R277b-6 · 非 envelope 全 null 不进弃权（旧行为零碰）。"""
+    j = Judge()
+    v = j.evaluate("code_fix_001", "dev",
+                   observed={"sum_first_n": [[3, None], [5, None]]})
+    assert v.success is False

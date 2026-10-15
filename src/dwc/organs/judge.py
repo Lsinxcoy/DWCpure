@@ -870,6 +870,20 @@ class Judge:
                 and "★_executed" in observed:
             _executed = bool(observed.get("★_executed"))
             observed = observed.get("observed") or {}
+        # ★ R277b-6 · LLM 弃权（全 null 回声 = 模型一个数都没断言）⇒
+        #   未评价 None（Verdict 纪律：None 跳过），不当失败。
+        #   部分 null 仍正常走 _diff（残疾对子该挂就挂）—— _diff 零改。
+        if _executed and isinstance(observed, dict) and observed:
+            _vals = [p[1] for pairs in observed.values()
+                     if isinstance(pairs, list) for p in pairs
+                     if isinstance(p, list) and len(p) == 2]
+            if _vals and all(v is None for v in _vals):
+                v = Verdict(task_id, split, None,
+                            "未评价：LLM 弃权（执行通道全 null 回声，"
+                            "无断言值可比）",
+                            cat, "llm_abstained")
+                self._log.append(v)
+                return v
         diffs = self._diff(golden, observed)
         ok = all(d["ok"] for d in diffs)
         note = ""
