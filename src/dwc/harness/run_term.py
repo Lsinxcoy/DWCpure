@@ -38,6 +38,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -228,6 +229,8 @@ class TermReport:
     judgement: Optional[Dict[str, Any]] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
     score_delta: Optional[float] = None
+    #: ★ R276b · 本轮回灌 EXPERIENCE 的失败签名条数（判分→记忆的生产回灌）
+    evo_backfilled: int = 0
     dials: Dict[str, Any] = field(default_factory=dict)
     #: 五环各环节的记录（判据 T1 要求都在）
     stages: List[Dict[str, Any]] = field(default_factory=list)
@@ -835,6 +838,7 @@ class TermRunner:
         if verdict is not None:
             rep.judgement = verdict
             rep.score_delta = verdict.get("pass_rate")
+            rep.evo_backfilled = self._backfill_failures(verdict)
             # ── R205 · ★ 执行→树观测回填自动化（还 trial_run 手动债）──
             #   ★ 依据: verdict.details 是**真判** per-task 结果（judge.evaluate）
             #     ⇒ 喂 world_model（环节⑥ 探索的 GDI/组序/δ 排序全靠它）
@@ -868,6 +872,32 @@ class TermRunner:
                         (float(_pr) if _pr is not None
                          else (1.0 if _ok else 0.0)),
                         bool(_ok))
+
+    def _backfill_failures(self, verdict: Dict[str, Any]) -> int:
+        """★ R276b · 判分→EXPERIENCE 生产回灌（开回灌的总开关在此方法）。
+
+        口径与 Loop._remember_failure 一致：success is False 才记
+        （None 跳过 — Verdict 纪律）；D6 要 c/q/m；异常留痕返已记条数。
+        """
+        n = 0
+        try:
+            for d in ((verdict or {}).get("details") or []):
+                if not isinstance(d, dict) or d.get("success") is not False:
+                    continue
+                sigs = list(d.get("sigs") or []) or [
+                    d.get("failure_signature") or {}]
+                for s in sigs:
+                    s = dict(s or {})
+                    if not (s.get("c") and s.get("q") and s.get("m")):
+                        continue
+                    self.memory.remember(
+                        MemoryKind.FAILURE_SIGNATURE,
+                        {"c": s["c"], "q": s["q"], "m": s["m"],
+                         "task": d.get("task_id")})
+                    n += 1
+        except Exception as exc:                   # noqa: BLE001
+            sys.stderr.write("回灌跳过: %s\n" % exc)
+        return n
 
     def _build_observations(self, rep: TermReport) -> Dict[str, Dict]:
         """★ 造一批观测（judge 的输入契约）。
