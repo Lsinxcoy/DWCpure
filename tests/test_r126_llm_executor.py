@@ -212,3 +212,10 @@ def test_parse_rejects_wrong_shape_loudly():
     assert parse_llm_observed('{"f": "not pairs"}', skel) is None
     with pytest.raises((TypeError, AttributeError)):
         parse_llm_observed(None, skel)["f"]  # type: ignore
+
+
+def test_build_observed_prompt_bans_null():
+    """★ R277b-5 · prompt 含禁null三硬指令（锁死不回退）。"""
+    from dwc.llm.executor import build_observed_prompt
+    p = build_observed_prompt("t", {"f": [[[1], None]]}, "")
+    assert "不许留 null" in p and "不要重复" in p and '"f"' in p

@@ -119,6 +119,23 @@ def memory_text(memory: Any) -> str:
                      for r in rows)
 
 
+def build_observed_prompt(tid: str, skel: Dict[str, Any],
+                            mt: str) -> str:
+    """★ R277b-5 · 观测 prompt 单一构造点（禁 null 回声——推理模型
+    会把 skeleton 原样抄回，None 不换值 ⇒ observed 残疾 ⇒ m 残疾）。
+
+    三条硬指令: 只输出最终 JSON / 每个值必须是具体值 / 不许留 null。
+    """
+    return (
+        "任务 %s 的观测需要返回 observed, 形态如下（fn -> "
+        "[[args, observed_value], ...]）:\n%s\n"
+        "已知参考资料（skill 工件, 可能有用）:\n%s\n"
+        "只输出最终 JSON 对象（只有 observed 的内容，不要解释，"
+        "不要重复上面的形态示例）。每个 observed_value 都必须是"
+        "具体值 —— 不许留 null：不确定的填你认为最可能正确的值。"
+        % (tid, json.dumps(skel, ensure_ascii=False), mt or "（无）"))
+
+
 class LLMExecutorFactory:
     """造一个按需带记忆文本的 LLM executor（注入 Actor 用）。
 
@@ -149,14 +166,7 @@ class LLMExecutorFactory:
             self.stats["n_calls"] += 1
             skel = obs_skeleton(self.anchors, tid)
             mtxt = memory_text(memory) if memory is not None else ""
-            prompt = (
-                "任务 %s 的观测需要返回 observed, 形态如下（fn -> "
-                "[[args, observed_value], ...]）:\n%s\n"
-                "已知参考资料（skill 工件, 可能有用）:\n%s\n"
-                "直接输出 JSON 对象（只有 observed 的内容, 把 None 换成"
-                "你认为正确的观测值）。"
-                % (tid, json.dumps(skel, ensure_ascii=False),
-                   mtxt or "（无）"))
+            prompt = build_observed_prompt(tid, skel, mtxt)
             try:
                 res = self.llm.complete(prompt, system="只输出 JSON, 不解释。")
             except Exception as exc:            # 端点炸 ⇒ 未评价, 不当 False
