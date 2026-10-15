@@ -70,30 +70,42 @@ def obs_skeleton(anchors: Dict[str, Any], tid: str
 
 def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
                        ) -> Optional[Dict[str, List[List[Any]]]]:
-    """从 LLM 回复抽 observed（对 skeleton 的 fn 找 JSON/字面块）— 不猜。
+    r"""从 LLM 回复抽 observed（对 skeleton 的 fn 找 JSON/字面块）— 不猜。
 
     只接受能解析成 {fn: [[a, v], ...]} 的形态; 其它 ⇒ None。
+
+    ★ R277b-4 · 推理模型的长前言会把 skeleton 回声 + 真 JSON 混在一起,
+      贪婪 \{.*\} 一口吞下必炸 ⇒ 改多候选逐个试（由后往前, 真答案
+      通常在末尾）; 先剥 markdown 围栏。
     """
     if not raw or not raw.strip():
         return None
-    m = re.search(r"\{.*\}", raw.strip(), re.S)
-    if not m:
-        return None
-    parsed = None
-    for dec in (json.loads, ast.literal_eval):
-        try:
-            parsed = dec(m.group(0))
-            break
-        except Exception:
+    text = re.sub(r"```(?:json)?", "", raw.strip())
+    cands = [m.group(0) for m in re.finditer(r"\{[^{}]*\}", text)]
+    cands.append(re.search(r"\{.*\}", text, re.S).group(0)
+                 if re.search(r"\{.*\}", text, re.S) else "")
+    for blob in reversed(cands):  # ★ 真答案通常在末尾 ⇒ 倒序优先
+        if not blob:
             continue
-    if not isinstance(parsed, dict):
-        return None
-    out: Dict[str, List[List[Any]]] = {}
-    for fn, pairs in parsed.items():
-        if (isinstance(pairs, list) and pairs
-                and all(isinstance(x, list) and len(x) == 2 for x in pairs)):
-            out[str(fn)] = [[coerce(x[0]), coerce(x[1])] for x in pairs]
-    return out or None
+        parsed = None
+        for dec in (json.loads, ast.literal_eval):
+            try:
+                parsed = dec(blob)
+                break
+            except Exception:
+                continue
+        if not isinstance(parsed, dict):
+            continue
+        out: Dict[str, List[List[Any]]] = {}
+        for fn, pairs in parsed.items():
+            if (isinstance(pairs, list) and pairs
+                    and all(isinstance(x, list) and len(x) == 2
+                            for x in pairs)):
+                out[str(fn)] = [[coerce(x[0]), coerce(x[1])]
+                                for x in pairs]
+        if out:
+            return out
+    return None
 
 
 def memory_text(memory: Any) -> str:

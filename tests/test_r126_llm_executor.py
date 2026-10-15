@@ -181,3 +181,34 @@ def test_synthetic_path_unchanged_without_executor():
     tr.judge = _J()
     out = tr._build_observations(None)
     assert out == {"kw_task": {"answer": "alpha beta", "★_synthetic": True}}
+
+
+def test_parse_reasoning_preamble_takes_trailing_json():
+    """★ R277b-4 · 推理模型前言+skeleton回声+围栏真JSON ⇒ 取末尾真值。"""
+    from dwc.llm.executor import parse_llm_observed
+    skel = {"average": [[[], None], [[1, 2, 3], None]]}
+    raw = ("We need answer. skeleton: "
+           '{"average": [[[], null], [[1, 2, 3], null]]}. Decide.\n'
+           '```json\n{"average": [[[], 0.0], [[1, 2, 3], 2.0]]}\n```')
+    assert parse_llm_observed(raw, skel) == {
+        "average": [[[], 0.0], [[1, 2, 3], 2.0]]}
+
+
+def test_parse_plain_json_unchanged():
+    """★ R277b-4 · 纯JSON行为不变（零回归锁）。"""
+    from dwc.llm.executor import parse_llm_observed
+    skel = {"f": [[[1], None]]}
+    assert parse_llm_observed('{"f": [[[1], 7]]}', skel) == {
+        "f": [[[1], 7]]}
+    assert parse_llm_observed("no braces", skel) is None
+    assert parse_llm_observed("", skel) is None
+
+
+def test_parse_rejects_wrong_shape_loudly():
+    """★ R277b-4 · 全是错形 ⇒ None（调用方记llm_parse_failed，不编数）。"""
+    import pytest
+    from dwc.llm.executor import parse_llm_observed
+    skel = {"f": [[[1], None]]}
+    assert parse_llm_observed('{"f": "not pairs"}', skel) is None
+    with pytest.raises((TypeError, AttributeError)):
+        parse_llm_observed(None, skel)["f"]  # type: ignore
