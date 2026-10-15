@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R286 · 第三次普查（R283–R285 后）</title>
+<style>body{background:#0B0F14;color:#ECEDEE;font-family:"Microsoft YaHei",sans-serif;max-width:1080px;margin:auto;padding:24px}
+nav{position:sticky;top:0;background:#0B0F14;padding:10px 0;border-bottom:1px solid #2A2A2C}
+nav a{color:#FFB86B;margin-right:16px;text-decoration:none}
+.card{background:#141920;border:1px solid #2A2A2C;border-radius:10px;padding:16px;margin:14px 0}
+.g{color:#5AF78E}.y{color:#F3D99B}.r{color:#FF5F56}.m{color:#8A8E94}
+h1{color:#FFB86B}h2{color:#FFB86B;border-bottom:1px solid #2A2A2C;padding-bottom:6px}
+code{color:#F3D99B}.small{font-size:13px;color:#8A8E94}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left;vertical-align:top}th{color:#FFB86B}</style></head>
+<body>
+<nav><a href="#l">灯板</a><a href="#f">新抓</a><a href="#n">下一步</a></nav>
+<h1>R286 · 第三次普查 <span class="small">2026-10-15 夜 · 只读零LLM · 主代理直做</span></h1>
+<p>daemon 40160 alive（terms 9）· failure_sig 5 行（2→5，清一色 007 同错成簇）· lessons 9 · verdicts 75 · rules 仍 1 条 · credit 仍缺席</p>
+<h2 id="l">灯板：8● / 7◐ / 3○（上次 6●/9◐/3○）</h2>
+<div class="card"><table>
+<tr><th>系统</th><th>灯</th><th>证据</th></tr>
+<tr><td>judge 判分</td><td class="g">●</td><td>graded 真值（004/005/006 true），928→1368 行</td></tr>
+<tr><td>predictor bench 闭环</td><td class="g">●</td><td>bench: 10 键，Brier 0.0373（n=126）——R283 转正有数</td></tr>
+<tr><td>candidates deterministic（R3）</td><td class="g">●</td><td>生产真调 N=2，真试跑翻绿 007（R285）——从◐升●</td></tr>
+<tr><td>evo_round＋not_wired</td><td class="g">●</td><td>每日 04:00 cron 在位，not_wired 三件进报告（R285-P2）</td></tr>
+<tr><td>verdict 落盘/failure_sig 回灌</td><td class="g">●</td><td>75 行 verdicts，failure_sig 5 行</td></tr>
+<tr><td>LLMMutator 起草</td><td class="g">●</td><td>R278 链完整（上次已●）</td></tr>
+<tr><td>bench full/predictor 对跑</td><td class="g">●</td><td>8/10 vs 8/10（R283）</td></tr>
+<tr><td>nightbench/cron 群</td><td class="g">●</td><td>11 cron 在位，02:30 待明早验</td></tr>
+<tr><td>predictor task: 回灌</td><td class="y">◐</td><td><b>新抓 bug</b>：整轮一票否决——见下</td></tr>
+<tr><td>adopt 第五态</td><td class="y">◐</td><td>仍 adopted_not_implemented，生产采纳 0</td></tr>
+<tr><td>credit 账</td><td class="y">◐</td><td>仍缺席，只活内存</td></tr>
+<tr><td>world/metric select</td><td class="y">◐</td><td>记账中，门：Loop 生产调用</td></tr>
+<tr><td>direction</td><td class="y">◐</td><td>open-loop 未动</td></tr>
+<tr><td>planner</td><td class="y">◐</td><td>契约合成未动</td></tr>
+<tr><td>co-evolution（模型训练信号）</td><td class="y">◐</td><td>R284 登记缺口，未做</td></tr>
+<tr><td>S1 世界树 select</td><td class="m">○</td><td>无调用场景，硬接=造壳</td></tr>
+<tr><td>S2 metric 开发点 select</td><td class="m">○</td><td>同上</td></tr>
+<tr><td>inbox→bench 键统一</td><td class="m">○</td><td>三命名空间并存（bench:/task:/inbox:），Brier 分开算，不强统</td></tr>
+</table></div>
+<h2 id="f">本轮新抓：R280 整轮一票否决</h2>
+<div class="card"><p>run_term.py 回灌条件 <code>not any(success is None)</code> 按整轮判——daemon 9 轮每轮都有 None（007 白卷等）⇒ <b>永远零喂</b>，predictor 仍 7 行全 inbox。代码到位、判分在跑、观测零次——典型的"接了线没通电"。</p>
+<p>修法（R287）：逐 task 喂——None 的跳过该 task，True/False 照喂。约 10 行＋2 测。SSOT 口径：details 逐条 success 独立判定。</p></div>
+<h2 id="n">下一步</h2>
+<div class="card"><p>① R287 修一票否决（推荐先做，10 行见效，task: 键今晚就有数） ② adopt 第五态（R282 量级，单独立项） ③ 28 个 anchor 过期断言（R277b 落 007–009 没更新，worktree 验证 HEAD 同挂——非回归，单独立项） ④ 02:30 cron 明早验。</p>
+<p class="small">诚实：R3 生产 N=2（两条调用记录各产一）非 N=1——触发计数按 diff 条目，符合设计。28 挂明细：HEAD 基线同挂 25＋3（r205/run_term×2），R285 只新增 0（land_flushes 已修）。全量 1831 passed。</p></div>
+</body></html>
