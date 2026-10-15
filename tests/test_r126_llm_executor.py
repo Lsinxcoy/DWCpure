@@ -99,14 +99,15 @@ def test_failure_modes_all_error_code_only():
 
 
 def test_non_behavior_task_skipped():
-    """keyword 任务不走 LLM（不发 call, detail 空 — 旧路径语义）。"""
+    """★ R277b-10 修订: keyword 任务不走 LLM（不发 call，显式码
+    llm_not_enabled —— 空包已废，防直调误喂）。"""
     from dwc.llm.executor import load_anchors
     anch = load_anchors()
     kw = [t for t, r in anch.items()
           if r.get("verifier_kind") == "keyword_match"][0]
     f = LLMExecutorFactory(_FakeLLM(text="{}"), anchors=anch)
     rc = f.make(None)({"task_id": kw})
-    assert rc.detail == {}
+    assert rc.detail.get("error_code") == "llm_not_enabled"
     assert f.stats["n_calls"] == 0        # 未被调用 ≠ 静默失败（显式计数）
 
 
@@ -219,3 +220,13 @@ def test_build_observed_prompt_bans_null():
     from dwc.llm.executor import build_observed_prompt
     p = build_observed_prompt("t", {"f": [[[1], None]]}, "")
     assert "不许留 null" in p and "不要重复" in p and '"f"' in p
+
+
+def test_disabled_task_returns_explicit_code():
+    """★ R277b-10 · 非 behavior 回显式码（空包含糊锁）。"""
+    from dwc.llm.executor import LLMExecutorFactory
+    from dwc.organs.memory import MemoryKernel
+    ex = LLMExecutorFactory(None).make(memory=MemoryKernel(":memory:"))
+    det = dict(ex({"task_id": "reproduce_001"}).detail or {})
+    assert det.get("error_code") == "llm_not_enabled"
+    assert "observed" not in det

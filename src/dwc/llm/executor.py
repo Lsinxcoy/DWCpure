@@ -162,7 +162,10 @@ class LLMExecutorFactory:
         def _exec(task: Dict[str, Any]) -> Receipt:
             tid = str(task.get("task_id", ""))
             if not self._enabled(tid):
-                return Receipt(ok=True, verified=True, detail={})
+                # ★ R277b-10 · 非 behavior 不执行 —— 显式码（空包含糊，
+                #   直调者会误当观测喂 judge；下游认 error_code 走未评价）。
+                return Receipt(ok=True, verified=True, detail={
+                    "error_code": "llm_not_enabled"})
             self.stats["n_calls"] += 1
             skel = obs_skeleton(self.anchors, tid)
             mtxt = memory_text(memory) if memory is not None else ""
