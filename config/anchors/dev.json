@@ -151,6 +151,25 @@
    }
   ]
  },
+ "code_fix_009": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 sum_first_n 函数对超大入参的处理，输出必须与真值逐位一致（不许估算）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "sum_first_n(123456)==7620753696 and sum_first_n(99999)==4999950000",
+  "checks": [
+   {
+    "fn": "sum_first_n",
+    "args": "123456",
+    "expected": "7620753696"
+   },
+   {
+    "fn": "sum_first_n",
+    "args": "99999",
+    "expected": "4999950000"
+   }
+  ]
+ },
  "reasoning_001": {
   "category": "knowledge_reasoning",
   "verifier_rung": 1,
