@@ -400,6 +400,23 @@ class TermRunner:
         #   重启丢。落盘持久化是下一步，不在本轮；缺席≠0 见 summary note。）
         from dwc.organs.credit import CreditLedger as _CL287
         self.credit_ledger = _CL287()
+        # ★ R289 · 落盘路径（db 旁 var/credit_ledger.jsonl；:memory: 无盘可落
+        #   ⇒ 路径 None（内存语义不变）。启动载回 —— 重启不丢（坏账大声炸，
+        #   构造期炸比跑起来丢账强；文件缺席是常态不炸）。
+        import os as _os289
+        self.credit_path = None
+        if db_path != ":memory:":
+            try:
+                _dbdir = _os289.path.dirname(_os289.path.abspath(db_path))
+                _vardir = (_dbdir if _os289.path.basename(_dbdir) == "var"
+                           else _os289.path.join(_dbdir, "var"))
+                _os289.makedirs(_vardir, exist_ok=True)
+                self.credit_path = _os289.path.join(
+                    _vardir, "credit_ledger.jsonl")
+                self.credit_ledger.load(self.credit_path)
+            except Exception as excIssues:    # noqa: BLE001 — 坏账大声留痕
+                sys.stderr.write("credit载回失败（停前留痕）: %r\n" % (excIssues,))
+                raise
         # ★★★ 必须先登记机制才能记事件（present 层是入口守卫，
         #   wiring.record 会 raise "未登记" —— 这是它正常工作，不是 bug）
         self.wiring.register(MECHANISM)
@@ -975,6 +992,11 @@ class TermRunner:
                 try:
                     _feed_credit((verdict or {}).get("details"), task,
                                  getattr(self, "credit_ledger", None))
+                    # ★ R289 · 轮尾落盘（只追加新增；写不动抛由外层隔离 ——
+                    #   账落不下去不停轮，但留痕；:memory: 无路径跳过）。
+                    _cp = getattr(self, "credit_path", None)
+                    if _cp is not None:
+                        self.credit_ledger.flush(_cp)
                 except Exception as exc2:             # noqa: BLE001
                     sys.stderr.write("credit记账跳过: %s\n" % exc2)
             except Exception as exc:                  # noqa: BLE001

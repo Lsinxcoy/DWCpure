@@ -82,6 +82,7 @@ class CreditLedger:
 
     def __init__(self) -> None:
         self._entries: List[CreditEntry] = []
+        self._flushed = 0          # ★ R289 · 已落盘笔数（只追加新增的游标）
 
     def record(self, e: CreditEntry) -> None:
         """★ 追加一笔（不许覆盖/中途改写 — 事后改账=销毁证据）。"""
@@ -105,6 +106,63 @@ class CreditLedger:
 
     def entries(self) -> List[CreditEntry]:
         return list(self._entries)               # 副本 — 外部无法改内部
+
+    def flush(self, path: str) -> int:
+        """★ R289 · 落盘：只追加新增（append-only 物理保证）。
+
+        返回本次追加笔数；无新增 ⇒ 0 且不碰文件（无账不假装有）。
+        文件坏/写不动 ⇒ 抛（调用方隔离 —— 台账语义不许静默丢账）。
+        """
+        new = self._entries[self._flushed:]
+        if not new:
+            return 0
+        import io
+        import json as _json
+        with io.open(path, "a", encoding="utf-8") as f:
+            for e in new:
+                f.write(_json.dumps(e.as_dict(), ensure_ascii=False) + "\n")
+        self._flushed = len(self._entries)
+        return len(new)
+
+    def load(self, path: str) -> int:
+        """★ R289 · 启动载回：文件缺席 ⇒ 0 不炸（首轮无文件是常态）。
+
+        坏行 ⇒ 大声炸（账坏了不停就是销毁证据 —— 宁可停）。
+        载回的笔视为已落盘（游标同步 —— 不翻倍追加）。
+        """
+        import io
+        import json as _json
+        import os as _os
+        if not _os.path.exists(path):
+            return 0
+        n = 0
+        with io.open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = _json.loads(line)
+                except ValueError as exc:
+                    raise CreditError(
+                        "credit 台账第 %d 行坏账（停 —— 不静默跳过）: %s"
+                        % (i + 1, exc))
+                # ★ R289-补 · 兼容 R276-③ 信封格式 {round, task, entry:{七元组}}
+                #   （Loop._persist_credit 写的旧账 —— 同文件两写盘路径，
+                #   读侧兼容，写侧统一七元组平铺。新账一律平铺。）
+                if isinstance(raw, dict) and "entry" in raw \
+                        and isinstance(raw["entry"], dict):
+                    raw = raw["entry"]
+                try:
+                    e = CreditEntry(**{k: raw[k] for k in LEDGER_FIELDS})
+                except Exception as exc:      # KeyError/TypeError/CreditError
+                    raise CreditError(
+                        "credit 台账第 %d 行字段不符七元组/契约（停）: %s"
+                        % (i + 1, exc))
+                self._entries.append(e)     # 构造期载回 — 非事后改账
+                n += 1
+        self._flushed = len(self._entries)
+        return n
 
     def summary(self) -> Dict[str, Any]:
         """★ 聚合面: 按维度/层的 a_i 加权与输赢计数（归因体检）。"""
