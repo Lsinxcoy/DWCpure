@@ -50,13 +50,16 @@ def _anchors(n):
 
 
 def test_tasks_of_real_judge():
-    """★★ 真 judge: dev 10 任务 / test 9 任务（R160 核实到的真实 split）。"""
+    """★★ 真 judge: dev/test 任务数从 anchors 实算（R160 核实的真实 split）。"""
     from dwc.organs.judge import Judge
     from dwc.harness.splitfeed import _tasks_of
     j = Judge()
     dev = _tasks_of(j, "dev")
     tst = _tasks_of(j, "test")
-    assert len(dev) == 13 and len(tst) == 10, (len(dev), len(tst))  # R199: dev+3
+    # ★ R287-E · 动态口径（anchor+3 根因：dev 13→16。test split 未动。
+    #   意图是"两 split 真实划分"，数字实算 —— 下次 anchor+1 不炸。）
+    _n_dev = len([k for k in j.anchors if not str(k).startswith("_")])
+    assert len(dev) == _n_dev and len(tst) == 10, (len(dev), len(tst))
     assert not any(t.startswith("_") for t in dev + tst)   # 元键排除
     assert set(dev) & set(tst) == set()                   # 互不相交
 

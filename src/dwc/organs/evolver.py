@@ -2188,6 +2188,37 @@ class Evolver:
         install_registry(None)      # 复位（防跨实例污染 — R152 铁律）
         return out
 
+    def _land_adopted(self, p: Proposal) -> Dict[str, Any]:
+        """★ R287-C · 第五态下游落地（幂等）。
+
+        ★ 前置：p.state 必须是 adopted_not_implemented（adopt() 判过的），
+          否则 EvolverError 大声（rejected/draft 落盘 = 把没通过的当通过）。
+        ★ 键口径：Mutator.key_for(c:q:fn)，fn 取 proposal.target
+          （target 约定就是函数名 —— 与 propose/RULES 同口径，不手拼）。
+        ★ entry 按 RULE_ENTRY_FIELDS 八字段；m_source 沿 proposal 的
+          failure_signature（诚实来源传递，不改写）。
+        ★ 幂等：key 已在 RULES ⇒ already_landed（不长双胞胎）；
+          落盘走 Mutator.persist_learned（与 R278 同口径）。
+        """
+        if p.state != "adopted_not_implemented":
+            raise EvolverError(
+                "只有 adopted_not_implemented 可落地，实 state=%r"
+                % (p.state,))
+        _sig = dict(p.failure_signature or {})
+        _sig.setdefault("fn", p.target)
+        _key = Mutator.key_for(_sig)
+        if _key in self.mutator.RULES:
+            return {"outcome": "already_landed", "key": _key}
+        self.mutator.RULES[_key] = {
+            "component": p.component, "dimension": p.dimension,
+            "target_layer": p.target_layer, "target": p.target,
+            "m": _sig.get("m", ""),
+            "m_source": _sig.get("m_source", "rule"),
+            "patch": p.patch, "rationale": p.rationale}
+        _persist = Mutator.persist_learned()
+        return {"outcome": "landed", "key": _key,
+                "persist": _persist}
+
     # ══════════════════════════════════════════════
     # ★★★ 关键: 采纳必须同时过**两组 split**（约束 3）
     # ══════════════════════════════════════════════

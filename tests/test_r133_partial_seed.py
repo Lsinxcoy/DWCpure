@@ -40,9 +40,11 @@ def test_n_revealed_constant_across_m():
             d.world_model.record_observation("dev", tid, float(plan[i]),
                                              bool(plan[i] >= 0.5))
         rep = d.dream(k2_max=4, policy_variants=specs_default())
-        # per_world: (world, V, k, n_revealed) tuple; n 恒 12 ⇒ list 单值
+        # per_world: (world, V, k, n_revealed) tuple; n 恒定（K₂×段）
+        # ★ R287-E · 恒定口径（anchor+3 根因：search 10→13，n 基准 12→15。
+        #   意图是"跨 m 恒定"不是"恒 12" —— 改不断言具体值。）
         ns = [w[3] for w in rep.per_world]
-        assert ns == [12], ns
+        assert len(set(ns)) == 1, ns
         assert len(set(rep.v_by_version.values())) <= 1
 
 

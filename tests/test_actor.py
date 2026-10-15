@@ -320,7 +320,15 @@ def test_dev_suite_produces_real_observations(a, j):
     res = run_dev_suite(a, j)
     sc = res["score"]
     assert res["n_actor_traces"] > 0
-    assert sc["pass"] == 6, "6 条 behavior 任务应全过"
+    # ★ R287-E · 动态口径（anchor+3 根因：run_dev_suite 本来就按
+    #   verifier_kind==behavior 动态跑 9 个，硬编码 6 必炸。意图是
+    #   "behavior 全过"，分母动态取 —— 下次 anchor+1 不炸。）
+    _n_behavior = len(
+        [k for k, v in j.anchors.items()
+         if not str(k).startswith("_") and v.get("verifier_kind")
+         == "behavior"])
+    assert sc["pass"] == _n_behavior, \
+        "%d 条 behavior 任务应全过" % _n_behavior
     assert sc["fail"] == 0
     # ★ 关键: 覆盖全部断言，不是每条只跑一个
     for tid, obs in res["observations"].items():
@@ -333,12 +341,16 @@ def test_dev_suite_produces_real_observations(a, j):
 def test_pass_rate_uses_only_graded(a, j):
     """★★★★ 意图: 分母只算判过的（not_evaluated 不进分母）。"""
     sc = run_dev_suite(Actor(), j)["score"]
-    # ★ R199: dev 13 条（+3 rung3; run_dev_suite 只跑 behavior ⇒ pass+fail 仍 6）
-    assert sc["n_tasks"] == 13
-    assert sc["pass"] + sc["fail"] == 6
-    # ★ R199: not_evaluated 4→7（+3 expected_values — run_dev_suite 只跑
-    #   behavior; 13 = 6 graded + 7 未评, 分母只算判过的意图不变）
-    assert sc["not_evaluated"] == 7
+    # ★ R287-E · 动态口径（anchor+3 根因：16 tasks / 9 behavior graded /
+    #   7 未评。意图是"分母=graded"，数字动态取 —— 下次 anchor+1 不炸。）
+    _n_tasks = len([k for k in j.anchors if not str(k).startswith("_")])
+    _n_behavior = len(
+        [k for k, v in j.anchors.items()
+         if not str(k).startswith("_") and v.get("verifier_kind")
+         == "behavior"])
+    assert sc["n_tasks"] == _n_tasks
+    assert sc["pass"] + sc["fail"] == _n_behavior
+    assert sc["not_evaluated"] == _n_tasks - _n_behavior
     assert sc["pass_rate"] == 1.0
     # ★ 若把 not_evaluated 当 fail ⇒ 0.6；这里必须是 1.0
 

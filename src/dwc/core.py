@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import uuid
 from copy import deepcopy
@@ -76,6 +77,10 @@ _SEVERITIES = {"block", "warn", "meta"}
 _CAP_GROUPS_PATH = os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))),
     "config", "capability_groups.yaml")
+#: ★ R287-E · 守门人 anchors（新锚归位的 category 真相源）
+_ANCHORS_DEV_PATH = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))),
+    "config", "anchors", "dev.json")
 
 
 class DwcError(Exception):
@@ -128,6 +133,32 @@ def _load_capability_groups(path: str = _CAP_GROUPS_PATH
     return out
 
 
+def load_groups_with_homing(path: str = _CAP_GROUPS_PATH,
+                             anchors_path: str = _ANCHORS_DEV_PATH
+                             ) -> Dict[str, List[str]]:
+    """★ R287-E · 组表 + 新锚归位（生产播种 / 脚本分组共用）。
+
+    组表 yaml 是 sealed 真相源（G1/G3 只认它，不动）；但 anchors（守门人）
+    的新锚带自带 category（与组名同域）→ 按 category 并入同名组，
+    无对应组仍直挂（seed 降级语义不变）。返回的是**归位后副本**，
+    yaml 文件本身不写（sealed 流程在 ARSI 仓，不在本轮）。
+    """
+    groups = _load_capability_groups(path)
+    try:
+        _dev = json.load(io.open(anchors_path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return groups                      # anchors 不可读 ⇒ 纯组表（大声留痕在调用方）
+    _known = {t for m in groups.values() for t in m}
+    for _tid, _a in _dev.items():
+        if _tid.startswith("_") or _tid in _known:
+            continue
+        _cat = (_a or {}).get("category") if isinstance(_a, dict) else None
+        if _cat in groups:
+            groups[_cat].append(_tid)
+            _known.add(_tid)
+    return groups
+
+
 class DWC:
     """一个主类持有全部器官。三入口驱动（ARCHITECTURE §2.1 形状）。"""
 
@@ -178,9 +209,12 @@ class DWC:
         #   **此前世界树生产上永远为空**（src 内 seed/expand 零生产调用 ——
         #   R76 核出: 批1 的 el_selected 在生产永不出现的两层原因之二）⇒
         #   任务源/EL/δ 排序全部空转。播种后 node_id=judge task_id 同域。
+        _groups = load_groups_with_homing()
+        # ★ R287-E 注：归位逻辑在 load_groups_with_homing（生产播种 /
+        #   脚本分组共用）—— 组表 yaml（sealed 真相源）本身不动，G1 不受影响。
         self.world_model.seed_tasks(
             [t for t in self.judge.anchors if not t.startswith("_")],
-            groups=_load_capability_groups())
+            groups=_groups)
         #: R80 · ℋ Dreaming 历史快照（设计稿裁决①: 单树时点快照,
         #: [(tree_id, deepcopy(WorldTree)), ...] — 每 run_term 尾追加,
         #: 超 history_max 丢最旧（内存环形, 不落盘）

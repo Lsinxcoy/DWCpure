@@ -128,8 +128,14 @@ def test_ga_duel_script_runs_full():
                                                           "best_v")
     assert v["winner"] in ("single", "ga")
     # 恒等如实（一期 protocol 验证口径）
+    # ★ R287-E · 分支如实（anchor+3 根因：007-009 进 golden 臂输入，
+    #   V 不再恒等 → 走"V 有区分度"分支。意图是"分支文案如实"，
+    #   不是"永远恒等" —— 恒等是任务池的偶然属性，不是 duel 的保证。）
     cave = "\n".join(d["caveats"])
-    assert "结构必然" in cave and "非对打失败" in cave
-    assert "仍须用户再拍" in cave    # 对打赢≠常态化授权
+    if "V 有区分度" in cave:
+        assert "记录方向" in cave and "仍须用户再拍" in cave
+    else:
+        assert "结构必然" in cave and "非对打失败" in cave
+        assert "仍须用户再拍" in cave    # 对打赢≠常态化授权
     # 纪律先于输赢字段
     assert d["discipline"]["single_within"] and d["discipline"]["ga_within"]

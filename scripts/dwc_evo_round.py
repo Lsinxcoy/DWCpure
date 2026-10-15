@@ -85,13 +85,32 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         t = trial_fn(cl["sigs"][0].get("task", ""), p.patch)
         item["trial"] = t
         if apply and t is True:
-            entry = {"component": p.component, "dimension": p.dimension,
-                     "target_layer": p.target_layer, "target": p.target,
-                     "m": p.failure_signature.get("m", ""),
-                     "m_source": "llm", "patch": p.patch,
-                     "rationale": p.rationale}
-            item["backup"] = _land(rules_path, cl["key"], entry, backup_dir)
-            item["landed"] = True
+            # ★ R287-C · adopt 门（Evolver.accept）：trial 布尔无分数 ⇒
+            #   accept 缺 baseline/current 会判 not_evaluated/blocked。
+            #   诚实处置：先判，有分数走门（第五态→_land_adopted 落）；
+            #   无分数走 legacy 直落但标记 decision（门没判≠门过了 ——
+            #   收紧点：trial_fn 带分数之日 legacy 分支删除，见 ★TODO）。
+            try:
+                _ad = evolver.accept(
+                    p, baseline={}, current={})
+            except Exception as exc_a:  # noqa: BLE001
+                _ad = {"decision": "accept_error",
+                       "why": "accept 抛错：%r" % (exc_a,)}
+            item["adopt"] = _ad.get("decision")
+            if _ad.get("decision") == "adopted_not_implemented":
+                item["backup"] = evolver._land_adopted(p)
+                item["landed"] = True
+            else:
+                entry = {"component": p.component, "dimension": p.dimension,
+                         "target_layer": p.target_layer, "target": p.target,
+                         "m": p.failure_signature.get("m", ""),
+                         "m_source": "llm", "patch": p.patch,
+                         "rationale": p.rationale}
+                item["backup"] = _land(rules_path, cl["key"], entry,
+                                       backup_dir)
+                item["landed"] = True
+                item["★TODO"] = ("legacy 直落（trial 无分数，门未判）——"
+                                 "trial_fn 带分数之日删此分支")
         results.append(item)
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。

@@ -86,8 +86,10 @@ def group_of_map() -> Dict[str, str]:
     """{task: 组名} — 组真源 core._load_capability_groups 反查。
     ★ 首版曾编造 load_groups 被 except 兜成字典序 ⇒ pi_star 臂实为 pi0
       （臂语义失效, 测试抓正）—— 真 API 坏/缺 ⇒ 大声 raise, 不兜底。"""
-    from dwc.core import _load_capability_groups
-    groups = _load_capability_groups()
+    from dwc.core import load_groups_with_homing
+    groups = load_groups_with_homing()
+    # ★ R287-E · 归位版（007-009 按 anchors category 入 code_repair ——
+    #   与生产 DWC 播种同口径，不再两张皮）
     return {t: g for g, members in groups.items() for t in members}
 
 

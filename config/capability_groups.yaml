@@ -51,6 +51,10 @@ groups:
       - code_fix_004
       - code_fix_005
       - code_fix_006
+    # ★ R287-E 注：code_fix_007/008/009 只在守门人 dev.json（anchors 层），
+    #   未进 ARSI sealed_tasks.yaml —— 组表的真相源是 sealed（G1），
+    #   不许引用 sealed 外任务（本文件 12 挂的根因，已回滚）。
+    #   007-009 进 sealed 是 ARSI 仓的事，不在本轮。
     scoring: assertion          # ARSI 的 scoring 字段
     verifier_rung: 1
     n_assertions_per_task: [2, 2, 2, 3, 2, 2]   # ★ 实测, 逐条核自 sealed_tasks.yaml

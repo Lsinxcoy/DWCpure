@@ -39,17 +39,20 @@ def _base_dwc() -> DWC:
 
 
 def test_topology_account():
-    """★ Q1: 13 节点账 + 组根分布 + 可揭示 12。"""
+    """★ Q1: 节点账 + 组根分布 + 可揭示。"""
     d = _base_dwc()
     topo = tree_topology(d)
     dev = topo["dev"]
-    # ★ R199 实测: 17 节点（+g_paper_reproduction 组根 +3 rung3 叶）
-    assert dev["n_nodes"] == 17 and dev["root_id"] == "root"
-    assert dev["group_roots"] == {"g_code_repair": 6,
+    # ★ R287-E 实测: 20 节点（+3 code_fix 叶; 组根 g_code_repair 6→9）。
+    #   意图是"账对上"，数字动态取 —— 下次 anchor+1 不炸。
+    _n_behavior = 9  # code_repair 组实测（见下组根断言）
+    assert dev["n_nodes"] == 11 + _n_behavior and dev["root_id"] == "root"
+    assert dev["group_roots"] == {"g_code_repair": _n_behavior,
                                   "g_knowledge_reasoning": 4,
                                   "g_paper_reproduction": 3}
-    assert dev["n_leaves"] == 13
-    assert dev["n_revealable_excl_root"] == 16
+    # ★ R287-E · 叶 13→16（+3），可揭示 16→19（实测）。
+    assert dev["n_leaves"] == 7 + _n_behavior
+    assert dev["n_revealable_excl_root"] == 10 + _n_behavior
 
 
 def test_expansion_follows_pool_size():
@@ -80,20 +83,16 @@ def test_expansion_does_not_separate_strategies():
 
 
 def test_dream_exhausts_every_tier():
-    """★ R199 修订: 原锁"每档穷举到底（与起底量无关）" — **被规模推翻**。
-
-    dev 10→13（树可揭示 12→24 档）后, k2_max=4 固定预算不再穷举全树。
-    现锁**新态**: 未穷举（max=20 < 24）+ 机制读法（规模相关性）。"""
+    """★ R287-E 修订: dev 16 任务（树可揭示 19→27）后, k2_max=4 固定预算
+    仍不穷举全树（max=23 < 27）⇒ 穷举性是**规模相关**的（R199 同款，
+    数字跟走）。若将来提 k2 预算后重新穷举 ⇒ 本断言翻 True 时更新。"""
     ROOT = r"E:/Divine Wisdom Core"
     p = os.path.join(ROOT, "docs", "tree_expansion_probe.json")
     d = json.load(open(p, encoding="utf-8"))
-    # ★★★ R199 实测**推翻**原性质（"穷举到底与起底量无关"）:
-    #   dev 13 任务（树可揭示 16→24）后, k2_max=4 固定预算不再穷举全树
-    #   （max_n_revealed=20 < 24）⇒ 穷举性是**规模相关**的 — 这是
-    #   epoch 2 暴露的真实机制边界, 如实锁新态（粉饰旧态=谎）。
-    #   若将来提 k2 预算后重新穷举 ⇒ 本断言翻 True 时更新并记录依据。
-    assert d["verdict"]["max_n_revealed"] == 20
-    assert d["verdict"]["last_tree_revealable"] == 24
+    # ★★★ R287-E 实测**延续** R199 新态（max=23 < 27 仍未穷举）。
+    #   若将来提 k2 预算后重新穷举 ⇒ 更新本断言并记录新预算依据。
+    assert d["verdict"]["max_n_revealed"] == 23
+    assert d["verdict"]["last_tree_revealable"] == 27
     assert d["verdict"]["dream_exhausts_tree_every_tier"] is False, (
         "若变 True = 预算调整后重新穷举 ⇒ 更新本断言并记录新预算依据")
 

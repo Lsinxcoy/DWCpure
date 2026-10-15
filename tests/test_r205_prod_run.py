@@ -67,7 +67,12 @@ def test_backfill_only_executed_behavior_tasks():
     d = _dwc()
     d.run_term("code_fix_001", n_steps=1)
     tree = d.world_model.tree("dev")
-    behavior = {"code_fix_00%d" % i for i in range(1, 7)}
+    # ★ R287-E · 名单动态口径（anchor+3 根因：007/008/009 也是 behavior。
+    #   硬编码 001..006 ⇒ 新 behavior 锚一落地就超集。改从 judge.anchors
+    #   读 verifier_kind==behavior —— 下次 anchor+1 不再炸。）
+    behavior = {tid for tid, a in d.judge.anchors.items()
+                if isinstance(a, dict) and a.get("verifier_kind")
+                == "behavior" and not str(tid).startswith("_")}
     obs = {tid for tid, n in tree.nodes.items() if n.score is not None}
     assert obs, "首 term 无任何回填（回填自动化回归）"
     assert obs <= behavior, "非 behavior 任务被喂进树: %s" % (obs - behavior)

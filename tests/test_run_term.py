@@ -456,7 +456,10 @@ def test_change_ring_carries_real_judgement():
           if r["stage"] == "change"][0]
     assert ch["payload"]["judge"] is not None, "change 环必须带真判分"
     j = ch["payload"]["judge"]
-    assert j["n_tasks"] == 13   # ★ R199: dev 13
+    # ★ R287-E · 动态口径（anchor+3 根因：dev 13→16。意图是"change 环带
+    #   真判分"，数字实算。）
+    _n = len([k for k in Judge().anchors if not str(k).startswith("_")])
+    assert j["n_tasks"] == _n
 
 
 def test_synthetic_observations_are_labelled():
@@ -480,7 +483,10 @@ def test_pass_rate_does_not_pretend_full_coverage():
     assert j["not_evaluated"] > 0, "多数任务未评价"
     assert j["pass_rate"] == 1.0
     # ★★ 关键: 通过率与覆盖率必须同时可读，不能只看 pass_rate
-    assert j["n_tasks"] == 13 and j["pass"] == 1   # ★ R199
+    # ★ R287-E · 动态口径（anchor+3 根因：dev 13→16。意图是"只评 1 条时
+    #   不假装全过"，数字实算。）
+    _n = len([k for k in Judge().anchors if not str(k).startswith("_")])
+    assert j["n_tasks"] == _n and j["pass"] == 1
     assert "not_evaluated" in j
 
 

@@ -144,9 +144,18 @@ def test_old_ten_tasks_untouched(j):
 
 
 def test_rung_mix_now_three_tier():
-    """★★ rung 结构: {1:10, 3:3}（R199 前 {1:10} — rung_monotone 信号消解）。"""
+    """★★ rung 结构三层（R199 前单层 — rung_monotone 信号消解）。"""
+    # ★ R287-E · 动态口径（anchor+3 根因：rung1 10→13。意图是"三层结构
+    #   + 无单调"，数字从 anchors 实算 —— 下次 anchor+1 不炸。）
+    from collections import Counter
+    _expect = Counter(str(a.get("verifier_rung"))
+                      for k, a in json.load(
+                          open(os.path.join(ROOT, "config", "anchors",
+                                            "dev.json"),
+                               encoding="utf-8")).items()
+                      if not k.startswith("_"))
     sig = drift_signals(ROOT)
-    assert sig["rung_mix"] == {"1": 10, "3": 3}, sig["rung_mix"]
+    assert sig["rung_mix"] == dict(_expect), sig["rung_mix"]
     assert "rung_monotone" not in sig["suggestions"]
 
 

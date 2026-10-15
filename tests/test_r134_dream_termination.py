@@ -26,15 +26,16 @@ def test_k2_growing_then_saturated():
     """★ 两区坐实: 活区 n 增长, 饱和区 = 全树。
 
     ★ R199 修订: 旧态"k2=4 起饱和恒 12"是 10 任务树的边界; 13 任务树
-    （17 节点）下饱和点右移到 k2=8（16=excl-root 全量）— 边界规模相关。"""
+    （17 节点）下饱和点右移到 k2=8（16=excl-root 全量）— 边界规模相关。
+    ★ R287-E 修订: 16 任务树（20 节点）下饱和点再右移（k2=8 揭 19 =
+    revealable 全量）— 边界规模相关，"存在饱和区"仍坐实。"""
     rows = probe_k2([1, 2, 4, 8])
     n_by = {r["k2_max"]: r["per_world"][0][3] for r in rows}
     assert n_by[1] < n_by[2] < n_by[4]        # 活区增长
-    # ★★★ R199 实测: dev 13 任务后**饱和点右移**（旧态 k2=4 即饱和 12;
-    #   新树更大 ⇒ k2=4 揭 12 未饱和, k2=8 揭 16 = 全树 excl root 才饱和）
-    #   "存在饱和区"仍坐实, 边界随树规模移动 — 如实锁新态。
-    assert n_by[4] == 12 and n_by[8] == 16, n_by
-    assert n_by[8] == 16          # 16 = 17 节点树的 excl-root 全量
+    # ★★★ R287-E 实测: dev 16 任务后饱和点再右移（k2=8 揭 19 = 全树
+    #   excl root 可揭示全量）— "存在饱和区"仍坐实，边界随树规模移动。
+    assert n_by[4] == 15 and n_by[8] == 19, n_by
+    assert n_by[8] == 19          # 19 = 20 节点树的 excl-root 可揭示全量
 
 
 def test_growing_zone_mixed_tree_no_separation():

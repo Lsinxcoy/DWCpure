@@ -32,10 +32,14 @@ def test_drift_signals_from_real_products():
     assert sig["n_dev"] >= 1, "e2e 跑过 ⇒ dev 证据在场"
     assert sig["dev_pass_rate"] is not None
     assert 0.0 <= sig["dev_pass_rate"] <= 1.0
-    # ★★ R199 后事实: rung3 锚点×3 落地 ⇒ rung_mix 不再单调
-    #   ⇒ rung_monotone 信号**消解**（信号亮→行动→信号灭 = R198 闭环）
-    #   规则本身的覆盖移到 test_r198_rung_rule_still_fires（合成夹具）
-    assert sig["rung_mix"] == {"1": 10, "3": 3}, sig["rung_mix"]
+    # ★★ R287-E 后事实: 007/008/009（rung1）落地 ⇒ rung_mix {1:13, 3:3}，
+    #   rung_monotone 信号**仍消解**（信号亮→行动→信号灭 = R198 闭环）。
+    #   意图是"非单调"，rung1 数动态取 —— 下次 anchor+1 不炸。
+    _rung1 = sum(1 for k, a in json.load(
+        open(os.path.join(ROOT, "config", "anchors", "dev.json"),
+             encoding="utf-8")).items()
+        if not k.startswith("_") and a.get("verifier_rung") == 1)
+    assert sig["rung_mix"] == {"1": _rung1, "3": 3}, sig["rung_mix"]
     assert "rung_monotone" not in sig["suggestions"], (
         "rung 已有 3 档却还亮 rung_monotone ⇒ 规则实现错了")
 

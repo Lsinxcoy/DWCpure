@@ -60,3 +60,64 @@ class TestObserve:
     def test_tree_key_rejected(self, tmp_path):
         with pytest.raises(Exception):
             _p(tmp_path).observe("tree:t/n", True)
+
+
+class _FakeOP:
+    def __init__(self):
+        self.calls = []
+
+    def observe(self, key, ok, evidence_ref=""):
+        self.calls.append((key, ok, evidence_ref))
+
+
+class TestFeedPredictor:
+    """★★★ R287 · 逐 task 喂数（修整轮一票否决）。
+
+    ★ 前置：run_term._feed_predictor(details, db_path, task, op_factory)
+      纯函数（提纯自内联块，语义零改）。红测时它不存在 ⇒ AttributeError。
+    """
+
+    def test_mixed_round_feeds_decided_only(self, tmp_path):
+        from dwc.harness.run_term import _feed_predictor
+        fake = _FakeOP()
+        n = _feed_predictor(
+            [{"task_id": "a", "success": True},
+             {"task_id": "b", "success": None},
+             {"task_id": "c", "success": False}],
+            str(tmp_path), "round_x", op_factory=lambda p: fake)
+        assert n == 2, "True/False 各喂一条，None 跳过"
+        assert [c[0] for c in fake.calls] == ["task:a", "task:c"]
+        assert [c[1] for c in fake.calls] == [True, False]
+
+    def test_all_none_feeds_zero_loud(self, tmp_path):
+        from dwc.harness.run_term import _feed_predictor
+        fake = _FakeOP()
+        n = _feed_predictor([{"task_id": "a", "success": None}],
+                            str(tmp_path), "round_x",
+                            op_factory=lambda p: fake)
+        assert n == 0 and fake.calls == []
+
+
+class TestFeedCredit:
+    """★★★ R287-D · credit 首个生产 record 调用（内存有数，落盘下一步）。
+
+    ★ 前置：run_term._feed_credit(details, task, ledger) 纯函数；
+      ledger 是 CreditLedger 真类（零真 LLM，本来就是纯数据结构）。
+    """
+
+    def test_decided_tasks_recorded(self):
+        from dwc.harness.run_term import _feed_credit
+        from dwc.organs.credit import CreditLedger
+        led = CreditLedger()
+        n = _feed_credit([{"task_id": "a", "success": True},
+                          {"task_id": "b", "success": None},
+                          {"task_id": "c", "success": False}],
+                         "round_x", led)
+        assert n == 2
+        assert led.summary()["n"] == 2
+        assert led.summary()["n_winner"] == 1
+
+    def test_no_ledger_skips_loud(self):
+        from dwc.harness.run_term import _feed_credit
+        assert _feed_credit([{"task_id": "a", "success": True}],
+                            "round_x", None) == 0

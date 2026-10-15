@@ -43,8 +43,10 @@ def test_split_rule_recomputes():
     assert sorted(sp["val"]) == expect_val, "规则复算 ≠ 落盘"
     assert set(sp["search"]) | set(sp["val"]) == set(ids)
     assert set(sp["search"]) & set(sp["val"]) == set()
-    # ★ R199: 8/2 → 10/3（epoch 2 — +3 rung3; 机械规则复算三条不变）
-    assert len(sp["search"]) == 10 and len(sp["val"]) == 3
+    # ★ R287-E · 动态口径（anchor+3 根因：落盘 _split 已重算 13/3。
+    #   意图是"机械规则三条不变"，层数动态取 —— 下次 anchor+1 不炸。）
+    assert len(sp["search"]) == len(ids) - len(groups)
+    assert len(sp["val"]) == len(groups)
 
 
 def test_legacy_zero_regression():
@@ -58,9 +60,10 @@ def test_legacy_zero_regression():
 def test_search_mode_hides_val_labels():
     """★ search 模式: D_val ⇒ None+标签隐藏（不当 0/1）; search 集照判。"""
     j = Judge()
-    # val 任务 — 隐藏（observed 给了正确 golden 也不许出 True）
-    golden = DEV["code_fix_006"]
-    v_hidden = j.evaluate("code_fix_006",
+    # ★ R287-E · val 代表改 009（anchor+3 根因：_split 重算后 006 已是
+    #   search 集，009 才是 behavior 层末位 val 成员。）
+    golden = DEV["code_fix_009"]
+    v_hidden = j.evaluate("code_fix_009",
                           observed={"_probe": 1}, split_mode="search")
     assert v_hidden.success is None
     assert "标签隐藏" in v_hidden.reason and v_hidden.missing == "d_val_hidden"

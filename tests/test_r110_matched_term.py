@@ -34,7 +34,14 @@ ALL_TASKS = sorted(t for t in ANCHORS
 def test_task_set_spans_two_groups():
     """★ 教训锁②: 任务集必须跨组（只取 behavior 6 任务全在 code_repair ⇒
     组间序无效, pi_star 与 pi0 数据巧合同序）。"""
-    assert len(ALL_TASKS) == 10, "behavior 6 + keyword_match 4"
+    # ★ R287-E · 动态口径（anchor+3 根因：behavior 6→9，keyword 4 不变。
+    #   意图是"跨组"，数字动态取 —— 下次 anchor+1 不炸。）
+    _n_behavior = len([t for t in ALL_TASKS
+                       if ANCHORS[t].get("verifier_kind") == "behavior"])
+    _n_keyword = len([t for t in ALL_TASKS
+                      if ANCHORS[t].get("verifier_kind") == "keyword_match"])
+    assert len(ALL_TASKS) == _n_behavior + _n_keyword, \
+        "behavior %d + keyword_match %d" % (_n_behavior, _n_keyword)
     gmap = group_of_map()
     groups = {gmap[t] for t in ALL_TASKS if t in gmap}
     assert len(groups) >= 2, "跨组才有组间序: %r" % groups
@@ -49,12 +56,17 @@ def test_arm_orders_and_reproducible():
     assert p1 == p2 and p1 != o0, "盲序可复现且 ≠ 字典序"
     # pi_star 带 rates 的动态性: 人为压低组率 ⇒ 该组任务必须提前
     gmap = group_of_map()
+    # ★ R287-E · 归位后 gmap 全覆盖 ALL_TASKS（group_of_map 与生产播种
+    #   同口径）—— 未分组即真异常，不跳过。
+    _grouped = ALL_TASKS
+    assert all(t in gmap for t in _grouped), \
+        "归位后仍有未分组任务: %s" % [t for t in _grouped if t not in gmap]
     low = {g: 0.1 for g in set(gmap.values())}
-    first_low = [t for t in arm_order("pi_star", ALL_TASKS, 42, rates=low)
+    first_low = [t for t in arm_order("pi_star", _grouped, 42, rates=low)
                  if gmap[t] == "knowledge_reasoning"]
     # 组率全 0.1 时组间平 — 用**单组低**验证排序键真读 rates:
     only_know = {"knowledge_reasoning": 0.1}
-    order = arm_order("pi_star", ALL_TASKS, 42, rates=only_know)
+    order = arm_order("pi_star", _grouped, 42, rates=only_know)
     idx_first_know = next(i for i, t in enumerate(order)
                           if gmap[t] == "knowledge_reasoning")
     idx_first_code = next(i for i, t in enumerate(order)

@@ -386,6 +386,8 @@ def test_truth_source_records_no_broken_assertions():
 def test_dev_has_no_metadata_counted_as_task(j):
     """★★ 意图: _provenance 等元数据不得被当成任务（R24 修的 bug）。"""
     sc = j.score(SPLIT_DEV, {})
-    # ★ R199: dev 10→13（epoch 2 — 加 rung3 锚点×3, 守门人只增不改）
-    assert sc["n_tasks"] == 13, "实际 13 条任务（元数据不计入 — 意图不变）"
-    assert j.self_check()["dev_tasks"] == 13
+    # ★ R287-E · 动态口径（anchor+3 根因：R199 的 13 已是旧数。
+    #   意图是"元数据不计入"，数字从 anchors 实算 —— 下次 anchor+1 不炸。）
+    _n = len([k for k in j.anchors if not str(k).startswith("_")])
+    assert sc["n_tasks"] == _n, "实际 %d 条任务（元数据不计入 — 意图不变）" % _n
+    assert j.self_check()["dev_tasks"] == _n

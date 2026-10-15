@@ -135,6 +135,73 @@ def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int
     return len(false_tasks)
 
 
+def _feed_predictor(details, db_path: str, task: str,
+                    op_factory=None) -> int:
+    """★ R287 · 判分→predictor 逐 task 喂数（修 R280 整轮一票否决）。
+
+    ★ R280 的 bug：`not any(success is None)` 按整轮判 —— daemon 每轮
+      都有 None（白卷）⇒ 永远零喂。粒度降到条：None 跳过该条，
+      True/False 照喂。键是任务名（`task_id`，与 _append_verdict_log
+      同口径 —— 用 `task` 键是错的，已在此统一）。
+    ★ :memory:/目录缺席 ⇒ 0（禁污染 cwd/仓库）；op_factory 仅测试注入。
+    返回实际喂数。
+    """
+    ds = [d for d in (details or []) if isinstance(d, dict)]
+    _dir = os.path.dirname(db_path or "")
+    if not ds or not _dir or not os.path.isdir(_dir):
+        return 0
+    if op_factory is None:
+        from dwc.organs.predictor import OutcomePredictor as _OP
+        op_factory = lambda p: _OP(log_path=p)  # noqa: E731
+    op = op_factory(os.path.join(_dir, "dwc_predictor.jsonl"))
+    n = 0
+    for d in ds:
+        _s = d.get("success")
+        if _s is None:
+            continue  # ★ 未评价跳过该 task（R280 纪律保留，粒度降到条）
+        _tid = d.get("task_id") or task
+        op.observe("task:" + str(_tid), _s is True,
+                   evidence_ref="term_verdict:%s" % _tid)
+        n += 1
+    return n
+
+
+def _feed_credit(details, task: str, ledger, t: int = 0) -> int:
+    """★ R287-D · credit 首个生产 record 调用（内存有数，落盘下一步）。
+
+    ★ 七元组填法（诚实边界都写明）: edit=task 名（可归因锚点）；
+      layer/dimension 取 verdict 明细里带的（无则 "unknown" 哨兵 ——
+      CreditEntry 空串即拒，哨兵显式好过编造；落盘收紧时再填真值）；
+      delta_s/delta_c 调用方抄录 —— 这里判分只有布尔，
+      按 success True=1.0/False=0.0 抄（粗糙但显式，注释写明）；
+      adopted 与 success 一致（赢家=1）。
+    ★ ledger 缺席 ⇒ 0（不硬建文件 —— 持久化是下一步，不在本函数）。
+    ★ 单笔坏 ⇒ 跳过该笔计坏数，不掀整轮（record 本身抛 CreditError 时）。
+    """
+    if ledger is None:
+        return 0
+    from dwc.organs.credit import CreditEntry
+    n = 0
+    for d in (details or []):
+        if not isinstance(d, dict):
+            continue
+        _s = d.get("success")
+        if _s is None:
+            continue
+        try:
+            ledger.record(CreditEntry(
+                t=t, edit=str(d.get("task_id") or task),
+                layer=str(d.get("layer") or "unknown"),
+                hunk=str(d.get("task_id") or task),
+                dimension=str(d.get("dimension") or "unknown"),
+                delta_s=1.0 if _s is True else 0.0, delta_c=0.0,
+                adopted=1 if _s is True else 0))
+            n += 1
+        except Exception:
+            continue  # ★ 一笔坏不掀轮（留痕由调用方计数，见下）
+    return n
+
+
 @dataclass
 class CostLedger:
     """★★ 两个台账并存（判据 T4）。
@@ -329,6 +396,10 @@ class TermRunner:
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
         self.cost = CostLedger()
+        # ★ R287-D · credit 台账实例（内存，进程级 —— daemon 常驻则累积，
+        #   重启丢。落盘持久化是下一步，不在本轮；缺席≠0 见 summary note。）
+        from dwc.organs.credit import CreditLedger as _CL287
+        self.credit_ledger = _CL287()
         # ★★★ 必须先登记机制才能记事件（present 层是入口守卫，
         #   wiring.record 会 raise "未登记" —— 这是它正常工作，不是 bug）
         self.wiring.register(MECHANISM)
@@ -896,22 +967,16 @@ class TermRunner:
                 sys.stderr.write("verdict落盘跳过: %s\n" % exc)
                 rep.evo_n_fail = -1
             try:  # ★ R280 · 判分→predictor 观测回灌（append-only，不阻断本轮）
-                #   ★ 键就是任务名（task:xxx）：预测问谁、观测记谁，同一命名空间
-                #     —— 根治"写 inbox 键、问 bench 键永无交集 ⇒ 恒 0.5"。
-                #   ★ Verdict 纪律：details 含 False ⇒ False；含 None ⇒ 跳过不喂；
-                #     全 True ⇒ True。
-                _ds = [d for d in ((verdict or {}).get("details") or [])
-                       if isinstance(d, dict)]
-                # ★ :memory: 测试库无旁路可落 ⇒ 跳过（禁污染 cwd/仓库）。
-                _dir280 = os.path.dirname(self.db_path or "")
-                if _ds and _dir280 and os.path.isdir(_dir280) \
-                        and not any(d.get("success") is None for d in _ds):
-                    from dwc.organs.predictor import OutcomePredictor as _OP280
-                    _ok280 = all(d.get("success") is True for d in _ds)
-                    _op280 = _OP280(log_path=os.path.join(
-                        _dir280, "dwc_predictor.jsonl"))
-                    _op280.observe("task:" + str(task), _ok280,
-                                   evidence_ref="term_verdict:%s" % task)
+                #   ★ R287 起走 _feed_predictor 逐 task 喂（修整轮一票否决）。
+                _feed_predictor((verdict or {}).get("details"),
+                                self.db_path, task)
+                #   ★ R287-D · credit 记账（内存台账首个生产调用；坏笔隔离，
+                #     不掀轮 —— _feed_credit 内部已逐笔 try/except）。
+                try:
+                    _feed_credit((verdict or {}).get("details"), task,
+                                 getattr(self, "credit_ledger", None))
+                except Exception as exc2:             # noqa: BLE001
+                    sys.stderr.write("credit记账跳过: %s\n" % exc2)
             except Exception as exc:                  # noqa: BLE001
                 sys.stderr.write("predictor回灌跳过: %s\n" % exc)
             # ── R205 · ★ 执行→树观测回填自动化（还 trial_run 手动债）──

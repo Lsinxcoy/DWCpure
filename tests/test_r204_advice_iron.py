@@ -119,10 +119,15 @@ def test_iron_report_four_states():
     for x in ir["not_instrumented"]:
         assert x["why"], "not_instrumented 缺 why: %s" % x
     # 11 条全交代（无静默跳过）
+    # ★ R287-E · 公式重算（anchor+3 根因：G10 warn 时旧公式 11≠13。
+    #   真结构：checked/na/not_instrumented 互斥三分（4+1+6=11）；
+    #   block/warn 是"摘录"不是分类（G10 同时在 checked 和 warn 里，
+    #   双计是公式错不是律缺席）。意图"全交代"不变，另加摘录一致性。）
     assert ir["n_laws"] == len(ir["checked"]) + len(ir["na"]) \
-        + len(ir["not_instrumented"]) + len(ir["block"]) + \
-        sum(1 for c in ir["checked"] if c["verdict"] in ("block", "warn")), \
-        "律交代不齐: %s" % ir
+        + len(ir["not_instrumented"]), "律交代不齐: %s" % ir
+    _checked_ids = {c["id"] for c in ir["checked"]}
+    assert set(ir["block"]) | set(ir["warn"]) <= _checked_ids, \
+        "block/warn 摘录必须出自 checked 真判: %s" % ir
 
 
 def test_g11_certification_limit_present_and_quoted():

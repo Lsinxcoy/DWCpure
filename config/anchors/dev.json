@@ -299,6 +299,9 @@
    "code_fix_003",
    "code_fix_004",
    "code_fix_005",
+   "code_fix_006",
+   "code_fix_007",
+   "code_fix_008",
    "reasoning_001",
    "reasoning_002",
    "reasoning_003",
@@ -306,7 +309,7 @@
    "reproduce_002"
   ],
   "val": [
-   "code_fix_006",
+   "code_fix_009",
    "reasoning_004",
    "reproduce_003"
   ],
