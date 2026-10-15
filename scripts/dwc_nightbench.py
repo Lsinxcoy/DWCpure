@@ -22,11 +22,24 @@ import os
 import sys
 import time
 
-def _find_root() -> str:
-    """★ cron 拷贝跑时 __file__ 在 hermes/scripts — 向上找 .dwc_repo 标记。"""
-    d = os.path.dirname(os.path.abspath(__file__))
+def _find_root(start=None) -> str:
+    """★ cron 拷贝跑时 __file__ 在 hermes/scripts — 向上找 .dwc_repo 标记。
+
+    ★ R279 修：标记文件是**指针**（内容=仓库路径）不是路标 —— 旧版只认
+      存在性不读内容 ⇒ cron 下永远指到 hermes/scripts/src（不存在）⇒
+      ModuleNotFoundError: No module named 'dwc'（02:30 红两周实证）。
+    """
+    d = start or os.path.dirname(os.path.abspath(__file__))
     for _ in range(6):
-        if os.path.exists(os.path.join(d, ".dwc_repo")):
+        _mk = os.path.join(d, ".dwc_repo")
+        if os.path.isfile(_mk):
+            try:
+                with open(_mk, encoding="utf-8") as _f:
+                    _r = _f.readline().strip()
+                if _r and os.path.isdir(_r):
+                    return _r
+            except OSError:
+                pass
             return d
         d = os.path.dirname(d)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

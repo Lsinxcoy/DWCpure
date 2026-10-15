@@ -13,8 +13,27 @@ import sqlite3
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "..", "src"))
+
+def _code_root(start=None) -> str:
+    """★ 代码根发现（cron 拷贝场景：.dwc_repo 指针 → 仓库；同 nightbench）。"""
+    d = start or os.path.dirname(os.path.abspath(__file__))
+    for _ in range(6):
+        _mk = os.path.join(d, ".dwc_repo")
+        if os.path.isfile(_mk):
+            try:
+                with open(_mk, encoding="utf-8") as _f:
+                    _r = _f.readline().strip()
+                if _r and os.path.isdir(_r):
+                    return _r
+            except OSError:
+                pass
+            return d
+        d = os.path.dirname(d)
+    # ★ 回退：仓库本地布局（root/scripts/xxx.py）—— cron 拷贝必有指针，走不到这。
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+sys.path.insert(0, os.path.join(_code_root(), "src"))
 
 from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
@@ -51,7 +70,12 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         item = {"key": cl["key"], "n": len(cl["sigs"]),
                 "drafted": False, "trial": None,
                 "landed": False, "backup": None}
-        p = mu.propose_from_cluster(cl["sigs"], context)
+        try:
+            p = mu.propose_from_cluster(cl["sigs"], context)
+        except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
+            item["reason"] = "起草抛错：%r" % (exc,)
+            results.append(item)
+            continue
         if p is None:
             item["reason"] = mu.last_reason
             results.append(item)

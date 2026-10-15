@@ -107,3 +107,52 @@ class TestRound:
         assert rep["results"][0]["trial"] is False
         assert rep["results"][0]["landed"] is False
         assert not os.path.exists(rp)
+
+
+class TestRootPointer:
+    def test_pointer_dir_resolves_repo(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        cp = tmp_path / "cp"
+        cp.mkdir()
+        (cp / ".dwc_repo").write_text(str(repo), encoding="utf-8")
+        assert EVO._code_root(start=str(cp)) == str(repo)
+
+    def test_broken_pointer_falls_back_to_self(self, tmp_path):
+        cp = tmp_path / "cp2"
+        cp.mkdir()
+        (cp / ".dwc_repo").write_text("Z:/不存在/nowhere", encoding="utf-8")
+        assert EVO._code_root(start=str(cp)) == str(cp)
+
+    def test_nightbench_same_discipline(self, tmp_path):
+        import dwc_nightbench as NB
+        repo = tmp_path / "r2"
+        repo.mkdir()
+        cp = tmp_path / "c2"
+        cp.mkdir()
+        (cp / ".dwc_repo").write_text(str(repo), encoding="utf-8")
+        assert NB._find_root(start=str(cp)) == str(repo)
+
+
+def test_draft_raise_does_not_kill_round(tmp_path):
+    """★ 单簇端点抖 ⇒ 留痕继续，不掀整轮（cron 体质）。"""
+    db = tmp_path / "p.sqlite"
+    con = sqlite3.connect(str(db))
+    con.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+    con.execute("INSERT INTO failure_sig VALUES(?,?,?,?)",
+                ("E_VALUE", "wrong_magnitude", "m", "n1"))
+    con.commit()
+    con.close()
+
+    def _boom(p):
+        raise RuntimeError("端点抖")
+
+    mu = LLMMutator(llm=_boom)
+    rep = EVO.run_round(str(db), Evolver(), mu, context="",
+                        trial_fn=lambda t, pa: True, apply=False,
+                        rules_path=str(tmp_path / "rules.json"),
+                        fn_of=lambda r: "average",
+                        task_of=lambda r: "code_fix_007")
+    assert rep["n_clusters"] == 1
+    assert rep["results"][0]["drafted"] is False
+    assert "起草抛错" in rep["results"][0]["reason"]
