@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R288 第四次深度普查</title>
+<style>body{background:#0d1117;color:#e6edf3;font-family:sans-serif;max-width:900px;margin:auto;padding:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin:12px 0}
+.g{color:#3fb950}.y{color:#d29922}.r{color:#f85149}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #30363d;padding:6px 8px;text-align:left}
+h1 small{color:#8b949e}</style></head><body>
+<h1>R288 第四次深度普查 <small>2026-10-15 深夜 · R287 落地后 · 只读零 LLM 成本</small></h1>
+<div class="card"><h2>灯板：<span class="g">9●</span> / <span class="y">7◐</span> / <span class="r">3○</span> = 19（R286 8/7/3=18，+1 归位）</h2></div>
+<div class="card"><h2 class="g">● 活的（9）</h2><table>
+<tr><th>#</th><th>项</th><th>实测</th></tr>
+<tr><td>1</td><td>全量测试</td><td><b>1872 passed 零挂</b>（R286 1831+28挂 → 清零）</td></tr>
+<tr><td>2</td><td>predictor feeding</td><td>生产 7→17 行，task: 键＋term_verdict: evidence —— R287-B 逐条喂生效</td></tr>
+<tr><td>3</td><td>candidates R3</td><td>R3_float_iron live</td></tr>
+<tr><td>4</td><td>judge</td><td>envelope＋m=llm_asserted:actual＋弃权＋宽松，1368 行</td></tr>
+<tr><td>5</td><td>verdict 五段</td><td>backfilled/m_sample 在场（verdicts 75→83）</td></tr>
+<tr><td>6</td><td>failure_sig 回灌</td><td>5→7 行，全 007 同错 E_VALUE/wrong_magnitude 成簇诚实</td></tr>
+<tr><td>7</td><td>lessons/inbox/curve</td><td>9 / 10 / 9，活着没胀</td></tr>
+<tr><td>8</td><td>anchors 守门人</td><td>任务段零动（diff 仅 _split 派生重算 13/3）</td></tr>
+<tr><td>9</td><td>★新● 归位</td><td>load_groups_with_homing：007-009 按 category 入组，播种/脚本同口径；R133/R134 假分化消除</td></tr>
+</table></div>
+<div class="card"><h2 class="y">◐ 半步（7）</h2><table>
+<tr><th>#</th><th>项</th><th>差什么</th></tr>
+<tr><td>1</td><td>credit</td><td>内存记账已接，var/credit_ledger.jsonl MISS —— 落盘是下一步</td></tr>
+<tr><td>2</td><td>adopt 门</td><td>实现＋测试绿，生产未触发（04:00 未到＋无新簇）</td></tr>
+<tr><td>3</td><td>bench Brier</td><td>上次 0.0373；今晚 calibrate 超时（LLM revise 失败）未重测</td></tr>
+<tr><td>4</td><td>evo 04:00</td><td>新码首轮待验</td></tr>
+<tr><td>5</td><td>rules</td><td>仍 1 条（R278 首条，无新簇可落）</td></tr>
+<tr><td>6</td><td>007/008/009</td><td>graded 仍 None；007 靠 failure_sig 同错成簇进化中</td></tr>
+<tr><td>7</td><td>legacy 直落</td><td>已复核：删条件①②列齐，not_wired 摘牌之日删</td></tr>
+</table></div>
+<div class="card"><h2 class="r">○ 纯壳（3 · not_wired 清单 R285-P2 原样）</h2>
+<p>world.select / metric.select→adopt / direction.next_action —— Loop.round 生产零调用，调用之日摘牌。</p></div>
+<div class="card"><h2>R287 消账确认</h2>
+<p>B 逐条喂生产 7→17 ✓ · C 门绿待触发 · D 内存接落盘待 · E 28 清零（26 修＋2 污染自证，外带 capability 12＋归位 1 生产修）· gate0＋双 e2e0 · commit 835b2f3 已推 · 双副本 7/7 · daemon 19428 terms:2 吃新码</p></div>
+<div class="card"><h2>下一步</h2>
+<p>1. 明早 02:30 夜跑根指针＋04:00 evo 新码首轮 2. credit 落盘持久化 3. bench Brier 重测 4. 007-009 进 sealed（ARSI 仓）</p></div>
+</body></html>

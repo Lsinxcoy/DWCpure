@@ -109,8 +109,10 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 item["backup"] = _land(rules_path, cl["key"], entry,
                                        backup_dir)
                 item["landed"] = True
-                item["★TODO"] = ("legacy 直落（trial 无分数，门未判）——"
-                                 "trial_fn 带分数之日删此分支")
+                item["★TODO"] = ("legacy 直落（trial 无分数+accept 无真输入，门未判）——"
+                                 "删分支条件（2026-10-15 复核）：①trial_fn 返回分数 "
+                                 "（_real_trial 现回布尔）②accept 拿真 baseline/current "
+                                 "（metric.select→adopt 在 not_wired 清单）——两者齐才删")
         results.append(item)
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
