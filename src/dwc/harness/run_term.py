@@ -96,6 +96,37 @@ TRUTH_SOURCE = {
 # ══════════════════════════════════════════════════════════
 
 
+def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int:
+    """★ R277 · term verdict 落盘可观测（append-only jsonl）。
+
+    每行: {ts, task, pass_rate, n_fail, false_tasks[]}。
+    入参坏 ⇒ 大声 raise（调用方 daemon 边界包 try/except 留痕）;
+    写盘坏 ⇒ 同样 raise（静默丢观测 = 盲飞，禁）。
+    返回 False 条数（与 _backfill_failures 同口径：success is False 才算）。
+    """
+    if not isinstance(verdict, dict) or not isinstance(
+            verdict.get("details"), list):
+        raise TypeError("verdict 非法: %r" % type(verdict))
+    false_tasks = []
+    for x in verdict["details"]:
+        if not isinstance(x, dict):
+            raise ValueError("detail 非法: %r" % (x,))
+        if x.get("success") is False:
+            if not isinstance(x.get("task_id"), str):
+                raise ValueError("False 缺 task_id: %r" % (x,))
+            false_tasks.append(x.get("task_id"))
+    row = {"ts": time.time(), "task": task,
+           "pass_rate": verdict.get("pass_rate"),
+           "n_fail": len(false_tasks), "false_tasks": false_tasks}
+    lp = os.path.join(os.path.dirname(os.path.abspath(db_path)),
+                      "eval", "term_verdicts.jsonl")
+    if not os.path.exists(os.path.dirname(lp)):
+        os.makedirs(os.path.dirname(lp))
+    with io.open(lp, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return len(false_tasks)
+
+
 @dataclass
 class CostLedger:
     """★★ 两个台账并存（判据 T4）。
@@ -231,6 +262,7 @@ class TermReport:
     score_delta: Optional[float] = None
     #: ★ R276b · 本轮回灌 EXPERIENCE 的失败签名条数（判分→记忆的生产回灌）
     evo_backfilled: int = 0
+    evo_n_fail: int = 0  # ★ R277 · 本轮 verdict False 数（-1=落盘失败）
     dials: Dict[str, Any] = field(default_factory=dict)
     #: 五环各环节的记录（判据 T1 要求都在）
     stages: List[Dict[str, Any]] = field(default_factory=list)
@@ -285,6 +317,7 @@ class TermRunner:
                  el_scheduler: Optional[ELScheduler] = None,
                  executor: Optional[Any] = None):
         self.store = store or CausalChainStore(db_path)
+        self.db_path = db_path  # ★ R277 · verdict 落盘锚点（库旁 eval/）
         self.memory = memory or MemoryKernel(db_path)
         self.wiring = ActivityWiring(self.store)
         self.cost = CostLedger()
@@ -469,7 +502,7 @@ class TermRunner:
             #   于是 n_steps=99 时会一路跑满（实测跑到预算上限）
             #   ⇒★ 而 T2 说「term 边界由进化事件决定」⇒ 检查必须在循环内
             if self._core_stages_present(rep):
-                self._close_stages(cid, rep, tid)
+                self._close_stages(cid, rep, tid, task)
                 stop = "all_stages_complete"
                 evidence = {"n_steps": rep.n_steps,
                             "why": "五环齐（进化事件达成）"}
@@ -484,7 +517,7 @@ class TermRunner:
         rep.n_steps = len([x for x in rep.stages if x["stage"] == "turn"])
         last_tr = "TR%d" % (rep.n_steps - 1) if rep.n_steps else None
         if last_tr and stop != "all_stages_complete":
-            self._close_stages(cid, rep, tid)
+            self._close_stages(cid, rep, tid, task)
             if stop is None:
                 stop = "n_steps_upper_reached"
                 evidence = {"n_steps_upper": n_steps}
@@ -792,7 +825,7 @@ class TermRunner:
         return core <= got and not ({"experience", "change"} <= got)
 
     def _close_stages(self, cid: str, rep: TermReport,
-                      tid: str) -> None:
+                      tid: str, task: str = "") -> None:
         """★ 补 experience 与 change 两环（收尾，按实测数据非编造）。
 
         ★ experience = 记忆被真正用掉的证据（D7 的 effect 侧）
@@ -839,6 +872,12 @@ class TermRunner:
             rep.judgement = verdict
             rep.score_delta = verdict.get("pass_rate")
             rep.evo_backfilled = self._backfill_failures(verdict)
+            try:  # ★ R277 · verdict 落盘可观测（坏了留痕不阻断本轮）
+                rep.evo_n_fail = _append_verdict_log(
+                    self.db_path, task, verdict)
+            except Exception as exc:                  # noqa: BLE001
+                sys.stderr.write("verdict落盘跳过: %s\n" % exc)
+                rep.evo_n_fail = -1
             # ── R205 · ★ 执行→树观测回填自动化（还 trial_run 手动债）──
             #   ★ 依据: verdict.details 是**真判** per-task 结果（judge.evaluate）
             #     ⇒ 喂 world_model（环节⑥ 探索的 GDI/组序/δ 排序全靠它）
