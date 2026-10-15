@@ -29,6 +29,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 from typing import Any, Dict, List, Optional
 
 from dwc.organs.actor import Actor, execute_task
@@ -91,6 +92,9 @@ class Loop:
         self.applier = Applier(window=2)
         self.actor = Actor()
         self.credit = None                       # run_round 内建 ledger
+        #: ★ R276-① · 进化记忆挂钩（默认 None＝零行为变化；daemon/
+        #   e2e 经 attach_memory 接生产或隔离库 — Loop 本体不建库）。
+        self.memory = None
         self.max_tasks = int(max_tasks_per_round)
         #: ★★ R170 · 可变实现集（task_id → 当前实现源码）— agent 的"手":
         #   开局 = broken_dev（初值错误）; `landing` 每次落地成功 ⇒ 写回
@@ -403,6 +407,55 @@ class Loop:
                 return tbl
         return {}
 
+    def attach_memory(self, mem: Any) -> Any:
+        """★ R276-① · 接记忆库（生产 Memory 或隔离库；返 mem 供链式）。"""
+        self.memory = mem
+        return mem
+
+    def _remember_failure(self, tid: str, sigs: Any) -> int:
+        """★ R276-① · 失败签名回灌 EXPERIENCE（judge→memory 的线）。
+
+        未 attach ⇒ 0；缺 c/q/m 跳过（D6）；异常 stderr 留痕不阻断诊断。
+        """
+        if self.memory is None:
+            return 0
+        n = 0
+        try:
+            from dwc.organs.memory import MemoryKind
+            for s in (sigs or []):
+                s = dict(s or {})
+                if not (s.get("c") and s.get("q") and s.get("m")):
+                    continue
+                self.memory.remember(
+                    MemoryKind.FAILURE_SIGNATURE,
+                    {"c": s["c"], "q": s["q"], "m": s["m"], "task": tid})
+                n += 1
+        except Exception as exc:                     # noqa: BLE001
+            sys.stderr.write("evolve 回灌跳过: %s\n" % exc)
+        return n
+
+    def _var_path(self, name: str) -> str:
+        """★ R276-③ · repo var 下路径（与 anchors 同口径上溯 4 层）。"""
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__))))),
+            "var", name)
+
+    def _persist_credit(self, tid: str, round_no: int) -> int:
+        """★ R276-③ · 本轮 ledger 账落盘（append-only jsonl；异常留痕）。"""
+        try:
+            rows = list(self._last_ledger_entries or [])
+            with io.open(self._var_path("credit_ledger.jsonl"), "a",
+                         encoding="utf-8") as fh:
+                for e in rows:
+                    fh.write(json.dumps(
+                        {"round": round_no, "task": tid, "entry": e},
+                        ensure_ascii=False, default=str) + "\n")
+            return len(rows)
+        except Exception as exc:                     # noqa: BLE001
+            sys.stderr.write("credit 落盘跳过: %s\n" % exc)
+            return 0
+
     def _dir_ledger_append(self, tid: str, attempts, direction=None,
                            n_candidates: int = 0, reason: str = "",
                            terminal: str = "") -> None:
@@ -467,6 +520,7 @@ class Loop:
         #   · 旧行为: 单签名时 `sigs=[sig]` ⇒ 与旧 `[sig]` **等价**（回退保底）
         sig = dict(v.failure_signature or {})
         sigs = list(getattr(v, "sigs", None) or []) or [sig]
+        self._remember_failure(tid, sigs)  # ★ R276-① · 判败即记 EXPERIENCE
         try:
             proposals = self.evolver.diagnose(sigs).get("proposals", [])
         except Exception as exc:                    # noqa: BLE001
@@ -665,6 +719,7 @@ class Loop:
         # ★ R168: 本轮 ledger 账出口（④ downstream 的素材 — 只记本轮,
         #   跨轮累积由 Loop 持有者接（daemon 面 — 不在本方法内藏状态））
         self._last_ledger_entries = list(res.credit_entries or [])
+        self._persist_credit(tid, round_no)  # ★ R276-③ · 账落盘（内存只读快照）
         return {"chain_verdict": res.chain["verdict"],
                 "blocked": list(res.chain.get("blocked") or []),
                 "score": score, "landed": landed}
@@ -1153,6 +1208,12 @@ class Loop:
             self._last_consolidation = {
                 "key": key, "outcome": "consolidated",
                 "readback_ok": rec_res.readback_ok}
+            try:  # ★ R276-② · 落地即落盘（rules.json 学到的跨进程存活）
+                tgt.flush()
+                self._last_consolidation["flushed"] = True
+            except Exception as exc:                  # noqa: BLE001
+                sys.stderr.write("consolidate 落盘跳过: %s\n" % exc)
+                self._last_consolidation["flushed"] = False
             return self._last_consolidation
         except Exception as exc:                 # noqa: BLE001 — 留痕不静默
             self._last_consolidation = {"outcome": "error",
