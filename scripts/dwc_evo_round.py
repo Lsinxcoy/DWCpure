@@ -83,8 +83,18 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         item["drafted"] = True
         item["proposal_id"] = p.proposal_id
         t = trial_fn(cl["sigs"][0].get("task", ""), p.patch)
-        item["trial"] = t
-        if apply and t is True:
+        item["trial"] = t                      # ★ 原样存（bool/dict 照旧）
+        # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
+        _ok = (t.get("success") if isinstance(t, dict) else t)
+        # ★ R290-P1 · adopt 门真输入：dict trial 带 baseline_in/in_score ⇒
+        #   传真 baseline/current（held_out 仍缺 ⇒ 仍 blocked，但带真 Δ_in）；
+        #   bool/None trial ⇒ 占位 {} ⇒ accept 照旧 not_evaluated。
+        if isinstance(t, dict):
+            _base = {"in_score": t.get("baseline_in")}
+            _cur = {"in_score": t.get("in_score")}
+        else:
+            _base, _cur = {}, {}
+        if apply and _ok is True:
             # ★ R287-C · adopt 门（Evolver.accept）：trial 布尔无分数 ⇒
             #   accept 缺 baseline/current 会判 not_evaluated/blocked。
             #   诚实处置：先判，有分数走门（第五态→_land_adopted 落）；
@@ -92,11 +102,13 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             #   收紧点：trial_fn 带分数之日 legacy 分支删除，见 ★TODO）。
             try:
                 _ad = evolver.accept(
-                    p, baseline={}, current={})
+                    p, baseline=_base, current=_cur)
             except Exception as exc_a:  # noqa: BLE001
                 _ad = {"decision": "accept_error",
                        "why": "accept 抛错：%r" % (exc_a,)}
             item["adopt"] = _ad.get("decision")
+            if "delta_in" in _ad:
+                item["delta_in"] = _ad["delta_in"]
             if _ad.get("decision") == "adopted_not_implemented":
                 item["backup"] = evolver._land_adopted(p)
                 item["landed"] = True
@@ -148,20 +160,38 @@ def _land(rules_path, key, entry, backup_dir):
 
 
 def _real_trial(judge, llm, task, patch, max_tokens=1500):
-    """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分（True/False/None）。"""
+    """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分 dict。
+
+    ★ R290-P1 · 回判分 dict（legacy 退役条件①）：
+      {success, in_score, baseline_in} —— in_score=success→1.0/0.0/None；
+      baseline_in=judge 历史 dev 同 task 末 point.score（无历史⇒None，
+      accept 照旧 not_evaluated —— 没判过不装判过）。
+    """
     from dwc.llm.executor import (build_observed_prompt, obs_skeleton,
                                   parse_llm_observed)
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
     r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
-        return None
+        return {"success": None, "in_score": None, "baseline_in": None}
     obs = parse_llm_observed(r.text or "", skel)
     if obs is None:
-        return None
-    return judge.evaluate(task, "dev",
-                          observed={"observed": obs,
-                                    "★_executed": True}).success
+        return {"success": None, "in_score": None, "baseline_in": None}
+    suc = judge.evaluate(task, "dev",
+                         observed={"observed": obs,
+                                   "★_executed": True}).success
+    base = None
+    try:
+        _pts = [p for p in judge.task_scores(split="dev")
+                if p.task_id == task]
+        if _pts:
+            base = _pts[-1].score
+    except Exception:                       # noqa: BLE001 — 历史坏不断试跑
+        base = None
+    return {"success": suc,
+            "in_score": (1.0 if suc is True else
+                         (0.0 if suc is False else None)),
+            "baseline_in": base}
 
 
 def main() -> int:

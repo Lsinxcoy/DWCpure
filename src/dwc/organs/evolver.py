@@ -1833,6 +1833,9 @@ class LLMMutator:
     def __init__(self, llm: Any = None):
         self.llm = llm
         self.last_reason: str = ""
+        #: ★ R290-P2 · 方向尝试史（实例级内存 —— credit 同款进程语义；
+        #:   每轮 new LLMMutator ⇒ 每轮三方向额度，max_clusters=3 刚好）
+        self._direction_history: List[Any] = []
 
     def _prompt(self, sigs: List[Dict[str, Any]],
                 context: str = "") -> str:
@@ -1889,6 +1892,13 @@ class LLMMutator:
         if not all(s0.get(k) for k in ("c", "q", "fn")):
             self.last_reason = "首签名缺 c/q/fn：%r" % (s0,)
             return None
+        # ★ R290-P2 · 起草前选方向（○-3 摘牌：next_action 生产调用点）。
+        #   三方向耗尽 ⇒ DirectionError 上抛（run_round 已隔离：单簇留痕
+        #   不掀轮）。方向不进 prompt（prompt 方向化是 P4+，零语义发明）。
+        from dwc.organs.direction import (DirectionAttempt, DirectionError,
+                                          next_action)
+        _dec = next_action(self._direction_history, round_no=0,
+                           task_id=str(s0.get("task", "")))
         prompt = self._prompt(sigs, context)
         reasons: List[str] = []
         for _ in range(max(1, max_attempts)):
@@ -1909,12 +1919,19 @@ class LLMMutator:
         else:
             entry = None  # type: ignore
         if entry is None:
-            self.last_reason = "起草%d次全废：%s" % (len(reasons), reasons)
+            self._direction_history.append(DirectionAttempt(
+                direction=_dec.direction, n_candidates=0,
+                note="起草全废（方向 %s 无对象）" % (_dec.direction.value,)))
+            self.last_reason = ("起草%d次全废：%s；方向已切 %s（下簇换向）"
+                                % (len(reasons), reasons, _dec.direction.value))
             return None
         key = Mutator.key_for(s0)
         full = dict(s0)
         full["m"] = entry.get("m", "")
         full["m_source"] = "llm"
+        self._direction_history.append(DirectionAttempt(
+            direction=_dec.direction, n_candidates=1,
+            note="起草成功（方向 %s 出 1 候选）" % (_dec.direction.value,)))
         return Proposal(
             proposal_id="P_" + hashlib.sha256(
                 ("LLM:" + key).encode()).hexdigest()[:8],

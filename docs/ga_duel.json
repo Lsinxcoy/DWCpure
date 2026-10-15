@@ -9,9 +9,9 @@
   "max_gen": 4,
   "tournament_k": 2,
   "current": "π0",
-  "n_d_search": 10,
+  "n_d_search": 13,
   "d_val": [
-   "code_fix_006",
+   "code_fix_009",
    "reasoning_004",
    "reproduce_003"
   ]

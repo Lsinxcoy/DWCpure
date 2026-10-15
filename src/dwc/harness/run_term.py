@@ -1149,6 +1149,37 @@ class TermRunner:
             from dwc.organs.weakness import task_delta_map
             _pts = self.judge.task_scores(split="dev")
             _dmap = task_delta_map(_pts, self.judge.store.evidence)
+            # ★ R290-P0 · B 口径：information_gain 第一键（§4.3 理由3 —
+            #   最不确定的先探），δ/组序保留做 tie-break（R77/R101 不断）。
+            #   IG 全等（无观测/无 WM）⇒ 第一键无区分 ⇒ 稳定排序=原序
+            #   （退化现状，真保底 —— 不需要另写分支）。
+            #   W4：information_gain 只吃 n_obs/n_pass，不读 confidence。
+            _igmap: Dict[str, float] = {}
+            _wm = self.world_model
+            if _wm is not None:
+                try:
+                    from dwc.organs.world_model import information_gain as _ig
+                    for _it in wta:
+                        _tr = (_wm.trees or {}).get(_it.get("tree") or "")
+                        if _tr is None:
+                            continue
+                        try:
+                            _igmap[_it["node"]] = _ig(*_tr.lineage_obs(
+                                _it["node"]))
+                        except Exception:       # noqa: BLE001 — 单叶坏不掀轮
+                            continue
+                except Exception:               # noqa: BLE001 — IG 全坏⇒全 0
+                    _igmap = {}
+            # ★ R290-P0 · IG 预排（B 口径的核心）：IG 有区分 ⇒ 先按 IG 降序
+            #   稳定排；无区分（全等/空）⇒ 原序不动。现状两分支在后做
+            #   tie-break（分支内 IG 仍是第一键 —— 双保险）。
+            if _igmap:
+                _igvals = [_igmap.get(_it["node"], 0.0) for _it in wta]
+                if max(_igvals) > min(_igvals):
+                    wta.sort(key=lambda i: -_igmap.get(i["node"], 0.0))
+                    _base0 = [t for t in tasks
+                              if t["kind"] != "world_tree_action"]
+                    tasks[:] = _base0 + wta
             # ★ R101 · C 方案(2a) 两级任务源（Table 1 平滑分级的类比物）:
             #   有组**且**有组观测 ⇒ (组 rate 升序=弱组优先, 组内 δ 降序);
             #   无组 / 组全无观测 ⇒ **回落现状 δ 分支**（降级路径=现路径,
@@ -1158,12 +1189,14 @@ class TermRunner:
             _grouped = any(i.get("group") for i in wta)
             if _grouped and _rates:
                 wta.sort(key=lambda i: (
+                    -_igmap.get(i["node"], 0.0),  # ★ R290-P0 第一键：IG 降序
                     _rates.get(i.get("group") or "", 1.0),  # 弱组在前(升)
                     -_dmap.get(i["node"], 0.0)))            # 组内 δ 降序
                 _base = [t for t in tasks if t["kind"] != "world_tree_action"]
                 tasks[:] = _base + wta
             elif any(_dmap.get(i["node"], 0.0) > 0.0 for i in wta):
-                wta.sort(key=lambda i: -_dmap.get(i["node"], 0.0))
+                wta.sort(key=lambda i: (-_igmap.get(i["node"], 0.0),  # ★ P0
+                                        -_dmap.get(i["node"], 0.0)))
                 # tasks 里的对应条目同步换序（两列表引用同 dict —
                 # wta 重排不改 tasks; 重排 tasks 的 world_tree 段:
                 _base = [t for t in tasks if t["kind"] != "world_tree_action"]
