@@ -139,6 +139,9 @@ def main() -> int:
     rot = int(st.get("rot", 0))
     picks = [tasks[(rot + i) % len(tasks)] for i in range(args.n)]
     st["rot"] = (rot + args.n) % len(tasks)
+    _sd = os.path.dirname(STATE)  # ★ R276c · 新机 var/eval 不存在则建（否则首跑必炸）
+    if _sd and not os.path.exists(_sd):
+        os.makedirs(_sd)
     with io.open(STATE, "w", encoding="utf-8") as fh:
         json.dump(st, fh)
 

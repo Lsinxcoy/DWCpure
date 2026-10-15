@@ -25,6 +25,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re  # ★ R276c · ask 词边界（platform/transform 误含 rm 曾误拦只读扫描）
 import subprocess
 import sys
 import time
@@ -59,9 +60,10 @@ PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认; conftest 设 env 时落
 
 
 def _ask_level(cmd_joined: str) -> Optional[str]:
-    """run 命令的三态分级: 黑名单=None(调用方硬拒); ask 命中=该词; 都无=放行。"""
+    """run 命令的三态分级: 黑名单=None(调用方硬拒); ask 命中=该词; 都无=放行。
+    ★ R276c · 词左边界（(?<!\\w): platform/transform 含 rm 不得误拦）。"""
     for w in _ASK:
-        if w in cmd_joined:
+        if re.search(r"(?<!\w)" + re.escape(w), cmd_joined):
             return w
     return None
 

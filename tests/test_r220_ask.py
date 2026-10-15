@@ -41,3 +41,15 @@ def test_deny_still_hard_blocks_first():
     """★★ 黑名单优先于 ask（rm -rf 是 deny 不是 ask — 顺序不能反）。"""
     with pytest.raises(TE.TaskExecError, match="黑名单"):
         TE._do_action("run", {"cmd": ["rm", "-rf", "/"]})
+
+
+def test_ask_word_boundary_no_false_positive():
+    """★★★ R276c · 词左边界: platform/transform 含 rm 不得误拦（nb_1015_02
+    只读扫描被误 ask 实证）; 真 rm/rmdir/del 照拦。"""
+    assert TE._ask_level("platform transform reform ") is None
+    assert TE._ask_level("python -c \"import platform; print(1)\"") is None
+    assert TE._ask_level("rm old.txt") == "rm "
+    assert TE._ask_level("x;rm y") == "rm "
+    assert TE._ask_level("rmdir sub") == "rmdir"
+    with pytest.raises(TE.TaskExecError, match="黑名单"):
+        TE._do_action("run", {"cmd": ["rm", "-rf", "/"]})
