@@ -1834,7 +1834,8 @@ class LLMMutator:
         self.llm = llm
         self.last_reason: str = ""
 
-    def _prompt(self, sigs: List[Dict[str, Any]]) -> str:
+    def _prompt(self, sigs: List[Dict[str, Any]],
+                context: str = "") -> str:
         s0 = dict(sigs[0])
         lines = [
             "你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
@@ -1843,41 +1844,40 @@ class LLMMutator:
                                  s0.get("fn", "")),
             "m 样本=%s" % ([str(s.get("m", ""))[:60] for s in sigs[:3]],),
             "任务=%s" % (s0.get("task", ""),),
+        ]
+        if context:
+            lines.append("判分对照事实（真值 vs 模型断言）：\n" + context)
+        lines += [
+            "先简短思考（≤200字），然后另起一行输出JSON对象收尾",
+            "（思考再长也会被截断 ⇒ JSON 必须在结尾前出现）。",
             "只输出一个 JSON 对象（无解释），字段必须齐：",
             "component（只能是这9个词之一：client_tool/config/context_mgmt/",
             "control_flow/memory/output_plumbing/prompt/skill/subagent）、",
             "dimension（如 D7）、target_layer（如 assets）、",
-            "target（修哪里：函数名）、m（新机制名）、",
-            "patch（怎么改：一句话修法）、rationale（为什么：依据事实）。",
+            "target（修哪里：函数名）、m（新机制名，须能解释上面的对照事实）、",
+            "patch（怎么改：一句话修法）、rationale（为什么：必须引用对照事实，",
+            "禁编造数量级 — 先算真值与断言的比值再下结论）。",
         ]
         return "\n".join(lines)
 
     def _extract(self, text: str) -> Optional[Dict[str, Any]]:
         # ★ 多候选取末尾真 JSON（R277b-4 同款纪律：推理前言在前，真答案在后）。
-        cands: List[str] = []
-        depth = 0
-        start = -1
-        for i, ch in enumerate(text or ""):
-            if ch == "{":
-                if depth == 0:
-                    start = i
-                depth += 1
-            elif ch == "}":
-                if depth > 0:
-                    depth -= 1
-                    if depth == 0 and start >= 0:
-                        cands.append(text[start:i + 1])
-                        start = -1
-        for raw in reversed(cands):
+        # ★ 用真解析器倒序试（raw_decode）：前言杂散括号/引号再多也不怕，
+        #   能 parse 成 dict 的才算 —— 数括号是旁门左道，已废。
+        dec = json.JSONDecoder()
+        starts = [i for i, ch in enumerate(text or "") if ch == "{"]
+        for i in reversed(starts):
             try:
-                obj = json.loads(raw)
+                obj, _ = dec.raw_decode(text, i)
             except (ValueError, TypeError):
                 continue
             if isinstance(obj, dict):
                 return obj
         return None
 
-    def propose_from_cluster(self, sigs: List[Dict[str, Any]]
+    def propose_from_cluster(self, sigs: List[Dict[str, Any]],
+                             context: str = "",
+                             max_attempts: int = 3
                              ) -> Optional["Proposal"]:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
@@ -1889,19 +1889,27 @@ class LLMMutator:
         if not all(s0.get(k) for k in ("c", "q", "fn")):
             self.last_reason = "首签名缺 c/q/fn：%r" % (s0,)
             return None
-        text = self.llm(self._prompt(sigs))  # ★ 抛异常 ⇒ 上抛（大声）
-        if not isinstance(text, str):
-            text = str(text)
-        entry = self._extract(text)
+        prompt = self._prompt(sigs, context)
+        reasons: List[str] = []
+        for _ in range(max(1, max_attempts)):
+            text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
+            if not isinstance(text, str):
+                text = str(text)
+            entry = self._extract(text)
+            if entry is None:
+                reasons.append("无可用 JSON（前80字：%s）" % (text[:80],))
+                continue
+            entry = dict(entry)
+            entry["m_source"] = "llm"  # ★ 强制（防冒充 — R30 分工）
+            missing = Mutator.check_entry(Mutator.key_for(s0), entry)
+            if missing:
+                reasons.append("缺字段：%s" % (missing,))
+                continue
+            break
+        else:
+            entry = None  # type: ignore
         if entry is None:
-            self.last_reason = "LLM 输出无可用 JSON（前80字：%s）" \
-                % (text[:80],)
-            return None
-        entry = dict(entry)
-        entry["m_source"] = "llm"  # ★ 强制（防冒充 — R30 分工）
-        missing = Mutator.check_entry(Mutator.key_for(s0), entry)
-        if missing:
-            self.last_reason = "缺字段：%s" % (missing,)
+            self.last_reason = "起草%d次全废：%s" % (len(reasons), reasons)
             return None
         key = Mutator.key_for(s0)
         full = dict(s0)

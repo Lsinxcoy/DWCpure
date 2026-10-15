@@ -56,3 +56,45 @@ class TestLLMMutator:
     def test_empty_cluster_is_none(self):
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD_RULE))
         assert mu.propose_from_cluster([]) is None
+
+
+def test_context_enters_prompt():
+    """★ context 对照事实必须进 prompt（防 LLM 编造数量级）。"""
+    seen = {}
+    mu = LLMMutator(llm=lambda p: (seen.update({"p": p}), _json.dumps(_GOOD_RULE))[1])
+    ctx = "average([0.1,0.2]): 真值=0.15000000000000002, 断言=0.15"
+    p = mu.propose_from_cluster([_sig007()], context=ctx)
+    assert p is not None
+    assert "0.15000000000000002" in seen["p"]
+
+
+def test_retry_then_success():
+    """★ 一次废稿+一次好稿 ⇒ 提案照出（重试是代码的事）。"""
+    calls = {"n": 0}
+
+    def _flaky(p):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "废话前言，无JSON"
+        return _json.dumps(_GOOD_RULE)
+
+    mu = LLMMutator(llm=_flaky)
+    p = mu.propose_from_cluster([_sig007()], max_attempts=2)
+    assert p is not None
+    assert calls["n"] == 2
+
+
+def test_prompt_bounds_thinking():
+    """★ prompt 必须锁思考长度（防截断吞 JSON）。"""
+    mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD_RULE))
+    p = mu._prompt([_sig007()], context="x")
+    assert "200字" in p and "JSON" in p
+
+
+def test_stray_braces_in_preamble_ignored():
+    """★ 前言杂散括号/引号不许吞真 JSON（raw_decode 倒序真解析）。"""
+    mu = LLMMutator(llm=lambda p: (
+        '前言如 D7} "DWC" 模型的 \'average\' 想法：\n' + _json.dumps(_GOOD_RULE)))
+    p = mu.propose_from_cluster([_sig007()])
+    assert p is not None
+    assert p.component == "prompt"
