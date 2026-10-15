@@ -214,10 +214,17 @@ class CandidateGenerator:
         if not bad:
             return self._empty(
                 "diffs 里没有失败条目 ⇒ 无候选可推", need_llm=False)
-        if not baseline_source:
-            return self._empty(
-                "★ 缺 baseline_source ⇒ 无法在实现上施改"
-                "（生成的是 patch，需要基线源码）", need_llm=True)
+        fn = fn_name or bad[0].get("fn") or sig.get("fn", "")
+        # ★ R285 · R3（prompt 形态）不需要 baseline —— 基线缺席时只跑 R3，
+        #   有产出走共享尾部（淘汰/池上限/计数），无产出才报缺基线。
+        _no_base = not baseline_source
+        cands_pre: List[Candidate] = []
+        if _no_base:
+            cands_pre = self._r3_float_iron(bad, fn)
+            if not cands_pre:
+                return self._empty(
+                    "★ 缺 baseline_source ⇒ 无法在实现上施改"
+                    "（生成的是 patch，需要基线源码）", need_llm=True)
 
         # ★★★★ R31 新增纪律④: **基线必须能复现 diffs 的 actual**
         #   ★★ 实测: 我第一版传了 REFERENCE（**正确**的实现）当基线
@@ -234,16 +241,27 @@ class CandidateGenerator:
                 "REFERENCE 导致候选全错）", need_llm=False)
 
         cands: List[Candidate] = []
-        fn = fn_name or bad[0].get("fn") or sig.get("fn", "")
+        cands.extend(cands_pre)   # ★ R285: 基线缺席时此即 R3 产出；平时为空
 
         # ── 规则 R1: range 边界偏移（trace-grounded 于差值模式）──
-        c1 = self._r1_range_offset(bad, baseline_source, fn)
-        if c1:
-            cands.extend(c1)
+        #   ★ 需基线（改源码）⇒ 缺席已在上游分流，此处只跑有基线分支
+        if not _no_base:
+            c1 = self._r1_range_offset(bad, baseline_source, fn)
+            if c1:
+                cands.extend(c1)
         # ── 规则 R2: 类型不匹配 ⇒ 字面量归一 ──
-        c2 = self._r2_type_wrap(bad, baseline_source, fn)
-        if c2:
-            cands.extend(c2)
+        if not _no_base:
+            c2 = self._r2_type_wrap(bad, baseline_source, fn)
+            if c2:
+                cands.extend(c2)
+        # ── 规则 R3: 浮点截断 ⇒ prompt 铁律（R285 · 无需 baseline）──
+        #   ★ 依据 2606.14249 Definition 2：modified prompt template 是原文
+        #     认可的 edit 形态 —— 改 prompt 不碰源码 ⇒ baseline 缺席也能产。
+        #   ★ 触发：expected/actual 皆可 parse 为 float、逐位不等但值相等
+        #     （四舍五入类）；真值逐字来自 diffs，不手写数字。
+        c3 = self._r3_float_iron(bad, fn)
+        if c3:
+            cands.extend(c3)
 
         # ★★★ G4 淘汰判据: 已被否决的候选**不再产出**（不许空转重试）
         before_reject = len(cands)
@@ -770,6 +788,65 @@ class CandidateGenerator:
                             "rule": "期望 %s 型、实测 str"
                                     % type(hit[0]["expected"]).__name__}]))
         self.rules_fired.append("R2")
+        return out
+
+    def _r3_float_iron(self, bad, fn: str) -> List[Candidate]:
+        """★ R285 · 浮点截断 ⇒ prompt 铁律（无需 baseline_source）。
+
+        ★ 触发（deterministic，不编）: diff 条目 expected/actual 皆可
+          转成 float（str/float/int，bool 除外）、逐位（str）不等但数值
+          极接近（|e-a|≤1e-9·max(1,|e|) —— 截断/舍入类）。注意 007 类：
+          真值 0.15000000000000002 vs 断言 0.15 的 float 值**本就不相等**
+          （差 1e-17 —— 这正是 bug），"值相等"条件是错的，已修正。
+          真 _diff 的 behavior 口径里 expected 常是 float（_as_literal
+          转过），actual 原样 —— 两边都要接。
+        ★ 真值逐字来自 diffs（str(expected) 原样进 patch）；grounding
+          引用具体 diff 条目（纪律②）。
+        ★ 契约属性有依据（R1·R35 同型）: R278 首条已固化同类
+          （component=prompt · dimension=D7）⇒ 照抄不自编；
+          m 由 actual 派生（未验证无 fixed 前缀 —— 首条 fixed 是落盘形态）。
+        """
+        def _fnum(x):
+            if isinstance(x, bool):
+                return None
+            try:
+                return float(x) if isinstance(x, (str, int, float)) else None
+            except (ValueError, TypeError):
+                return None
+
+        hit = []
+        for d in bad:
+            fe, fa = _fnum(d.get("expected")), _fnum(d.get("actual"))
+            if fe is None or fa is None:
+                continue
+            if str(d["expected"]) == str(d["actual"]):
+                continue
+            if abs(fe - fa) <= 1e-9 * max(1.0, abs(fe)):
+                hit.append(d)
+        if not hit:
+            return []
+        out = []
+        for d in hit:
+            exp, act = str(d["expected"]), str(d["actual"])
+            args = d.get("args", "?")
+            patch = ("浮点铁律：%s(%s) 的真值是 %s（完整精度），"
+                     "任何四舍五入到%s 的答案都是错的；每个 %s 调用独立按 "
+                     "IEEE-754 双精度算完输出完整精度，禁复用先前结果。"
+                     % (fn, args, exp, act, fn))
+            out.append(Candidate(
+                patch=patch,
+                source="deterministic",
+                rule="R3_float_iron",
+                target=fn,
+                component="prompt",
+                dimension="D7",
+                m="llm_asserted_%s" % act,
+                m_source="rule",
+                grounding=[dict(d)] + [{
+                    "expr": exp,
+                    "rule": "expected逐位≠actual但float值相等 ⇒ 截断类"}]))
+        if out:
+            self.rules_fired.append("R3:float_iron")
         return out
 
     @staticmethod

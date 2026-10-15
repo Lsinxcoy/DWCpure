@@ -66,6 +66,15 @@ class TestConsolidateFlush:
         lp = Loop()
         monkeypatch.setattr(Mutator, "LEARNED_PATH",
                             str(tmp_path / "rules.json"))
+        # ★ R285 · 环境假设修正：R278 起仓库 config/anchors/rules.json 有
+        #   影子（跨根 learned 可见性所需）⇒ "生产 rules 不存在"已永久失效。
+        #   本意是"consolidate 不碰生产" ⇒ 改为快照对比（存在则 mtime+size，
+        #   不存在则哨兵），行为本质不变。
+        _repo = _os.path.dirname(_os.path.dirname(
+            _os.path.abspath(__file__)))
+        _prod = _os.path.join(_repo, "config", "anchors", "rules.json")
+        _before = ((_os.path.getmtime(_prod), _os.path.getsize(_prod))
+                   if _os.path.exists(_prod) else None)
         sig = _sig(c="E_R276", q="r276_q")
         key = Mutator.key_for(sig)
         prop = _types.SimpleNamespace(component="control_flow",
@@ -84,11 +93,9 @@ class TestConsolidateFlush:
                                   encoding="utf-8"))
         assert key in disk["learned"]
         assert key not in Mutator.RULES  # ★ 内存恢复（不污染后续测试）
-        _repo = _os.path.dirname(_os.path.dirname(
-            _os.path.abspath(__file__)))
-        assert not _os.path.exists(
-            _os.path.join(_repo, "config", "anchors", "rules.json")), \
-            "生产 rules.json 被写"
+        _after = ((_os.path.getmtime(_prod), _os.path.getsize(_prod))
+                  if _os.path.exists(_prod) else None)
+        assert _after == _before, "consolidate 碰了生产 rules.json"
 
 
 class TestCreditPersist:

@@ -93,7 +93,11 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             item["backup"] = _land(rules_path, cl["key"], entry, backup_dir)
             item["landed"] = True
         results.append(item)
-    return {"n_clusters": len(clusters), "results": results}
+    # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
+    #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
+    return {"n_clusters": len(clusters), "results": results,
+            "not_wired": ["world.select", "metric.select→adopt",
+                          "direction.next_action"]}
 
 
 def _land(rules_path, key, entry, backup_dir):

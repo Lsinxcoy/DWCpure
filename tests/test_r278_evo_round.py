@@ -7,7 +7,26 @@
 """
 import pytest
 
-from dwc.organs.evolver import Evolver
+from dwc.organs.evolver import Evolver, Mutator
+
+
+@pytest.fixture(autouse=True)
+def _deadlock_env():
+    """★★★ R285 · 测试隔离（R264 纪律）：R278 断言的是"死结"环境
+    （RULES 无 average 条目 ⇒ propose None ⇒ 全 unmapped）。
+
+    ★ 而 R278 落盘后仓库 config/anchors/rules.json 有了首条 ⇒
+      Mutator.RULES 类属性被污染 ⇒ 同一测试行为变了 —— 这是环境漂移，
+      不是生产回归（propose 路径零改）。此处剔除 learned、只留种子，
+      还原断言当初的环境；测完恢复，不污染后续。
+    """
+    saved = dict(Mutator.RULES)
+    Mutator.RULES = {k: v for k, v in saved.items()
+                     if k in Mutator.SEED_KEYS}
+    try:
+        yield
+    finally:
+        Mutator.RULES = saved
 
 
 def _sig007():
