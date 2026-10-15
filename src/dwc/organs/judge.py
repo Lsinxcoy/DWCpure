@@ -862,6 +862,14 @@ class Judge:
             return v
 
         # ★★★★ R30: 比较走 _diff（唯一真源）⇒ _compare 与签名同源
+        # ★ R277b · envelope 拆包（_build_observations 真执行通道包
+        #   {observed, ★_executed}；此处是唯一拆包点 —— _diff/_compare
+        #   零改。非 envelope 输入逐字节旧行为）。
+        _executed = False
+        if isinstance(observed, dict) and "observed" in observed \
+                and "★_executed" in observed:
+            _executed = bool(observed.get("★_executed"))
+            observed = observed.get("observed") or {}
         diffs = self._diff(golden, observed)
         ok = all(d["ok"] for d in diffs)
         note = ""
@@ -894,7 +902,11 @@ class Judge:
                    "fn": fn,
                    # ★ 第一版确定性 ⇒ 无 LLM ⇒ m 留空并**显式标注**
                    #   （不许拿规则编一个 m 冒充"模型假设"）
-                   "m": "",
+                   # ★ R277b · LLM 时代（envelope 真执行通道）⇒ m = 模型
+                   #   断言值（actual 就是 LLM 声称正确的数 —— 不是编的，
+                   #   是本轮执行体亲口给的）；规则时代仍 ""。
+                   "m": ("llm_asserted:%r" % (first.get("actual"),)
+                         if _executed else ""),
                    "q_note": first.get("reason", ""),
                    "n_failed": str(len(bad)),
                    "split": split, "task": task_id}
@@ -922,7 +934,9 @@ class Judge:
                     continue
                 _seen.add(_key)
                 _sigs.append({
-                    "c": _key[0], "q": _key[1], "fn": _fn, "m": "",
+                    "c": _key[0], "q": _key[1], "fn": _fn,
+                    "m": ("llm_asserted:%r" % (d.get("actual"),)  # ★ R277b
+                          if _executed else ""),
                     "q_note": d.get("reason", ""),
                     "n_failed": str(len(bad)), "split": split,
                     "task": task_id})
