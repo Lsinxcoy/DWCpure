@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R281 · 普查复查（相对 R275 的 delta）</title>
+<style>body{background:#0B0F14;color:#ECEDEE;font-family:"Microsoft YaHei",sans-serif;max-width:1080px;margin:auto;padding:24px}
+nav{position:sticky;top:0;background:#0B0F14;padding:10px 0;border-bottom:1px solid #2A2A2C}
+nav a{color:#FFB86B;margin-right:16px;text-decoration:none}
+.card{background:#141920;border:1px solid #2A2A2C;border-radius:10px;padding:16px;margin:14px 0}
+.g{color:#5AF78E}.y{color:#F3D99B}.r{color:#FF5F56}.m{color:#8A8E94}
+h1{color:#FFB86B}h2{color:#FFB86B;border-bottom:1px solid #2A2A2C;padding-bottom:6px}
+code{color:#F3D99B}.small{font-size:13px;color:#8A8E94}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left}th{color:#FFB86B}</style></head>
+<body>
+<nav><a href="#s">总览</a><a href="#d">Delta</a><a href="#t">待办</a></nav>
+<h1>R281 · 普查复查 <span class="small">2026-10-15 晚 · 基线 R275 · 主代理直查（delegate 连挂两次改直做）</span></h1>
+<h2 id="s">总览灯板（早上 5●/7◐/6○ → 现在 6●/7◐/3○）</h2>
+<div class="card"><table>
+<tr><th>系统</th><th>灯</th><th>相对早上</th></tr>
+<tr><td>judge / iwm / task_exec / agent_rpc / effort</td><td class="g">●●●●●</td><td>无变化（心跳 41712 terms 18，新鲜）</td></tr>
+<tr><td>evolver 进化链</td><td class="g">●（◐→●）</td><td>failure_sig 0→<b>3行</b>；rules.json 缺席→<b>首条落盘</b>；evo收尾cron每日04:00已接</td></tr>
+<tr><td>predictor</td><td class="y">◐（○→◐）</td><td>回灌代码已同步，daemon旧码未重启→生产log仍7行无task键；Brier首次算出 <b>0.0293</b></td></tr>
+<tr><td>nightbench</td><td class="y">◐（○→◐）</td><td>curve 1→<b>9行</b>；lessons 9行；收敛证据待多轮</td></tr>
+<tr><td>metric_loop adopt</td><td class="y">◐（○→◐半步）</td><td>pipeline.py:104接了apply_chain，但第五态adopted_not_implemented，生产采纳0次</td></tr>
+<tr><td>memory / agent_quality / world任务源 / direction / credit</td><td class="y">◐◐◐◐◐</td><td>无变化（credit_ledger仍缺席，账只活内存）</td></tr>
+<tr><td>candidates / planner+dimension / world select</td><td class="r">○○○</td><td>无变化——剩下的3个壳</td></tr>
+</table>
+<p class="small">诚实项：inbox 36→10行（差值未深挖，多半daemon消费）；lessons 早上12→现9行（口径差，未硬解释）；verdicts累计58行，近3轮pass全1.0。</p></div>
+<h2 id="d">关键 Delta（一句话）</h2>
+<div class="card"><p>1. 进化环闭环：判分→回灌（3行）→诊断→起草→试跑翻绿→落盘（1条）→cron，R275两处断裂全接上。<br>
+2. Brier 从"从未计算"到 0.0293（n=7旧观测）。<br>
+3. 壳 6→3：predictor出壳，nightbench半出壳，metric Adopt半步。<br>
+4. 02:30连红根因（_find_root指针）已修，明早验收；vapor周报任务已删，cron 12→11。</p></div>
+<h2 id="t">待办（按序）</h2>
+<div class="card"><p>① 重启daemon吃R280新码（predictor回灌上线，一句话的事）<br>
+② R282收束双子：world select消费＋metric adopt第五态（3个壳里占2个）<br>
+③ candidates填坑或正式退役（绕过它的新链已建成，它名存实亡）<br>
+④ 明早02:30验nightbench根指针修复</p></div>
+</body></html>
