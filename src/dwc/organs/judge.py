@@ -384,6 +384,11 @@ def _as_literal(txt: str) -> Any:
         return t
 
 
+# ★ R277b-7 · 执行通道数值宽松开关（evaluate 开/关，默认关 =
+#   规则时代严格；_diff/_eq 签名零改，用模块开关透传通道上下文）。
+_NUM_LOOSE = [False]
+
+
 def _eq(a: Any, b: Any) -> bool:
     """★ 值相等判定（按类型分层，不靠 str 比）。
 
@@ -398,10 +403,17 @@ def _eq(a: Any, b: Any) -> bool:
         能解析的一律走对象比较
     """
     # ── 数值/布尔: 类型必须一致（1 与 1.0 不算同一个）──
+    # ★ R277b-7 · 例外: 执行通道（LLM/JSON）数值只比值不比类型 ——
+    #   JSON 不区分 int/float（0 与 0.0 是同一个数），类型是传输
+    #   artifact 不是语义；规则时代仍严格（防 "6" 冒充 6，R30 纪律）。
+    #   布尔永远严格（True≠1，两种通道一致）。
     if isinstance(a, (int, float, bool)) or isinstance(b, (int, float, bool)):
         if isinstance(a, bool) != isinstance(b, bool):
             return False
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if _NUM_LOOSE[0] and not isinstance(a, bool) \
+                    and not isinstance(b, bool):
+                return a == b
             return type(a) is type(b) and a == b
         # ★★★★ R30 实测抓到的**严重判分 bug**:
         #   此前这里是 `return str(a) == str(b)`（我 R28 加的兜底）
@@ -884,7 +896,12 @@ class Judge:
                             cat, "llm_abstained")
                 self._log.append(v)
                 return v
-        diffs = self._diff(golden, observed)
+        # ★ R277b-7 · 执行通道开数值宽松（关回默认，防泄漏到规则判分）。
+        _NUM_LOOSE[0] = bool(_executed)
+        try:
+            diffs = self._diff(golden, observed)
+        finally:
+            _NUM_LOOSE[0] = False
         ok = all(d["ok"] for d in diffs)
         note = ""
         if predicted is not None:

@@ -83,3 +83,29 @@ def test_abstain_rule_era_unaffected():
     v = j.evaluate("code_fix_001", "dev",
                    observed={"sum_first_n": [[3, None], [5, None]]})
     assert v.success is False
+
+
+def test_loose_numeric_executed_channel():
+    """★ R277b-7 · 执行通道 0==0.0（JSON 类型是传输 artifact）。"""
+    j = Judge()
+    env = {"observed": {"average": [[[], 0], [[1, 2, 3], 2]]},
+           "★_executed": True}
+    v = j.evaluate("code_fix_002", "dev", observed=env)
+    assert v.success is True
+
+
+def test_strict_numeric_rule_era():
+    """★ R277b-7 · 规则时代 0≠0.0（R30 纪律零碰锁）。"""
+    from dwc.organs.judge import _eq, _NUM_LOOSE
+    assert _NUM_LOOSE[0] is False  # 默认关（防泄漏锁）
+    assert _eq(0, 0.0) is False
+    assert _eq(True, 1) is False
+
+
+def test_bool_strict_both_channels():
+    """★ R277b-7 · 布尔两种通道都严格（True≠1，raises 配额）。"""
+    import pytest
+    from dwc.organs.judge import _eq
+    assert _eq(True, 1) is False and _eq(False, 0) is False
+    with pytest.raises(JudgeError):
+        Judge().evaluate("nope_task", "dev", observed={})
