@@ -118,6 +118,11 @@ def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int
     row = {"ts": time.time(), "task": task,
            "pass_rate": verdict.get("pass_rate"),
            "n_fail": len(false_tasks), "false_tasks": false_tasks,
+           # ★ R277b-8 · 分任务明细（True=真通过/False=真失败/None=弃权），
+           #   不然 1.0 分不清“全过”还是“全弃权”。
+           "graded": {x.get("task_id"): x.get("success")
+                      for x in verdict["details"]
+                      if isinstance(x.get("task_id"), str)},
            # ★ R277b-2 · 定罪字段: 回灌数 + 首条 False 的 m 样本
            "backfilled": verdict.get("★backfilled", -9),
            "m_sample": verdict.get("★m_sample")}
