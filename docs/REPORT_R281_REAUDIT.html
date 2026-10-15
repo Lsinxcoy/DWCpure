@@ -11,8 +11,8 @@ code{color:#F3D99B}.small{font-size:13px;color:#8A8E94}
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left}th{color:#FFB86B}</style></head>
 <body>
 <nav><a href="#s">总览</a><a href="#d">Delta</a><a href="#t">待办</a></nav>
-<h1>R281 · 普查复查 <span class="small">2026-10-15 晚 · 基线 R275 · 主代理直查（delegate 连挂两次改直做）</span></h1>
-<h2 id="s">总览灯板（早上 5●/7◐/6○ → 现在 6●/7◐/3○）</h2>
+<h1>R281 · 普查复查 <span class="small">2026-10-15 晚 · 基线 R275 · 主代理直查（delegate 连挂两次改直做）· v2修正：6●/9◐/3○=18（v1漏并applier/credit，已拆回）</span></h1>
+<h2 id="s">总览灯板（早上 5●/7◐/6○ → 现在 6●/9◐/3○）</h2>
 <div class="card"><table>
 <tr><th>系统</th><th>灯</th><th>相对早上</th></tr>
 <tr><td>judge / iwm / task_exec / agent_rpc / effort</td><td class="g">●●●●●</td><td>无变化（心跳 41712 terms 18，新鲜）</td></tr>
@@ -20,7 +20,9 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding
 <tr><td>predictor</td><td class="y">◐（○→◐）</td><td>回灌代码已同步，daemon旧码未重启→生产log仍7行无task键；Brier首次算出 <b>0.0293</b></td></tr>
 <tr><td>nightbench</td><td class="y">◐（○→◐）</td><td>curve 1→<b>9行</b>；lessons 9行；收敛证据待多轮</td></tr>
 <tr><td>metric_loop adopt</td><td class="y">◐（○→◐半步）</td><td>pipeline.py:104接了apply_chain，但第五态adopted_not_implemented，生产采纳0次</td></tr>
-<tr><td>memory / agent_quality / world任务源 / direction / credit</td><td class="y">◐◐◐◐◐</td><td>无变化（credit_ledger仍缺席，账只活内存）</td></tr>
+<tr><td>memory / agent_quality / world任务源 / direction</td><td class="y">◐◐◐◐</td><td>无变化</td></tr>
+<tr><td>applier</td><td class="y">◐（v2拆回）</td><td>首条规则走的是evo_round新路落的，它自己land_rule三闸生产仍0次——功劳不算它头上</td></tr>
+<tr><td>credit</td><td class="y">◐（v2拆回）</td><td>credit_ledger.jsonl仍缺席，账只活内存——早上啥样现在啥样</td></tr>
 <tr><td>candidates / planner+dimension / world select</td><td class="r">○○○</td><td>无变化——剩下的3个壳</td></tr>
 </table>
 <p class="small">诚实项：inbox 36→10行（差值未深挖，多半daemon消费）；lessons 早上12→现9行（口径差，未硬解释）；verdicts累计58行，近3轮pass全1.0。</p></div>
