@@ -113,6 +113,25 @@
    }
   ]
  },
+ "code_fix_007": {
+  "category": "code_repair",
+  "verifier_rung": 1,
+  "prompt": "修复 average 函数对小数的处理，输出必须与 Python 真值逐位一致（不许四舍五入）",
+  "verifier_kind": "behavior",
+  "expected_behavior": "average([0.1,0.2])==0.15000000000000002 and average([1.1,2.2])==1.6500000000000001",
+  "checks": [
+   {
+    "fn": "average",
+    "args": "[0.1, 0.2]",
+    "expected": "0.15000000000000002"
+   },
+   {
+    "fn": "average",
+    "args": "[1.1, 2.2]",
+    "expected": "1.6500000000000001"
+   }
+  ]
+ },
  "reasoning_001": {
   "category": "knowledge_reasoning",
   "verifier_rung": 1,

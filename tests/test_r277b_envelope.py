@@ -129,3 +129,28 @@ def test_outage_does_not_swallow_envelope():
     with pytest.raises(JudgeError):
         j.evaluate("code_fix_001", "train",
                    observed={"error_code": "x"})  # 非法 split 照 raise
+
+
+def test_007_rounded_is_real_failure():
+    """★ R277b-11 · 007 四舍五入答案判真失败（m 填断言值，可回灌）。"""
+    j = Judge()
+    env = {"observed": {"average": [[[0.1, 0.2], 0.15],
+                                    [[1.1, 2.2], 1.65]]},
+           "★_executed": True}
+    v = j.evaluate("code_fix_007", "dev", observed=env)
+    assert v.success is False
+    sig = v.to_dict().get("sigs", [{}])[0]
+    assert "llm_asserted" in str(sig.get("m", ""))
+
+
+def test_007_exact_passes():
+    """★ R277b-11 · 007 精确答案判通过（陷阱只杀四舍五入）。"""
+    j = Judge()
+    env = {"observed": {"average": [[[0.1, 0.2], 0.15000000000000002],
+                                    [[1.1, 2.2], 1.6500000000000001]]},
+           "★_executed": True}
+    assert j.evaluate("code_fix_007", "dev", observed=env).success is True
+    import pytest
+    with pytest.raises(JudgeError):
+        j.evaluate("code_fix_007", "train",
+                   observed={"observed": {}, "★_executed": True})
