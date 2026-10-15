@@ -154,3 +154,26 @@ def test_007_exact_passes():
     with pytest.raises(JudgeError):
         j.evaluate("code_fix_007", "train",
                    observed={"observed": {}, "★_executed": True})
+
+
+def test_008_guessed_is_real_failure():
+    """★ R277b-12 · 008 估算答案判真失败（m 填断言值，可回灌）。"""
+    j = Judge()
+    env = {"observed": {"sum_first_n": [[1000, 500000], [777, 300000]]},
+           "★_executed": True}
+    v = j.evaluate("code_fix_008", "dev", observed=env)
+    assert v.success is False
+    sig = v.to_dict().get("sigs", [{}])[0]
+    assert "llm_asserted" in str(sig.get("m", ""))
+
+
+def test_008_exact_passes():
+    """★ R277b-12 · 008 精确答案判通过（陷阱只杀估算）。"""
+    j = Judge()
+    env = {"observed": {"sum_first_n": [[1000, 500500], [777, 302253]]},
+           "★_executed": True}
+    assert j.evaluate("code_fix_008", "dev", observed=env).success is True
+    import pytest
+    with pytest.raises(JudgeError):
+        j.evaluate("code_fix_008", "train",
+                   observed={"observed": {}, "★_executed": True})
