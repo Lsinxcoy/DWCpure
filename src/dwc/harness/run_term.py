@@ -117,7 +117,10 @@ def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int
             false_tasks.append(x.get("task_id"))
     row = {"ts": time.time(), "task": task,
            "pass_rate": verdict.get("pass_rate"),
-           "n_fail": len(false_tasks), "false_tasks": false_tasks}
+           "n_fail": len(false_tasks), "false_tasks": false_tasks,
+           # ★ R277b-2 · 定罪字段: 回灌数 + 首条 False 的 m 样本
+           "backfilled": verdict.get("★backfilled", -9),
+           "m_sample": verdict.get("★m_sample")}
     lp = os.path.join(os.path.dirname(os.path.abspath(db_path)),
                       "eval", "term_verdicts.jsonl")
     if not os.path.exists(os.path.dirname(lp)):
@@ -873,6 +876,15 @@ class TermRunner:
             rep.score_delta = verdict.get("pass_rate")
             rep.evo_backfilled = self._backfill_failures(verdict)
             try:  # ★ R277 · verdict 落盘可观测（坏了留痕不阻断本轮）
+                _m0 = ""
+                for _d in ((verdict or {}).get("details") or []):
+                    if isinstance(_d, dict) and _d.get("success") is False:
+                        _ss = (list(_d.get("sigs") or [])
+                               or [_d.get("failure_signature") or {}])
+                        _m0 = str((dict(_ss[0] or {})).get("m", ""))[:60]
+                        break
+                verdict["★backfilled"] = rep.evo_backfilled
+                verdict["★m_sample"] = _m0
                 rep.evo_n_fail = _append_verdict_log(
                     self.db_path, task, verdict)
             except Exception as exc:                  # noqa: BLE001
