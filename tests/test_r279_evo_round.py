@@ -45,8 +45,8 @@ _GOOD = {"component": "prompt", "dimension": "D7",
 class TestCollect:
     def test_unmapped_cluster_found(self, tmp_path):
         db = _tmpdb(str(tmp_path / "p.sqlite"))
-        cls = EVO.collect_unmapped(db, Evolver(), fn_of=lambda r: "average",
-                                   task_of=lambda r: "code_fix_007")
+        cls = EVO.collect_unmapped(db, Evolver(), fn_of=lambda r: "zzz_norule_fn",
+                                   task_of=lambda r: "zzz_norule_task")
         assert len(cls) == 1 and len(cls[0]["sigs"]) == 2
 
     def test_empty_db_no_clusters(self, tmp_path):
@@ -71,8 +71,8 @@ class TestRound:
         rep = EVO.run_round(db, Evolver(), mu, context="",
                             trial_fn=lambda task, patch: True, apply=False,
                             rules_path=str(tmp_path / "rules.json"),
-                            fn_of=lambda r: "average",
-                            task_of=lambda r: "code_fix_007")
+                            fn_of=lambda r: "zzz_norule_fn",
+                            task_of=lambda r: "zzz_norule_task")
         assert rep["n_clusters"] == 1
         assert rep["results"][0]["drafted"] is True
         assert rep["results"][0]["trial"] is True
@@ -87,11 +87,11 @@ class TestRound:
                             trial_fn=lambda task, patch: True, apply=True,
                             rules_path=rp,
                             backup_dir=str(tmp_path),
-                            fn_of=lambda r: "average",
-                            task_of=lambda r: "code_fix_007")
+                            fn_of=lambda r: "zzz_norule_fn",
+                            task_of=lambda r: "zzz_norule_task")
         assert rep["results"][0]["landed"] is True
         data = _json.load(io.open(rp, encoding="utf-8"))
-        assert "E_VALUE:wrong_magnitude:average" in data["learned"]
+        assert "E_VALUE:wrong_magnitude:zzz_norule_fn" in data["learned"]
         assert rep["results"][0]["backup"] is not None
 
     def test_trial_fail_never_lands(self, tmp_path):
@@ -102,8 +102,8 @@ class TestRound:
                             trial_fn=lambda task, patch: False, apply=True,
                             rules_path=rp,
                             backup_dir=str(tmp_path),
-                            fn_of=lambda r: "average",
-                            task_of=lambda r: "code_fix_007")
+                            fn_of=lambda r: "zzz_norule_fn",
+                            task_of=lambda r: "zzz_norule_task")
         assert rep["results"][0]["trial"] is False
         assert rep["results"][0]["landed"] is False
         assert not os.path.exists(rp)
@@ -151,8 +151,25 @@ def test_draft_raise_does_not_kill_round(tmp_path):
     rep = EVO.run_round(str(db), Evolver(), mu, context="",
                         trial_fn=lambda t, pa: True, apply=False,
                         rules_path=str(tmp_path / "rules.json"),
-                        fn_of=lambda r: "average",
-                        task_of=lambda r: "code_fix_007")
+                        fn_of=lambda r: "zzz_norule_fn",
+                        task_of=lambda r: "zzz_norule_task")
     assert rep["n_clusters"] == 1
     assert rep["results"][0]["drafted"] is False
     assert "起草抛错" in rep["results"][0]["reason"]
+
+
+def test_learned_rule_maps_cluster(tmp_path):
+    """★ 学到即认：RULES 覆盖的键 ⇒ proposals，不再 unmapped（合成键事后 pop）。"""
+    from dwc.organs.evolver import Mutator
+    key = "E_VALUE:wrong_magnitude:zzz_tmp_fn"
+    Mutator.RULES[key] = {"component": "prompt", "dimension": "D7",
+                          "target_layer": "assets", "target": "zzz_tmp_fn",
+                          "m": "tmp_m", "patch": "p", "rationale": "test"}
+    try:
+        sigs = [{"c": "E_VALUE", "q": "wrong_magnitude", "m": "",
+                 "fn": "zzz_tmp_fn", "task": "t"}]
+        d = Evolver().diagnose(sigs)
+        assert d["n_unmapped"] == 0
+        assert len(d["proposals"]) >= 1
+    finally:
+        Mutator.RULES.pop(key, None)

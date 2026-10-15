@@ -895,6 +895,25 @@ class TermRunner:
             except Exception as exc:                  # noqa: BLE001
                 sys.stderr.write("verdict落盘跳过: %s\n" % exc)
                 rep.evo_n_fail = -1
+            try:  # ★ R280 · 判分→predictor 观测回灌（append-only，不阻断本轮）
+                #   ★ 键就是任务名（task:xxx）：预测问谁、观测记谁，同一命名空间
+                #     —— 根治"写 inbox 键、问 bench 键永无交集 ⇒ 恒 0.5"。
+                #   ★ Verdict 纪律：details 含 False ⇒ False；含 None ⇒ 跳过不喂；
+                #     全 True ⇒ True。
+                _ds = [d for d in ((verdict or {}).get("details") or [])
+                       if isinstance(d, dict)]
+                # ★ :memory: 测试库无旁路可落 ⇒ 跳过（禁污染 cwd/仓库）。
+                _dir280 = os.path.dirname(self.db_path or "")
+                if _ds and _dir280 and os.path.isdir(_dir280) \
+                        and not any(d.get("success") is None for d in _ds):
+                    from dwc.organs.predictor import OutcomePredictor as _OP280
+                    _ok280 = all(d.get("success") is True for d in _ds)
+                    _op280 = _OP280(log_path=os.path.join(
+                        _dir280, "dwc_predictor.jsonl"))
+                    _op280.observe("task:" + str(task), _ok280,
+                                   evidence_ref="term_verdict:%s" % task)
+            except Exception as exc:                  # noqa: BLE001
+                sys.stderr.write("predictor回灌跳过: %s\n" % exc)
             # ── R205 · ★ 执行→树观测回填自动化（还 trial_run 手动债）──
             #   ★ 依据: verdict.details 是**真判** per-task 结果（judge.evaluate）
             #     ⇒ 喂 world_model（环节⑥ 探索的 GDI/组序/δ 排序全靠它）

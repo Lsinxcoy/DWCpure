@@ -46,6 +46,7 @@ def main() -> int:
     from dwc.llm.client import LLMClient
     from dwc.organs.evolver import Evolver, LLMMutator
     from dwc.organs.judge import Judge
+    from dwc.organs.predictor import OutcomePredictor
     prod = _prod_root()
     db = os.path.join(prod, "var", "dwc_prod.sqlite")
     judge = Judge()
@@ -60,6 +61,12 @@ def main() -> int:
         rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
         fn_of=lambda r: "average", task_of=lambda r: "code_fix_007",
         max_clusters=3)
+    try:  # ★ R280 · Brier 每日可观测（坏了留痕不掀报告）
+        _op = OutcomePredictor(log_path=os.path.join(
+            prod, "var", "dwc_predictor.jsonl"))
+        rep["predictor"] = _op.calibrate()
+    except Exception as exc:  # noqa: BLE001
+        rep["predictor"] = {"n": -1, "brier": None, "note": "校准跳过: %s" % exc}
     print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000], flush=True)
     return 0
 
