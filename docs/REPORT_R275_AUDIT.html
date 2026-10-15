@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>R275 · DWC 设计意图符合度普查</title>
+<style>body{background:#0B0F14;color:#ECEDEE;font-family:"Microsoft YaHei",sans-serif;max-width:1080px;margin:auto;padding:24px}
+nav{position:sticky;top:0;background:#0B0F14;padding:10px 0;border-bottom:1px solid #2A2A2C}
+nav a{color:#FFB86B;margin-right:16px;text-decoration:none}
+.card{background:#141920;border:1px solid #2A2A2C;border-radius:10px;padding:16px;margin:14px 0}
+.g{color:#5AF78E}.y{color:#F3D99D}.r{color:#FF5F56}.m{color:#8A8E94}
+h1{color:#FFB86B}h2{color:#FFB86B;border-bottom:1px solid #2A2A2C;padding-bottom:6px}
+code{color:#F3D99D}.small{font-size:13px;color:#8A8E94}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2A2A2C;padding:6px 10px;text-align:left}th{color:#FFB86B}</style></head>
+<body>
+<nav><a href="#s">总览</a><a href="#g1">进化链</a><a href="#g2">世界模型树</a><a href="#g3">记忆评估</a><a href="#g4">交互</a><a href="#fix">修复排期</a></nav>
+<h1>R275 · 设计意图符合度普查 <span class="small">2026-10-15 · 只读审计＋主代理抽验</span></h1>
+<h2 id="s">总览灯板</h2>
+<div class="card"><table>
+<tr><th>系统</th><th>灯</th><th>一句话</th></tr>
+<tr><td>judge</td><td class="g">●在工作</td><td>唯一有生产痕迹的进化器官（evidence 928行）</td></tr>
+<tr><td>iwm 漂移门控</td><td class="g">●在工作</td><td>809行drift＋808行门控消费</td></tr>
+<tr><td>task_exec</td><td class="g">●在工作</td><td>404 session，唯一真实流量源</td></tr>
+<tr><td>dwc_agent / rpc</td><td class="g">●在工作</td><td>心跳新鲜，inbox 36行/reports 9个</td></tr>
+<tr><td>world_model 任务源</td><td class="y">◐半工作</td><td>供任务行，回填行；select收束零消费</td></tr>
+<tr><td>memory PROXY</td><td class="y">◐半工作</td><td>存取通；EXPERIENCE零写入</td></tr>
+<tr><td>agent_quality 记忆</td><td class="y">◐低转</td><td>注入链通，命中仅单批3行（R274刚接聊天）</td></tr>
+<tr><td>evolver/applier/credit</td><td class="y">◐空转</td><td>链在，被调，输入恒空输出恒无落盘</td></tr>
+<tr><td>direction/router</td><td class="y">◐空转</td><td>已接线，生产零痕（ledger实有1.7M，主代理纠正子代理误报）</td></tr>
+<tr><td>candidates</td><td class="r">○壳</td><td>实现完整，生产无人调用（evolver直出绕过）</td></tr>
+<tr><td>predictor</td><td class="r">○壳</td><td>键错位 bench:vs inbox: 永无交集，Brier从未计算</td></tr>
+<tr><td>planner/dimension</td><td class="r">○壳</td><td>默认关/零调用</td></tr>
+<tr><td>nightbench</td><td class="r">○冒烟</td><td>只跑1单1轮，无收敛可谈</td></tr>
+<tr><td>metric_loop</td><td class="r">○壳</td><td>只观察不采纳（select→adopt断链）</td></tr>
+</table>
+<p class="small">主代理抽验：failure_sig表0行（实锤进化输入断裂）；rules.json/predictor_ckpt缺席（实锤）；direction_ledger.jsonl实有1.7M（子代理"文件不存在"误报，已纠正）；R274 pilot污染生产第13行（任务X/假答案）已备份删除，恢复12行。</p></div>
+<h2 id="g1">G1 · 进化链：判分独活，链条两处断裂</h2>
+<div class="card"><p><b>evolver</b> <span class="y">◐空转</span> · diagnose<code>:1934</code>/gate_all<code>:1989</code>/persist<code>:1342</code>都在，loop.py:471/550调它；但 failure_sig表<strong>0行</strong>（输入恒空）、rules.json不存在（输出恒丢）、core.py:315自陈evolve未接线。</p>
+<p><b>candidates</b> <span class="r">○壳</span> · generate<code>:203</code>完整；生产零实例化，loop走<code>_dir_generate→diagnose</code>绕过它。</p>
+<p><b>applier</b> <span class="y">◐空转</span> · land_rule<code>:414</code>三闸都在；成功落盘0次；REVERSE恒[]（RULES无简化类）。</p>
+<p><b>credit</b> <span class="y">◐空转</span> · 账只活在进程内存，无表无落盘，重启即失忆。</p>
+<p><b>judge</b> <span class="g">●在工作</span> · evidence/task_scores各928行，prod_log每行pass率即其输出。缺口：只评任务分，不回灌进化（failure_sig 0行即证据）。</p>
+<p><b>effort/el_sched</b> <span class="g">●在工作</span> · 但属dream预算/环境收缩，不驱动进化提案。</p></div>
+<h2 id="g2">G2 · 世界模型＋树：能供任务，不能做决策</h2>
+<div class="card"><p><b>world_model</b> <span class="y">◐半工作</span> · legal_actions→任务源（core.py:269）、observe回填（808行advice消费）行；select收束core.py:393明写"不动select"＝壳。</p>
+<p><b>iwm</b> <span class="g">●在工作</span> · 四信号→三路（semantic恒缺席归一），drift门控demote/drop真实消费。缺口：drift_degrade任务零出现计数。</p>
+<p><b>predictor</b> <span class="r">○壳</span> · 日志77行几乎全单键<code>T_r209_nomark</code>；读<code>bench:</code>写<code>inbox:</code>永无交集→恒0.5先验；零observe/零calibrate调用。</p>
+<p><b>direction</b> <span class="y">◐空转</span> · pick/stagnant/fallback接线在（loop.py:309/379），prod_log零direction字段；ledger实有1.7M待验消费；next_action只出方向不出候选（AB半边）。</p>
+<p><b>planner/dimension/router</b> <span class="r">○壳/◐空转</span> · planner_layer默认关＋llm无配置恒返no_llm；dimension零调用；router接了无日志痕。</p></div>
+<h2 id="g3">G3 · 记忆环＋执行评估：在"记住"，没"靠记住变强"</h2>
+<div class="card"><p><b>memory</b> <span class="y">◐半工作</span> · 703条全proxy/trace，用过10.4%；EXPERIENCE零写入，dream/maintain无消费对象。</p>
+<p><b>agent_quality</b> <span class="y">◐低转</span> · 注入链通（agent:257/bench2:124/R274聊天两口）；命中仅单批3行，promote阈值5零触发，archive空。</p>
+<p><b>task_exec</b> <span class="g">●在工作</span> · 404 session/9报告/6信源；缺口：404→9落盘比失衡，cancelled占多数。</p>
+<p><b>nightbench</b> <span class="r">○冒烟</span> · success_curve仅1行，rot=1；1单lesson未见_promote痕迹。</p>
+<p><b>metric_loop/measure/replay/weakness</b> · select不adopt<span class="r">○壳</span>；measure诚实报1/4<span class="g">●</span>；replay/weakness被调用<span class="g">●</span>。</p></div>
+<h2 id="g4">G4 · 交互层：代码全绿，生产缺真会话</h2>
+<div class="card"><p><b>TUI/chat/agent/rpc</b> <span class="g">●在工作</span> · R271–R274测试锁死，常驻心跳新鲜（pid 15352，terms 24）。缺口：tui_hist被测试"任务X"污染（13行中12行非真会话）；*.pid缺席顶栏靠heartbeat兜底；pass_rate=0.0连续需关注；chat无/mem入口；cancel/inbox竞态。</p></div>
+<h2 id="fix">修复排期（建议顺序）</h2>
+<div class="card"><table>
+<tr><th>#</th><th>缺口</th><th>修法</th><th>轮</th></tr>
+<tr><td>1</td><td>进化输入断裂（failure_sig 0行）</td><td>judge判分→failure_sig回灌接线（judge已在工作，只差一根线）</td><td>R276</td></tr>
+<tr><td>2</td><td>进化输出丢失（rules.json恒无＋credit不落盘）</td><td>applier落地持久化＋credit表，跑通第一轮真进化</td><td>R276</td></tr>
+<tr><td>3</td><td>predictor键错位＋零observe</td><td>读写键统一＋nightbench回填observe＋首个Brier</td><td>R277</td></tr>
+<tr><td>4</td><td>select收束/adpot采纳两处"选了不用"</td><td>world select消费＋metric adopt接线（各一行调用＋落盘）</td><td>R277</td></tr>
+<tr><td>5</td><td>nightbench单轮＋EXPERIENCE空</td><td>多轮积累（cron）＋failure EXPERIENCE落库</td><td>持续</td></tr>
+<tr><td>6</td><td>交互小毛刺（pid/history污染/chat无/mem/cancel竞态）</td><td>打包一轮</td><td>R278</td></tr>
+</table>
+<p class="small">判断：在工作5 · 半工作/低转/空转7 · 壳6。DWC现状＝"执行＋评分＋交互"三件是活的，"进化＋预测＋收束"三件是接了线没通电——下一步R276先把进化第一轮跑通。</p></div>
+</body></html>
