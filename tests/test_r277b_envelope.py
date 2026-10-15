@@ -109,3 +109,23 @@ def test_bool_strict_both_channels():
     assert _eq(True, 1) is False and _eq(False, 0) is False
     with pytest.raises(JudgeError):
         Judge().evaluate("nope_task", "dev", observed={})
+
+
+def test_executor_outage_is_none():
+    """★ R277b-9 · 执行体故障 {error_code} ⇒ 未评价 None（不当失败）。"""
+    j = Judge()
+    v = j.evaluate("code_fix_001", "dev",
+                   observed={"error_code": "llm_parse_failed"})
+    assert v.success is None
+
+
+def test_outage_does_not_swallow_envelope():
+    """★ R277b-9 · 带 observed 的 envelope 不进 outage（零误伤锁）。"""
+    j = Judge()
+    env = {"observed": {"sum_first_n": [[3, 6], [5, 15]]},
+           "★_executed": True}
+    assert j.evaluate("code_fix_001", "dev", observed=env).success is True
+    import pytest
+    with pytest.raises(JudgeError):
+        j.evaluate("code_fix_001", "train",
+                   observed={"error_code": "x"})  # 非法 split 照 raise

@@ -882,6 +882,17 @@ class Judge:
                 and "★_executed" in observed:
             _executed = bool(observed.get("★_executed"))
             observed = observed.get("observed") or {}
+        # ★ R277b-9 · 执行体故障（{error_code} 无 observed）⇒ 未评价
+        #   None（R126 原意"该任务弃"；outage 不当失败 —— 否则一次
+        #   端点抖动就 6 连 False 触发 collapse 自停，本轮实证）。
+        if isinstance(observed, dict) and "observed" not in observed \
+                and "error_code" in observed:
+            v = Verdict(task_id, split, None,
+                        "未评价：执行体故障（%s），不当失败"
+                        % (observed.get("error_code"),),
+                        cat, "executor_outage")
+            self._log.append(v)
+            return v
         # ★ R277b-6 · LLM 弃权（全 null 回声 = 模型一个数都没断言）⇒
         #   未评价 None（Verdict 纪律：None 跳过），不当失败。
         #   部分 null 仍正常走 _diff（残疾对子该挂就挂）—— _diff 零改。
