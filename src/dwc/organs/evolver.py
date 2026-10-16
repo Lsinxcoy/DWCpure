@@ -1841,7 +1841,8 @@ class LLMMutator:
         self._direction_history: List[Any] = []
 
     def _prompt(self, sigs: List[Dict[str, Any]],
-                context: str = "", want_code: bool = False) -> str:
+                context: str = "", want_code: bool = False,
+                learned_hint: str = "") -> str:
         s0 = dict(sigs[0])
         lines = [
             "你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
@@ -1853,6 +1854,10 @@ class LLMMutator:
         ]
         if context:
             lines.append("判分对照事实（真值 vs 模型断言）：\n" + context)
+        # ★ R300-A · 已落地规则段（非空才拼；空⇒老路一字不差）。
+        if (learned_hint or "").strip():
+            lines.append("该簇已有落地规则（禁重复已落地机制；另寻机制，"
+                         "或明确写出超越点）：\n" + learned_hint.strip())
         lines += [
             "先简短思考（≤200字），然后另起一行输出JSON对象收尾",
             "（思考再长也会被截断 ⇒ JSON 必须在结尾前出现）。",
@@ -1891,6 +1896,7 @@ class LLMMutator:
                              context: str = "",
                              max_attempts: int = 3,
                              want_code: bool = False,
+                             learned_hint: str = "",
                              ) -> Optional["Proposal"]:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
@@ -1909,7 +1915,8 @@ class LLMMutator:
                                           next_action)
         _dec = next_action(self._direction_history, round_no=0,
                            task_id=str(s0.get("task", "")))
-        prompt = self._prompt(sigs, context, want_code=want_code)
+        prompt = self._prompt(sigs, context, want_code=want_code,
+                              learned_hint=learned_hint)
         reasons: List[str] = []
         for _ in range(max(1, max_attempts)):
             text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
@@ -2257,7 +2264,8 @@ class Evolver:
     # ══════════════════════════════════════════════
     @staticmethod
     def accept(p: Proposal, baseline: Dict[str, Any],
-               current: Dict[str, Any], eps: float = 0.0
+               current: Dict[str, Any], eps: float = 0.0,
+               mode: str = "report",
                ) -> Dict[str, Any]:
         """★ 判定一个候选该不该采纳（固定门 𝒢_fixed）。
 
@@ -2301,21 +2309,45 @@ class Evolver:
             return {"decision": "blocked",
                     "why": ("★ 约束 3 需两组 split（Δ_in ∧ Δ_ho），"
                             "而 test split 未落地 ⇒ 不得只凭 in-sample 采纳"
-                            "（2606.14249: 只用一组会证伪自己的门 −14.0%）"),
+                            "（2606.14249 之戒：Telecom R7 累积 edits 单轮"
+                            " −14.0%，无 held-out 评估之过）"),
                     "delta_in": d_in, "in_baseline": b_in,
                     "in_current": c_in}
         d_ho = c_ho - b_ho
 
-        # ★★ 2606.09498 第 13 行: Δ_in ≥ 0 ∧ Δ_ho ≥ 0 ∧ max(...) > 0
-        # ★★ 第三个条件是"真的有改进"，否则"没退化"就采纳是空过
+        # ★★ 2606.09498 §3.4 文字规则（旧注"Algorithm 1 第 13 行"系假精确，
+        #   论文无 Algorithm 1——R300 论文深读修正）：Δ_in ≥ 0 ∧ Δ_ho ≥ 0 ∧
+        #   max(...) > 0。第三个条件是"真的有改进"，否则"没退化"就采纳是空过。
         if d_in < -eps or d_ho < -eps:
             return {"decision": "rejected", "delta_in": d_in,
                     "delta_ho": d_ho,
                     "why": "任一 split 退化 ⇒ 拒（Δ_in ≥ 0 ∧ Δ_ho ≥ 0）"}
+        # ★ R300-A · code 路知识分支（mode="code" 才进；report 路走下原条件）：
+        #   trial 分是码的分（恒 1.0），规则增量用分数 Δ 量恒 0。天花板。
+        #   知识落地的改进=信息增量（key 新）——论文量执行体，DWC 落知识，
+        #   尺子必须跟对象走。前两条件（不退化）已过，此处只判增量。
+        if mode == "code":
+            try:
+                _sig = dict(getattr(p, "failure_signature", None) or {})
+                _sig.setdefault("fn", getattr(p, "target", ""))
+                _key = Mutator.key_for(_sig)
+            except Exception as _ke:            # noqa: BLE001 — 键坏大声
+                return {"decision": "accept_error", "delta_in": d_in,
+                        "delta_ho": d_ho,
+                        "why": "规则键构造失败：%r" % (_ke,)}
+            if _key in Mutator.RULES:
+                return {"decision": "rejected", "delta_in": d_in,
+                        "delta_ho": d_ho,
+                        "why": "规则重复（key 已在 RULES：%s）⇒见过不采" % (_key,)}
+            return {"decision": "adopted_not_implemented",
+                    "delta_in": d_in, "delta_ho": d_ho,
+                    "rule_key": _key,
+                    "★": ("知识增量（新 key）＋双 split 不退化 ⇒ 过门待落地"
+                          "（R14 第五态）")}
         if max(d_in, d_ho) <= 0:
             return {"decision": "rejected", "delta_in": d_in,
                     "delta_ho": d_ho,
-                    "why": ("★ 2606.09498 第13行第三条件: max(Δ) > 0"
+                    "why": ("★ 2606.09498 §3.4 第三条件: max(Δ) > 0"
                             " —— 两组都没退化但也没改进 ⇒ 那是空过，不采纳")}
         return {"decision": "adopted_not_implemented",
                 "delta_in": d_in, "delta_ho": d_ho,

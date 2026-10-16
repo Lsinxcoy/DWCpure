@@ -113,8 +113,11 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             #   无分数走 legacy 直落但标记 decision（门没判≠门过了 ——
             #   收紧点：trial_fn 带分数之日 legacy 分支删除，见 ★TODO）。
             try:
+                # ★ R300-A · 传 mode（code 路走知识分支；缺省 report 老路）。
                 _ad = evolver.accept(
-                    p, baseline=_base, current=_cur)
+                    p, baseline=_base, current=_cur,
+                    mode=((t.get("mode") or "report")
+                          if isinstance(t, dict) else "report"))
             except Exception as exc_a:  # noqa: BLE001
                 _ad = {"decision": "accept_error",
                        "why": "accept 抛错：%r" % (exc_a,)}

@@ -213,9 +213,10 @@ def test_gated_is_not_implemented(ev):
 def test_in_only_is_blocked_not_adopted():
     """★★★★★ 核心测试: 只有 in-sample ⇒ **blocked**，绝不采纳。
 
-    ★★★★ 依据 2606.09498 原文: Δ_in ≥ 0 ∧ Δ_ho ≥ 0
-    ★★★ 而 2606.14249 记录: 只用一组数据曾导致 −14.0%
-      （用自己的实验证伪了自己的门）⇒⇒⇒ 所以这里必须挡住
+    ★★★★ 依据 2606.09498 §3.4 原文: Δ_in ≥ 0 ∧ Δ_ho ≥ 0
+    ★★★ 而 2606.14249 之戒: Telecom R7 累积 edits 单轮 −14.0%
+      （无 held-out 评估之过，R300 论文深读修正旧注"只用一组证伪"）
+      ⇒⇒⇒ 所以这里必须挡住
     """
     p = _p()
     r = Evolver.accept(p,
