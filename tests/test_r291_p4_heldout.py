@@ -96,9 +96,9 @@ def test_real_trial_returns_held_out_key():
     r = EVO._real_trial(Judge(), _fake_llm_007(), "code_fix_007", "patch")
     assert isinstance(r, dict), type(r)
     assert "held_out" in r, r
-    # ★ Task 4 后 007 有配对（test_str_002）；fake 第二次仍回 average 数 ⇒
-    #   答非所问 ⇒ fail-closed 判 0.0（不是 None —— 有数但 fn 对不上=跑错题）
-    assert r["held_out"] == 0.0, r
+    # ★ R295-Task3 · peer 切写码：fake 回 observed JSON 无代码块⇒取码 None
+    #   ⇒held_out=None（fail-closed 写码版：无码=没跑对题，不编分）。
+    assert r["held_out"] is None, r
 
 
 def test_round_passes_held_out_to_accept(tmp_path):
@@ -134,7 +134,7 @@ def test_round_passes_held_out_to_accept(tmp_path):
     try:
         rep = EVO.run_round(
             db, Evolver(), mu, context="",
-            trial_fn=lambda task, patch: {"success": True, "in_score": 1.0,
+            trial_fn=lambda task, patch, code=None: {"success": True, "in_score": 1.0,
                                           "baseline_in": 0.5, "held_out": 0.6,
                                           "baseline_ho": 0.5},
             apply=True, rules_path=str(tmp_path / "rules.json"),
@@ -178,7 +178,7 @@ def test_bool_trial_no_longer_lands_legacy(tmp_path):
         {"component": "prompt", "dimension": "D7", "target_layer": "assets",
          "target": "average", "m": "x", "patch": "p", "rationale": "r"}))
     rep = EVO.run_round(db, Evolver(), mu, context="",
-                        trial_fn=lambda task, patch: True, apply=True,
+                        trial_fn=lambda task, patch, code=None: True, apply=True,
                         rules_path=str(tmp_path / "rules.json"),
                         backup_dir=str(tmp_path),
                         fn_of=lambda r: "zzz_norule_fn",
@@ -232,7 +232,10 @@ def test_real_trial_held_out_via_peer():
             import json as _json
             self.n += 1
             if "test_str_002" in prompt or "word_count" in prompt:
-                obs = {"word_count": [["a b c", 3], ["one", 1]]}
+                # ★ R295-Task3 · peer 走写码：回代码块（两条全对⇒真 1.0）
+                return type("R", (), {"ok": True, "text": (
+                    "```python\ndef word_count(s):\n"
+                    "    return len(s.split())\n```")})()
             else:  # 首轮 dev 任务（code_fix_007，fn=average）
                 obs = {"average": [[[0.1, 0.2], 0.15]]}
             return type("R", (), {"ok": True,

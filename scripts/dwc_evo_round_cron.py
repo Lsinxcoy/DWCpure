@@ -56,11 +56,15 @@ def main() -> int:
             RuntimeError(r.error)))(llm.complete(p, max_tokens=1500)))
     rep = EVO.run_round(
         db, Evolver(), mu, "anchors: %s" % (sorted(judge.anchors)[:12],),
-        trial_fn=lambda t, pa: EVO._real_trial(judge, llm, t, pa),
+        trial_fn=lambda t, pa, code=None: EVO._real_trial(
+            judge, llm, t, pa, code=code),
         apply=False,
         rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
         fn_of=lambda r: "average", task_of=lambda r: "code_fix_007",
-        max_clusters=3)
+        max_clusters=3,
+        want_code_of=lambda t: (
+            judge.anchors.get(t, {}) or {}).get(
+            "category", "") == "code_repair")
     try:  # ★ R280 · Brier 每日可观测（坏了留痕不掀报告）
         _op = OutcomePredictor(log_path=os.path.join(
             prod, "var", "dwc_predictor.jsonl"))

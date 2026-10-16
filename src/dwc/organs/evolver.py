@@ -1107,6 +1107,9 @@ class Proposal:
     #:   无 plan 的多处变更 = 原 raise 照旧（路径甲单点零破坏）。
     #:   plan 缺字段/成员重复/τ 无校准注记 ⇒ 构造期 raise（与单点同款严厉）。
     attribution_plan: Optional[Dict[str, Any]] = None
+    #: ★ R295-Task2 · LLM 写的完整可执行函数代码（code_repair 写码真执行；
+    #:   None=没出码——trial 走老报数路，不废起草）。
+    code: Optional[str] = None
 
     state: str = "draft"
     gate_verdict: Optional[Dict[str, Any]] = None
@@ -1838,7 +1841,7 @@ class LLMMutator:
         self._direction_history: List[Any] = []
 
     def _prompt(self, sigs: List[Dict[str, Any]],
-                context: str = "") -> str:
+                context: str = "", want_code: bool = False) -> str:
         s0 = dict(sigs[0])
         lines = [
             "你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
@@ -1861,6 +1864,12 @@ class LLMMutator:
             "patch（怎么改：一句话修法）、rationale（为什么：必须引用对照事实，",
             "禁编造数量级 — 先算真值与断言的比值再下结论）。",
         ]
+        if want_code:
+            lines.append(
+                "另加 code 字段：完整可执行 Python 函数定义（def "
+                + str(s0.get("fn", "fn"))
+                + "(...) 起，纯函数，只用 sum/len/range 等纯内建，禁 import、"
+                "禁 open/exec/eval、禁 while —— 沙箱真跑它判分，跑不通=白起草）。")
         return "\n".join(lines)
 
     def _extract(self, text: str) -> Optional[Dict[str, Any]]:
@@ -1880,7 +1889,8 @@ class LLMMutator:
 
     def propose_from_cluster(self, sigs: List[Dict[str, Any]],
                              context: str = "",
-                             max_attempts: int = 3
+                             max_attempts: int = 3,
+                             want_code: bool = False,
                              ) -> Optional["Proposal"]:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
@@ -1899,7 +1909,7 @@ class LLMMutator:
                                           next_action)
         _dec = next_action(self._direction_history, round_no=0,
                            task_id=str(s0.get("task", "")))
-        prompt = self._prompt(sigs, context)
+        prompt = self._prompt(sigs, context, want_code=want_code)
         reasons: List[str] = []
         for _ in range(max(1, max_attempts)):
             text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
@@ -1914,6 +1924,11 @@ class LLMMutator:
             missing = Mutator.check_entry(Mutator.key_for(s0), entry)
             if missing:
                 reasons.append("缺字段：%s" % (missing,))
+                continue
+            if want_code and not (entry.get("code") or "").strip():
+                # ★ R295-Task3补 · 求码而无码⇒缺字段进重试（3 次都没才 None；
+                #   无码 trial 走老报数=错配通道，宁可多起一次）。
+                reasons.append("缺字段：code（want_code 求码而无码）")
                 continue
             break
         else:
@@ -1938,6 +1953,7 @@ class LLMMutator:
             failure_signature=full,
             component=entry["component"], target=entry["target"],
             patch=entry["patch"],
+            code=entry.get("code"),  # ★ R295-Task2 · 无码⇒None（trial 老路）
             rationale=("LLM 起草（n=%d 同簇失败）: %s"
                        % (len(sigs), entry["rationale"])),
             dimension=entry.get("dimension"),

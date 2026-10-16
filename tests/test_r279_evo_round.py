@@ -69,7 +69,7 @@ class TestRound:
         db = _tmpdb(str(tmp_path / "p.sqlite"))
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
         rep = EVO.run_round(db, Evolver(), mu, context="",
-                            trial_fn=lambda task, patch: True, apply=False,
+                            trial_fn=lambda task, patch, code=None: True, apply=False,
                             rules_path=str(tmp_path / "rules.json"),
                             fn_of=lambda r: "zzz_norule_fn",
                             task_of=lambda r: "zzz_norule_task")
@@ -86,7 +86,7 @@ class TestRound:
         rp = str(tmp_path / "rules.json")
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
         rep = EVO.run_round(db, Evolver(), mu, context="",
-                            trial_fn=lambda task, patch: True, apply=True,
+                            trial_fn=lambda task, patch, code=None: True, apply=True,
                             rules_path=rp,
                             backup_dir=str(tmp_path),
                             fn_of=lambda r: "zzz_norule_fn",
@@ -100,7 +100,7 @@ class TestRound:
         rp = str(tmp_path / "rules.json")
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
         rep = EVO.run_round(db, Evolver(), mu, context="",
-                            trial_fn=lambda task, patch: False, apply=True,
+                            trial_fn=lambda task, patch, code=None: False, apply=True,
                             rules_path=rp,
                             backup_dir=str(tmp_path),
                             fn_of=lambda r: "zzz_norule_fn",
@@ -150,7 +150,7 @@ def test_draft_raise_does_not_kill_round(tmp_path):
 
     mu = LLMMutator(llm=_boom)
     rep = EVO.run_round(str(db), Evolver(), mu, context="",
-                        trial_fn=lambda t, pa: True, apply=False,
+                        trial_fn=lambda t, pa, code=None: True, apply=False,
                         rules_path=str(tmp_path / "rules.json"),
                         fn_of=lambda r: "zzz_norule_fn",
                         task_of=lambda r: "zzz_norule_task")

@@ -84,3 +84,26 @@ def test_r292_raises_quota_land_rejects_nonfinal():
     assert p.state == "draft"
     with pytest.raises(EvolverError):
         Evolver()._land_adopted(p)
+
+
+def test_r294_not_wired_empty_all_connected(tmp_path):
+    """★★★ R294 · not_wired 清零（world.select／metric.select→adopt／
+    direction 三项 R290/R291 全摘 —— 清单再挂项即谎报）。
+    """
+    import json as _json
+    import sqlite3
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import dwc_evo_round as EVO
+    from dwc.organs.evolver import Evolver, LLMMutator
+    db = str(tmp_path / "p.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+    c.close()
+    mu = LLMMutator(llm=lambda p: _json.dumps(
+        {"component": "prompt", "dimension": "D7", "target_layer": "assets",
+         "target": "average", "m": "x", "patch": "p", "rationale": "r"}))
+    rep = EVO.run_round(db, Evolver(), mu, context="",
+                        trial_fn=lambda task, patch, code=None: True, apply=False,
+                        rules_path=str(tmp_path / "rules.json"),
+                        backup_dir=str(tmp_path))
+    assert rep["not_wired"] == [], rep["not_wired"]

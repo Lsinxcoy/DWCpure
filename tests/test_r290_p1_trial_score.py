@@ -74,7 +74,7 @@ def test_real_trial_llm_down_returns_none_scored():
 
     r = EVO._real_trial(Judge(), _DeadLLM(), "code_fix_007", "patch")
     assert r == {"success": None, "in_score": None, "baseline_in": None,
-                 "held_out": None}  # ★ R291-P4 Task 2 加键（P1 精确断言同步）
+                 "held_out": None, "mode": "report"}  # ★ R291-P4 Task 2 加键（P1 精确断言同步）＋R295 mode 键
 
 
 def test_round_scores_dict_trial_into_adopt(tmp_path):
@@ -87,7 +87,7 @@ def test_round_scores_dict_trial_into_adopt(tmp_path):
     mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
     rep = EVO.run_round(
         db, Evolver(), mu, context="",
-        trial_fn=lambda task, patch: {"success": True, "in_score": 1.0,
+        trial_fn=lambda task, patch, code=None: {"success": True, "in_score": 1.0,
                                       "baseline_in": 0.5},
         apply=True, rules_path=str(tmp_path / "rules.json"),
         backup_dir=str(tmp_path),
@@ -105,7 +105,7 @@ def test_bool_trial_no_longer_lands_not_evaluated(tmp_path):
     rp = str(tmp_path / "rules.json")
     mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
     rep = EVO.run_round(db, Evolver(), mu, context="",
-                        trial_fn=lambda task, patch: True, apply=True,
+                        trial_fn=lambda task, patch, code=None: True, apply=True,
                         rules_path=rp, backup_dir=str(tmp_path),
                         fn_of=lambda r: "zzz_norule_fn",
                         task_of=lambda r: "zzz_norule_task")
