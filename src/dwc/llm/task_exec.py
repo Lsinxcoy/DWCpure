@@ -973,6 +973,15 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                             _sess({"round": rnd, "phase": "revision",
                                    "fallback": _err or "duplicate_replacement"})
                             _last_rev_sig = _sig
+                            # ★ R302补3 · qa 下 revision 被驳回⇒直回 prompt
+                            #   （T_R302X 现场：驳回进 fallback obs，模型学不到，
+                            #   连出无 op 熔断。驳回不记 obs、不耗熔断）。
+                            if qa_mode and _err:
+                                prompt = ("任务: %s\n修订被驳回（%s）。"
+                                          "问答只许 read 取证或直接 final"
+                                          "（answer≥10 字中文），不要再出别的。"
+                                          % (task, _err[:150]))
+                                continue
             obs = _do_action(op, step)
             if (op == "read" and isinstance(obs, dict)
                     and obs.get("image_path")):

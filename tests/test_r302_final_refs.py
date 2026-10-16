@@ -172,3 +172,39 @@ def test_qa_noop_honest_converge(root):
                             max_rounds=8)
     assert r["status"] == "done", r
     assert "如实说明" in r["answer"] or "未找到" in r["answer"], r["answer"]
+
+
+def test_qa_revise_reject_reroutes(root):
+    """★ 补3：qa 下 revision 被驳回⇒直回 prompt（不记 obs 不耗熔断）。"""
+    import dwc.llm.task_exec as T
+
+    class _Mute:
+        ok = True
+        text = '{"analysis": "思考"}'
+
+    class _Run:
+        ok = True
+        text = ('{"op": "run", "cmd": ["python", "-c", "print(1)"], '
+                '"analysis": "搜一下"}')
+
+    class _F:
+        ok = True
+        text = '{"op": "final", "answer": "取证受限，如实说没找到确切依据", "analysis": "答"}'
+
+    box = {"n": 0, "prompts": []}
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            box["n"] += 1
+            box["prompts"].append(prompt)
+            # 主循环无 op→R4→revision（prompt 含"噪声动作"⇒产 run，
+            # qa 驳回⇒直回 prompt）；次轮 final（纯观点，引用校验过）
+            if "噪声动作" in prompt:
+                return _Run()
+            return _F() if box["n"] >= 3 else _Mute()
+
+    r = T.execute_user_task("轮数上限依据是啥", llm=_LLM(),
+                            task_id="T_R302R", retry_on_fail=False,
+                            max_rounds=6)
+    assert r["status"] == "done", r
+    assert any("修订被驳回" in p for p in box["prompts"]), box["prompts"]
