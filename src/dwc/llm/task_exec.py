@@ -507,8 +507,11 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
       （EditAct _fallback 纪律 — 修订器故障绝不卡任务）。
     ★ 修订禁产 final（validate allow_final=False — 终局分支已结算）。
     """
+    _plat = ("本机Windows无grep/ls/curl管道、无shell管道符;"
+             "搜文件用python -c(os.walk)，命令必须是argv列表。"
+             if os.name == "nt" else "")
     prompt = (
-        "你在执行任务, 上一步被判为噪声动作。\n"
+        _plat + "你在执行任务, 上一步被判为噪声动作。\n"
         "任务: %s\n"
         "噪声动作: %s\n"
         "判别原因: %s\n"
@@ -745,6 +748,15 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "换 offset/换路径/换参数, 或基于已有信息尽快 final, 不要原地重复。")
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
+    # ★ R301-C · qa 分流（纯问句⇒直答通道；规则 fail-closed，边界走执行路）。
+    from dwc.llm.step_judge import is_qa_task
+    qa_mode = is_qa_task(task)
+    _sess({"phase": "task_mode", "qa_mode": qa_mode})
+    # ★ R301-C · qa 直答句（运行时拼接，system 原文不动）。
+    #   问答任务完成标准就是答案：首轮信息足可直接 final（≥10 字）。
+    if qa_mode:
+        system += ("\n★ 本题是问答：有充分信息首轮可直接 final（answer≥10 字，"
+                   "中文）；需依据先 read 再答，不编空话。")
     # ★ R266B · 任务记忆注入（同 self_md 语义=持久记忆每单加载; lessons
     #   属外部管线 ctx 保持 A/B 口径不变, sources 归"记忆文件"族内部注入。
     #   检索/写入失败留痕不炸单 — G7）
@@ -914,6 +926,11 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                "target": str(step.get("path") or step.get("cmd")
                              or step.get("task") or step.get("url")  # R266A
                              or step.get("query") or "")[:160],
+               "args": json.dumps({k: step.get(k) for k in
+                                     ("offset", "limit", "cmd")
+                                     if step.get(k) is not None},
+                                    ensure_ascii=False,
+                                    default=str)[:160],
                "ok": bool((obs or {}).get("ok", True)),
                "obs": json.dumps(obs, ensure_ascii=False)[:400]})
         # ★ R255 修正: obs 行进 actions_log — judge 的 recent_obs 需要结构化
@@ -922,6 +939,11 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     "target": str(step.get("path") or step.get("cmd")
                                   or step.get("task") or step.get("url")  # R266A
                                   or step.get("query") or "")[:160],
+                    "args": json.dumps({k: step.get(k) for k in
+                                          ("offset", "limit", "cmd")
+                                          if step.get(k) is not None},
+                                         ensure_ascii=False,
+                                         default=str)[:160],
                     "ok": bool((obs or {}).get("ok", True)),
                     "obs": json.dumps(obs, ensure_ascii=False)[:300]})
         # ★ R247 复读熔断: 999 轮开放后必须有硬出口 — 连续 3 轮同

@@ -49,6 +49,42 @@ def _tgt(step: Dict[str, Any]) -> str:
                or step.get("reason") or "")
 
 
+#: ★ R301-C · 纯问句启发式（规则先筛零 LLM 成本；边界任务走执行路）。
+_QA_Q = ("觉得", "是否", "为什么", "是什么", "介绍", "有没有", "多少",
+         "吗", "?", "？", "何为", "啥")
+_QA_X = ("执行", "跑", "修", "查", "写", "落盘", "搜", "读", "改", "删",
+         "建", "起草", "试跑", "重启", "备份")
+
+
+def is_qa_task(task: str) -> bool:
+    """★ R301-C · 纯问句⇒True（问答直答通道；执行路零变）。
+
+    ★ fail-closed：含任一执行动词⇒False（边界走执行，老路零变）。
+    """
+    t = str(task or "")
+    return any(q in t for q in _QA_Q) and not any(x in t for x in _QA_X)
+
+
+def _sig_args(step: Dict[str, Any]) -> str:
+    """★ R301-A · 去重签名（含 args 指纹）：同 target 不同参数≠重复。
+
+    ★ 翻页（同 path 不同 offset/limit）必须放行——R247 修了翻页，
+      去重没跟上致 62 轮僵尸循环（T_1016_170342 现场）。
+    """
+    op = str(step.get("op", ""))
+    tgt = _tgt(step)
+    if op == "read":
+        _o, _l = step.get("offset", ""), step.get("limit", "")
+        # ★ 空参归一（无 offset/limit ⇔ 历史无 args 快照 ⇔ extra=""）
+        extra = "" if (_o in ("", None) and _l in ("", None)) else             "o=%s|l=%s" % (_o, _l)
+    elif op == "run":
+        extra = json.dumps(step.get("cmd"), ensure_ascii=False,
+                           sort_keys=True, default=str)[:160]
+    else:
+        extra = ""
+    return "%s|%s|%s" % (op, tgt[:160], extra)
+
+
 def judge_step(step: Dict[str, Any],
                recent_obs: List[Dict[str, Any]]) -> Tuple[str, str, str]:
     """★ 事前判别（§2.2 — 动作执行前; 只用历史与提案, 不看本轮结果）。
@@ -67,8 +103,22 @@ def judge_step(step: Dict[str, Any],
     tgt = _tgt(step)
     hist = [e for e in recent_obs
             if isinstance(e, dict) and e.get("op") == op]
-    # R1: 同 (op,target) 连续重复且无新信息
-    same = [e for e in hist if str(e.get("target", "")) == tgt]
+    # R1: 同签名（op|target|args）连续重复且无新信息
+    # ★ R301-A · 旧注"同 (op,target)"太粗——翻页（同 path 不同 offset）
+    #   被误判重复致 62 轮僵尸循环。签名含 args（留痕 args 快照）；
+    #   recent_obs 限近 6 轮 ⇒ 连续性隐含（超 6 轮的旧账不翻）。
+    _me = _sig_args(step)
+    same = [e for e in hist if _sig_args({
+        "op": e.get("op"), "path": e.get("target"),
+        "offset": (json.loads(e.get("args") or "{}").get("offset")
+                   if isinstance(e.get("args"), str) else
+                   (e.get("args") or {}).get("offset")),
+        "limit": (json.loads(e.get("args") or "{}").get("limit")
+                  if isinstance(e.get("args"), str) else
+                  (e.get("args") or {}).get("limit")),
+        "cmd": (json.loads(e.get("args") or "{}").get("cmd")
+                if isinstance(e.get("args"), str) else
+                (e.get("args") or {}).get("cmd"))}) == _me]
     if len(same) >= 2:
         return "noisy", ("同 (%s,%s) 已执行 %d 次且无新推进 — 重复"
                          % (op, tgt[:40], len(same) + 1)), "R1"
@@ -94,7 +144,8 @@ def judge_step(step: Dict[str, Any],
 
 
 def validate_step(step: Any, *, root: Optional[str] = None,
-                  allow_final: bool = True) -> Optional[str]:
+                  allow_final: bool = True,
+                  qa_mode: bool = False) -> Optional[str]:
     """★ 修订动作校验（revision.py validate_code 纪律 — 过不了就 fallback）。
 
     返回 None=合法, 否则错误串。
@@ -123,6 +174,9 @@ def validate_step(step: Any, *, root: Optional[str] = None,
             return "修订不可产 final（终局分支已过 — 换路径/参数/动作）"
         if not step.get("answer"):
             return "修订 final 缺 answer"
+        # ★ R301-C · qa 直答防空交差（只保非空不保对，真实性由调用方判）。
+        if qa_mode and len(str(step.get("answer") or "").strip()) < 10:
+            return "qa final 空交差（answer<10 字）"
     return None
 
 
