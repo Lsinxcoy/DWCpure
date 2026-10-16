@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>R296 第六次深度普查 17●5◐0○</title>
+<style>body{background:#0d1117;color:#c9d1d9;font-family:sans-serif;max-width:900px;margin:auto;padding:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px;margin:10px 0}
+.b{color:#3fb950}.y{color:#d29922}.r{color:#f85149}.n{color:#58a6ff}</style></head><body>
+<h1>R296 第六次深度普查 <span class="b">17●</span><span class="y">5◐</span><span class="n">0○</span>=22</h1>
+<p>R293（13●6◐0○）→ R296：R295 B 路线闭环＋3 新灯（沙箱/trial 分流/peer 首判），◐ 6→5（evo 首轮摘牌——手动轮已验）。零○ creditors。</p>
+<div class="card"><h3 class="b">● 硬核（17）</h3><ol>
+<li>全量 <b>1928 passed 零 FAILED</b>（201.81s）＋gate 8/8＋双 e2e 双 0＋git 零脏（总闸第三次自证）</li>
+<li>R295 沙箱 live：AST 全拒＋5s 超时＋fail-closed，7 测 raises 71%</li>
+<li>trial 分流生产首通：手动 evo 轮 E_TYPE 簇 success=True/mode=code（起草出码＋沙箱真跑＋judge 判过）</li>
+<li>peer held_out 生产首判 <b>1.0</b>（出码不稳定→3 次重试＋裸码兜底＋prompt 去 fence 示例，两补丁救回）</li>
+<li>007/008/009 真机全过（mode=code/success=True）——报数通道错配治愈</li>
+<li>judge 零改（_diff/_compare 不动，沙箱出 observed 复用 evaluate 现口）</li>
+<li>credit 生产 <b>372 行/366 adopted</b>，覆盖 code_fix_001-006/008/009（007 从未 adopted——病根在通道，现已通）</li>
+<li>predictor <b>Brier 0.0013/n=200</b>（R293 0.0064——再降 5 倍，高置信 bin 198/200 全中）</li>
+<li>verdicts 132→150，daemon pid43428 alive terms14 pass1.0（R295 新码在吃）</li>
+<li>sealed 11 locked 只读；配对表 10 对；dev.json 不动；anchors 单调</li>
+<li>R292 总闸：gate_trace 3 行经查全系人跑 gate 痕迹（测试零脏实锤，还原后 clean）</li>
+<li>R3 浮点铁律 live；judge 1411 行；not_wired 清零（R294 三项全摘不再谎报）</li>
+<li>双副本 md5 一致；commits 9dc590d→08d7a57→1565fef 已推；inbox10/lessons10</li>
+<li>peer prompt 实证：LLM 鹦鹉复述指令（单 fence 引用）——裸码兜底按 fn 起抓救回</li>
+<li>adopt 门第五态＋legacy 已删，无分数不落地纪律 intact</li>
+<li>failure_sig 结构：E_VALUE×11（007 同错 llm_asserted:0.15）＋E_TYPE×2（新形态 ZeroDivisionError）</li>
+<li>手动轮 predictor Brier 0.0016 与生产 calibrate 0.0013 一致——观测链可信</li>
+</ol></div>
+<div class="card"><h3 class="y">◐ 挂账（5）</h3><ol>
+<li>adopt 首客：007 trial 通了但 apply=False 未落 credit，007 adopted 仍 0（等明晨 04:00 cron 真落）</li>
+<li>rules 新条：仍 R278 首条独苗（E_VALUE average），手动轮未落盘无新条</li>
+<li>007 failure_sig×11 未消：daemon 老轮报数欠账，新码 trial 通≠daemon term 消（待新轮验证）</li>
+<li>curve 停 9（nb_1015_06 后无新轮）；bench 持续观测中</li>
+<li>nightbench rot16 saturated 停摆（saturated_at 10-15，无新轮）</li>
+</ol></div>
+<div class="card"><h3>★ 本轮教训</h3><ol>
+<li>peer 出码不稳定是常态不是异常——单次成功即上线是赌博，重试＋兜底才是工程</li>
+<li>prompt 里出现 fence 示例即被鹦鹉复述——指令示例与输出格式必须解耦</li>
+<li>_extract_code 空串进沙箱=compile(None) TypeError——空码不进沙箱是边界纪律</li>
+<li>fail-closed 吞异常利于生产但害排障——复现时必须展开单步，逐环打印</li>
+</ol></div>
+<p>证据：r295_full2.log（1928/201.81s）＋r295_gate2.log（8/8）＋r295_e2e1/e2e2.log（双 0）＋生产直查（credit366 adopted/Brier0.0013/verdicts150/peer007=1.0）。</p>
+</body></html>
