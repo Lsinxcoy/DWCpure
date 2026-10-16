@@ -73,3 +73,78 @@ def test_held_out_score_raises_quota():
     import tempfile
     with pytest.raises(Exception):
         Judge(sealed_path=os.path.join(tempfile.mkdtemp(), "no_sealed.json"))
+
+
+# ══════════════════════════════════════════════════════════
+# R291-P4 Task 2 · _real_trial 回 held_out＋adopt 门传真值
+# ══════════════════════════════════════════════════════════
+def _fake_llm_007():
+    import json as _json
+
+    class _FakeLLM:
+        def complete(self, prompt, max_tokens=1500):
+            obs = {"code_fix_007": {"average": [[[0.1, 0.2], "0.15"]]}}
+            return type("R", (), {"ok": True,
+                                  "text": _json.dumps({"observed": obs})})()
+    return _FakeLLM()
+
+
+def test_real_trial_returns_held_out_key():
+    """★★ _real_trial 回 dict 含 held_out 键（dev 任务 sealed 无同名⇒None）。"""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import dwc_evo_round as EVO
+    r = EVO._real_trial(Judge(), _fake_llm_007(), "code_fix_007", "patch")
+    assert isinstance(r, dict), type(r)
+    assert "held_out" in r, r
+    assert r["held_out"] is None  # dev 任务本来就不该有 held_out（诚实 None）
+
+
+def test_round_passes_held_out_to_accept(tmp_path):
+    """★★★ dict trial 带 held_out/baseline_ho ⇒ adopt 门收到真 held_out。
+
+    Δ_in=0.5≥0 ∧ Δ_ho=0.1≥0 ∧ max>0 ⇒ decision "adopted_not_implemented"
+    （第五态 —— 门吃真输入；落还是 legacy 直落——删分支是 Task 3 的事，
+    本测只 pin 门判真值）。
+    ★ 隔离（R287-C 纪律）：LEARNED_PATH 指 tmp（_land_adopted 写盘），
+      RULES 类属性键 teardown 清 —— 双防（内存＋磁盘）污染。
+    """
+    import json as _json
+    import sqlite3
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import dwc_evo_round as EVO
+    from dwc.organs.evolver import Evolver, LLMMutator
+    db = str(tmp_path / "p.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+    c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
+              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n1"))
+    c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
+              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n2"))
+    c.commit()
+    c.close()
+    mu = LLMMutator(llm=lambda p: _json.dumps(
+        {"component": "prompt", "dimension": "D7", "target_layer": "assets",
+         "target": "average", "m": "x", "patch": "p", "rationale": "r"}))
+    from dwc.organs.evolver import Mutator
+    _before = set(Mutator.RULES)
+    _old_learned = Mutator.LEARNED_PATH
+    Mutator.LEARNED_PATH = str(tmp_path / "learned.json")  # ★ 写盘隔离
+    try:
+        rep = EVO.run_round(
+            db, Evolver(), mu, context="",
+            trial_fn=lambda task, patch: {"success": True, "in_score": 1.0,
+                                          "baseline_in": 0.5, "held_out": 0.6,
+                                          "baseline_ho": 0.5},
+            apply=True, rules_path=str(tmp_path / "rules.json"),
+            backup_dir=str(tmp_path),
+            fn_of=lambda r: "zzz_norule_fn",
+            task_of=lambda r: "zzz_norule_task")
+    finally:
+        # ★ RULES 是 Mutator 类属性（全实例共享）——落地键必须清，
+        #   否则同进程后跑的测试 collect 为空（已实锤污染 R279）。
+        for _k in set(Mutator.RULES) - _before:
+            del Mutator.RULES[_k]
+        Mutator.LEARNED_PATH = _old_learned
+    item = rep["results"][0]
+    assert item["adopt"] == "adopted_not_implemented", item.get("adopt")
+    assert item.get("delta_ho") == pytest.approx(0.1), item

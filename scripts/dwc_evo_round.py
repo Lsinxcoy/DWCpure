@@ -89,9 +89,13 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         # ★ R290-P1 · adopt 门真输入：dict trial 带 baseline_in/in_score ⇒
         #   传真 baseline/current（held_out 仍缺 ⇒ 仍 blocked，但带真 Δ_in）；
         #   bool/None trial ⇒ 占位 {} ⇒ accept 照旧 not_evaluated。
+        # ★ R291-P4 Task 2 · held_out 真值进门（trial 带 held_out/baseline_ho
+        #   ⇒ 门真判 accept/blocked/rejected；缺 ⇒ 仍 blocked 带真 Δ_in）。
         if isinstance(t, dict):
-            _base = {"in_score": t.get("baseline_in")}
-            _cur = {"in_score": t.get("in_score")}
+            _base = {"in_score": t.get("baseline_in"),
+                     "held_out_score": t.get("baseline_ho")}
+            _cur = {"in_score": t.get("in_score"),
+                    "held_out_score": t.get("held_out")}
         else:
             _base, _cur = {}, {}
         if apply and _ok is True:
@@ -109,7 +113,12 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             item["adopt"] = _ad.get("decision")
             if "delta_in" in _ad:
                 item["delta_in"] = _ad["delta_in"]
+            if "delta_ho" in _ad:  # ★ R291-P4 Task 2 · 真 Δ_ho 透出（门判的）
+                item["delta_ho"] = _ad["delta_ho"]
             if _ad.get("decision") == "adopted_not_implemented":
+                # ★ R291-P4 Task 2 · 门判过⇒置第五态再落地（_land_adopted
+                #   前置要 p.state；置态=记录门判结果，不编造）。
+                p.state = "adopted_not_implemented"
                 item["backup"] = evolver._land_adopted(p)
                 item["landed"] = True
             else:
@@ -173,10 +182,12 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500):
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
     r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
-        return {"success": None, "in_score": None, "baseline_in": None}
+        return {"success": None, "in_score": None, "baseline_in": None,
+                "held_out": None}
     obs = parse_llm_observed(r.text or "", skel)
     if obs is None:
-        return {"success": None, "in_score": None, "baseline_in": None}
+        return {"success": None, "in_score": None, "baseline_in": None,
+                "held_out": None}
     suc = judge.evaluate(task, "dev",
                          observed={"observed": obs,
                                    "★_executed": True}).success
@@ -188,10 +199,18 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500):
             base = _pts[-1].score
     except Exception:                       # noqa: BLE001 — 历史坏不断试跑
         base = None
+    # ★ R291-P4 Task 2 · held_out 真输入（dev 任务 sealed 无同名⇒None；
+    #   配对是 Task 4 的事，本步只把键接上 —— None 照传不编分）。
+    _ho = None
+    try:
+        _ho = judge.held_out_score(task, obs)
+    except Exception:                       # noqa: BLE001 — held_out 坏不断试跑
+        _ho = None
     return {"success": suc,
             "in_score": (1.0 if suc is True else
                          (0.0 if suc is False else None)),
-            "baseline_in": base}
+            "baseline_in": base,
+            "held_out": _ho}
 
 
 def main() -> int:

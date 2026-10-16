@@ -73,7 +73,8 @@ def test_real_trial_llm_down_returns_none_scored():
             return type("R", (), {"ok": False, "error": "down"})()
 
     r = EVO._real_trial(Judge(), _DeadLLM(), "code_fix_007", "patch")
-    assert r == {"success": None, "in_score": None, "baseline_in": None}
+    assert r == {"success": None, "in_score": None, "baseline_in": None,
+                 "held_out": None}  # ★ R291-P4 Task 2 加键（P1 精确断言同步）
 
 
 def test_round_scores_dict_trial_into_adopt(tmp_path):
