@@ -128,6 +128,9 @@ def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int
            "m_sample": verdict.get("★m_sample")}
     lp = os.path.join(os.path.dirname(os.path.abspath(db_path)),
                       "eval", "term_verdicts.jsonl")
+    if db_path == ":memory:":
+        return len(false_tasks)  # ★ R292 · 内存语义：不落盘（R289 credit
+    #   同纪律）。否则 dirname("")="" ⇒ 相对 cwd 写飞（P4 实锤根 eval/）。
     if not os.path.exists(os.path.dirname(lp)):
         os.makedirs(os.path.dirname(lp))
     with io.open(lp, "a", encoding="utf-8") as fh:

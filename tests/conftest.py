@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import atexit
+import io
 import os
 import shutil
 import tempfile
@@ -45,3 +46,55 @@ def _reset_process_global_state():
     yield
     _gates.set_current_tree(None)
     _gates.set_planner_layer(False)
+
+
+# ★★★ R292 · 测试副作用总闸（P4 收尾副作用根治②③）。
+#
+# ② _land_adopted→persist_learned 写死 LEARNED_PATH（生产 rules.json ——
+#    config/anchors 下被跟踪文件）。R287-C 靠人 monkeypatch，R291-P4
+#    实锤没遵守 ⇒ 生产文件被测试写盘。本闸默认指到 tmp。
+# ③ 测试调脚本函数写死 docs/*.json＋archive/*.jsonl（被跟踪 8 文件 ——
+#    R290/R291 全量一次脏 8 个，提交前 checkout 救火）。本闸跑前快照、
+#    跑后还原（断言在 teardown 前跑完，不受影响）。
+# ★ var/ 已 gitignore 不管；gate/e2e 人跑落盘不管（本闸只管 tests/）。
+_R292_SNAPSHOT_FILES = [
+    "docs/challenger_duel.json",
+    "docs/deep_water_audit.json",
+    "docs/dep_scan.json",
+    "docs/hce_split_report.json",
+    "docs/table8_status.json",
+    "docs/transfer_attribution.json",
+    "archive/epoch_ledger.jsonl",
+    "archive/gate_trace.jsonl",
+]
+_R292_ROOT = r"E:/Divine Wisdom Core"
+
+
+def _r292_read_bytes(p):
+    try:
+        with io.open(p, "rb") as f:
+            return f.read()
+    except Exception:                           # noqa: BLE001 — 缺席即 None
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _r292_no_side_effects(tmp_path, monkeypatch):
+    """★★ 总闸：LEARNED_PATH→tmp＋被跟踪文件快照还原（每测自动）。"""
+    try:
+        from dwc.organs.evolver import Mutator
+        monkeypatch.setattr(Mutator, "LEARNED_PATH",
+                            str(tmp_path / "learned_isolated.json"))
+    except Exception:                           # noqa: BLE001 — evolver 坏不断全量
+        pass
+    _before = {_f: _r292_read_bytes(os.path.join(_R292_ROOT, _f))
+               for _f in _R292_SNAPSHOT_FILES}
+    yield
+    for _f, _content in _before.items():
+        _p = os.path.join(_R292_ROOT, _f)
+        if _content is None:
+            if os.path.exists(_p):
+                os.remove(_p)  # ★ 测试新建的 ⇒ 删（本来就没有）
+        elif _r292_read_bytes(_p) != _content:
+            with io.open(_p, "wb") as fh:
+                fh.write(_content)
