@@ -195,6 +195,64 @@ def validate_step(step: Any, *, root: Optional[str] = None,
     return None
 
 
+def verify_final_refs(answer: str,
+                      root: Optional[str] = None) -> Optional[str]:
+    """★ R302 · qa final 引用校验（ALCE 本地版：路径+行号+引文三验）。
+
+    只验有引用的句子（纯观点放行，不强制引用）；URL 跳过；
+    裸数字不验（只认"第N行/line N"）。
+    返回 None=通过，否则错误串。零 LLM 成本纯规则。
+    """
+    import re
+    if not str(answer or "").strip():
+        return "final 空 answer"
+    base = root or os.environ.get("DWC_ROOT", "") or os.getcwd()
+    # 1) 路径 token（含 / + 后缀；跳过 http）
+    pats = re.findall(
+        r"[\w\-. /\\]*[\w\-.]/[\w\-. /\\]*\.(?:py|md|json|yaml|yml|txt|jsonl)",
+        answer)
+    lived: List[str] = []
+    for t in pats:
+        t = t.strip()
+        # ★ \w 含汉字（"见 src/a.py"整体命中）⇒ 从首个 ASCII 路径字符切起
+        m = re.search(r"[A-Za-z0-9_./\\]", t)
+        t = t[m.start():] if m else ""
+        if not t or "http" in t:
+            continue
+        cand = t if os.path.isabs(t) else os.path.join(base, t)
+        if not os.path.exists(cand):
+            return "引用路径不存在: %s" % t[:60]
+        lived.append(cand)
+    # 2) 行号（只认 第N行/line N；冒号型不验防误伤）
+    for num in re.findall(r"(?:第\s*(\d+)\s*行|[Ll]ine\s*(\d+))", answer):
+        n = int(num[0] or num[1])
+        if not lived:
+            continue
+        cand = lived[-1]
+        try:
+            with open(cand, encoding="utf-8", errors="replace") as fh:
+                total = sum(1 for _ in fh)
+        except OSError:
+            continue
+        if total < n:
+            return "引用行号超界: %s 第 %d 行（实 %d 行）" % (
+                os.path.basename(cand), n, total)
+    # 3) 引文片段（中/英文引号，4-60 字；有路径才验）
+    for q in re.findall(r"[“\"']([^“\"']{4,60})[”\"']", answer):
+        if not lived:
+            continue
+        cand = lived[-1]
+        try:
+            with open(cand, encoding="utf-8", errors="replace") as fh:
+                body = fh.read()
+        except OSError:
+            continue
+        if q not in body:
+            return "引文失配: “%s” 在 %s 未找到" % (
+                q[:30], os.path.basename(cand))
+    return None
+
+
 def step_signature(step: Dict[str, Any]) -> str:
     """修订签名（revision.py signature 纪律 — 连续同签名 ⇒ fallback）。"""
     core = json.dumps({k: v for k, v in step.items() if k != "analysis"},
