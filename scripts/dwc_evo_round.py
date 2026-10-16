@@ -78,8 +78,23 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 "landed": False, "backup": None}
         try:
             _task = cl["sigs"][0].get("task", "")
+            # ★ R300-A · hint 组装（同簇查 RULES，有则禁重复段；try 包，
+            #   坏不断起草——hint 是增强非门槛）。
+            _hint = ""
+            try:
+                from dwc.organs.evolver import Mutator as _MM
+                _s0 = dict(cl["sigs"][0])
+                _k = _MM.key_for({"c": _s0.get("c"), "q": _s0.get("q"),
+                                  "fn": _s0.get("fn")})
+                _old = _MM.RULES.get(_k)
+                if isinstance(_old, dict):
+                    _hint = "%s：%s" % (_old.get("m", ""),
+                                       _old.get("patch", ""))
+            except Exception:                   # noqa: BLE001 — 坏则无段
+                _hint = ""
             p = mu.propose_from_cluster(cl["sigs"], context,
-                                        want_code=want_code_of(_task))
+                                        want_code=want_code_of(_task),
+                                        learned_hint=_hint)
         except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
             item["reason"] = "起草抛错：%r" % (exc,)
             results.append(item)
