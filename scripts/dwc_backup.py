@@ -37,6 +37,7 @@ def _dwc_root():
 
 import os
 import shutil
+import sqlite3
 import sys
 import time
 
@@ -56,11 +57,46 @@ OBJECTS = [
 ]
 
 
-def main() -> int:
+def run_backup(src_db: str, anchors_dir: str, dest_root: str) -> str:
+    """★ R297-Task2 · 备一份，返回备份目录（dest_root/YYYYMMDD_HHMMSS）。
+
+    sqlite 经 backup API（在线一致，禁 cp 拷 WAL 中间态）；
+    anchors 整目录拷（含 rules.json——adopt 落条必备）；
+    写 latest 指针（文本一行=本次目录名）。源库缺席⇒抛大声。
+    """
+    if not os.path.isfile(src_db):
+        raise FileNotFoundError("源库缺席：%s" % (src_db,))
     ts = time.strftime("%Y%m%d_%H%M%S")
-    dst = os.path.join(BACKUP, ts)
+    dst = os.path.join(dest_root, ts)
+    os.makedirs(dst, exist_ok=False)
+    _src = sqlite3.connect(src_db)
+    try:
+        _dst = sqlite3.connect(os.path.join(dst, "dwc_prod.sqlite"))
+        try:
+            _src.backup(_dst)
+        finally:
+            _dst.close()
+    finally:
+        _src.close()
+    if os.path.isdir(anchors_dir):
+        shutil.copytree(anchors_dir, os.path.join(dst, "anchors"))
+    with open(os.path.join(dest_root, "latest"),
+              "w", encoding="utf-8") as fh:
+        fh.write(ts)
+    return dst
+
+
+def main() -> int:
+    try:
+        dst = run_backup(os.path.join(VAR, "dwc_prod.sqlite"),
+                         os.path.join(REPO, "config", "anchors"), BACKUP)
+    except Exception as exc:                    # noqa: BLE001 — 备份失败要响
+        print("sqlite 备份失败：%r" % (exc,), file=sys.stderr)
+        return 1
     missing = []
     for src, rel in OBJECTS:
+        if rel == "dwc_prod.sqlite":
+            continue  # ★ R297 · 已由 backup API 备（上），禁 copy2 拷 WAL
         if not os.path.exists(src):
             missing.append(src)
             continue
