@@ -49,7 +49,12 @@ def main() -> int:
     from dwc.organs.predictor import OutcomePredictor
     prod = _prod_root()
     db = os.path.join(prod, "var", "dwc_prod.sqlite")
-    judge = Judge()
+    # ★ R299-b2 · 基线跨轮落盘：Judge 带 path（points 落 var/dwc_task_scores
+    #   .jsonl＋evidence，trial 基线/peer 基线下轮可读；内存轮抛则基线恒空
+    #   门恒 not_evaluated）。仓库根为锚（R292），测试 Judge() 无参零写。
+    judge = Judge(path=os.path.join(prod, "var", "dwc_task_scores.jsonl"),
+                  evidence_path=os.path.join(prod, "var",
+                                             "dwc_evidence.jsonl"))
     llm = LLMClient()
     mu = LLMMutator(llm=lambda p: (
         lambda r: r.text if r.ok else (_ for _ in ()).throw(

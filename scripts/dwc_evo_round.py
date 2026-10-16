@@ -178,14 +178,19 @@ def _extract_code(text: str, fn: str = ""):
     return None
 
 
-def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3):
+def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
+                         hint_code=None):
     """★ R295-Task3 · peer 写码独立评估（fail-closed：任一步坏⇒None）。
 
     peer fn 与 dev fn 不一样（R291-P4 Task4）⇒ peer 另出码另真跑，
-    不是复用本 task 的 code。llm 缺席（沙箱单测）⇒None。
-    ★ R295补 · peer prompt 出码不稳定（有时回解释无代码块）⇒无码重试
-      max_attempts 次，空码不进沙箱（compile(None) TypeError 免吞）；
-      3 次都不出⇒None（fail-closed，不编分）。
+    不是复用本 task 的 code。llm 缺席（沙箱单测）⇒None。★ R295补 ·
+    peer prompt 出码不稳定（有时回解释无代码块）⇒无码重试
+    max_attempts 次，空码不进沙箱（compile(None) TypeError 免吞）；
+    3 次都不出⇒None（fail-closed，不编分）。
+    ★ R299 · hint_code（trial 成功码 few-shot）：非空⇒拼进 peer prompt
+    当翻译参考（本轮已验证算法，翻译成功率>从零写）；缺席/空⇒老路
+    （prompt 不变）。hint 只进 prompt，不进判分（judge 零改）；
+    ho 仍 None⇒门仍 blocked（门语义零改）。
     """
     try:
         from dwc.llm.executor import (build_observed_prompt, obs_skeleton,
@@ -198,8 +203,14 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3):
             return None
         _pskel = obs_skeleton(judge.sealed, _peer)
         _pfn = next(iter(_pskel))
+        # ★ R299 · hint 拼 prompt（非空才拼；空⇒老路一字不差）
+        _base_prompt = _code_prompt(_pfn, _pskel)
+        if (hint_code or "").strip():
+            _base_prompt += ("\n已验证对的同族解（仅供翻译参考，"
+                             "必须按上面函数名/形态重写）：\n%s"
+                             % hint_code.strip())
         for _ in range(max_attempts):
-            _pr = llm.complete(_code_prompt(_pfn, _pskel),
+            _pr = llm.complete(_base_prompt,
                                max_tokens=max_tokens)
             if not _pr.ok:
                 continue
@@ -234,6 +245,25 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
         _cat = (judge.anchors.get(task, {}) or {}).get("category", "")
     except Exception:                           # noqa: BLE001 — 坏不断试跑
         _cat = ""
+    # ★ R299-b · 基线前置快照（自己不当自己基线）：
+    #   evaluate→store.record 当场记点，判后取 base 拿到的是自己刚判的分
+    #   （d_in 恒 0，门永不过）。先 snapshot 历史（dev 同 task 末 point
+    #   ＋ peer test 末 point），再判。无历史⇒None（门 not_evaluated 诚实）。
+    def _snap(_task, _split):
+        try:
+            _pts = [p for p in judge.task_scores(split=_split)
+                    if p.task_id == _task]
+            return _pts[-1].score if _pts else None
+        except Exception:                       # noqa: BLE001 — 历史坏不断试跑
+            return None
+    _peer = None
+    try:
+        if hasattr(judge, "held_out_peer"):
+            _peer = judge.held_out_peer(task)
+    except Exception:                           # noqa: BLE001 — 表坏不断试跑
+        _peer = None
+    _base_in = _snap(task, "dev")
+    _base_ho = _snap(_peer, "test") if _peer else None
     _mode = "report"
     if code and _cat == "code_repair":
         from dwc.llm.sandbox import run_code_observed, SandboxError
@@ -252,20 +282,18 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
         suc = judge.evaluate(task, "dev",
                              observed={"observed": _obs,
                                        "★_executed": True}).success
-        base = None
-        try:
-            _pts = [p for p in judge.task_scores(split="dev")
-                    if p.task_id == task]
-            if _pts:
-                base = _pts[-1].score
-        except Exception:                       # noqa: BLE001 — 历史坏不断试跑
-            base = None
+        # ★ R299-b · 基线用前置快照（判后取=自己，d_in 恒 0 死门已除）。
+        base = _base_in
         return {"success": suc,
                 "in_score": (1.0 if suc is True else
                              (0.0 if suc is False else None)),
                 "baseline_in": base,
-                "held_out": _peer_held_out_code(judge, llm, task,
-                                                max_tokens=max_tokens),
+                "baseline_ho": _base_ho,
+                # ★ R299 · trial 成功码喂 peer（成功才传；失败/None 码
+                #   不污染 peer——fail-closed feeding）。
+                "held_out": _peer_held_out_code(
+                    judge, llm, task, max_tokens=max_tokens,
+                    hint_code=(code if suc is True else None)),
                 "mode": _mode}
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
@@ -280,14 +308,8 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
     suc = judge.evaluate(task, "dev",
                          observed={"observed": obs,
                                    "★_executed": True}).success
-    base = None
-    try:
-        _pts = [p for p in judge.task_scores(split="dev")
-                if p.task_id == task]
-        if _pts:
-            base = _pts[-1].score
-    except Exception:                       # noqa: BLE001 — 历史坏不断试跑
-        base = None
+    # ★ R299-b · 基线用前置快照（report 路同修，自己不当基线）。
+    base = _base_in
     # ★ R295-Task3 · peer 切写码独立评估（老报数 peer 退役：patch 建议文本
     #   进 peer prompt 是 R294 实证的错配通道，peer 也写码真跑）。
     _ho = _peer_held_out_code(judge, llm, task, max_tokens=max_tokens)
@@ -295,6 +317,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
             "in_score": (1.0 if suc is True else
                          (0.0 if suc is False else None)),
             "baseline_in": base,
+            "baseline_ho": _base_ho,
             "held_out": _ho, "mode": _mode}
 
 
@@ -317,7 +340,10 @@ def main() -> int:
                                        "rules.json")
     from dwc.llm.client import LLMClient
     from dwc.organs.judge import Judge
-    judge = Judge()
+    # ★ R299-b2 · 人跑入口同 cron：基线落盘（var 下，仓库根为锚）。
+    judge = Judge(path=os.path.join(root, "var", "dwc_task_scores.jsonl"),
+                  evidence_path=os.path.join(root, "var",
+                                             "dwc_evidence.jsonl"))
     llm = LLMClient()
     mu = LLMMutator(llm=lambda p: (
         lambda r: r.text if r.ok else (_ for _ in ()).throw(
