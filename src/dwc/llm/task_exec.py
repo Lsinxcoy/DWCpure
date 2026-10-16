@@ -502,7 +502,8 @@ def _parse_confirmed(ctx: Optional[str]) -> set:
 
 
 def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
-                 recent: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+                 recent: List[Dict[str, Any]],
+                 qa_mode: bool = False) -> Optional[Dict[str, Any]]:
     """★ State Revision 轻量版（2609.28416 §2.3）: 对 noisy 提案重写一次。
 
     ★ 每次判别**只调一次**; 失败返回 None ⇒ 调用方 fallback 保留原提案
@@ -518,14 +519,20 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
         "噪声动作: %s\n"
         "判别原因: %s\n"
         "最近动作观察: %s\n"
-        "请**换一条路径/换参数/换动作类型**重写下一步（不要重复噪声动作, "
-        "不要 final）。只输出 JSON: {\"analysis\": \"…\", \"op\": "
-        "\"read|write|run\", \"path\": \"…\"（read/write）, \"cmd\": "
-        "\"…\"（run）}" % (task,
-                 json.dumps({k: v for k, v in step.items()
-                             if k != "analysis"}, ensure_ascii=False)[:400],
-                 why[:200],
-                 json.dumps(recent[-3:], ensure_ascii=False)[:900]))
+        # ★ R302补5 · qa 下修订只许 read（通用模板劝 run⇒qa 必驳回，
+        #   T_R302Z 现场 10 轮驳回耗尽轮数。约束前移到产出端）。
+        % (task,
+           json.dumps({k: v for k, v in step.items()
+                       if k != "analysis"}, ensure_ascii=False)[:400],
+           why[:200],
+           json.dumps(recent[-3:], ensure_ascii=False)[:900])
+        + ("问答任务只许取证：op 只能是 read（给 path），不要 final。"
+           "只输出 JSON: {\"analysis\": \"…\", \"op\": \"read\", "
+           "\"path\": \"…\"}" if qa_mode else
+           "请**换一条路径/换参数/换动作类型**重写下一步（不要重复噪声动作, "
+           "不要 final）。只输出 JSON: {\"analysis\": \"…\", \"op\": "
+           "\"read|write|run\", \"path\": \"…\"（read/write）, \"cmd\": "
+           "\"…\"（run）}"))
     try:
         r = llm.complete(prompt, json_mode=True)
         if not getattr(r, "ok", False):
@@ -777,6 +784,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
+    _r4_blanks = 0      # ★ R302补5b · R4 无 op 连空计数（≥3 诚实收敛）
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
@@ -918,11 +926,18 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     # ★ R302补2 · qa 诚实收敛（取证≥4 后仍缺 op⇒自动 final。
                     #   T_R302W 现场：F 劝 3 次，模型回无 op 思考块耗尽轮数。
                     #   零编造：只报取证事实＋未找到，不给结论）。
+                    # ★ 补5b · R4 连空≥3 直接收敛（T_R302Z：10 轮全无 op，
+                    #   零取证——如实说"未能给出有效动作"，不耗尽轮数）。
+                    _reads = sum(1 for e in log
+                                 if isinstance(e, dict)
+                                 and e.get("phase") == "obs"
+                                 and e.get("op") == "read")
+                    if qa_mode and _jrule == "R4":
+                        _r4_blanks += 1
+                    else:
+                        _r4_blanks = 0
                     if (qa_mode and _jrule == "R4"
-                            and sum(1 for e in log
-                                    if isinstance(e, dict)
-                                    and e.get("phase") == "obs"
-                                    and e.get("op") == "read") >= 4):
+                            and (_reads >= 4 or _r4_blanks >= 3)):
                         _tgt = sorted({str(e.get("target", ""))
                                        for e in log
                                        if isinstance(e, dict)
@@ -930,11 +945,14 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                        and e.get("op") == "read"})[:5]
                         _sess({"round": rnd, "phase": "refcheck", "ok": True,
                                "why": "qa 无 op 诚实收敛"})
+                        _ans = (("经多轮取证仍未能定位确切依据，"
+                                 "如实说明：已查阅 %s，未找到直接答案。"
+                                 % "、".join(_tgt)) if _tgt else
+                                "多轮未能给出有效动作，如实说明："
+                                "没有完成取证，给不出有依据的答案。")
                         return {"task": task, "task_id": sid,
                                 "status": "done", "rounds": rnd,
-                                "answer": ("经多轮取证仍未能定位确切依据，"
-                                           "如实说明：已查阅 %s，未找到直接答案。"
-                                           % "、".join(_tgt)),
+                                "answer": _ans,
                                 "artifacts": [], "actions_log": log}
                     # ★ R301-E · R5 短路（qa 下违禁动作不执行不修订——
                     #   revision 禁 final，修了 LLM 也不听；直接 blocked 回 prompt）。
@@ -956,7 +974,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                   % (task, _jwhy[:150]))
                         continue
                     rev = _revise_step(llm=llm, task=task, step=step,
-                                       why=_jwhy, recent=recent_obs)
+                                       why=_jwhy, recent=recent_obs,
+                                       qa_mode=qa_mode)
                     if rev is None:
                         _sess({"round": rnd, "phase": "revision",
                                "fallback": "revision_llm_failed"})

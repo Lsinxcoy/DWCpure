@@ -247,3 +247,51 @@ def test_read_default_limit_50(xroot):
     assert out["ok"] is True and out["returned_lines"] == 35, out
     out1 = _do_action("read", {"path": doc, "limit": 1})
     assert out1["returned_lines"] == 1, out1
+
+
+def test_revise_qa_produces_read(xroot):
+    """★ 补5：qa 下 revision 约束产 read（不产 run，不被驳回）。"""
+    import dwc.llm.task_exec as T
+
+    _w(xroot, "src/qa_target.py", n=60)
+
+    seen = {}
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            if "噪声动作" in prompt:
+                seen["rev_prompt"] = prompt
+                r = type("R", (), {})()
+                r.ok = True
+                r.text = ('{"op": "read", "path": "src/qa_target.py", '
+                          '"analysis": "取证"}')
+                return r
+            r = type("R", (), {})()
+            r.ok = True
+            r.text = '{"analysis": "想想"}'
+            return r
+
+    r = T.execute_user_task("这个目标是啥", llm=_LLM(),
+                            task_id="T_R302Q", retry_on_fail=False,
+                            max_rounds=6)
+    assert "只能是 read" in seen.get("rev_prompt", ""), seen
+    assert r["status"] == "done", r
+
+
+def test_r4_blank3_converge(xroot):
+    """★ 补5b：R4 连空≥3⇒诚实收敛（不耗尽轮数，零编造）。"""
+    import dwc.llm.task_exec as T
+
+    class _Mute:
+        ok = True
+        text = '{"analysis": "空想"}'
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            return _Mute()
+
+    r = T.execute_user_task("这事依据是啥", llm=_LLM(),
+                            task_id="T_R302K", retry_on_fail=False,
+                            max_rounds=8)
+    assert r["status"] == "done" and r["rounds"] <= 4, (r,)
+    assert "如实说明" in r["answer"], r["answer"]
