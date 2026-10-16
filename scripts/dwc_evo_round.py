@@ -122,18 +122,13 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 item["backup"] = evolver._land_adopted(p)
                 item["landed"] = True
             else:
-                entry = {"component": p.component, "dimension": p.dimension,
-                         "target_layer": p.target_layer, "target": p.target,
-                         "m": p.failure_signature.get("m", ""),
-                         "m_source": "llm", "patch": p.patch,
-                         "rationale": p.rationale}
-                item["backup"] = _land(rules_path, cl["key"], entry,
-                                       backup_dir)
-                item["landed"] = True
-                item["★TODO"] = ("legacy 直落（trial 无分数+accept 无真输入，门未判）——"
-                                 "删分支条件（2026-10-15 复核）：①trial_fn 返回分数 "
-                                 "（_real_trial 现回布尔）②accept 拿真 baseline/current "
-                                 "（metric.select→adopt 在 not_wired 清单）——两者齐才删")
+                # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有
+                #   分数＋accept 拿真输入）。门没判过（blocked/rejected/
+                #   not_evaluated/accept_error）⇒ 不落地，只留痕 ——
+                #   门没判≠门过了。
+                item["reason"] = ("accept 门未过（%s）：无分数 trial 或门判"
+                                  "未通过 ⇒ 不落地（legacy 直落 R291 已删）"
+                                  % (_ad.get("decision"),))
         results.append(item)
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
@@ -142,32 +137,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                           "direction.next_action"]}
 
 
-def _land(rules_path, key, entry, backup_dir):
-    """★ 落盘：先写备份收据（pre_absent 如实记），再合并（保旧条目）。"""
-    pre_absent = not os.path.exists(rules_path)
-    data = {"learned": {}}
-    if not pre_absent:
-        with io.open(rules_path, encoding="utf-8") as f:
-            data = json.load(f)
-        data.setdefault("learned", {})
-    data["learned"][key] = entry
-    bdir = backup_dir or os.path.join(os.path.dirname(rules_path), "..",
-                                      "..", "..", "Temp")
-    os.makedirs(bdir, exist_ok=True)
-    receipt = os.path.join(
-        bdir, "rules_backup_%s.json" % time.strftime("%Y%m%d_%H%M%S"))
-    with io.open(receipt, "w", encoding="utf-8") as f:
-        json.dump({"pre_absent": pre_absent, "key": key,
-                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")},
-                  f, ensure_ascii=False)
-    _d = os.path.dirname(rules_path)
-    if _d and not os.path.exists(_d):
-        os.makedirs(_d)
-    with io.open(rules_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    return receipt
-
-
+# ★ R291-P4 Task 3 · _land（legacy 直落落盘）已删 —— 唯一调用点已删，
+#   死函数不留（_land_adopted 是唯一的落地路径）。
 def _real_trial(judge, llm, task, patch, max_tokens=1500):
     """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分 dict。
 

@@ -148,3 +148,41 @@ def test_round_passes_held_out_to_accept(tmp_path):
     item = rep["results"][0]
     assert item["adopt"] == "adopted_not_implemented", item.get("adopt")
     assert item.get("delta_ho") == pytest.approx(0.1), item
+
+
+# ══════════════════════════════════════════════════════════
+# R291-P4 Task 3 · legacy 直落删除（条件①②齐之日）
+# ══════════════════════════════════════════════════════════
+def test_bool_trial_no_longer_lands_legacy(tmp_path):
+    """★★★ 旧 bool trial 不再落地：门没判≠门过了（直落分支已删）。
+
+    trial_fn 回 True（无分数）⇒ adopt not_evaluated＋landed False＋留痕。
+    """
+    import json as _json
+    import sqlite3
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import dwc_evo_round as EVO
+    from dwc.organs.evolver import Evolver, LLMMutator
+    db = str(tmp_path / "p.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
+    c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
+              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n1"))
+    c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
+              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n2"))
+    c.commit()
+    c.close()
+    mu = LLMMutator(llm=lambda p: _json.dumps(
+        {"component": "prompt", "dimension": "D7", "target_layer": "assets",
+         "target": "average", "m": "x", "patch": "p", "rationale": "r"}))
+    rep = EVO.run_round(db, Evolver(), mu, context="",
+                        trial_fn=lambda task, patch: True, apply=True,
+                        rules_path=str(tmp_path / "rules.json"),
+                        backup_dir=str(tmp_path),
+                        fn_of=lambda r: "zzz_norule_fn",
+                        task_of=lambda r: "zzz_norule_task")
+    item = rep["results"][0]
+    assert item["trial"] is True
+    assert item["landed"] is False  # ★ 直落已删：无分数不落地
+    assert item["adopt"] == "not_evaluated"
+    assert "reason" in item, item

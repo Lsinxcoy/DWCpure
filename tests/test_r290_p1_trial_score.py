@@ -99,8 +99,8 @@ def test_round_scores_dict_trial_into_adopt(tmp_path):
     assert item.get("delta_in") == 0.5, item
 
 
-def test_bool_trial_still_lands_legacy(tmp_path):
-    """★★ 旧 bool trial 零改：True 照落 legacy（R279 旧测语义不断）。"""
+def test_bool_trial_no_longer_lands_not_evaluated(tmp_path):
+    """★★ 旧 bool trial 新语义：True 照存 trial，但门未判⇒不落地（R291-P4 Task 3）。"""
     db = _tmpdb(str(tmp_path / "p.sqlite"))
     rp = str(tmp_path / "rules.json")
     mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
@@ -110,5 +110,5 @@ def test_bool_trial_still_lands_legacy(tmp_path):
                         fn_of=lambda r: "zzz_norule_fn",
                         task_of=lambda r: "zzz_norule_task")
     assert rep["results"][0]["trial"] is True
-    assert rep["results"][0]["landed"] is True
+    assert rep["results"][0]["landed"] is False  # ★ R291-P4 Task 3：无分数不落地
     assert rep["results"][0]["adopt"] == "not_evaluated"  # 无分数⇒门未判

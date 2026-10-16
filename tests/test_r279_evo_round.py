@@ -80,6 +80,8 @@ class TestRound:
         assert not os.path.exists(str(tmp_path / "rules.json"))
 
     def test_apply_lands_with_backup(self, tmp_path):
+        # ★ R291-P4 Task 3 新语义：bool trial 无分数 ⇒ 门未判 ⇒ 不落地。
+        #   （legacy 直落已删；门判过才落 —— 见 test_r291 Task 2/3。）
         db = _tmpdb(str(tmp_path / "p.sqlite"))
         rp = str(tmp_path / "rules.json")
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
@@ -89,10 +91,9 @@ class TestRound:
                             backup_dir=str(tmp_path),
                             fn_of=lambda r: "zzz_norule_fn",
                             task_of=lambda r: "zzz_norule_task")
-        assert rep["results"][0]["landed"] is True
-        data = _json.load(io.open(rp, encoding="utf-8"))
-        assert "E_VALUE:wrong_magnitude:zzz_norule_fn" in data["learned"]
-        assert rep["results"][0]["backup"] is not None
+        assert rep["results"][0]["landed"] is False
+        assert rep["results"][0]["adopt"] == "not_evaluated"
+        assert "reason" in rep["results"][0]
 
     def test_trial_fail_never_lands(self, tmp_path):
         db = _tmpdb(str(tmp_path / "p.sqlite"))
