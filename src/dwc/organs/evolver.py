@@ -2252,34 +2252,6 @@ class Evolver:
         return {"outcome": "landed", "key": _key,
                 "persist": _persist}
 
-
-def rollback_rule(key: str, rules_path: str, backup_root: str) -> Dict[str, Any]:
-    """★ R297-Task3 · 回滚单键（整键替换，不 merge）。
-
-    从 backup_root/latest 指针→anchors/rules.json 快照取该键值，
-    写回 rules_path 的 learned。键不在备份⇒KeyError 大声；
-    latest 缺席⇒FileNotFoundError 大声（不静默假装回滚成功）。
-    模块级函数（演练脚本直调，不经 Evolver 实例）。
-    """
-    _latest = os.path.join(backup_root, "latest")
-    if not os.path.isfile(_latest):
-        raise FileNotFoundError("无备份指针：%s" % (_latest,))
-    with open(_latest, encoding="utf-8") as _fh:
-        _stamp = _fh.read().strip()
-    _snap = os.path.join(backup_root, _stamp, "anchors", "rules.json")
-    if not os.path.isfile(_snap):
-        raise FileNotFoundError("备份快照缺 rules.json：%s" % (_snap,))
-    with open(_snap, encoding="utf-8") as _fh:
-        _bak = json.load(_fh).get("learned", {})
-    if key not in _bak:
-        raise KeyError("备份里无该键：%r（不编值回滚）" % (key,))
-    with open(rules_path, encoding="utf-8") as _fh:
-        _cur = json.load(_fh)
-    _cur.setdefault("learned", {})[key] = _bak[key]
-    with open(rules_path, "w", encoding="utf-8") as _fh:
-        json.dump(_cur, _fh, ensure_ascii=False, indent=1)
-    return {"restored": key, "from": _stamp}
-
     # ══════════════════════════════════════════════
     # ★★★ 关键: 采纳必须同时过**两组 split**（约束 3）
     # ══════════════════════════════════════════════
@@ -2436,3 +2408,31 @@ if __name__ == "__main__":
         print("  ★ 未 raise —— 有洞")
     except EvolverError as e:
         print("  ✓ raise: %s" % str(e)[:60])
+
+def rollback_rule(key: str, rules_path: str, backup_root: str) -> Dict[str, Any]:
+    """★ R297-Task3 · 回滚单键（整键替换，不 merge）。
+
+    从 backup_root/latest 指针→anchors/rules.json 快照取该键值，
+    写回 rules_path 的 learned。键不在备份⇒KeyError 大声；
+    latest 缺席⇒FileNotFoundError 大声（不静默假装回滚成功）。
+    模块级函数（演练脚本直调，不经 Evolver 实例）。
+    ★ 文件尾（类 Evolver 到文件尾，顶格放不截断类）。
+    """
+    _latest = os.path.join(backup_root, "latest")
+    if not os.path.isfile(_latest):
+        raise FileNotFoundError("无备份指针：%s" % (_latest,))
+    with open(_latest, encoding="utf-8") as _fh:
+        _stamp = _fh.read().strip()
+    _snap = os.path.join(backup_root, _stamp, "anchors", "rules.json")
+    if not os.path.isfile(_snap):
+        raise FileNotFoundError("备份快照缺 rules.json：%s" % (_snap,))
+    with open(_snap, encoding="utf-8") as _fh:
+        _bak = json.load(_fh).get("learned", {})
+    if key not in _bak:
+        raise KeyError("备份里无该键：%r（不编值回滚）" % (key,))
+    with open(rules_path, encoding="utf-8") as _fh:
+        _cur = json.load(_fh)
+    _cur.setdefault("learned", {})[key] = _bak[key]
+    with open(rules_path, "w", encoding="utf-8") as _fh:
+        json.dump(_cur, _fh, ensure_ascii=False, indent=1)
+    return {"restored": key, "from": _stamp}
