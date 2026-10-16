@@ -173,6 +173,11 @@ def validate_step(step: Any, *, root: Optional[str] = None,
         return "修订 op=%r 不在契约集" % (op,)
     if op in ("read", "write") and not step.get("path"):
         return "修订缺 path"
+    # ★ R302补 · revision 亦受 qa 硬约束（R5 只在 judge 事前判别，
+    #   revision 产 run 绕过执行——T_R302W 现场 revision 建议 run 即执行）。
+    if qa_mode and op not in ("read", "ask", "final"):
+        return ("qa 问答只许 read 取证或 final（revision 产 op=%s 驳回）"
+                % op)
     if op == "run" and not str(step.get("cmd", "")).strip():
         return "修订 run 空 cmd"
     if op == "web_read" and not str(step.get("url", "")).startswith(

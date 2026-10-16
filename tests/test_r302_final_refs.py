@@ -127,3 +127,48 @@ def test_final_ref_two_strikes_pass(root):
                             task_id="T_R302S", retry_on_fail=False,
                             max_rounds=5)
     assert r["status"] == "done" and r["rounds"] <= 4, (r,)
+
+
+def test_revise_qa_run_rejected(root):
+    """★ revision 产 run 在 qa 下被 validate 驳回（R5 绕过补洞）。"""
+    from dwc.llm.step_judge import validate_step
+    err = validate_step({"op": "run", "cmd": ["grep", "x"],
+                         "analysis": "搜"}, allow_final=False, qa_mode=True)
+    assert err and "qa" in err
+    _w(root, "src/a.py")
+    assert validate_step({"op": "read", "path": "src/a.py"},
+                         allow_final=False, qa_mode=True,
+                         root=str(root)) is None
+
+
+def test_qa_noop_honest_converge(root):
+    """★ qa 下取证≥4 后缺 op⇒诚实自动 final（零编造，只报事实）。"""
+    import dwc.llm.task_exec as T
+
+    _w(root, "src/dwc/llm/task_exec.py", n=1000)
+
+    class _RD:
+        ok = True
+        text = ('{"op": "read", "path": "src/dwc/llm/task_exec.py", '
+                '"offset": %d, "analysis": "读"}')
+
+    class _Mute:
+        ok = True
+        text = '{"analysis": "思考中，无动作"}'
+
+    box = {"n": 0}
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            box["n"] += 1
+            if box["n"] <= 5:
+                r = _RD()
+                r.text = _RD.text % (box["n"] * 100)
+                return r
+            return _Mute()
+
+    r = T.execute_user_task("轮数上限依据是什么", llm=_LLM(),
+                            task_id="T_R302H", retry_on_fail=False,
+                            max_rounds=8)
+    assert r["status"] == "done", r
+    assert "如实说明" in r["answer"] or "未找到" in r["answer"], r["answer"]

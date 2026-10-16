@@ -913,6 +913,27 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 _sess({"round": rnd, "phase": "judge", "verdict": _v,
                        "rule": _jrule, "why": _jwhy[:150]})
                 if _v == "noisy":
+                    # ★ R302补2 · qa 诚实收敛（取证≥4 后仍缺 op⇒自动 final。
+                    #   T_R302W 现场：F 劝 3 次，模型回无 op 思考块耗尽轮数。
+                    #   零编造：只报取证事实＋未找到，不给结论）。
+                    if (qa_mode and _jrule == "R4"
+                            and sum(1 for e in log
+                                    if isinstance(e, dict)
+                                    and e.get("phase") == "obs"
+                                    and e.get("op") == "read") >= 4):
+                        _tgt = sorted({str(e.get("target", ""))
+                                       for e in log
+                                       if isinstance(e, dict)
+                                       and e.get("phase") == "obs"
+                                       and e.get("op") == "read"})[:5]
+                        _sess({"round": rnd, "phase": "refcheck", "ok": True,
+                               "why": "qa 无 op 诚实收敛"})
+                        return {"task": task, "task_id": sid,
+                                "status": "done", "rounds": rnd,
+                                "answer": ("经多轮取证仍未能定位确切依据，"
+                                           "如实说明：已查阅 %s，未找到直接答案。"
+                                           % "、".join(_tgt)),
+                                "artifacts": [], "actions_log": log}
                     # ★ R301-E · R5 短路（qa 下违禁动作不执行不修订——
                     #   revision 禁 final，修了 LLM 也不听；直接 blocked 回 prompt）。
                     if _jrule == "R5":
@@ -938,7 +959,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                         _sess({"round": rnd, "phase": "revision",
                                "fallback": "revision_llm_failed"})
                     else:
-                        _err = validate_step(rev, allow_final=False)
+                        _err = validate_step(rev, allow_final=False,
+                                            qa_mode=qa_mode)
                         _sig = step_signature(rev)
                         if _err is None and _sig != _last_rev_sig:
                             _sess({"round": rnd, "phase": "revision", "ok": True,
@@ -1002,6 +1024,25 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             .encode("utf-8", "replace")).hexdigest()[:12])
         dup_sigs.append(_sig)
         if len(dup_sigs) >= 3 and len(set(dup_sigs[-3:])) == 1:
+            # ★ R302补2b · qa 熔断亦诚实收敛（熔断在 judge 前截，
+            #   R4 收敛分支不可达——同条件在此复用，零编造）。
+            if qa_mode and sum(
+                    1 for e in log
+                    if isinstance(e, dict) and e.get("phase") == "obs"
+                    and e.get("op") == "read") >= 4:
+                _tgt = sorted({str(e.get("target", ""))
+                               for e in log
+                               if isinstance(e, dict)
+                               and e.get("phase") == "obs"
+                               and e.get("op") == "read"})[:5]
+                _sess({"round": rnd, "phase": "refcheck", "ok": True,
+                       "why": "qa 熔断诚实收敛"})
+                return {"task": task, "task_id": sid,
+                        "status": "done", "rounds": rnd,
+                        "answer": ("经多轮取证仍未能定位确切依据，"
+                                   "如实说明：已查阅 %s，未找到直接答案。"
+                                   % "、".join(_tgt)),
+                        "artifacts": [], "actions_log": log}
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
                     "why": ("复读熔断: 连续 3 轮同动作同结果（%s / %s…）"
