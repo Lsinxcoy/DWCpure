@@ -33,12 +33,29 @@ def test_r297_stale_lock_taken_over(tmp_path):
     assert pid_file.read_text(encoding="utf-8").strip() == str(os.getpid())
 
 
-def test_r297_live_lock_refused(tmp_path):
-    """★ 残留 pid 是活进程⇒False（真双开，拒）。"""
+def _race_live_worker(pid_path, q):
+    import sys as _s
+    _s.path.insert(0, r"E:/Divine Wisdom Core/scripts")
     from dwc_agent import acquire_singleton
-    pid_file = tmp_path / "agent.pid"
-    pid_file.write_text(str(os.getpid()), encoding="utf-8")
-    assert acquire_singleton(str(pid_file)) is False
+    q.put(acquire_singleton(pid_path))
+
+
+def test_r297_live_lock_refused(tmp_path):
+    """★ 活持有者在⇒他进程抢⇒False（真双开，拒）。
+
+    主进程先拿锁（模拟活 daemon），子进程撞锁必须拒。
+    pid 文件可读性由 watch 侧保障（本测不断言读）。
+    """
+    import multiprocessing as _mp
+    from dwc_agent import acquire_singleton
+    p = str(tmp_path / "agent.pid")
+    assert acquire_singleton(p) is True  # ★ 主进程=活持有者
+    assert open(p, encoding="utf-8").read().strip() == str(os.getpid())
+    q = _mp.Queue()
+    x = _mp.Process(target=_race_live_worker, args=(p, q))
+    x.start()
+    x.join(30)
+    assert q.get() is False
 
 
 def test_r297_raises_quota_bad_pid_content(tmp_path):

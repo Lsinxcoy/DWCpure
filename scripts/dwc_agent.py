@@ -63,51 +63,91 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
 
-def acquire_singleton(pid_path: str) -> bool:
-    """★ R297-Task1 · 单实例原子锁（O_EXCL 抢建＋stale 接管）。
+_LOCK_FD = None  # ★ R297-混沌真修 · 锁 fd 进程持有（不关；死即放）
 
-    True=拿到锁（已写本 pid）；False=有活实例（拒双开）。
-    锁文件已存在→读 pid→活着判 False；死了/坏内容→覆写接管 True
-    （R210 坏 pid 放行语义延续）。父目录缺席→抛 OSError 大声
-    （不静默假装拿到锁）。O_EXCL 原子建，Windows 无需 fcntl。
-    """
-    _me = str(os.getpid())
+
+def _try_lock(_fd) -> bool:
     try:
-        _fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        import msvcrt
+        msvcrt.locking(_fd, msvcrt.LK_NBLCK, 1)
+        return True
+    except OSError:
+        return False
+
+
+def acquire_singleton(pid_path: str) -> bool:
+    """★ R297-Task1 · 单实例原子锁（O_EXCL 抢建＋msvcrt 持有锁＋stale 接管）。
+
+    True=拿到锁（pid 已写＋lock fd 持有不放）；False=有活实例（拒双开）。
+    语义：赢者持有 <pid_path>.lock 全程（进程死锁自动放）；pid 文件
+    本身不加锁（watch/心跳照常读，不误判）。后来者 lock 加锁失败⇒
+    有活持有者⇒False；加上了⇒前者已死⇒覆写接管。读-判-写/CAS
+    双赢洞（2026-10-16 实测两轮）根治：锁是内核态，不靠时序。
+    父目录缺席⇒抛 OSError 大声。全局 _LOCK_FD 防 GC 关 fd。
+    """
+    global _LOCK_FD
+    _me = str(os.getpid())
+    _lock_path = pid_path + ".lock"
+
+    def _hold(_fd) -> bool:
+        global _LOCK_FD
+        if not _try_lock(_fd):
+            os.close(_fd)
+            return False
+        _LOCK_FD = _fd  # ★ 持有不关——死即放（锁的是 .lock，pid 可读）
+        try:
+            with open(pid_path, "w", encoding="utf-8") as _fh:
+                _fh.write(_me)
+        except OSError:
+            pass
+        return True
+
+    # ★ 锁文件先行（父目录缺席在此大声；pid 写后，锁与 pid 同命运）
+    try:
+        _fd = os.open(_lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
     except FileExistsError:
         pass
     except OSError:
         raise  # ★ 父目录缺席等——大声，不装拿到
     else:
-        with os.fdopen(_fd, "w", encoding="utf-8") as _fh:
-            _fh.write(_me)
-        return True
+        return _hold(_fd)
+    try:
+        _fd = os.open(_lock_path, os.O_RDWR)
+    except OSError:
+        raise
+    if not _try_lock(_fd):
+        os.close(_fd)
+        return False  # ★ 有活持有者——拒
+    # ★ 锁拿到了⇒前者已死（或同进程重抢）⇒读 pid 定夺
     try:
         with open(pid_path, encoding="utf-8") as _fh:
             _old = _fh.read().strip()
     except OSError:
-        raise
+        _old = ""
     _alive = False
     try:
         import psutil as _ps
-        _alive = _ps.pid_exists(int(_old))
+        _alive = _ps.pid_exists(int(_old)) if _old else False
     except Exception:                           # noqa: BLE001 — 坏内容当 stale
         _alive = False
-    if _alive and _old != _me:
+    if (_alive and _old != _me) or _old == _me:
+        # ★ 活实例（别人）拒；同进程重抢（自己）也拒（R297 语义）
+        _LOCK_FD = _fd  # ★ 先持有再放——避免同进程 fd 泄漏语义乱
+        try:
+            import msvcrt
+            msvcrt.locking(_fd, msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        os.close(_fd)
+        _LOCK_FD = None
         return False
-    if _old == _me:
-        return False  # ★ 同进程重复抢=已有活实例（自己）——拒
-    with open(pid_path, "w", encoding="utf-8") as _fh:
-        _fh.write(_me)
-    # ★ R297-混沌补 · CAS 验证（双 start 同时撞 stale 读-判-写竞态，
-    #   2026-10-16 实测双活）：写后读回≠自己⇒有人后写⇒认输 False。
-    #   收敛单赢（后写者读到自己赢，先写者读到别人输）。
+    _LOCK_FD = _fd
     try:
-        with open(pid_path, encoding="utf-8") as _fh:
-            _chk = _fh.read().strip()
+        with open(pid_path, "w", encoding="utf-8") as _fh:
+            _fh.write(_me)
     except OSError:
-        return False
-    return _chk == _me
+        pass
+    return True
 
 
 #: ★ R210: 路径常量单源 —— agent_rpc 为权威（指令核心与 agent 同一套文件
