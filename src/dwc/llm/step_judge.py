@@ -86,12 +86,15 @@ def _sig_args(step: Dict[str, Any]) -> str:
 
 
 def judge_step(step: Dict[str, Any],
-               recent_obs: List[Dict[str, Any]]) -> Tuple[str, str, str]:
+               recent_obs: List[Dict[str, Any]],
+               qa_mode: bool = False) -> Tuple[str, str, str]:
     """★ 事前判别（§2.2 — 动作执行前; 只用历史与提案, 不看本轮结果）。
 
     recent_obs: 历史轮的 phase:obs 行（含 op/target/ok/obs）——
       **结构化留痕（R247）是规则版可判的前提**（论文用自然语言历史, 规则版用结构化）。
     返回 (verdict, why, rule_id); verdict ∈ critical|exploratory|noisy。
+    ★ R301-D · qa_mode：问答只许 read 取证/final/ask，其余 R5（硬约束——
+      prompt 建议管不住真模型，T_R301V 现场 qa 下连 run 4 轮）。
     """
     if not isinstance(step, dict) or not step.get("op"):
         return "noisy", "提案缺 op（形状非法）", "R4"
@@ -100,6 +103,10 @@ def judge_step(step: Dict[str, Any],
         return "noisy", "op=%r 不在契约集" % op, "R4"
     if op == "final":
         return "critical", "final 不判（论文: finish 不判）", "-"
+    # ★ R301-D · qa 硬约束（final 已在上分支放行；ask 归主干 critical）。
+    if qa_mode and op not in ("read", "ask"):
+        return "noisy", ("qa 问答只许 read 取证或 final（op=%s 须走执行任务）"
+                         % op), "R5"
     tgt = _tgt(step)
     hist = [e for e in recent_obs
             if isinstance(e, dict) and e.get("op") == op]
@@ -131,6 +138,14 @@ def judge_step(step: Dict[str, Any],
         if fails:
             return "noisy", ("同命令已失败 %d 次（rc!=0）— 换命令/换参数"
                              % len(fails)), "R2"
+        # ★ R301-D · 连败熔断（不限同 cmd）：近史 run 失败≥3⇒硬出口。
+        #   现场：换参连败 4 轮，obs 哈希各异绕过 R247 熔断，耗尽轮数。
+        streak = [e for e in recent_obs
+                  if isinstance(e, dict) and e.get("op") == "run"
+                  and e.get("ok") is False][-3:]
+        if len(streak) >= 3:
+            return "noisy", ("run 连败 %d 次（换参也败）— 此路不通，"
+                             "基于已有信息尽快 final" % len(streak)), "R2"
     # R3: read 路径不存在（本地可查 — 论文 LLM judge 做不到的规则）
     if op == "read" and tgt:
         root = os.environ.get("DWC_ROOT", "") or os.getcwd()

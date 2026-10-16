@@ -35,6 +35,26 @@ def test_r301a_same_args_still_noisy():
     assert (v, rule) == ("noisy", "R1"), (v, rule)
 
 
+def test_r301d_qa_only_read_or_final():
+    """★ D：qa 下 run⇒noisy R5（问答只许 read 取证或 final，硬约束）。"""
+    v, _, rule = judge_step({"op": "run",
+                             "cmd": ["python", "-c", "print(1)"]}, [],
+                            qa_mode=True)
+    assert (v, rule) == ("noisy", "R5"), (v, rule)
+    v2, _, _ = judge_step({"op": "read", "path": "src/dwc/llm/task_exec.py"},
+                          [], qa_mode=True)
+    assert v2 == "exploratory"
+
+
+def test_r301d_losing_streak_breaker():
+    """★ D：run 近 6 轮 3 败（不限同 cmd）⇒noisy R2-连败（逼 final 硬出口）。"""
+    hist = [_obs("run", "cmd%d" % i, ok=False) for i in range(3)]
+    v, why, rule = judge_step({"op": "run", "cmd": ["python", "-c", "x"]},
+                              hist)
+    assert (v, rule) == ("noisy", "R2"), (v, why, rule)
+    assert "连败" in why
+
+
 def test_r301b_revise_platform_clause():
     """★ B：revise prompt 在 Windows 下明示无 grep/ls＋argv 列表。"""
     import dwc.llm.task_exec as T

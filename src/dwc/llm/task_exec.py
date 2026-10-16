@@ -882,7 +882,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 recent_obs = [e for e in log
                               if isinstance(e, dict)
                               and e.get("phase") == "obs"][-6:]
-                _v, _jwhy, _jrule = judge_step(step, recent_obs)
+                _v, _jwhy, _jrule = judge_step(step, recent_obs,
+                                             qa_mode=qa_mode)
                 _sess({"round": rnd, "phase": "judge", "verdict": _v,
                        "rule": _jrule, "why": _jwhy[:150]})
                 if _v == "noisy":
