@@ -47,7 +47,7 @@ def test_r301d_qa_only_read_or_final():
 
 
 def test_r301d_losing_streak_breaker():
-    """★ D：run 近 6 轮 3 败（不限同 cmd）⇒noisy R2-连败（逼 final 硬出口）。"""
+    """★ D：run 近史 3 败（不限同 cmd）⇒noisy R2-连败（逼 final 硬出口）。"""
     hist = [_obs("run", "cmd%d" % i, ok=False) for i in range(3)]
     v, why, rule = judge_step({"op": "run", "cmd": ["python", "-c", "x"]},
                               hist)
@@ -130,6 +130,43 @@ def test_r301c_exec_still_r4():
                             task_id="T_R301EX", retry_on_fail=False)
     # ★ 3 次 complete=首轮空 op＋revision 重写＋重跑 final（R4 纪律工作证据）
     assert r["status"] == "done" and box["n"] == 3, (r, box)
+
+
+def test_r301e_r5_blocked_no_exec():
+    """★ E：qa 下连出 run⇒R5 短路（不执行真命令，≤3 轮 final）。"""
+    import dwc.llm.task_exec as T
+
+    class _R:
+        ok = True
+        text = ('{"op": "run", "cmd": ["grep", "-rn", "x", "src/"], '
+                '"analysis": "搜一下"}')
+
+    class _F:
+        ok = True
+        text = '{"op": "final", "answer": "问答经拦截后直接回答，不跑命令", "analysis": "从善"}'
+
+    seq = [_R(), _R(), _F()]
+    box = {"n": 0, "exec": 0}
+    orig = T._do_action
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            r = seq[min(box["n"], 2)]
+            box["n"] += 1
+            return r
+
+    def _spy(op, step):
+        box["exec"] += 1
+        return orig(op, step)
+
+    T._do_action = _spy
+    try:
+        r = T.execute_user_task("自进化功能对你有影响吗", llm=_LLM(),
+                                task_id="T_R301E", retry_on_fail=False)
+    finally:
+        T._do_action = orig
+    assert r["status"] == "done", r
+    assert box["exec"] == 0, box  # ★ R5 短路：真命令零执行
 
 
 def test_r301c_raises_quota_qa_empty_answer():

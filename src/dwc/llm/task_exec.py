@@ -887,6 +887,25 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 _sess({"round": rnd, "phase": "judge", "verdict": _v,
                        "rule": _jrule, "why": _jwhy[:150]})
                 if _v == "noisy":
+                    # ★ R301-E · R5 短路（qa 下违禁动作不执行不修订——
+                    #   revision 禁 final，修了 LLM 也不听；直接 blocked 回 prompt）。
+                    if _jrule == "R5":
+                        _sess({"round": rnd, "phase": "revision",
+                               "fallback": "R5_blocked_no_exec"})
+                        obs = {"ok": False,
+                               "error": "R5 拦截未执行: %s" % _jwhy[:150]}
+                        log.append({"round": rnd, "phase": "obs", "op": op,
+                                    "target": "R5_blocked",
+                                    "ok": False,
+                                    "obs": "R5 拦截未执行"})
+                        _sess({"round": rnd, "op": op, "phase": "obs",
+                               "target": "R5_blocked", "args": "",
+                               "ok": False, "obs": "R5 拦截未执行"})
+                        prompt = ("任务: %s\n上一轮动作被拦截（%s）。"
+                                  "问答只许 read 取证或直接 final（answer≥10 字）。"
+                                  "不要再出 run/write/delegate。"
+                                  % (task, _jwhy[:150]))
+                        continue
                     rev = _revise_step(llm=llm, task=task, step=step,
                                        why=_jwhy, recent=recent_obs)
                     if rev is None:
