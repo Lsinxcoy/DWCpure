@@ -58,3 +58,26 @@ def test_r297_raises_quota_acquire_never_none(tmp_path):
     with pytest.raises(OSError):
         acquire_singleton(os.path.join(
             str(tmp_path), "no_such_dir", "agent.pid"))
+
+
+def _race_worker(pid_path, q):
+    import sys as _s
+    _s.path.insert(0, r"E:/Divine Wisdom Core/scripts")
+    from dwc_agent import acquire_singleton
+    q.put(acquire_singleton(pid_path))
+
+
+def test_r297_concurrent_stale_single_winner(tmp_path):
+    """★ 真并发：两进程同时撞 stale⇒恰一 True（CAS 收敛单赢）。"""
+    import multiprocessing as _mp
+    p = str(tmp_path / "agent.pid")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("999999999")
+    q = _mp.Queue()
+    ps = [_mp.Process(target=_race_worker, args=(p, q)) for _ in range(2)]
+    for x in ps:
+        x.start()
+    for x in ps:
+        x.join(30)
+    wins = [q.get() for _ in ps]
+    assert wins.count(True) == 1, wins

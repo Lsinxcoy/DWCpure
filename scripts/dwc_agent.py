@@ -99,7 +99,15 @@ def acquire_singleton(pid_path: str) -> bool:
         return False  # ★ 同进程重复抢=已有活实例（自己）——拒
     with open(pid_path, "w", encoding="utf-8") as _fh:
         _fh.write(_me)
-    return True
+    # ★ R297-混沌补 · CAS 验证（双 start 同时撞 stale 读-判-写竞态，
+    #   2026-10-16 实测双活）：写后读回≠自己⇒有人后写⇒认输 False。
+    #   收敛单赢（后写者读到自己赢，先写者读到别人输）。
+    try:
+        with open(pid_path, encoding="utf-8") as _fh:
+            _chk = _fh.read().strip()
+    except OSError:
+        return False
+    return _chk == _me
 
 
 #: ★ R210: 路径常量单源 —— agent_rpc 为权威（指令核心与 agent 同一套文件
