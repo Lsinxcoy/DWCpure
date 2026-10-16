@@ -249,10 +249,25 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
     #   evaluate→store.record 当场记点，判后取 base 拿到的是自己刚判的分
     #   （d_in 恒 0，门永不过）。先 snapshot 历史（dev 同 task 末 point
     #   ＋ peer test 末 point），再判。无历史⇒None（门 not_evaluated 诚实）。
+    # ★ R299-b3 · 同轮串行污染切除（首调记点数，切片只取轮首已有点）：
+    #   同轮多簇共享 judge，后簇快照会读到前簇刚记的分（b_in=前簇分）。
+    #   首调时 evaluate 尚未跑，len=轮首点数；已有 n0（同轮后簇）⇒沿用。
+    #   跨轮新 Judge 无 n0⇒重记（生产每轮新实例，安全）。
     def _snap(_task, _split):
         try:
+            _n0 = getattr(judge, "_r299_n0", None)
+            if not isinstance(_n0, int):
+                try:
+                    _n0 = len(judge.task_scores())
+                    judge._r299_n0 = _n0
+                except Exception:               # noqa: BLE001 — 坏则全查
+                    _n0 = None
             _pts = [p for p in judge.task_scores(split=_split)
                     if p.task_id == _task]
+            if isinstance(_n0, int):
+                _all = judge.task_scores()
+                _pts = [p for p in _all[:_n0]
+                        if p.split == _split and p.task_id == _task]
             return _pts[-1].score if _pts else None
         except Exception:                       # noqa: BLE001 — 历史坏不断试跑
             return None
@@ -341,9 +356,9 @@ def main() -> int:
     from dwc.llm.client import LLMClient
     from dwc.organs.judge import Judge
     # ★ R299-b2 · 人跑入口同 cron：基线落盘（var 下，仓库根为锚）。
-    judge = Judge(path=os.path.join(root, "var", "dwc_task_scores.jsonl"),
-                  evidence_path=os.path.join(root, "var",
-                                             "dwc_evidence.jsonl"))
+    judge = Judge(store_path=os.path.join(
+        root, "var", "dwc_task_scores.jsonl"),
+        evidence_path=os.path.join(root, "var", "dwc_evidence.jsonl"))
     llm = LLMClient()
     mu = LLMMutator(llm=lambda p: (
         lambda r: r.text if r.ok else (_ for _ in ()).throw(

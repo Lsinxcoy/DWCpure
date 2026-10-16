@@ -152,3 +152,18 @@ def test_r299b_baseline_ho_key_present():
     r = EVO._real_trial(j, None, "code_fix_007", "p", code=CODE_007)
     assert "baseline_ho" in r, r
     assert r["baseline_ho"] is None  # ★ peer 从未 record⇒None（不编基线）
+
+
+def test_r299b3_same_round_no_cross_contamination():
+    """★ R299-b3 · 同轮串行污染切除：trial1 记点后 trial2 快照读不到 trial1 分。
+
+    ★ 回归生产实测：同轮簇 2 b_in=1.0（簇 1 刚记的分），基线语义污染。
+    首调记 n0，后调切片轮首已有点。
+    """
+    j = Judge()
+    r1 = EVO._real_trial(j, None, "code_fix_007", "p", code=CODE_007)
+    assert r1["success"] is True, r1
+    assert r1["baseline_in"] is None  # ★ 轮首无历史
+    r2 = EVO._real_trial(j, None, "code_fix_007", "p", code=CODE_007)
+    assert r2["success"] is True, r2
+    assert r2["baseline_in"] is None, r2  # ★ 读不到 r1 刚记的 1.0
