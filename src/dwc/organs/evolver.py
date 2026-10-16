@@ -1297,8 +1297,9 @@ class Mutator:
 
     # ══════════════════════════════════════════════════════
     # ★★★ R32 · 固化（把验证过的候选写进 RULES）
-    #   依据: 2606.09498 Algorithm 1 **line 23**
-    #     `h_{t+1} ← MergeAccepted(h_t, A_t)` —— 通过才**合并进主干**
+    #   依据: 2606.09498 §3.4（旧注"Algorithm 1 line 23"系假精确，
+    #   论文无 Algorithm 1——R300 论文深读修正）
+    #     `merged into the next version of the harness` —— 通过才**合并进主干**
     #   ⇒⇒ ⇒★ 位置: **在候选副本上评估通过之后**
     #   ⇒⇒ ⇒★★ 于是 R31 的学习成果才能**累积**（否则每次重试）
     # ══════════════════════════════════════════════════════
@@ -1353,7 +1354,7 @@ class Mutator:
         os.makedirs(os.path.dirname(cls.LEARNED_PATH), exist_ok=True)
         payload = {
             "_provenance": {
-                "why": ("★ R32: 2606.09498 line 23 MergeAccepted —— "
+                "why": ("★ R32: 2606.09498 §3.4 非回归合并 —— "
                         "通过才合并进主干；而『合并』必须**跨进程存活**"),
                 "seed_location": ("src/dwc/organs/evolver.py 的 "
                                   "Mutator.RULES（人工写，可评审）"),
