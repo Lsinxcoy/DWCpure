@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """R295-Task1 · 沙箱：LLM 代码→真跑出 observed（code_repair 写码真执行）。
 
+★★★ 定位（DWC-AUTO）：自我强化执行通道 —— code_repair 试跑的真执行器。
 ★ 安全模型（AST 层全拒，不靠事后超时碰运气）：
   禁 Import/ImportFrom（禁 import 全系）／禁 open/exec/eval/compile 调用／
   禁双下划线属性（逃逸口）／禁 while（无限循环）。
