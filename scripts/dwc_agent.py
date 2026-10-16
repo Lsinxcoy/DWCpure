@@ -95,6 +95,32 @@ def acquire_singleton(pid_path: str) -> bool:
             os.close(_fd)
             return False
         _LOCK_FD = _fd  # ★ 持有不关——死即放（锁的是 .lock，pid 可读）
+        # ★ O_EXCL 赢≠无活实例（pid 预写而 lock 缺席场景，R210 旧测）⇒
+        #   读 pid 定夺：活着且非我⇒解锁拒；stale/无/坏⇒覆写 True。
+        try:
+            with open(pid_path, encoding="utf-8") as _fh:
+                _old = _fh.read().strip()
+        except OSError:
+            _old = ""
+        _refuse = False
+        if _old:
+            _alive = False
+            try:
+                import psutil as _ps
+                _alive = _ps.pid_exists(int(_old))
+            except Exception:                   # noqa: BLE001 — 坏内容当 stale
+                _alive = False
+            if (_alive and _old != _me) or _old == _me:
+                _refuse = True
+        if _refuse:
+            try:
+                import msvcrt
+                msvcrt.locking(_fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+            os.close(_fd)
+            _LOCK_FD = None
+            return False
         try:
             with open(pid_path, "w", encoding="utf-8") as _fh:
                 _fh.write(_me)
