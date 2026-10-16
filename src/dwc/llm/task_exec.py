@@ -782,6 +782,16 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         if progress:
             progress({"ev": "round", "n": rnd})
         _imgs = [last_image] if last_image else None
+        # ★ R301-F · qa 取证上限（read 成功≥3 仍不 final⇒硬推收敛。
+        #   现场：R5 拦 run 后改 read×10 不答——收集无上限）。
+        if qa_mode:
+            _n_read = sum(1 for e in log
+                          if isinstance(e, dict) and e.get("phase") == "obs"
+                          and e.get("op") == "read" and e.get("ok") is True)
+            if _n_read >= 3:
+                prompt = ("任务: %s\n已取证 %d 次（read 成功）。不要再收集，"
+                          "现在基于已有信息直接 final 作答（answer≥10 字中文）。"
+                          % (task, _n_read))
         # ★ R237 token 级流式: 有 progress 且 client 支持 ⇒ SSE 流,
         #   每 delta 发 token 事件（chat 端状态机提取 answer 流式打印;
         #   中间轮 JSON 无 answer 键 ⇒ 天然静默, final 轮才见逐字输出）

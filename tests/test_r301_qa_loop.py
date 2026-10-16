@@ -169,6 +169,39 @@ def test_r301e_r5_blocked_no_exec():
     assert box["exec"] == 0, box  # ★ R5 短路：真命令零执行
 
 
+def test_r301f_qa_read_cap_forces_final():
+    """★ F：qa 下 read×3 仍不答⇒第 4 轮 prompt 硬推收敛（取证上限）。"""
+    import dwc.llm.task_exec as T
+
+    class _RD:
+        ok = True
+        # ★ 递增 offset（模拟翻页真行为，避开 R247 同段熔断，专验 F 硬推）
+        text = ('{"op": "read", "path": "src/dwc/llm/task_exec.py", '
+                '"offset": %d, "analysis": "再读"}')
+
+    class _F:
+        ok = True
+        text = '{"op": "final", "answer": "取证三次后收敛作答", "analysis": "收"}'
+
+    seen = {"prompts": []}
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            seen["prompts"].append(prompt)
+            n = len(seen["prompts"])
+            if n >= 5:
+                return _F()
+            r = _RD()
+            r.text = _RD.text % (n * 100)
+            return r
+
+    r = T.execute_user_task("轮数上限为什么这样设", llm=_LLM(),
+                            task_id="T_R301F", retry_on_fail=False,
+                            max_rounds=8)
+    assert r["status"] == "done", r
+    assert any("已取证" in p for p in seen["prompts"]), seen["prompts"][-1][:150]
+
+
 def test_r301c_raises_quota_qa_empty_answer():
     """★ raises①：qa final 空 answer⇒validate 非法（防空交差）。"""
     err = validate_step({"op": "final", "answer": "  "}, qa_mode=True)
