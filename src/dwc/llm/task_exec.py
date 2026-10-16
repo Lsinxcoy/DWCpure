@@ -290,7 +290,9 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         except (TypeError, ValueError):
             off = 0
         try:
-            lim = min(400, max(1, int(args.get("limit", 0) or 0)))
+            # ★ R302补4 · 缺省 50 行（R247 翻页把缺省变 1 行——
+            #   T_R302Y 现场 35 行文件翻 4 轮才到第 3 行，护栏永不可达）。
+            lim = min(400, max(1, int(args.get("limit", 50) or 50)))
         except (TypeError, ValueError):
             lim = 0
         seg = lines[off:] if not lim else lines[off:off + lim]

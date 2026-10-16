@@ -17,6 +17,21 @@ def root(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture()
+def xroot(root):
+    """★ 执行隔离：T.ROOT 进程首 import 定死⇒调 execute 的测试必须显式指 ROOT。
+
+    现场：block 测试首 import 定死 ROOT=block-tmp，后续 honest 读旧 tmp
+    全 FileNotFoundError×3 熔断（查了 1 小时）。手动 finally 复原子
+    （monkeypatch.setattr 跨测试不复原——原因未明，不用）。"""
+    import dwc.llm.task_exec as T
+    _old, T.ROOT = T.ROOT, str(root)
+    try:
+        yield root
+    finally:
+        T.ROOT = _old
+
+
 def _w(root, rel, n=10, text=None):
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -82,7 +97,7 @@ def test_bare_filename_missing_block(root):
     assert err and "dwc_self.md" in err
 
 
-def test_final_ref_block_reroutes(root):
+def test_final_ref_block_reroutes(xroot):
     """★ 引用打回：qa 下 final 含幻觉路径⇒不 done（第 2 次真答案⇒done）。"""
     import dwc.llm.task_exec as T
 
@@ -110,7 +125,7 @@ def test_final_ref_block_reroutes(root):
     assert r["status"] == "done" and box["n"] == 2, (r, box)
 
 
-def test_final_ref_two_strikes_pass(root):
+def test_final_ref_two_strikes_pass(xroot):
     """★ 防死循环：引用连打回 2 次⇒第 3 次放行（不无限打回）。"""
     import dwc.llm.task_exec as T
 
@@ -141,11 +156,11 @@ def test_revise_qa_run_rejected(root):
                          root=str(root)) is None
 
 
-def test_qa_noop_honest_converge(root):
+def test_qa_noop_honest_converge(xroot):
     """★ qa 下取证≥4 后缺 op⇒诚实自动 final（零编造，只报事实）。"""
     import dwc.llm.task_exec as T
 
-    _w(root, "src/dwc/llm/task_exec.py", n=1000)
+    _w(xroot, "src/dwc/llm/task_exec.py", n=1000)
 
     class _RD:
         ok = True
@@ -167,14 +182,27 @@ def test_qa_noop_honest_converge(root):
                 return r
             return _Mute()
 
-    r = T.execute_user_task("轮数上限依据是什么", llm=_LLM(),
+    _orig = T._do_action
+    def _spy(op, args):
+        _o = _orig(op, args)
+        print("DBG_DO:", op, (args if isinstance(args, dict) else {}).get("offset"),
+              "->", str(_o.get("offset")), str(_o.get("returned_lines")), repr(str(_o.get("content", ""))[:30]))
+        return _o
+    T._do_action = _spy
+    try:
+        r = T.execute_user_task("轮数上限依据是什么", llm=_LLM(),
                             task_id="T_R302H", retry_on_fail=False,
                             max_rounds=8)
+    finally:
+        T._do_action = _orig
+    import dwc.llm.task_exec as _T2
+    print("DBG_MOD:", id(T), id(_T2), id(T._do_action), T.ROOT)
+    print("DBG_WHY:", r.get("status"), r.get("rounds"), str(r.get("why"))[:140])
     assert r["status"] == "done", r
     assert "如实说明" in r["answer"] or "未找到" in r["answer"], r["answer"]
 
 
-def test_qa_revise_reject_reroutes(root):
+def test_qa_revise_reject_reroutes(xroot):
     """★ 补3：qa 下 revision 被驳回⇒直回 prompt（不记 obs 不耗熔断）。"""
     import dwc.llm.task_exec as T
 
@@ -208,3 +236,14 @@ def test_qa_revise_reject_reroutes(root):
                             max_rounds=6)
     assert r["status"] == "done", r
     assert any("修订被驳回" in p for p in box["prompts"]), box["prompts"]
+
+
+def test_read_default_limit_50(xroot):
+    """★ 补4：read 缺省 50 行（35 行文件一轮读完，不翻页）。"""
+    from dwc.llm.task_exec import _do_action
+    _w(xroot, "doc.md", n=35)
+    doc = str(xroot / "doc.md")
+    out = _do_action("read", {"path": doc})
+    assert out["ok"] is True and out["returned_lines"] == 35, out
+    out1 = _do_action("read", {"path": doc, "limit": 1})
+    assert out1["returned_lines"] == 1, out1
