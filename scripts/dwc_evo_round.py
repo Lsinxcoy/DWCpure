@@ -151,25 +151,41 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
 def _code_prompt(fn: str, skel) -> str:
     """★ R295-Task3 · 写码 prompt（peer 独立出码用；本 task 的码起草已出）。"""
     import json as _json
-    return ("写一个完整可执行 Python 函数（只输出 ```python 代码块，无解释）：\n"
+    return ("写一个完整可执行 Python 函数（只输出代码块、无解释，"
+            "不要复述本指令、不要写思考过程）：\n"
             "函数名 %s，输入输出形态（fn -> [[args, 期望], ...]，args 是单个参数）：\n%s\n"
             "纯函数，只用 sum/len/range 等纯内建，禁 import、禁 open/exec/eval、"
             "禁 while、禁双下划线属性。"
             % (fn, _json.dumps(skel, ensure_ascii=False)))
 
 
-def _extract_code(text: str):
-    """★ 取 ```python 块（无⇒None，不编）。"""
+def _extract_code(text: str, fn: str = ""):
+    """★ 取 ```python 块（无⇒None，不编）。
+
+    ★ R295补 · 兜底裸码：LLM 有时鹦鹉学舌只复述指令、无成对 fence，
+      或直接贴裸 def——此时按 `^def <fn>(` 起抓到文末（安全不降级：
+      沙箱 AST 全拒仍在，坏码进沙箱照拒）。
+    """
     import re
     m = re.search(r"```(?:python)?\s*(.*?)```", text or "", re.S)
-    return m.group(1).strip() if m else None
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    if fn:
+        m2 = re.search(r"(?m)^def\s+%s\s*\(.*"
+                       % re.escape(fn), text or "")
+        if m2:
+            return (text[m2.start():]).strip()
+    return None
 
 
-def _peer_held_out_code(judge, llm, task, max_tokens=1500):
+def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3):
     """★ R295-Task3 · peer 写码独立评估（fail-closed：任一步坏⇒None）。
 
     peer fn 与 dev fn 不一样（R291-P4 Task4）⇒ peer 另出码另真跑，
     不是复用本 task 的 code。llm 缺席（沙箱单测）⇒None。
+    ★ R295补 · peer prompt 出码不稳定（有时回解释无代码块）⇒无码重试
+      max_attempts 次，空码不进沙箱（compile(None) TypeError 免吞）；
+      3 次都不出⇒None（fail-closed，不编分）。
     """
     try:
         from dwc.llm.executor import (build_observed_prompt, obs_skeleton,
@@ -182,16 +198,19 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500):
             return None
         _pskel = obs_skeleton(judge.sealed, _peer)
         _pfn = next(iter(_pskel))
-        _pr = llm.complete(_code_prompt(_pfn, _pskel), max_tokens=max_tokens)
-        if not _pr.ok:
-            return None
-        _pcode = _extract_code(_pr.text or "")
-        if not _pcode:
-            return None
-        _pobs = run_code_observed(_pcode, _pskel)
-        if _pobs is None:
-            return None
-        return judge.held_out_score(_peer, _pobs)
+        for _ in range(max_attempts):
+            _pr = llm.complete(_code_prompt(_pfn, _pskel),
+                               max_tokens=max_tokens)
+            if not _pr.ok:
+                continue
+            _pcode = _extract_code(_pr.text or "", _pfn)
+            if not (_pcode or "").strip():
+                continue  # ★ 无码重试（不进沙箱）
+            _pobs = run_code_observed(_pcode, _pskel)
+            if _pobs is None:
+                continue  # ★ 跑挂重试（换一版码）
+            return judge.held_out_score(_peer, _pobs)
+        return None
     except Exception:                               # noqa: BLE001 — 坏不断试跑
         return None
 

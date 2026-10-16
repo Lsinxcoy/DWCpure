@@ -49,6 +49,39 @@ def test_r295_trial_code_malicious_fails_closed():
     assert r["mode"] == "code", r
 
 
+def test_r295_extract_code_bare_def_fallback():
+    """★ R295补 · 无 fence 但有裸 def⇒按 fn 起抓（鹦鹉复述指令也救回）。"""
+    raw = ("写一个完整可执行 Python 函数（只输出 ```python 代码块，无解释）：\n"
+           "def word_count(s):\n    return len(s.split())\n")
+    assert EVO._extract_code(raw, "word_count").startswith("def word_count")
+    assert EVO._extract_code("光说不练", "word_count") is None
+
+
+def test_r295_peer_retries_no_code_then_scores():
+    """★ R295补 · peer 第一次无码第二次出码⇒重试救回 held_out=1.0（fake 计数）。"""
+    _n = []
+    def _fake(p, max_tokens=1500):
+        _n.append(p)
+        if len(_n) == 1:
+            return type("R", (), {"ok": True, "text": "解释一下思路……"})()
+        return type("R", (), {"ok": True, "text": (
+            "```python\ndef word_count(s):\n    return len(s.split())\n```")})()
+    j = Judge()
+    assert EVO._peer_held_out_code(
+        j, type("L", (), {"complete": staticmethod(_fake)})(),
+        "code_fix_007") == 1.0
+    assert len(_n) == 2, len(_n)
+
+
+def test_r295_peer_all_no_code_returns_none():
+    """★ R295补 · 3 次全无码⇒None（fail-closed，空码不进沙箱不炸）。"""
+    _llm = type("L", (), {"complete": staticmethod(
+        lambda p, max_tokens=1500: type(
+            "R", (), {"ok": True, "text": "光说不练"})())})()
+    assert EVO._peer_held_out_code(
+        Judge(), _llm, "code_fix_007", max_attempts=3) is None
+
+
 def test_r295_trial_no_code_legacy_reports():
     """★ 无 code⇒老报数路（fake llm 报数，mode=report，零变）。"""
     import json as _json
