@@ -63,6 +63,45 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
 
+def acquire_singleton(pid_path: str) -> bool:
+    """★ R297-Task1 · 单实例原子锁（O_EXCL 抢建＋stale 接管）。
+
+    True=拿到锁（已写本 pid）；False=有活实例（拒双开）。
+    锁文件已存在→读 pid→活着判 False；死了/坏内容→覆写接管 True
+    （R210 坏 pid 放行语义延续）。父目录缺席→抛 OSError 大声
+    （不静默假装拿到锁）。O_EXCL 原子建，Windows 无需 fcntl。
+    """
+    _me = str(os.getpid())
+    try:
+        _fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        pass
+    except OSError:
+        raise  # ★ 父目录缺席等——大声，不装拿到
+    else:
+        with os.fdopen(_fd, "w", encoding="utf-8") as _fh:
+            _fh.write(_me)
+        return True
+    try:
+        with open(pid_path, encoding="utf-8") as _fh:
+            _old = _fh.read().strip()
+    except OSError:
+        raise
+    _alive = False
+    try:
+        import psutil as _ps
+        _alive = _ps.pid_exists(int(_old))
+    except Exception:                           # noqa: BLE001 — 坏内容当 stale
+        _alive = False
+    if _alive and _old != _me:
+        return False
+    if _old == _me:
+        return False  # ★ 同进程重复抢=已有活实例（自己）——拒
+    with open(pid_path, "w", encoding="utf-8") as _fh:
+        _fh.write(_me)
+    return True
+
+
 #: ★ R210: 路径常量单源 —— agent_rpc 为权威（指令核心与 agent 同一套文件
 #:   协议面; 双处维护必漂移 ⇒ 从它导入）
 from dwc.agent_rpc import (VAR, DB, LOG, PID, HB, FROZEN,   # noqa: E402
@@ -374,20 +413,17 @@ def main(argv) -> int:
         if "--budget-day" in argv else 40.0
     use_llm = "--llm" in argv
     os.makedirs(VAR, exist_ok=True)
-    # ── ★ R210 · 单例锁: pid 文件已有活 agent ⇒ 拒启（同 db 双写会锁冲突;
-    #    双 agent 互踩 pid/台账 — 2026-10-12 实测发生过, 现场根治）──
-    if os.path.exists(PID):
-        try:
-            _old = int(open(PID, encoding="utf-8").read().strip())
-            import psutil as _ps
-            if _ps.pid_exists(_old):
-                print("已有 agent 在跑（pid %d）— 拒绝双开" % _old,
-                      file=sys.stderr)
-                return 1
-        except Exception:                      # noqa: BLE001 — 坏 pid 文件放行
-            pass
-    with open(PID, "w", encoding="utf-8") as fh:
-        fh.write(str(os.getpid()))
+    # ── ★ R210 · 单例锁（R297 原子化：O_EXCL 抢建＋stale 接管；
+    #    先查后写竞态可双过，2026-10-16 实测 8 同名进程）──
+    try:
+        _got = acquire_singleton(PID)
+    except OSError as _exc:
+        print("锁文件不可写（%r）— 拒启（不静默跑无锁实例）" % (_exc,),
+              file=sys.stderr)
+        return 1
+    if not _got:
+        print("已有 agent 在跑 — 拒绝双开", file=sys.stderr)
+        return 1
     # ── R210 · 指令面: HTTP RPC server（daemon 线程, 只走文件协议 ⇒ 线程安全）──
     rpc_port = int(argv[argv.index("--rpc-port") + 1]) \
         if "--rpc-port" in argv else RPC_PORT
