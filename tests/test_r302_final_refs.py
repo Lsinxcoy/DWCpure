@@ -71,6 +71,17 @@ def test_pure_opinion_pass(root):
                              str(root)) is None
 
 
+def test_bare_filename_hit_pass(root):
+    _w(root, "config/dwc_self.md", text="6 轮未 final")
+    assert verify_final_refs("自我认知 config/dwc_self.md 写了护栏",
+                             str(root)) is None
+
+
+def test_bare_filename_missing_block(root):
+    err = verify_final_refs("自我认知（dwc_self.md）写了护栏", str(root))
+    assert err and "dwc_self.md" in err
+
+
 def test_final_ref_block_reroutes(root):
     """★ 引用打回：qa 下 final 含幻觉路径⇒不 done（第 2 次真答案⇒done）。"""
     import dwc.llm.task_exec as T

@@ -207,9 +207,12 @@ def verify_final_refs(answer: str,
     if not str(answer or "").strip():
         return "final 空 answer"
     base = root or os.environ.get("DWC_ROOT", "") or os.getcwd()
-    # 1) 路径 token（含 / + 后缀；跳过 http）
+    # 1) 路径 token（含 / 全路径 或 裸文件名 xxx.后缀；跳过 http；
+    #   裸文件名须含字母——防 "v1.3"/"e.g." 误伤，后缀白名单限代码/文档）
     pats = re.findall(
-        r"[\w\-. /\\]*[\w\-.]/[\w\-. /\\]*\.(?:py|md|json|yaml|yml|txt|jsonl)",
+        r"[\w\-. /\\]*[\w\-.]/[\w\-. /\\]*\.(?:py|md|json|yaml|yml|txt|jsonl)"
+        r"|(?<![\w/])[\w\-.]*[A-Za-z][\w\-.]*"
+        r"\.(?:py|md|json|yaml|yml|txt|jsonl)(?![\w])",
         answer)
     lived: List[str] = []
     for t in pats:
