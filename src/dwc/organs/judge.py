@@ -1025,6 +1025,28 @@ class Judge:
             return 0.0
         return None
 
+    def held_out_peer(self, dev_task_id: str) -> Optional[str]:
+        """★ R291-P4 Task 4 · dev→sealed 配对查询（同族按序号，显式表）。
+
+        表 `config/anchors/dev_sealed_pairing.json`（新文件=增非改）：
+        code 前 7＋knowledge 前 3，共 10 对；paper 族/超额无配对⇒None。
+        表缺失/坏⇒None（配对是增强非门槛，不抛 —— 门管 blocked）。
+        """
+        try:
+            _p = os.path.join(ROOT, "config", "anchors",
+                              "dev_sealed_pairing.json")
+            if not os.path.exists(_p):
+                return None
+            _m = json.loads(io.open(_p, encoding="utf-8").read())
+            _peer = _m.get(dev_task_id)
+            if not isinstance(_peer, str):
+                return None
+            if not isinstance(self.sealed, dict) or _peer not in self.sealed:
+                return None  # ★ 表里有但 sealed 无 ⇒ 不认（防表漂）
+            return _peer
+        except Exception:                   # noqa: BLE001 — 表坏不断判分
+            return None
+
     @staticmethod
     def _diff(golden: Dict[str, Any],
               observed: Dict[str, Any]) -> List[Dict[str, Any]]:

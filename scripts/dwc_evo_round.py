@@ -172,9 +172,20 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500):
         base = None
     # ★ R291-P4 Task 2 · held_out 真输入（dev 任务 sealed 无同名⇒None；
     #   配对是 Task 4 的事，本步只把键接上 —— None 照传不编分）。
+    # ★ R291-P4 Task 4 · 经配对独立评估（dev 口径 obs 判不了配对题 ——
+    #   fn 都不一样。peer skeleton 另建 prompt 再跑一次，真评估不是复用）。
     _ho = None
     try:
-        _ho = judge.held_out_score(task, obs)
+        _peer = (judge.held_out_peer(task)
+                 if hasattr(judge, "held_out_peer") else None)
+        if _peer is not None:
+            _pskel = obs_skeleton(judge.sealed, _peer)
+            _pr = llm.complete(build_observed_prompt(_peer, _pskel, "")
+                               + "\n" + patch, max_tokens=max_tokens)
+            if _pr.ok:
+                _pobs = parse_llm_observed(_pr.text or "", _pskel)
+                if _pobs is not None:
+                    _ho = judge.held_out_score(_peer, _pobs)
     except Exception:                       # noqa: BLE001 — held_out 坏不断试跑
         _ho = None
     return {"success": suc,

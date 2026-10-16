@@ -90,13 +90,15 @@ def _fake_llm_007():
 
 
 def test_real_trial_returns_held_out_key():
-    """★★ _real_trial 回 dict 含 held_out 键（dev 任务 sealed 无同名⇒None）。"""
+    """★★ _real_trial 回 dict 含 held_out 键（Task 4 配对独立评估，见下断言）。"""
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     import dwc_evo_round as EVO
     r = EVO._real_trial(Judge(), _fake_llm_007(), "code_fix_007", "patch")
     assert isinstance(r, dict), type(r)
     assert "held_out" in r, r
-    assert r["held_out"] is None  # dev 任务本来就不该有 held_out（诚实 None）
+    # ★ Task 4 后 007 有配对（test_str_002）；fake 第二次仍回 average 数 ⇒
+    #   答非所问 ⇒ fail-closed 判 0.0（不是 None —— 有数但 fn 对不上=跑错题）
+    assert r["held_out"] == 0.0, r
 
 
 def test_round_passes_held_out_to_accept(tmp_path):
@@ -186,3 +188,55 @@ def test_bool_trial_no_longer_lands_legacy(tmp_path):
     assert item["landed"] is False  # ★ 直落已删：无分数不落地
     assert item["adopt"] == "not_evaluated"
     assert "reason" in item, item
+
+
+# ══════════════════════════════════════════════════════════
+# R291-P4 Task 4 · dev↔sealed 配对表（accept 真正能判 accept）
+# ══════════════════════════════════════════════════════════
+def test_pairing_table_covers_seven_plus_three():
+    """★★ 配对表 10 对：code 前 7＋knowledge 前 3（同族按序号）。"""
+    import json as _json
+    m = _json.load(open(os.path.join(
+        ROOT, "config", "anchors", "dev_sealed_pairing.json"),
+        encoding="utf-8"))
+    assert len(m) == 10, m
+    assert "code_fix_007" in m  # code 族前 7 有份
+    assert m["code_fix_007"] == "test_str_002", m
+
+
+def test_held_out_peer_unpaired_returns_none():
+    """★ 无配对（paper 族/reasoning_004/code 008-009）⇒None。"""
+    from dwc.organs.judge import Judge
+    j = Judge()
+    assert j.held_out_peer("reproduce_001") is None
+    assert j.held_out_peer("reasoning_004") is None
+    assert j.held_out_peer("code_fix_008") is None
+    assert j.held_out_peer("no_such_task") is None
+
+
+def test_real_trial_held_out_via_peer():
+    """★★★ _real_trial 经配对真判 held_out（不再是 None）。
+
+    code_fix_007 配 test_str_002；fake LLM 给对数 ⇒ held_out=1.0。
+    """
+    import json as _json
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import dwc_evo_round as EVO
+    from dwc.organs.judge import Judge
+
+    class _FakeLLM:
+        def __init__(self):
+            self.n = 0
+
+        def complete(self, prompt, max_tokens=1500):
+            import json as _json
+            self.n += 1
+            if "test_str_002" in prompt or "word_count" in prompt:
+                obs = {"word_count": [["a b c", 3], ["one", 1]]}
+            else:  # 首轮 dev 任务（code_fix_007，fn=average）
+                obs = {"average": [[[0.1, 0.2], 0.15]]}
+            return type("R", (), {"ok": True,
+                                  "text": _json.dumps({"observed": obs})})()
+    r = EVO._real_trial(Judge(), _FakeLLM(), "code_fix_007", "patch")
+    assert "held_out" in r
+    assert r["held_out"] == 1.0, r  # ★ 配对题两条全对 ⇒ 真 1.0（不是 None）
