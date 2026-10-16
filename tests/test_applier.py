@@ -540,9 +540,19 @@ def _tmp_learned(monkeypatch=None):
     return Mutator, path
 
 
-def test_learned_path_points_to_config():
-    """★ 落盘位置必须在 config/anchors 下（与真值源同区，可门审）。"""
+def test_learned_path_points_to_config(monkeypatch):
+    """★ 落盘位置必须在 config/anchors 下（与真值源同区，可门审）。
+
+    ★ R292 总闸注记：conftest 默认把 LEARNED_PATH 指到 tmp，本测 pin 的
+      是**生产默认值** ⇒ 测试内指回真路径（读类体默认值，不硬编码）。
+    """
     from dwc.organs.evolver import Mutator
+    import dwc.organs.evolver as _EV
+    _prod = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(_EV.__file__))))),
+        "config", "anchors", "rules.json")
+    monkeypatch.setattr(Mutator, "LEARNED_PATH", _prod)
     assert Mutator.LEARNED_PATH.replace("\\", "/").endswith(
         "config/anchors/rules.json")
 
@@ -749,6 +759,14 @@ def test_module_level_load_without_explicit_call(tmp_path):
     from dwc.organs.evolver import Mutator
     old_path, old_rules = Mutator.LEARNED_PATH, dict(Mutator.RULES)
     try:
+        # ★ R292 总闸注记：本测要父子进程同读**真路径**（子进程 __file__
+        #   算死真路径），总闸的 tmp 在此不适用 ⇒ 指回真路径（外层
+        #   finally 用 old_path 恢复总闸态，不污染后续测试）。
+        import dwc.organs.evolver as _EV
+        Mutator.LEARNED_PATH = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.dirname(os.path.abspath(_EV.__file__))))),
+            "config", "anchors", "rules.json")
         # ★★★★ R32 我第一版的写法**错了**:
         #   我 persist 到 tmp_path（测试进程内改的 LEARNED_PATH）
         #   ⇒ 而**子进程**的 LEARNED_PATH 是类定义时用 __file__ 算的
