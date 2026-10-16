@@ -1004,6 +1004,27 @@ class Judge:
                           rung=int(src[task_id].get("verifier_rung") or 0))
         return v
 
+    def held_out_score(self, task_id: str,
+                       observed: Optional[Dict[str, Any]]) -> Optional[float]:
+        """★ R291-P4 Task 1 · held_out 分数口（读 sealed，不读 dev）。
+
+        success True→1.0 / False→0.0 / None→None（未评价不当 0/1）。
+        任务不在 sealed（含 dev 任务）/observed None/判不出 ⇒ None
+        （未判，不编分；采不采纳是 accept 门的事，本口只管"判了几分"）。
+        ★ locked 纪律：本口只许 accept 门调（测试静态 pin 其余路径）。
+        """
+        if not isinstance(self.sealed, dict) or task_id not in self.sealed:
+            return None
+        try:
+            v = self.evaluate(task_id, SPLIT_TEST, observed=observed)
+        except JudgeError:
+            return None
+        if v.success is True:
+            return 1.0
+        if v.success is False:
+            return 0.0
+        return None
+
     @staticmethod
     def _diff(golden: Dict[str, Any],
               observed: Dict[str, Any]) -> List[Dict[str, Any]]:
