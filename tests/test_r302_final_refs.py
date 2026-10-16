@@ -69,3 +69,50 @@ def test_quote_miss_block(root):
 def test_pure_opinion_pass(root):
     assert verify_final_refs("我觉得这个设计对你有影响",
                              str(root)) is None
+
+
+def test_final_ref_block_reroutes(root):
+    """★ 引用打回：qa 下 final 含幻觉路径⇒不 done（第 2 次真答案⇒done）。"""
+    import dwc.llm.task_exec as T
+
+    class _Bad:
+        ok = True
+        text = ('{"op": "final", "answer": "见 docs/world_model.py 第 3 行'
+                '的设计，很好", "analysis": "答"}')
+
+    class _Good:
+        ok = True
+        text = ('{"op": "final", "answer": "自我认知里有这条，我觉得有影响", '
+                '"analysis": "改"}')
+
+    seq = [_Bad(), _Good()]
+    box = {"n": 0}
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            r = seq[min(box["n"], 1)]
+            box["n"] += 1
+            return r
+
+    r = T.execute_user_task("自进化对你有影响吗", llm=_LLM(),
+                            task_id="T_R302B", retry_on_fail=False)
+    assert r["status"] == "done" and box["n"] == 2, (r, box)
+
+
+def test_final_ref_two_strikes_pass(root):
+    """★ 防死循环：引用连打回 2 次⇒第 3 次放行（不无限打回）。"""
+    import dwc.llm.task_exec as T
+
+    class _Bad:
+        ok = True
+        text = ('{"op": "final", "answer": "见 docs/ghost.py 的设计", '
+                '"analysis": "执"}')
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            return _Bad()
+
+    r = T.execute_user_task("这个设计好吗你觉得", llm=_LLM(),
+                            task_id="T_R302S", retry_on_fail=False,
+                            max_rounds=5)
+    assert r["status"] == "done" and r["rounds"] <= 4, (r,)

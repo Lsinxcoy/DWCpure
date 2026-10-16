@@ -774,6 +774,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     log: List[Dict[str, Any]] = []
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
+    _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
@@ -868,6 +869,20 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         _sess({"round": rnd, "op": op,
                "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
+            # ★ R302 · qa 引用校验（ALCE 本地版；执行路零变）。
+            #   不实⇒打回重答（走 prompt，revision 禁 final 走不通）；
+            #   同任务≥2 次⇒放行（防 F 型死循环）。
+            if qa_mode and _r302_strikes < 2:
+                from dwc.llm.step_judge import verify_final_refs
+                _ref_err = verify_final_refs(str(step.get("answer", "")))
+                if _ref_err is not None:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": _ref_err[:150]})
+                    prompt = ("任务: %s\n你的 final 引用不实（%s）。重答："
+                              "删掉不存在的引用，或只讲有依据的话/观点"
+                              "（观点句无需引用）。" % (task, _ref_err[:150]))
+                    continue
             if progress:
                 progress({"ev": "final",
                           "answer": str(step.get("answer", ""))[:400]})
