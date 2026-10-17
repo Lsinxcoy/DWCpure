@@ -1,0 +1,28 @@
+# DWC 能力注册表（R308-② · 抄 Claude bridge 点名制）。
+# 真值源：本文件。开关语义：enabled=false ⇒ op 被拒（obs 留痕，不静默）。
+# 未知能力名⇒默认启用（fail-open：老 op 不受影响；禁默默加新能力）。
+caps:
+  read:
+    enabled: true
+    desc: 读文件（只读，无副作用）
+  write:
+    enabled: true
+    desc: 写文件（仅 var/inbox_work/ 下）
+  run:
+    enabled: true
+    desc: 跑命令（argv 直接执行，60s 超时）
+  web_read:
+    enabled: true
+    desc: 抓网页（研究查资料，20s 超时）
+  web_search:
+    enabled: true
+    desc: 搜索（免 key，返回摘要，拿 URL 再抓正文）
+  mcp:
+    enabled: true
+    desc: 调 MCP 外部工具（server 须在 config/mcp.json 配）
+  delegate:
+    enabled: true
+    desc: 派独立子代理（隔离上下文，限 1 层）
+  final:
+    enabled: true
+    desc: 任务完成结算（必经，不可关——关了也强制开）

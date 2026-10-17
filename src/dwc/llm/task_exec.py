@@ -185,6 +185,15 @@ def _html_to_text(html: str) -> str:
 
 def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
+    try:  # ★ R308-② · 能力开关（关⇒拒收留痕，不静默；默认全开零行为变）
+        from dwc.caps.registry import is_enabled as _cap_on
+        if not _cap_on(op):
+            return {"ok": False,
+                    "error": "能力 %s 已关闭（config/capabilities.yaml）" % op}
+    except Exception:
+        # 注册表本身炸⇒fail-open（不能因治理层故障砖掉执行层；G7 非静默：
+        # 命名变量＋注释，拒绝原因与此处无关——拒收只走上面的 return）
+        _cap_broken = True
     if op == "web_search":
         # ★ R263 · 网页搜索（研究任务的起点是"查 X" — 只能抓已知 URL 就是
         #   死路; DDG HTML 版免 key 零依赖 — 结构 2026-10-14 活体探测:
@@ -847,6 +856,21 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         # ★ R223 · delegate 子代理（真子代理最小形态: 独立上下文隔离 —
         #   子探索的大量 read 输出不淹主任务; depth 限 1 层防递归爆炸）
         if op == "delegate":
+            try:  # ★ R308-② · delegate 也受能力开关管（拒收留痕进下一轮）
+                from dwc.caps.registry import is_enabled as _cap_on
+                if not _cap_on("delegate"):
+                    obs = {"ok": False,
+                           "error": "能力 delegate 已关闭"
+                                    "（config/capabilities.yaml）"}
+                    prompt = ("任务: %s\n子代理返回(JSON): %s\n请继续（下一步 op）"
+                              % (task, json.dumps(obs, ensure_ascii=False)[:2500]))
+                    log.append({"round": rnd, "op": "delegate",
+                                "analysis": str(step.get("analysis", ""))[:200]})
+                    _sess({"round": rnd, "op": "delegate",
+                           "analysis": str(step.get("task", ""))[:200]})
+                    continue
+            except Exception:
+                _cap_broken = True
             if _depth >= 1:
                 obs = {"ok": False, "error": "子代理内不可再 delegate（深度"
                        "上限 1 — 防递归; 自己继续做）"}

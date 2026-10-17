@@ -146,6 +146,27 @@ class LLMClient:
         #   ⇒⇒ 而 docstring 说「参数 > env > 文件」⇒ 又一处不对齐
         # ★ 优先级: 显式参数 > 环境变量 > config/llm.json（docstring 承诺）
         _fc = _load_file_config()
+        #: ★ R308-③ · 每配置项的来源层（只记层名不记值：explicit/env/file/factory）。
+        #:   追加记账，不动上面三行的解决口径。
+        _src: Dict[str, str] = {}
+        if base_url:
+            _src["base_url"] = "explicit"
+        elif os.environ.get(ENV_BASE, ""):
+            _src["base_url"] = "env"
+        elif _fc.get("base_url", ""):
+            _src["base_url"] = "file"
+        if api_key is not None:
+            _src["api_key"] = "explicit"
+        elif os.environ.get(ENV_KEY, ""):
+            _src["api_key"] = "env"
+        elif _fc.get("api_key", ""):
+            _src["api_key"] = "file"
+        if model:
+            _src["model"] = "explicit"
+        elif os.environ.get(ENV_MODEL, ""):
+            _src["model"] = "env"
+        elif _fc.get("model", ""):
+            _src["model"] = "file"
         self._base = (base_url or os.environ.get(ENV_BASE, "")
                       or _fc.get("base_url", "")).strip()
         self._key = (api_key if api_key is not None
@@ -164,9 +185,16 @@ class LLMClient:
             #   ⇒ ⇒★ 修成与 base/key/model **同一口径**
             if timeout is not None:
                 self.timeout = float(timeout)
+                _src["timeout"] = "explicit"
+            elif os.environ.get(ENV_TIMEOUT, ""):
+                self.timeout = float(os.environ.get(ENV_TIMEOUT, ""))
+                _src["timeout"] = "env"
+            elif _fc.get("timeout", ""):
+                self.timeout = float(_fc.get("timeout", ""))
+                _src["timeout"] = "file"
             else:
-                self.timeout = float(os.environ.get(ENV_TIMEOUT, "")
-                                     or _fc.get("timeout", "") or 30.0)
+                self.timeout = 30.0
+                _src["timeout"] = "factory"
         except ValueError:
             self.timeout = float(timeout)
         #: ★★ 三态分开（纪律③）: configured 是**静态**的
@@ -182,9 +210,17 @@ class LLMClient:
         #   ⇒ 配 DWC_LLM_RETRIES 可关（默认 2 次; R265 起 5xx/429
 #     网关瞬时类同样重试+退避 — 502 实测曾零韧性判死任务）
         try:
-            self.retries = int(os.environ.get("DWC_LLM_RETRIES", "") or 2)
+            if os.environ.get("DWC_LLM_RETRIES", ""):
+                self.retries = int(os.environ.get("DWC_LLM_RETRIES", ""))
+                _src["retries"] = "env"
+            else:
+                self.retries = 2
+                _src["retries"] = "factory"
         except ValueError:
             self.retries = 2
+            _src["retries"] = "factory"
+        #: ★ R308-③ · 来源审计表（层名集合，不含任何值）。
+        self.sources: Dict[str, str] = dict(_src)
         #: 调用账本（可审计: 试了几次、成几次）
         self.n_calls = 0
         self.n_ok = 0
