@@ -90,6 +90,55 @@ def _append_ledger(path, rec):
         _ledger_err = _le
 
 
+def triage_report(rep):
+    """★ R310-③ · triage 分类机（抄 Capy triage：分类＋recommendations）。
+
+    纯呈现：只读 rep["results"]，不改任何判定。类别：
+    landed（已落）/ready（trial 过待拍板）/stuck（预算耗尽）
+    /draft_failed（起草挂）/skipped（resume 跳过）。
+    """
+    try:
+        tasks = []
+        for _r in (rep or {}).get("results", []) or []:
+            _k = _r.get("key", "?")
+            if _r.get("landed") is True:
+                _c = "landed"
+            elif _r.get("trial") is True:
+                _c = "ready"
+            elif "ledger 已做" in str(_r.get("reason", "")):
+                _c = "skipped"
+            elif _r.get("drafted") is False and _r.get("trial") is None:
+                _c = "draft_failed"
+            else:
+                _c = "stuck"
+            tasks.append({"key": _k, "category": _c,
+                          "trial": _r.get("trial"),
+                          "adopt": _r.get("adopt"),
+                          "reason": str(_r.get("reason", ""))[:200]})
+        _sum = {"total": len(tasks), "landed": 0, "ready": 0, "stuck": 0,
+                "skipped": 0, "draft_failed": 0}
+        for _t in tasks:
+            _sum[_t["category"]] += 1
+        _recs = []
+        for _t in tasks:
+            if _t["category"] == "ready":
+                _recs.append("落盘拍板：%s（trial 已过，--apply 审后落）"
+                             % (_t["key"],))
+            elif _t["category"] == "stuck":
+                _recs.append("重跑或停：%s（%s）"
+                             % (_t["key"], _t["reason"][:100]))
+            elif _t["category"] == "draft_failed":
+                _recs.append("下轮重看：%s（起草挂，瞬时抖可能自愈）"
+                             % (_t["key"],))
+        return {"summary": _sum, "tasks": tasks,
+                "recommendations": _recs}
+    except Exception as _te:
+        return {"summary": {"total": 0, "landed": 0, "ready": 0, "stuck": 0,
+                            "skipped": 0, "draft_failed": 0},
+                "tasks": [], "recommendations": [],
+                "note": "triage 失败：%r" % (_te,)}
+
+
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
               want_code_of=None, mech_log=None, trace_log=None,
@@ -269,8 +318,11 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             _mech_advise = _madv(_en, _mread(mech_log))
         except Exception:                   # noqa: BLE001 — 坏不断轮
             _mech_advise = []
-    return {"n_clusters": len(clusters), "results": results,
+    _rep = {"n_clusters": len(clusters), "results": results,
             "not_wired": [], "mech_advise": _mech_advise}
+    # ★ R310-③ · triage 附报告（纯呈现，不改判定）。
+    _rep["triage"] = triage_report(_rep)
+    return _rep
 
 
 # ★ R291-P4 Task 3 · _land（legacy 直落落盘）已删 —— 唯一调用点已删，
