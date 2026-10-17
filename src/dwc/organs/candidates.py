@@ -416,7 +416,26 @@ class CandidateGenerator:
                                       "expected", "actual")})
         nl = chr(10)
         tick = chr(96) * 3
-        prompt = nl.join([
+        _fields = {
+            "fail_sig": "c=%s q=%s fn=%s"
+                        % (sig.get("c"), sig.get("q"), fn_name),
+            "evidence": json.dumps(ev_lines, ensure_ascii=False),
+            "code_block": tick + "python" + nl + baseline_src + nl + tick,
+            "component_vocab": (", ".join(sorted(COMPONENT_VOCAB)) + ", "
+                                + ", ".join(sorted(K_META))),
+            "dimension_vocab": ", ".join(sorted(DIMENSIONS)),
+            "max_line": ("最多 %d 条，按可信度排序；没把握就返回空数组。"
+                         % self.LLM_MAX_CANDIDATES),
+        }
+        prompt = None
+        try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
+            from dwc.llm.prompt_ota import render_here as _render
+            from dwc.llm.prompt_ota import note_miss as _ota_miss2
+            prompt = _render("fixer", _fields, __file__)
+        except Exception:
+            _ota_miss2()
+        if not prompt:
+            prompt = nl.join([
             "你是代码修复器。只能改函数体，不得改签名、不得加 import。",
             "失败签名: c=%s q=%s fn=%s"
             % (sig.get("c"), sig.get("q"), fn_name),

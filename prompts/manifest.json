@@ -28,5 +28,20 @@
     "stable": "v1",
     "candidate": null,
     "pct": 0
+  },
+  "planner": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "fixer": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "drafter": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
   }
 }

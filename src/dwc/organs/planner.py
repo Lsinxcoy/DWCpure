@@ -232,6 +232,27 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
         _planner_head = _ota("planner_head", _planner_head, __file__)
     except Exception:
         _ota_miss()
+    _target = ""
+    if q:
+        _target = (
+            "★★ 本次被约束量: %r（当前值 %r）— 契约必须约束**这个量**, "
+            "别的字段只是背景, 别把背景当约束对象。"
+            % (q.get("name"), q.get("value"))) + "\n"
+    _dumps = json.dumps({k: {"doc": v["doc"], "params": v["params"]}
+                         for k, v in TEMPLATES.items()}, ensure_ascii=False,
+                        indent=1)
+    try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
+        from dwc.llm.prompt_ota import render_here as _render
+        from dwc.llm.prompt_ota import note_miss as _ota_miss2
+        _t = _render("planner", {"head": _planner_head, "target_block": _target,
+                                 "templates_dump": _dumps,
+                                 "task_face": json.dumps(task_view,
+                                                         ensure_ascii=False)[:600]},
+                     __file__)
+        if _t:
+            return _t
+    except Exception:
+        _ota_miss2()
     lines: List[str] = [
         _planner_head,
     ]
@@ -240,10 +261,7 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
         #   的 members（约束对象错）⇒ 回灌两次仍错 ⇒ ⊥。任务面必须显式
         #   声明"被约束量是什么、当前值多少"（论文每次调用现场的
         #   in-context 上下文）— 不给答案, 只给靶
-        lines.append(
-            "★★ 本次被约束量: %r（当前值 %r）— 契约必须约束**这个量**, "
-            "别的字段只是背景, 别把背景当约束对象。"
-            % (q.get("name"), q.get("value")))
+        lines.append(_target.rstrip("\n"))
     lines += [
         "★★ 你只能从这些模板里选 kind 并填 params（白名单, 不许发明结构）:",
         json.dumps({k: {"doc": v["doc"], "params": v["params"]}

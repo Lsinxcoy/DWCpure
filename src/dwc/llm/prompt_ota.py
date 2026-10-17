@@ -28,6 +28,52 @@ def miss_count() -> int:
         return -1
 
 
+def render(name: str, fields: Dict[str, Any], *, root=None, manifest=None,
+           key: str = "") -> Optional[str]:
+    """模板渲染：@@field@@ 占位直换。缺模板/缺字段⇒None（调用方走老路）。
+    永不抛错；降级一律 note_miss 计数。"""
+    import re as _re
+    try:
+        base = get_prompt(name, root=root, manifest=manifest, key=key or "")
+        if not base:
+            note_miss()
+            return None
+        slots = set(_re.findall(r"@@([A-Za-z0-9_]+)@@", base))
+        fields = fields or {}
+        if any(s not in fields or fields[s] is None for s in slots):
+            note_miss()
+            return None
+        out = base
+        for s in slots:
+            out = out.replace("@@" + s + "@@", str(fields[s]))
+        return out.rstrip("\n")
+    except Exception:
+        note_miss()
+        return None
+
+
+def render_here(name: str, fields: Dict[str, Any], caller_file: str,
+                key: str = "") -> Optional[str]:
+    """一站式渲染：找根＋读 manifest＋render。全失败返 None。永不抛错。"""
+    try:
+        import json as _js
+        import os as _os
+        proot = prompts_root(caller_file)
+        if not proot:
+            note_miss()
+            return None
+        try:
+            with open(_os.path.join(proot, "manifest.json"),
+                      encoding="utf-8") as _fh:
+                mf = _js.load(_fh)
+        except Exception:
+            mf = {}
+        return render(name, fields, root=proot, manifest=mf, key=key or "")
+    except Exception:
+        note_miss()
+        return None
+
+
 def _ver(name: str, manifest: Dict[str, Any], key: str) -> Optional[str]:
     try:
         m = (manifest or {}).get(name, {}) or {}

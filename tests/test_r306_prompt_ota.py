@@ -86,7 +86,8 @@ def test_find_root_walks_up(tmp_path):
     deep.mkdir(parents=True)
     assert prompts_root(str(deep / "x.py")) == str(tmp_path / "prompts")
     import sys as _sys
-    assert prompts_root(_sys.executable) is None
+    import tempfile as _tf
+    assert prompts_root(_tf.gettempdir() + "/x.py") is None
 
 
 def test_note_miss_counts():
@@ -94,3 +95,110 @@ def test_note_miss_counts():
     before = P.miss_count()
     P.note_miss()
     assert P.miss_count() == before + 1
+
+
+def test_render_basic(tmp_path):
+    from dwc.llm.prompt_ota import render
+    (tmp_path / "demo.v1.md").write_text("头@@x@@尾", encoding="utf-8")
+    t = render("demo", {"x": "中"}, root=tmp_path,
+               manifest={"demo": {"stable": "v1"}})
+    assert t == "头中尾"
+
+
+def test_render_missing_field_is_none(tmp_path):
+    from dwc.llm.prompt_ota import render
+    (tmp_path / "demo.v1.md").write_text("头@@x@@尾", encoding="utf-8")
+    assert render("demo", {}, root=tmp_path,
+                  manifest={"demo": {"stable": "v1"}}) is None
+
+
+def test_render_no_template_is_none(tmp_path):
+    from dwc.llm.prompt_ota import render
+    assert render("demo", {"x": "1"}, root=tmp_path, manifest={}) is None
+
+
+def test_render_here_finds_root(tmp_path):
+    from dwc.llm.prompt_ota import render_here
+    proot = tmp_path / "prompts"
+    proot.mkdir()
+    (proot / "demo.v1.md").write_text("头@@x@@尾", encoding="utf-8")
+    import json as _js
+    (proot / "manifest.json").write_text(
+        _js.dumps({"demo": {"stable": "v1"}}), encoding="utf-8")
+    deep = tmp_path / "src" / "dwc"
+    deep.mkdir(parents=True)
+    caller = str(deep / "m.py")
+    assert render_here("demo", {"x": "中"}, caller) == "头中尾"
+    assert render_here("demo", {}, caller) is None
+
+
+def test_planner_render_matches_oldpath():
+    from dwc.organs import planner as P
+    from dwc.llm import prompt_ota as OTA
+    for tv in ({"kind": "probe",
+                "quantity": {"name": "n", "value": 3}},
+               {"kind": "probe"}):
+        new = P.compose_prompt(tv)
+        orig = OTA.render
+        OTA.render = lambda *a, **k: None
+        try:
+            old = P.compose_prompt(tv)
+        finally:
+            OTA.render = orig
+        assert new == old and len(new) > 100
+
+
+class _CapLLM:
+    def __init__(self):
+        self.prompts = []
+
+    def complete(self, prompt, **kw):
+        self.prompts.append(prompt)
+        from types import SimpleNamespace
+        return SimpleNamespace(ok=True, text='{"patches": []}',
+                               source="fake", error="")
+
+
+def test_fixer_render_matches_oldpath():
+    from dwc.organs.candidates import CandidateGenerator as CG
+    from dwc.llm import prompt_ota as OTA
+    sig = {"c": "E_TYPE", "q": "q1"}
+    diffs = [{"index": 0, "fn": "f", "args": [],
+              "expected": 1, "actual": 2}]
+    src = "def f():\n    return 1\n"
+    cap = _CapLLM()
+    CG(llm=cap)._llm_generate(sig, diffs, src, "f")
+    new = cap.prompts[-1]
+    cap2 = _CapLLM()
+    orig = OTA.render
+    OTA.render = lambda *a, **k: None
+    try:
+        CG(llm=cap2)._llm_generate(sig, diffs, src, "f")
+    finally:
+        OTA.render = orig
+    old = cap2.prompts[-1]
+    assert new == old and len(new) > 500
+
+
+def test_drafter_render_matches_oldpath():
+    from dwc.organs.evolver import LLMMutator as LM
+    from dwc.llm import prompt_ota as OTA
+    sigs = [{"c": "E", "q": "q", "fn": "f", "m": "mm",
+             "task": "t"}]
+    kw = {"context": "ctx", "want_code": True,
+          "learned_hint": "hint"}
+    new = LM()._prompt(sigs, **kw)
+    orig = OTA.render
+    OTA.render = lambda *a, **k: None
+    try:
+        old = LM()._prompt(sigs, **kw)
+    finally:
+        OTA.render = orig
+    assert new == old and len(new) > 300
+    new2 = LM()._prompt(sigs)
+    OTA.render = lambda *a, **k: None
+    try:
+        old2 = LM()._prompt(sigs)
+    finally:
+        OTA.render = orig
+    assert new2 == old2 and len(new2) > 200

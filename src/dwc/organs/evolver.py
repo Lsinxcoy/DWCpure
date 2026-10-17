@@ -1845,6 +1845,36 @@ class LLMMutator:
                 context: str = "", want_code: bool = False,
                 learned_hint: str = "") -> str:
         s0 = dict(sigs[0])
+        _ctx = context or ""
+        _hint = (learned_hint or "").strip()
+        _f = {
+            "head": ("你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
+                     "（c/q/fn 一致，n=%d）：" % (len(sigs),)),
+            "sig_line": ("c=%s q=%s fn=%s" % (s0.get("c"), s0.get("q"),
+                                              s0.get("fn", ""))),
+            "m_samples": ("m 样本=%s" % ([str(s.get("m", ""))[:60]
+                                          for s in sigs[:3]],)),
+            "task_line": ("任务=%s" % (s0.get("task", ""),)),
+            "context_block": ("" if not _ctx
+                              else "判分对照事实（真值 vs 模型断言）：\n"
+                              + _ctx + "\n"),
+            "hint_block": ("" if not _hint
+                           else "该簇已有落地规则（禁重复已落地机制；另寻机制，"
+                           "或明确写出超越点）：\n" + _hint + "\n"),
+            "code_block": ("" if not want_code
+                           else "另加 code 字段：完整可执行 Python 函数定义（def "
+                           + str(s0.get("fn", "fn"))
+                           + "(...) 起，纯函数，只用 sum/len/range 等纯内建，禁 import、"
+                           "禁 open/exec/eval、禁 while —— 沙箱真跑它判分，跑不通=白起草）。"),
+        }
+        try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
+            from dwc.llm.prompt_ota import render_here as _render
+            from dwc.llm.prompt_ota import note_miss as _ota_miss
+            _t = _render("drafter", _f, __file__)
+            if _t:
+                return _t
+        except Exception:
+            _ota_miss()
         lines = [
             "你是 DWC 进化器的规则起草员。下列失败签名属同一簇"
             "（c/q/fn 一致，n=%d）：" % (len(sigs),),
