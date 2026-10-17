@@ -877,9 +877,16 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             else:
                 # ★ R227 · 真并行子代理: tasks 数组 ⇒ ThreadPool 并发
                 #   （各独立上下文, 摘要汇总回喂; 上限 3 防打爆 LLM）
+                # ★ R309-① · 熔断：整批超 timeout_s 即弃未完、obs 留痕。
+                try:
+                    from dwc.caps.registry import cap_limit as _cap_lim
+                    _dt = _cap_lim("delegate", "timeout_s", 600)
+                except Exception:
+                    _dt = 600
                 subs = step.get("tasks")
                 if isinstance(subs, list) and len(subs) >= 2:
                     from concurrent.futures import ThreadPoolExecutor
+                    from concurrent.futures import wait as _fwait
 
                     def _one(k_sub):
                         return execute_user_task(
@@ -887,8 +894,17 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                             task_id="%s_sub%d_%d" % (sid, rnd, k_sub[0]),
                             _depth=_depth + 1)
                     with ThreadPoolExecutor(max_workers=3) as pool:
-                        results = list(pool.map(
-                            _one, list(enumerate(subs))[:3]))
+                        _futs = [pool.submit(_one, k)
+                                 for k in list(enumerate(subs))[:3]]
+                        _doner, _pend = _fwait(_futs, timeout=_dt)
+                    if _pend:
+                        for _f in _pend:
+                            _f.cancel()
+                        _tout = True
+                    else:
+                        _tout = False
+                    results = [f.result() for f in _futs if f.done()
+                               and not f.cancelled()]
                     # ★ R305-T4 · coordinator 接线（并发执行不变，kanban 记账：
                     #   每 sub queued→done/fail，与 run_plan 同格式。
                     #   写失败记 kanban_drops 进 obs，不静默）
@@ -911,16 +927,36 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                      "answer": str(r.get("answer", ""))[:900],
                                      "why": r.get("why", "")}
                                     for r in results]}
+                    if _tout:
+                        obs = {"ok": False, "subagent": True,
+                               "parallel": True,
+                               "error": "delegate 并行批超时（>%ss）已弃未完" % _dt,
+                               "done_n": len(results),
+                               "subs": obs["subs"]}
                 else:
-                    sub = execute_user_task(str(step.get("task", "")),
-                                            llm=llm, max_rounds=999,
-                                            task_id="%s_sub%d" % (sid, rnd),
-                                            _depth=_depth + 1)
+                    try:
+                        from concurrent.futures import ThreadPoolExecutor \
+                            as _TPE1
+                        with _TPE1(max_workers=1) as _pool1:
+                            _fut1 = _pool1.submit(
+                                execute_user_task, str(step.get("task", "")),
+                                llm=llm, max_rounds=999,
+                                task_id="%s_sub%d" % (sid, rnd),
+                                _depth=_depth + 1)
+                            # ★ R309-① · 单发熔断：TimeoutError 才记超时，
+                            #   别的错照旧上抛（老行为不变）。
+                            sub = _fut1.result(timeout=_dt)
+                    except TimeoutError:
+                        sub = {"status": "timeout", "rounds": 0, "answer": "",
+                               "why": "delegate 超时（>%ss）已弃" % _dt}
                     obs = {"ok": True, "subagent": True,
                            "sub_status": sub.get("status"),
                            "sub_rounds": sub.get("rounds"),
                            "sub_answer": str(sub.get("answer", ""))[:1500],
                            "sub_why": sub.get("why", "")}
+                    if sub.get("status") == "timeout":
+                        obs["ok"] = False
+                        obs["error"] = sub.get("why", "")
             log.append({"round": rnd, "op": "delegate",
                         "analysis": str(step.get("analysis", ""))[:200]})
             _sess({"round": rnd, "op": "delegate",

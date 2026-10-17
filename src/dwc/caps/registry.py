@@ -88,3 +88,17 @@ def disabled_list(path: str = "") -> list:
                       if isinstance(v, dict) and v.get("enabled") is False)
     except Exception:
         return []
+
+
+def cap_limit(name: str, key: str, default, path: str = ""):
+    """★ R309-① · 数值项（超时/TTL）：yaml 缺省回 default。永不抛错。"""
+    try:
+        t = load_table(path) if path else (
+            _TABLE if _LOADED[0] == "y" else load_table())
+        ent = (t or {}).get(name)
+        if not isinstance(ent, dict):
+            return default
+        v = ent.get(key, default)
+        return v if isinstance(v, (int, float)) else default
+    except Exception:
+        return default

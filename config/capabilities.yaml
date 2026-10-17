@@ -22,7 +22,8 @@ caps:
     desc: 调 MCP 外部工具（server 须在 config/mcp.json 配）
   delegate:
     enabled: true
-    desc: 派独立子代理（隔离上下文，限 1 层）
+    timeout_s: 600
+    desc: 派独立子代理（隔离上下文，限 1 层；超 timeout_s 熔断）
   final:
     enabled: true
     desc: 任务完成结算（必经，不可关——关了也强制开）
