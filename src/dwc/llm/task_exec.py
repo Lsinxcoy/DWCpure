@@ -315,8 +315,16 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         content = str(args.get("content", ""))
         with io.open(p, "w", encoding="utf-8") as fh:
             fh.write(content)
+        # ★ R305-T2 · sec_review 接线（纯规则只告警不驳回：照写 ok=True，
+        #   findings 进 obs 回喂 LLM；坏输入 [] 不拦）
+        try:
+            from dwc.llm.sec_review import review_diff as _srev
+            _sw = _srev(content, os.path.relpath(p, ROOT))
+        except Exception:
+            _sw = []
         return {"ok": True, "path": os.path.relpath(p, ROOT),
-                "bytes": len(content.encode("utf-8"))}
+                "bytes": len(content.encode("utf-8")),
+                "sec_warnings": _sw}
     if op == "mcp":
         # ★ R224 · MCP 工具调用（标准协议面: server 配置在 config/mcp.json
         #   — 维护者写 agent 只读; 未配置的 server 明确报错不静默）
@@ -851,7 +859,23 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     with ThreadPoolExecutor(max_workers=3) as pool:
                         results = list(pool.map(
                             _one, list(enumerate(subs))[:3]))
+                    # ★ R305-T4 · coordinator 接线（并发执行不变，kanban 记账：
+                    #   每 sub queued→done/fail，与 run_plan 同格式。
+                    #   写失败记 kanban_drops 进 obs，不静默）
+                    try:
+                        from dwc.llm.coordinator import mark as _kmark
+                        _kb = os.path.join(ROOT, "var", "kanban.jsonl")
+                        _drops = 0
+                        for _s, _r in zip(list(enumerate(subs))[:3], results):
+                            _drops += (not _kmark(_kb, str(_s[1]), "queued"))
+                            _drops += (not _kmark(
+                                _kb, str(_s[1]),
+                                "done" if _r.get("status") == "done"
+                                else "fail"))
+                    except Exception as _ke:  # noqa: BLE001 — 坏不断轮，计数留痕
+                        _drops = -1
                     obs = {"ok": True, "subagent": True, "parallel": True,
+                           "kanban_drops": _drops,
                            "subs": [{"status": r.get("status"),
                                      "rounds": r.get("rounds"),
                                      "answer": str(r.get("answer", ""))[:900],

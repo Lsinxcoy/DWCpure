@@ -61,7 +61,7 @@ def collect_unmapped(db_path, evolver, fn_of, task_of):
 
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
-              want_code_of=None, mech_log=None):
+              want_code_of=None, mech_log=None, trace_log=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -92,6 +92,29 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                                        _old.get("patch", ""))
             except Exception:                   # noqa: BLE001 — 坏则无段
                 _hint = ""
+            # ★ R305-T3 · project_hint 接线（trace_log 传了⇒同组前情追加；
+            #   不传老路零变。坏不拦，hint 是增强非门槛）。
+            if trace_log:
+                try:
+                    from dwc.llm.project_hint import proj_id as _pid
+                    from dwc.llm.project_hint import project_hint as _ph
+                    _gt: dict = {}
+                    with open(trace_log, encoding="utf-8") as _fh:
+                        for _ln in _fh.read().splitlines():
+                            try:
+                                import json as _js
+                                _d = _js.loads(_ln)
+                            except Exception:
+                                continue
+                            if isinstance(_d, dict) and _d.get("task"):
+                                _gt.setdefault(
+                                    _pid(str(_d["task"])), []).append(
+                                        _ln[:200])
+                    _ph_seg = _ph(_task, _gt)
+                    if _ph_seg:
+                        _hint = (_hint + "\n" + _ph_seg) if _hint else _ph_seg
+                except Exception:               # noqa: BLE001 — 坏则无段
+                    pass
             p = mu.propose_from_cluster(cl["sigs"], context,
                                         want_code=want_code_of(_task),
                                         learned_hint=_hint)

@@ -444,6 +444,28 @@ def _budget_check(terms_per_day: float, budget_day: float) -> bool:
     return False
 
 
+def _maybe_skip(prev_ok, item, skips):
+    """★ R305 · monitor 接线（纯函数：有委托/上轮失败/连跳≥2 ⇒ 跑；否则跳过串）。
+
+    只增调用不改判分：返回 None=执行本轮；返回串=跳过本轮（省 LLM）。
+    永不抛错（坏输入一律执行）。"""
+    try:
+        from dwc.llm.monitor import MAX_SKIPS, monitor_skip
+        if item is not None:
+            return None
+        if not prev_ok:
+            return None
+        try:
+            n = int(skips)
+        except Exception:
+            return None
+        if n >= MAX_SKIPS:
+            return None
+        return monitor_skip(has_new_input=False, last_done_ok=True, skips=n)
+    except Exception:
+        return None
+
+
 def main(argv) -> int:
     # ── 控制子命令（人工门）──
     if "--freeze" in argv:
@@ -566,6 +588,25 @@ def main(argv) -> int:
                        result="async_started")
             # 主循环继续走自主 term —— 不阻塞不 sleep 不 continue
         task = select_task(prev)
+        # ★ R305 · monitor 接线（三条件全 calm ⇒ 跳过本轮省 LLM；
+        #   有委托/首轮/上轮崩/连跳≥2 ⇒ 照跑。跳过不计 term、不改判分）。
+        _sk = _maybe_skip(prev is not None, item, globals().get("_SKIPS", 0))
+        if _sk is not None:
+            globals()["_SKIPS"] = int(globals().get("_SKIPS", 0)) + 1
+            try:
+                from dwc.llm.monitor import record as _mrec
+                _mrec("skip", os.path.join(ROOT, "var", "monitor_counts.jsonl"))
+                from dwc.llm.mech_trace import emit as _memit
+                _memit({"mech": "monitor_skip", "event": "skip", "ok": True},
+                       os.path.join(ROOT, "var", "mech_events.jsonl"))
+            except Exception:
+                pass
+            _log({"event": "term_skipped", "why": _sk,
+                  "skips": globals()["_SKIPS"]})
+            _heartbeat(status="alive", skipped=True)
+            time.sleep(interval)
+            continue
+        globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
         except Exception as exc:  # noqa: BLE001 — agent 边界: 留痕继续活

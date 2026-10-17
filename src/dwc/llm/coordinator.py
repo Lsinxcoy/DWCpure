@@ -23,6 +23,23 @@ _SPLIT_RE = re.compile(r"(?:且|和|并|同时|、)")
 _SEQ_RE = re.compile(r"先(.+?)再(.+)")
 
 
+def mark(kanban_path: str, sub: str, status: str) -> bool:
+    """★ R305-T4 · 单行 kanban 记账（供并发路径：delegate 并行不用 run_plan
+    串行，但每 sub queued→done/fail 两行格式与 run_plan 同）。
+    返回 True=写成，False=失败（记数由调用方定，不静默吞）。永不抛错。"""
+    try:
+        import os
+        _d = os.path.dirname(os.path.abspath(kanban_path))
+        if _d:
+            os.makedirs(_d, exist_ok=True)
+        with open(kanban_path, "a", encoding="utf-8") as _fh:
+            _fh.write(json.dumps({"sub": str(sub), "status": str(status)},
+                                 ensure_ascii=False) + "\n")
+        return True
+    except Exception:
+        return False
+
+
 def plan(task: str) -> List[Dict[str, Any]]:
     """返回 [{"sub","dep"}]。永不抛错（坏输入返回单块）。"""
     try:
