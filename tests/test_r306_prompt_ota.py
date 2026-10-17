@@ -202,3 +202,93 @@ def test_drafter_render_matches_oldpath():
     finally:
         OTA.render = orig
     assert new2 == old2 and len(new2) > 200
+
+
+def _serve_dir(tmp_path):
+    import functools
+    import http.server
+    import threading
+    (tmp_path / "demo.v1.md").write_text("远端甲", encoding="utf-8")
+    h = functools.partial(http.server.SimpleHTTPRequestHandler,
+                          directory=str(tmp_path))
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), h)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    return srv
+
+
+def test_fetch_remote_hits_http(tmp_path):
+    from dwc.llm.prompt_ota import fetch_remote
+    srv = _serve_dir(tmp_path)
+    try:
+        base = "http://127.0.0.1:%d" % srv.server_port
+        assert fetch_remote(base, "demo", "v1") == "远端甲"
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_fetch_remote_bad_url_is_none_fast():
+    import time as _t
+    from dwc.llm.prompt_ota import fetch_remote
+    t0 = _t.time()
+    assert fetch_remote("http://127.0.0.1:9", "demo", "v1",
+                        timeout=2) is None
+    assert fetch_remote("", "demo", "v1") is None
+    assert _t.time() - t0 < 10
+
+
+def test_get_prompt_remote_first(tmp_path):
+    from dwc.llm.prompt_ota import get_prompt
+    (tmp_path / "demo.v1.md").write_text("本地乙", encoding="utf-8")
+    (tmp_path / "demo2.v1.md").write_text("本地丙", encoding="utf-8")
+    (tmp_path / "r").mkdir()
+    srv = _serve_dir(tmp_path / "r")
+    try:
+        base = "http://127.0.0.1:%d" % srv.server_port
+        mf = {"demo": {"stable": "v1"}, "demo2": {"stable": "v1"}}
+        t = get_prompt("demo", root=tmp_path, manifest=mf, remote=base)
+        assert t == "远端甲"
+        srv.shutdown()
+        srv.server_close()
+        # 远端挂了但 demo 已缓存⇒仍用缓存（bootstrap 语义，重启才刷新）
+        assert get_prompt("demo", root=tmp_path, manifest=mf,
+                          remote=base) == "远端甲"
+        # 从未缓存的 demo2⇒落本地文件
+        assert get_prompt("demo2", root=tmp_path, manifest=mf,
+                          remote=base) == "本地丙"
+    finally:
+        try:
+            srv.shutdown()
+        except Exception:
+            pass
+        try:
+            srv.server_close()
+        except Exception:
+            pass
+
+
+def test_env_switch_off_by_default(tmp_path, monkeypatch):
+    import os as _os
+    from dwc.llm.prompt_ota import get_prompt
+    (tmp_path / "demo.v1.md").write_text("本地乙", encoding="utf-8")
+    (tmp_path / "r").mkdir()
+    srv = _serve_dir(tmp_path / "r")
+    try:
+        base = "http://127.0.0.1:%d" % srv.server_port
+        mf = {"demo": {"stable": "v1"}}
+        monkeypatch.delenv("DWC_PROMPT_URL", raising=False)
+        assert get_prompt("demo", root=tmp_path,
+                          manifest=mf) == "本地乙"
+        monkeypatch.setenv("DWC_PROMPT_URL", base)
+        assert get_prompt("demo", root=tmp_path,
+                          manifest=mf) == "远端甲"
+    finally:
+        try:
+            srv.shutdown()
+        except Exception:
+            pass
+        try:
+            srv.server_close()
+        except Exception:
+            pass

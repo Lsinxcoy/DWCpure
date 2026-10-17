@@ -29,12 +29,13 @@ def miss_count() -> int:
 
 
 def render(name: str, fields: Dict[str, Any], *, root=None, manifest=None,
-           key: str = "") -> Optional[str]:
+           key: str = "", remote: str = "") -> Optional[str]:
     """模板渲染：@@field@@ 占位直换。缺模板/缺字段⇒None（调用方走老路）。
     永不抛错；降级一律 note_miss 计数。"""
     import re as _re
     try:
-        base = get_prompt(name, root=root, manifest=manifest, key=key or "")
+        base = get_prompt(name, root=root, manifest=manifest, key=key or "",
+                          remote=remote or "")
         if not base:
             note_miss()
             return None
@@ -52,8 +53,42 @@ def render(name: str, fields: Dict[str, Any], *, root=None, manifest=None,
         return None
 
 
+def fetch_remote(base_url: str, name: str, ver: str,
+                 timeout: float = 3.0) -> Optional[str]:
+    """从远端 prompts 源取基线（如本地 bootstrap 服务）。
+    任何失败⇒None（调用方走本地文件/内嵌老路）。永不抛错。"""
+    import re as _re
+    import urllib.request as _ul
+    try:
+        if not base_url or not name or not ver:
+            return None
+        if not _re.fullmatch(r"[A-Za-z0-9_]+", name):
+            note_miss()
+            return None
+        if not _re.fullmatch(r"[A-Za-z0-9_.-]+", ver):
+            note_miss()
+            return None
+        url = base_url.rstrip("/") + "/%s.%s.md" % (name, ver)
+        req = _ul.Request(url, method="GET",
+                          headers={"User-Agent": "dwc-prompt-ota/1"})
+        to = max(0.5, min(10.0, timeout or 3.0))
+        with _ul.urlopen(req, timeout=to) as _resp:
+            if getattr(_resp, "status", 200) != 200:
+                note_miss()
+                return None
+            data = _resp.read(1 << 20)
+        try:
+            return data.decode("utf-8")
+        except Exception:
+            note_miss()
+            return None
+    except Exception:
+        note_miss()
+        return None
+
+
 def render_here(name: str, fields: Dict[str, Any], caller_file: str,
-                key: str = "") -> Optional[str]:
+                key: str = "", remote: str = "") -> Optional[str]:
     """一站式渲染：找根＋读 manifest＋render。全失败返 None。永不抛错。"""
     try:
         import json as _js
@@ -68,7 +103,8 @@ def render_here(name: str, fields: Dict[str, Any], caller_file: str,
                 mf = _js.load(_fh)
         except Exception:
             mf = {}
-        return render(name, fields, root=proot, manifest=mf, key=key or "")
+        return render(name, fields, root=proot, manifest=mf, key=key or "",
+                      remote=remote or "")
     except Exception:
         note_miss()
         return None
@@ -91,29 +127,40 @@ def _ver(name: str, manifest: Dict[str, Any], key: str) -> Optional[str]:
 
 
 def get_prompt(name: str, *, root=None, manifest=None, key: str = "",
-               append: str = "") -> Optional[str]:
+               append: str = "", remote: str = "") -> Optional[str]:
     try:
         if not name or root is None:
             return None
         ver = _ver(name, manifest or {}, key or "")
         if not ver:
             return None
-        ck = "%s|%s|%s" % (Path(root).as_posix(), name, ver)
-        if ck not in _CACHE:
-            p = Path(root) / ("%s.%s.md" % (name, ver))
+        base_url = (remote or "").strip()
+        if not base_url:
             try:
-                _CACHE[ck] = p.read_text(encoding="utf-8")
+                import os as _os
+                base_url = (_os.environ.get("DWC_PROMPT_URL") or "").strip()
             except Exception:
-                # 灰度候选缺失⇒回 stable（append-only，不抛错）
-                if ver != (manifest or {}).get(name, {}).get("stable"):
-                    st = (manifest or {}).get(name, {}).get("stable")
-                    try:
-                        _CACHE[ck] = (Path(root) / ("%s.%s.md" % (name, st))
-                                      ).read_text(encoding="utf-8")
-                    except Exception:
+                base_url = ""
+        ck = "%s|%s|%s|%s" % (base_url, Path(root).as_posix(), name, ver)
+        if ck not in _CACHE:
+            _CACHE[ck] = None
+            if base_url:  # ★ R308 · 远端优先（bootstrap 语义），失败落本地
+                _CACHE[ck] = fetch_remote(base_url, name, ver)
+            if _CACHE[ck] is None:
+                p = Path(root) / ("%s.%s.md" % (name, ver))
+                try:
+                    _CACHE[ck] = p.read_text(encoding="utf-8")
+                except Exception:
+                    # 灰度候选缺失⇒回 stable（append-only，不抛错）
+                    if ver != (manifest or {}).get(name, {}).get("stable"):
+                        st = (manifest or {}).get(name, {}).get("stable")
+                        try:
+                            _CACHE[ck] = (Path(root) / ("%s.%s.md" % (name, st))
+                                          ).read_text(encoding="utf-8")
+                        except Exception:
+                            _CACHE[ck] = None
+                    else:
                         _CACHE[ck] = None
-                else:
-                    _CACHE[ck] = None
         base = _CACHE.get(ck)
         if base is None:
             return None
@@ -125,10 +172,11 @@ def get_prompt(name: str, *, root=None, manifest=None, key: str = "",
 
 
 def with_fallback(name: str, inline: str, *, root=None, manifest=None,
-                  key: str = "") -> str:
+                  key: str = "", remote: str = "") -> str:
     """命中文件基线则用之，否则原样返内嵌串（老路零变）。永不抛错。"""
     try:
-        t = get_prompt(name, root=root, manifest=manifest, key=key or "")
+        t = get_prompt(name, root=root, manifest=manifest, key=key or "",
+                       remote=remote or "")
         return t if isinstance(t, str) and t else inline
     except Exception:
         return inline
@@ -152,7 +200,7 @@ def prompts_root(start_file: str):
 
 
 def ota_system(name: str, inline: str, caller_file: str,
-               key: str = "") -> str:
+               key: str = "", remote: str = "") -> str:
     """一站式：找根＋读 manifest＋with_fallback。全失败返内嵌。永不抛错。"""
     try:
         import json as _js
@@ -166,6 +214,7 @@ def ota_system(name: str, inline: str, caller_file: str,
                 mf = _js.load(_fh)
         except Exception:
             mf = {}
-        return with_fallback(name, inline, root=proot, manifest=mf, key=key)
+        return with_fallback(name, inline, root=proot, manifest=mf, key=key,
+                             remote=remote or "")
     except Exception:
         return inline
