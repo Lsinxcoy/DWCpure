@@ -1,0 +1,21 @@
+# DWC 机制目录（R303-③）：只增不改，旧条目字节一致（anchors 纪律类比）。
+- name: sec_review
+  caps: ["diff审漏洞", "六类注入/绕过只报可利用"]
+  entry: dwc.llm.sec_review:review_diff
+  enabled: true
+  since: R303
+- name: monitor_skip
+  caps: ["无变化跳过LLM", "空轮零调用"]
+  entry: dwc.llm.monitor:monitor_skip
+  enabled: true
+  since: R303
+- name: verify_final_refs
+  caps: ["final引用三验", "路径/行号/引文存在性"]
+  entry: dwc.llm.step_judge:verify_final_refs
+  enabled: true
+  since: R302
+- name: delegate
+  caps: ["真子代理", "独立上下文隔离"]
+  entry: dwc.llm.task_exec:delegate_subagent
+  enabled: true
+  since: R223
