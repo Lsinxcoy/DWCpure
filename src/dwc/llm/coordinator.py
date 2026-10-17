@@ -8,6 +8,8 @@ plan(task)：纯规则拆活，零 LLM。只支持 2 种可判定型：
 run_plan(blocks, kanban_path, emit)：串行发块（emit 为单块执行函数，
   默认 R223 delegate 由调用方注入），状态回写 kanban.jsonl
   （每块 queued→done/fail 两行，append-only）。
+
+定位声明（DWC-AUTO · 自我强化）：多块任务编排执行 ⇒ 属 DWC-AUTO。
 """
 from __future__ import annotations
 
@@ -46,18 +48,21 @@ def run_plan(blocks: List[Dict[str, Any]], kanban_path: str,
              emit: Callable[[Dict[str, Any]], Any] = None) -> List[str]:
     """串行执行，结果 ["done"/"fail"...]。emit 缺省为空跑（只记账不执行）。"""
     states: List[str] = []
+    drops = 0  # ★ G7 · kanban 写失败计数（静默丢行不许，直接记数回写）
     try:
         fh = open(kanban_path, "a", encoding="utf-8")
     except OSError:
         fh = None
     def _w(sub: str, st: str) -> None:
+        nonlocal drops
         if fh is None:
+            drops += 1
             return
         try:
             fh.write(json.dumps({"sub": sub, "status": st},
                                 ensure_ascii=False) + "\n")
         except Exception:
-            pass
+            drops += 1
     try:
         for b in blocks:
             sub = str((b or {}).get("sub", ""))
@@ -73,7 +78,10 @@ def run_plan(blocks: List[Dict[str, Any]], kanban_path: str,
     finally:
         try:
             if fh is not None:
+                if drops:
+                    fh.write(json.dumps({"event": "kanban_drop", "n": drops},
+                                        ensure_ascii=False) + "\n")
                 fh.close()
         except Exception:
-            pass
+            drops += 1  # ★ 关闭期失败计入 drops（本轮内存可见，不静默）
     return states

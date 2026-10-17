@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """DWC 机制目录（R303-③）：只读加载 config/mechanisms.yaml。
-只读校验器（capability_groups.py 纪律）：校验失败 raise，绝不静默降级。"""
+只读校验器（capability_groups.py 纪律）：校验失败 raise，绝不静默降级。
+
+定位声明（DWC-MEM · 记忆底座）：机制能力清单决定 DWC 能调什么 ⇒ 属 DWC-MEM。"""
 from __future__ import annotations
 
 import importlib

@@ -3,6 +3,8 @@
 
 同组任务共享认知：task_id 前缀归组，取同组近3任务留痕拼 ≤5 行短 hint。
 纯规则、零 LLM。IO（读 sessions 台账）由调用方做，本模块只做纯拼装。
+
+定位声明（DWC-MEM · 记忆底座）：跨任务共享认知沉淀 ⇒ 属 DWC-MEM。
 """
 from __future__ import annotations
 
