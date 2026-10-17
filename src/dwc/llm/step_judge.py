@@ -104,8 +104,8 @@ def judge_step(step: Dict[str, Any],
     if op == "final":
         return "critical", "final 不判（论文: finish 不判）", "-"
     # ★ R301-D · qa 硬约束（final 已在上分支放行；ask 归主干 critical）。
-    if qa_mode and op not in ("read", "ask"):
-        return "noisy", ("qa 问答只许 read 取证或 final（op=%s 须走执行任务）"
+    if qa_mode and op not in ("read", "ask", "web_read"):
+        return "noisy", ("qa 问答只许 read/web_read 取证或 final（op=%s 须走执行任务）"
                          % op), "R5"
     tgt = _tgt(step)
     hist = [e for e in recent_obs
@@ -175,8 +175,8 @@ def validate_step(step: Any, *, root: Optional[str] = None,
         return "修订缺 path"
     # ★ R302补 · revision 亦受 qa 硬约束（R5 只在 judge 事前判别，
     #   revision 产 run 绕过执行——T_R302W 现场 revision 建议 run 即执行）。
-    if qa_mode and op not in ("read", "ask", "final"):
-        return ("qa 问答只许 read 取证或 final（revision 产 op=%s 驳回）"
+    if qa_mode and op not in ("read", "ask", "final", "web_read"):
+        return ("qa 问答只许 read/web_read 取证或 final（revision 产 op=%s 驳回）"
                 % op)
     if op == "run" and not str(step.get("cmd", "")).strip():
         return "修订 run 空 cmd"
@@ -201,7 +201,8 @@ def validate_step(step: Any, *, root: Optional[str] = None,
 
 
 def verify_final_refs(answer: str,
-                      root: Optional[str] = None) -> Optional[str]:
+                      root: Optional[str] = None,
+                      obs_urls: tuple = ()) -> Optional[str]:
     """★ R302 · qa final 引用校验（ALCE 本地版：路径+行号+引文三验）。
 
     只验有引用的句子（纯观点放行，不强制引用）；URL 跳过；
@@ -231,6 +232,10 @@ def verify_final_refs(answer: str,
         if not os.path.exists(cand):
             return "引用路径不存在: %s" % t[:60]
         lived.append(cand)
+    # ★ R303-⑥ · 4) URL（final 含 http 串 ⇒ 须在取证 obs_urls 出现过，防编 URL）
+    for u in re.findall(r"https?://[^\s\"'”]+", str(answer or "")):
+        if u not in (obs_urls or ()):
+            return "引用URL未取证: %s" % u[:80]
     # 2) 行号（只认 第N行/line N；冒号型不验防误伤）
     for num in re.findall(r"(?:第\s*(\d+)\s*行|[Ll]ine\s*(\d+))", answer):
         n = int(num[0] or num[1])

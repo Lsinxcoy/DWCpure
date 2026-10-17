@@ -52,8 +52,15 @@ def test_path_missing_block(root):
 
 
 def test_url_skipped(root):
+    # ★ R303-⑥语义更新：URL须在取证obs出现过；取证过则过
     assert verify_final_refs(
-        "见 https://arxiv.org/abs/2606.09498 的§3.4", str(root)) is None
+        "见 https://arxiv.org/abs/2606.09498 的§3.4", str(root),
+        obs_urls=("https://arxiv.org/abs/2606.09498",)) is None
+
+
+def test_url_unfetched_blocked(root):
+    assert isinstance(verify_final_refs(
+        "见 https://arxiv.org/abs/2606.09498 的§3.4", str(root)), str)
 
 
 def test_lineno_in_range_pass(root):

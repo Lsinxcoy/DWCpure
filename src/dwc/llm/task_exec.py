@@ -884,7 +884,15 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             #   同任务≥2 次⇒放行（防 F 型死循环）。
             if qa_mode and _r302_strikes < 2:
                 from dwc.llm.step_judge import verify_final_refs
-                _ref_err = verify_final_refs(str(step.get("answer", "")))
+                # ★ R303-⑥ · 取证 URL 透传（final 编 URL 打回；无取证默认空⇒含URL即拦）
+                _obs_urls = tuple(str(e.get("target", ""))
+                                  for e in log
+                                  if isinstance(e, dict)
+                                  and e.get("phase") == "obs"
+                                  and e.get("op") == "web_read"
+                                  and e.get("ok"))
+                _ref_err = verify_final_refs(str(step.get("answer", "")),
+                                             obs_urls=_obs_urls)
                 if _ref_err is not None:
                     _r302_strikes += 1
                     _sess({"round": rnd, "phase": "refcheck", "ok": False,
@@ -931,7 +939,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _reads = sum(1 for e in log
                                  if isinstance(e, dict)
                                  and e.get("phase") == "obs"
-                                 and e.get("op") == "read")
+                                 # ★ R303-⑥ · web_read 成功与 read 同权计取证
+                                 and e.get("op") in ("read", "web_read"))
                     if qa_mode and _jrule == "R4":
                         _r4_blanks += 1
                     else:
