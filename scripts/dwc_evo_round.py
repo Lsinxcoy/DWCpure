@@ -200,6 +200,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 _ad = {"decision": "accept_error",
                        "why": "accept 抛错：%r" % (exc_a,)}
             item["adopt"] = _ad.get("decision")
+            # ★ R310-① · 门阵列透出（调用方只读，decision 口径不动）。
+            item["gates"] = _ad.get("gates", [])
             if "delta_in" in _ad:
                 item["delta_in"] = _ad["delta_in"]
             if "delta_ho" in _ad:  # ★ R291-P4 Task 2 · 真 Δ_ho 透出（门判的）

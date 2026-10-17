@@ -2332,8 +2332,18 @@ class Evolver:
         b_ho = baseline.get("held_out_score")
         c_ho = current.get("held_out_score")
 
+        # ★ R310-① · 门阵列（抄 Capy gates[]：每道子判独立条目，未及判记
+        #   pass=None；decision 口径一字不动）。
+        def _g(_name, _passed, _detail):
+            return {"name": _name, "pass": _passed, "detail": _detail}
+
         if b_in is None or c_in is None:
-            return {"decision": "not_evaluated", "why": "in-sample 未判过"}
+            return {"decision": "not_evaluated", "why": "in-sample 未判过",
+                    "gates": [
+                        _g("in_sample_scored", False, "in_score 缺基线/当前"),
+                        _g("held_out_present", None, "未及判（前门已拦）"),
+                        _g("no_regression", None, "未及判（前门已拦）"),
+                        _g("real_improvement", None, "未及判（前门已拦）")]}
         d_in = c_in - b_in
 
         if b_ho is None or c_ho is None:
@@ -2343,7 +2353,13 @@ class Evolver:
                             "（2606.14249 之戒：Telecom R7 累积 edits 单轮"
                             " −14.0%，无 held-out 评估之过）"),
                     "delta_in": d_in, "in_baseline": b_in,
-                    "in_current": c_in}
+                    "in_current": c_in,
+                    "gates": [
+                        _g("in_sample_scored", True,
+                           "Δ_in=%.3f" % (d_in,)),
+                        _g("held_out_present", False, "held_out 缺基线/当前"),
+                        _g("no_regression", None, "未及判（前门已拦）"),
+                        _g("real_improvement", None, "未及判（前门已拦）")]}
         d_ho = c_ho - b_ho
 
         # ★★ 2606.09498 §3.4 文字规则（旧注"Algorithm 1 第 13 行"系假精确，
@@ -2352,7 +2368,14 @@ class Evolver:
         if d_in < -eps or d_ho < -eps:
             return {"decision": "rejected", "delta_in": d_in,
                     "delta_ho": d_ho,
-                    "why": "任一 split 退化 ⇒ 拒（Δ_in ≥ 0 ∧ Δ_ho ≥ 0）"}
+                    "why": "任一 split 退化 ⇒ 拒（Δ_in ≥ 0 ∧ Δ_ho ≥ 0）",
+                    "gates": [
+                        _g("in_sample_scored", True,
+                           "Δ_in=%.3f" % (d_in,)),
+                        _g("held_out_present", True,
+                           "Δ_ho=%.3f" % (d_ho,)),
+                        _g("no_regression", False, "有 split 退化"),
+                        _g("real_improvement", None, "未及判（前门已拦）")]}
         # ★ R300-A · code 路知识分支（mode="code" 才进；report 路走下原条件）：
         #   trial 分是码的分（恒 1.0），规则增量用分数 Δ 量恒 0。天花板。
         #   知识落地的改进=信息增量（key 新）——论文量执行体，DWC 落知识，
@@ -2365,24 +2388,58 @@ class Evolver:
             except Exception as _ke:            # noqa: BLE001 — 键坏大声
                 return {"decision": "accept_error", "delta_in": d_in,
                         "delta_ho": d_ho,
-                        "why": "规则键构造失败：%r" % (_ke,)}
+                        "why": "规则键构造失败：%r" % (_ke,),
+                        "gates": [
+                            _g("in_sample_scored", True, ""),
+                            _g("held_out_present", True, ""),
+                            _g("no_regression", True, ""),
+                            _g("real_improvement", None,
+                               "键坏，未及判")]}
             if _key in Mutator.RULES:
                 return {"decision": "rejected", "delta_in": d_in,
                         "delta_ho": d_ho,
-                        "why": "规则重复（key 已在 RULES：%s）⇒见过不采" % (_key,)}
+                        "why": "规则重复（key 已在 RULES：%s）⇒见过不采" % (_key,),
+                        "gates": [
+                            _g("in_sample_scored", True, ""),
+                            _g("held_out_present", True, ""),
+                            _g("no_regression", True, ""),
+                            _g("real_improvement", False,
+                               "知识增量：key 已见过")]}
             return {"decision": "adopted_not_implemented",
                     "delta_in": d_in, "delta_ho": d_ho,
                     "rule_key": _key,
+                    "gates": [
+                        _g("in_sample_scored", True, ""),
+                        _g("held_out_present", True, ""),
+                        _g("no_regression", True, ""),
+                        _g("real_improvement", True,
+                           "知识增量：新 key %s" % (_key,))],
                     "★": ("知识增量（新 key）＋双 split 不退化 ⇒ 过门待落地"
                           "（R14 第五态）")}
         if max(d_in, d_ho) <= 0:
             return {"decision": "rejected", "delta_in": d_in,
                     "delta_ho": d_ho,
                     "why": ("★ 2606.09498 §3.4 第三条件: max(Δ) > 0"
-                            " —— 两组都没退化但也没改进 ⇒ 那是空过，不采纳")}
+                            " —— 两组都没退化但也没改进 ⇒ 那是空过，不采纳"),
+                    "gates": [
+                        _g("in_sample_scored", True,
+                           "Δ_in=%.3f" % (d_in,)),
+                        _g("held_out_present", True,
+                           "Δ_ho=%.3f" % (d_ho,)),
+                        _g("no_regression", True, ""),
+                        _g("real_improvement", False,
+                           "max(Δ)=%.3f≤0，空过" % (max(d_in, d_ho),))]}
         return {"decision": "adopted_not_implemented",
                 "delta_in": d_in, "delta_ho": d_ho,
                 "max_delta": max(d_in, d_ho),
+                "gates": [
+                    _g("in_sample_scored", True,
+                       "Δ_in=%.3f" % (d_in,)),
+                    _g("held_out_present", True,
+                       "Δ_ho=%.3f" % (d_ho,)),
+                    _g("no_regression", True, ""),
+                    _g("real_improvement", True,
+                       "max(Δ)=%.3f>0" % (max(d_in, d_ho),))],
                 "★": ("这是**第五态** —— 过了门但还没落地"
                       "（R14: 未采用 ≠ 通过）")}
 
