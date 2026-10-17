@@ -40,3 +40,4 @@ def advise(enabled: List[str],
                             "action": "review"})
     except Exception:  # audit: 聚合期异常返回空立案（调用方判空=无建议，不静默）
         return out
+    return out
