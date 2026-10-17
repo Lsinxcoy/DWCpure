@@ -19,7 +19,8 @@ caps:
     desc: 搜索（免 key，返回摘要，拿 URL 再抓正文）
   mcp:
     enabled: true
-    desc: 调 MCP 外部工具（server 须在 config/mcp.json 配）
+    probe_ttl_s: 300
+    desc: 调 MCP 外部工具（server 须在 config/mcp.json 配；工具表缓存 TTL）
   delegate:
     enabled: true
     timeout_s: 600

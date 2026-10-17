@@ -342,7 +342,15 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         tool = str(args.get("tool", ""))
         if not server or not tool:
             raise TaskExecError("mcp 需要 server 与 tool: %r" % (args,))
-        return M.tools_call(server, tool, args.get("args") or {})
+        # ★ R309-② · 发现缓存 TTL（yaml 可调；probe() 供健康检查单用，
+        #   每次调用不双倍 RPC）。
+        try:
+            from dwc.caps.registry import cap_limit as _cap_lim2
+            _mttl = _cap_lim2("mcp", "probe_ttl_s", 300)
+        except Exception:
+            _mttl = 300
+        return M.tools_call(server, tool, args.get("args") or {},
+                            ttl_s=_mttl)
     if op == "run":
         cmd = args.get("cmd")
         if not isinstance(cmd, list) or not cmd:

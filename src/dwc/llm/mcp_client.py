@@ -173,12 +173,22 @@ def initialize(name: str) -> dict:
     return r or {}
 
 
-def tools_list(name: str) -> List[Dict[str, Any]]:
-    """工具清单（缓存于池 entry; 供 system prompt 注入摘要）。"""
+def tools_list(name: str, ttl_s: float = 300) -> List[Dict[str, Any]]:
+    """工具清单（缓存于池 entry; 供 system prompt 注入摘要）。
+
+    ★ R309-② · 缓存 TTL：过期重探（防 stale 工具表永不过期）。
+    """
+    import time as _t
     with _POOL_LOCK:
         entry = _POOL.get(name)
     if entry and entry.get("tools") is not None:
-        return entry["tools"]
+        _ts = entry.get("tools_ts") or 0
+        try:
+            _fresh = (_t.time() - float(_ts)) < float(ttl_s)
+        except (TypeError, ValueError):
+            _fresh = False
+        if _fresh:
+            return entry["tools"]
     initialize(name)
     r = _rpc(name, "tools/list", {})
     tools = list((r or {}).get("tools", []))
@@ -186,13 +196,24 @@ def tools_list(name: str) -> List[Dict[str, Any]]:
         e2 = _POOL.get(name)
         if e2:
             e2["tools"] = tools
+            e2["tools_ts"] = _t.time()
     return tools
 
 
+def probe(name: str, timeout: float = 5) -> bool:
+    """★ R309-② · 轻量探活：通⇒True，不通⇒False。永不抛错。"""
+    try:
+        tools_list(name, ttl_s=0)
+        return True
+    except Exception as exc:
+        _hush("probe", exc)
+        return False
+
+
 def tools_call(name: str, tool: str, arguments: Optional[dict] = None,
-               timeout: float = 60.0) -> Dict[str, Any]:
+               timeout: float = 60.0, ttl_s: float = 300) -> Dict[str, Any]:
     """★ task_exec 'mcp' 动作的落点: 调用工具 → 原样观察。"""
-    tools_list(name)                        # 未握手先握手（幂等）
+    tools_list(name, ttl_s=ttl_s)          # 未握手先握手（幂等；TTL 过期重探）
     r = _rpc(name, "tools/call",
              {"name": tool, "arguments": arguments or {}}, timeout=timeout)
     out: Dict[str, Any] = {"ok": True, "server": name, "tool": tool}
