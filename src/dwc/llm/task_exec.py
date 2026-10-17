@@ -187,9 +187,10 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
     try:  # ★ R308-② · 能力开关（关⇒拒收留痕，不静默；默认全开零行为变）
         from dwc.caps.registry import is_enabled as _cap_on
+        from dwc.llm.errors import err as _err
         if not _cap_on(op):
-            return {"ok": False,
-                    "error": "能力 %s 已关闭（config/capabilities.yaml）" % op}
+            return _err("CAP_DISABLED",
+                        "能力 %s 已关闭（config/capabilities.yaml）" % op)
     except Exception:
         # 注册表本身炸⇒fail-open（不能因治理层故障砖掉执行层；G7 非静默：
         # 命名变量＋注释，拒绝原因与此处无关——拒收只走上面的 return）
@@ -866,10 +867,11 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         if op == "delegate":
             try:  # ★ R308-② · delegate 也受能力开关管（拒收留痕进下一轮）
                 from dwc.caps.registry import is_enabled as _cap_on
+                from dwc.llm.errors import err as _err2
                 if not _cap_on("delegate"):
-                    obs = {"ok": False,
-                           "error": "能力 delegate 已关闭"
-                                    "（config/capabilities.yaml）"}
+                    obs = _err2("CAP_DISABLED",
+                                "能力 delegate 已关闭"
+                                "（config/capabilities.yaml）")
                     prompt = ("任务: %s\n子代理返回(JSON): %s\n请继续（下一步 op）"
                               % (task, json.dumps(obs, ensure_ascii=False)[:2500]))
                     log.append({"round": rnd, "op": "delegate",
@@ -938,6 +940,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     if _tout:
                         obs = {"ok": False, "subagent": True,
                                "parallel": True,
+                               "code": "DELEGATE_TIMEOUT",
                                "error": "delegate 并行批超时（>%ss）已弃未完" % _dt,
                                "done_n": len(results),
                                "subs": obs["subs"]}
@@ -955,7 +958,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                             #   别的错照旧上抛（老行为不变）。
                             sub = _fut1.result(timeout=_dt)
                     except TimeoutError:
+                        # ★ R310-④ · 超时 obs 带码（聚合可查）。
                         sub = {"status": "timeout", "rounds": 0, "answer": "",
+                               "code": "DELEGATE_TIMEOUT",
                                "why": "delegate 超时（>%ss）已弃" % _dt}
                     obs = {"ok": True, "subagent": True,
                            "sub_status": sub.get("status"),
@@ -964,6 +969,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                            "sub_why": sub.get("why", "")}
                     if sub.get("status") == "timeout":
                         obs["ok"] = False
+                        obs["code"] = sub.get("code", "DELEGATE_TIMEOUT")
                         obs["error"] = sub.get("why", "")
             log.append({"round": rnd, "op": "delegate",
                         "analysis": str(step.get("analysis", ""))[:200]})
