@@ -60,8 +60,12 @@ def collect_unmapped(db_path, evolver, fn_of, task_of):
 
 
 def _read_done(path, date):
-    """★ R309-⑦ · 读 epoch ledger 当日已做 key。坏行跳过，缺文件=空集。"""
-    done = set()
+    """★ R309-⑦ · 读 epoch ledger 当日记录 {key: rec}。坏行跳过，缺文件=空。
+
+    ★ R310-② · ok 显式 False 的簇=失败过，下轮带 fix 重跑（不跳过）；
+      ok 缺省=老 ledger 行，视作已做（向后兼容）。
+    """
+    done = {}
     if not path:
         return done
     try:
@@ -75,7 +79,7 @@ def _read_done(path, date):
         except Exception:
             continue
         if isinstance(_d, dict) and _d.get("date") == date and _d.get("key"):
-            done.add(_d["key"])
+            done[_d["key"]] = _d
     return done
 
 
@@ -158,12 +162,17 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
     _date = ledger_date or time.strftime("%Y-%m-%d")
     _done = (_read_done(ledger_path, _date)
-             if (ledger_path and resume) else set())
+             if (ledger_path and resume) else {})
     for cl in clusters[:max(1, max_clusters)]:
         item = {"key": cl["key"], "n": len(cl["sigs"]),
                 "drafted": False, "trial": None,
                 "landed": False, "backup": None}
-        if cl["key"] in _done:
+        _rec = _done.get(cl["key"])
+        # ★ R310-② · ok=False 的簇=上轮失败，带 fix 重跑（只跳真做过的）。
+        _fix = ""
+        if _rec is not None and _rec.get("ok", True) is not True:
+            _fix = str(_rec.get("note", "") or _rec.get("reason", ""))[:300]
+        elif _rec is not None:
             item["reason"] = "ledger 已做（resume 跳过）"
             results.append(item)
             continue
@@ -216,6 +225,11 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                                      if _hint else _ph_seg)
                     except Exception:           # noqa: BLE001 — 坏则无段
                         pass
+                # ★ R310-② · fix 注入（首轮）：上轮失败原因进 hint（Capy
+                #   --fix 语义；失败变燃料）。
+                if _fix and _att == 1:
+                    _hint = ((_hint + "\n" if _hint else "") +
+                             "上轮失败（fix）：%s" % (_fix,))
                 p = mu.propose_from_cluster(cl["sigs"], context,
                                             want_code=want_code_of(_task),
                                             learned_hint=_hint)
@@ -292,7 +306,9 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         results.append(item)
         # ★ R309-⑦ · 簇终即记（append-only；落的是试跑记录≠代码落地，
         #   不撞 R279 只报告不落盘）。
-        if ledger_path and cl["key"] not in _done:
+        # ★ R310-② · 重跑簇（_fix 非空）也记新行（ledger 按行追加，后行、
+        #   同 key ok=True 即视为已做——读时后写覆盖先写靠 dict 赋值序）。
+        if ledger_path and (cl["key"] not in _done or _fix):
             _t = item.get("trial")
             _ok = (_t.get("success") if isinstance(_t, dict) else _t)
             _append_ledger(ledger_path, {
@@ -300,6 +316,10 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 "proposal_id": item.get("proposal_id"),
                 "ok": _ok, "landed": item.get("landed", False),
                 "attempts": item.get("attempts", 1),
+                # ★ R310-② · note 供下轮 fix（dict trial 取 reason）。
+                "note": (str(_t.get("reason", ""))[:200]
+                         if isinstance(_t, dict) else ""),
+                "reason": str(item.get("reason", ""))[:200],
                 "ts": time.time()})
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。

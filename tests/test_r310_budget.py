@@ -91,3 +91,72 @@ def test_default_budget_is_three(tmp_path):
     import inspect as _ins
     assert _ins.signature(EVO.run_round).parameters[
         "max_attempts"].default == 3
+
+
+class _MuHint:
+    def __init__(self):
+        self.hints = []
+
+    def propose_from_cluster(self, sigs, context, want_code=False,
+                             learned_hint=""):
+        self.hints.append(learned_hint)
+        return types.SimpleNamespace(proposal_id="P1", patch="patch",
+                                     code=None, state=None)
+
+
+def test_fix_rerun_failed_cluster(tmp_path):
+    EVO = _load_evo_round()
+    db = str(tmp_path / "t.sqlite")
+    _mkdb(db)
+    ledger = tmp_path / "ledger.jsonl"
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    k = "K_FIX"
+    ledger.write_text(json.dumps({"date": today, "key": k, "ok": False,
+                                  "note": "沙箱拒：禁 import"}) + "\n",
+                      encoding="utf-8")
+    sigs = [{"c": "C1", "q": "Q1", "m": "M1", "fn": "average",
+             "task": "code_fix_007", "node_id": "n1"}]
+    # key_for 不可控，改用 ledger key 匹配：直接测 _read_done 语义＋hint 注入
+    mu = _MuHint()
+    calls = []
+
+    def _trial(task, patch, code=None):
+        calls.append(task)
+        return True
+
+    # 用 monkeypatch key：把 sigs 的 key 算出来再写 ledger
+    from dwc.organs.evolver import Mutator
+    real_k = Mutator.key_for({"c": "C1", "q": "Q1", "fn": "average"})
+    ledger.write_text(json.dumps({"date": today, "key": real_k, "ok": False,
+                                  "note": "沙箱拒：禁 import"}) + "\n",
+                      encoding="utf-8")
+    rep = EVO.run_round(db, _Evolver(sigs), mu, "ctx", _trial, False,
+                        rules_path="", ledger_path=str(ledger),
+                        ledger_date=today)
+    assert len(calls) == 1, calls
+    assert any("沙箱拒" in h for h in mu.hints), mu.hints
+
+
+def test_ok_true_still_skips(tmp_path):
+    EVO = _load_evo_round()
+    db = str(tmp_path / "t.sqlite")
+    _mkdb(db)
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    from dwc.organs.evolver import Mutator
+    real_k = Mutator.key_for({"c": "C1", "q": "Q1", "fn": "average"})
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps({"date": today, "key": real_k,
+                                  "ok": True}) + "\n", encoding="utf-8")
+    sigs = [{"c": "C1", "q": "Q1", "m": "M1", "fn": "average",
+             "task": "code_fix_007", "node_id": "n1"}]
+    calls = []
+
+    def _trial(task, patch, code=None):
+        calls.append(task)
+        return True
+
+    EVO.run_round(db, _Evolver(sigs), _Mu(), "ctx", _trial, False,
+                  rules_path="", ledger_path=str(ledger), ledger_date=today)
+    assert calls == []
