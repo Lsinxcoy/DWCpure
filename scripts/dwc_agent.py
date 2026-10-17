@@ -466,6 +466,54 @@ def _maybe_skip(prev_ok, item, skips):
         return None
 
 
+def _md5_file(p):
+    import hashlib as _hl
+    with open(p, "rb") as _fh:
+        return _hl.md5(_fh.read()).hexdigest()
+
+
+def startup_selfcheck(pairs=None):
+    """★ R309-③ · 双副本自检：pairs=[(源, 副本)] md5 比对。
+
+    异/缺只返告警串（""=全同），永不抛错、永不拦执行（R304 纪律）。
+    pairs=None 时用内置白名单（E: 仓库 ↔ 生产 .dwc）。
+    """
+    try:
+        if pairs is None:
+            try:
+                _here = os.path.dirname(os.path.abspath(__file__))
+                _repo = os.path.dirname(_here)
+                _dwc = os.path.join(os.path.expanduser("~"), ".dwc")
+                pairs = [
+                    (os.path.join(_repo, "scripts", "dwc_agent.py"),
+                     os.path.join(_dwc, "scripts", "dwc_agent.py")),
+                    (os.path.join(_repo, "scripts", "dwc_evo_round.py"),
+                     os.path.join(_dwc, "scripts", "dwc_evo_round.py")),
+                    (os.path.join(_repo, "scripts",
+                                  "dwc_evo_round_cron.py"),
+                     os.path.join(_dwc, "scripts",
+                                  "dwc_evo_round_cron.py")),
+                    (os.path.join(_repo, "config", "capabilities.yaml"),
+                     os.path.join(_dwc, "config", "capabilities.yaml")),
+                ]
+            except Exception as _pe:
+                return "自检配对失败：%r" % (_pe,)
+        warns = []
+        for _s, _d in pairs or []:
+            try:
+                if not os.path.isfile(_s):
+                    warns.append("缺源 %s" % _s)
+                elif not os.path.isfile(_d):
+                    warns.append("缺副本 %s" % _d)
+                elif _md5_file(_s) != _md5_file(_d):
+                    warns.append("异 %s（源与副本不一致，先同步再跑）" % _d)
+            except Exception as _ce:
+                warns.append("查失败 %s：%r" % (_d, _ce))
+        return "; ".join(warns)
+    except Exception as _oe:
+        return "自检异常：%r" % (_oe,)
+
+
 def main(argv) -> int:
     # ── 控制子命令（人工门）──
     if "--freeze" in argv:
@@ -509,6 +557,11 @@ def main(argv) -> int:
         if "--budget-day" in argv else 40.0
     use_llm = "--llm" in argv
     os.makedirs(VAR, exist_ok=True)
+    # ★ R309-③ · 启动自检（只告警不拦；--no-selfcheck 可关）。
+    if "--no-selfcheck" not in argv:
+        _warn = startup_selfcheck()
+        if _warn:
+            print("自检告警：%s" % _warn, flush=True)
     # ── ★ R210 · 单例锁（R297 原子化：O_EXCL 抢建＋stale 接管；
     #    先查后写竞态可双过，2026-10-16 实测 8 同名进程）──
     try:
