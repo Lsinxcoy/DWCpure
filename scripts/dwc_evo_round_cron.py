@@ -40,6 +40,10 @@ def _code_root() -> str:
 
 
 def main() -> int:
+    import argparse as _ap
+    _p = _ap.ArgumentParser()
+    _p.add_argument("--no-resume", action="store_true")
+    _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
     import dwc_evo_round as EVO
@@ -70,7 +74,10 @@ def main() -> int:
         max_clusters=3,
         want_code_of=lambda t: (
             judge.anchors.get(t, {}) or {}).get(
-            "category", "") == "code_repair")
+            "category", "") == "code_repair",
+        # ★ R309-⑦ · epoch ledger（默认开；--no-resume 关）。
+        ledger_path=os.path.join(prod, "var", "evo_round_ledger.jsonl"),
+        resume=not _a.no_resume)
     try:  # ★ R280 · Brier 每日可观测（坏了留痕不掀报告）
         _op = OutcomePredictor(log_path=os.path.join(
             prod, "var", "dwc_predictor.jsonl"))

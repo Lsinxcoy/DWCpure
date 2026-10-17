@@ -59,9 +59,41 @@ def collect_unmapped(db_path, evolver, fn_of, task_of):
     return [{"key": k, "sigs": v} for k, v in groups.items()]
 
 
+def _read_done(path, date):
+    """★ R309-⑦ · 读 epoch ledger 当日已做 key。坏行跳过，缺文件=空集。"""
+    done = set()
+    if not path:
+        return done
+    try:
+        with open(path, encoding="utf-8") as _fh:
+            _lines = _fh.read().splitlines()
+    except OSError:
+        _lines = []
+    for _ln in _lines:
+        try:
+            _d = json.loads(_ln)
+        except Exception:
+            continue
+        if isinstance(_d, dict) and _d.get("date") == date and _d.get("key"):
+            done.add(_d["key"])
+    return done
+
+
+def _append_ledger(path, rec):
+    """★ R309-⑦ · 单簇完成即 append（一行一簇，crash 不丢已做）。"""
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as _fh:
+            _fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except OSError as _le:
+        _ledger_err = _le
+
+
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
-              want_code_of=None, mech_log=None, trace_log=None):
+              want_code_of=None, mech_log=None, trace_log=None,
+              ledger_path=None, resume=True, ledger_date=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -72,10 +104,18 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     want_code_of = want_code_of or (lambda t: False)
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of)
     results = []
+    # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
+    _date = ledger_date or time.strftime("%Y-%m-%d")
+    _done = (_read_done(ledger_path, _date)
+             if (ledger_path and resume) else set())
     for cl in clusters[:max(1, max_clusters)]:
         item = {"key": cl["key"], "n": len(cl["sigs"]),
                 "drafted": False, "trial": None,
                 "landed": False, "backup": None}
+        if cl["key"] in _done:
+            item["reason"] = "ledger 已做（resume 跳过）"
+            results.append(item)
+            continue
         try:
             _task = cl["sigs"][0].get("task", "")
             # ★ R300-A · hint 组装（同簇查 RULES，有则禁重复段；try 包，
@@ -179,6 +219,16 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                                   "未通过 ⇒ 不落地（legacy 直落 R291 已删）"
                                   % (_ad.get("decision"),))
         results.append(item)
+        # ★ R309-⑦ · 簇终即记（append-only；落的是试跑记录≠代码落地，
+        #   不撞 R279 只报告不落盘）。
+        if ledger_path and cl["key"] not in _done:
+            _t = item.get("trial")
+            _ok = (_t.get("success") if isinstance(_t, dict) else _t)
+            _append_ledger(ledger_path, {
+                "date": _date, "key": cl["key"], "n": len(cl["sigs"]),
+                "proposal_id": item.get("proposal_id"),
+                "ok": _ok, "landed": item.get("landed", False),
+                "ts": time.time()})
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
     # ★ R294 · 三项全摘（R290-P0 world.select IG 排序／R291-P4 metric.select→
