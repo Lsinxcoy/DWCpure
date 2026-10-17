@@ -472,10 +472,16 @@ class CandidateGenerator:
             % self.LLM_MAX_CANDIDATES,
         ])
         try:
+            _sys_strict = ("你只输出 JSON。不许解释。"
+                           "patch 必须是可直接插入的函数体。")
+            try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
+                from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                _sys_strict = _ota("sys_json_strict", _sys_strict, __file__)
+            except Exception:
+                _ota_miss()
             res = self.llm.complete(
                 prompt,
-                system="你只输出 JSON。不许解释。"
-                       "patch 必须是可直接插入的函数体。",
+                system=_sys_strict,
                 json_mode=True)
         except Exception as e:
             # ★★★ R34 纪律②: **不抛不吞**

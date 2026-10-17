@@ -531,9 +531,15 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                                               replay_summary=summary,
                                               material_kind=kind,
                                               feedback=feedback)
+                        _sys_code = "只输出可运行的修复代码或直接答案。"
+                        try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
+                            from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                            _sys_code = _ota("sys_code", _sys_code, __file__)
+                        except Exception:
+                            _ota_miss()
                         res = llm.complete(
                             prompt,
-                            system="只输出可运行的修复代码或直接答案。")
+                            system=_sys_code)
                         if not res.ok:
                             rec["error"] = "llm: %s" % (res.error or res.source)
                             records.append(rec)

@@ -763,6 +763,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "（['python', '-c', ...]）; 命令输出按 utf-8 解码。"
         " ★ 复读熔断: 连续做同一个动作读到同样结果说明此路不通 — "
         "换 offset/换路径/换参数, 或基于已有信息尽快 final, 不要原地重复。")
+    # ★ R306 · prompt OTA（文件基线命中则覆盖；缺失⇒内嵌老路一字不差）。
+    try:
+        from dwc.llm.prompt_ota import ota_system as _ota
+        system = _ota("task_exec", system, __file__, key=str(sid or task))
+    except Exception as _ota_e:     # 留痕不炸单（G7）
+        _sess({"phase": "ota_miss", "why": str(_ota_e)[:80]})
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     # ★ R301-C · qa 分流（纯问句⇒直答通道；规则 fail-closed，边界走执行路）。

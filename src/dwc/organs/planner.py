@@ -226,8 +226,14 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
       容易断串 — 实测踩过; join 形态无转义层）。
     """
     q = task_view.get("quantity")
+    _planner_head = "你是 DWC 的契约合成器（planner）。为下面的任务面现场合成一份判定契约。"
+    try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
+        from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+        _planner_head = _ota("planner_head", _planner_head, __file__)
+    except Exception:
+        _ota_miss()
     lines: List[str] = [
-        "你是 DWC 的契约合成器（planner）。为下面的任务面现场合成一份判定契约。",
+        _planner_head,
     ]
     if q:
         # ★★ R178 实测纠偏: 不带靶 ⇒ LLM 曾把 diff_head 当 enum_member

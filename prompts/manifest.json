@@ -1,0 +1,32 @@
+{
+  "task_exec": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "planner_head": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "sys_json": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "sys_json_strict": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "sys_action": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  },
+  "sys_code": {
+    "stable": "v1",
+    "candidate": null,
+    "pct": 0
+  }
+}

@@ -454,10 +454,16 @@ class DWC:
         chain = "CH_step_" + uuid.uuid4().hex[:8]
         if self.llm is not None and getattr(self.llm, "configured", False):
             try:
+                _sys_action = "只输出一个动作名, 不解释。"
+                try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
+                    from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                    _sys_action = _ota("sys_action", _sys_action, __file__)
+                except Exception:
+                    _ota_miss()
                 raw = self.llm.complete(
                     "从动作集 %s 里为本任务选一个动作, 只回动作名。任务: %s"
                     % (list(ACTIONS), str(task.get("kind", task))[:120]),
-                    system="只输出一个动作名, 不解释。")
+                    system=_sys_action)
                 choice = (raw or "").strip().split("\n")[0].strip().strip("` ")
                 if choice in ACTIONS:
                     layers.append({"layer": "llm", "available": True,

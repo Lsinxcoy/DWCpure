@@ -171,7 +171,13 @@ class LLMExecutorFactory:
             mtxt = memory_text(memory) if memory is not None else ""
             prompt = build_observed_prompt(tid, skel, mtxt)
             try:
-                res = self.llm.complete(prompt, system="只输出 JSON, 不解释。")
+                _sys_json = "只输出 JSON, 不解释。"
+                try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
+                    from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                    _sys_json = _ota("sys_json", _sys_json, __file__)
+                except Exception:
+                    _ota_miss()
+                res = self.llm.complete(prompt, system=_sys_json)
             except Exception as exc:            # 端点炸 ⇒ 未评价, 不当 False
                 self.stats["n_errors"] += 1
                 return Receipt(ok=True, verified=True, detail={
