@@ -93,11 +93,13 @@ def _append_ledger(path, rec):
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
               want_code_of=None, mech_log=None, trace_log=None,
-              ledger_path=None, resume=True, ledger_date=None):
+              ledger_path=None, resume=True, ledger_date=None,
+              max_attempts=3):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
       None=不求码，老路零变）。trial_fn 三参契约 (task, patch, code=None)。
+    ★ R310-⑤ · max_attempts（默认 3）：单簇 trial 非 True 重试预算。
     """
     fn_of = fn_of or (lambda r: "")
     task_of = task_of or (lambda r: "")
@@ -116,62 +118,80 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             item["reason"] = "ledger 已做（resume 跳过）"
             results.append(item)
             continue
-        try:
-            _task = cl["sigs"][0].get("task", "")
-            # ★ R300-A · hint 组装（同簇查 RULES，有则禁重复段；try 包，
-            #   坏不断起草——hint 是增强非门槛）。
-            _hint = ""
+        # ★ R310-⑤ · 重试预算：propose＋trial 包进 attempt 循环（起草抛错/
+        #   None 不占预算直接停——瞬时抖下轮 cron 重来，不在本轮烧 LLM）。
+        _att = 0
+        _fatal = False
+        _ok = None
+        t = None
+        p = None
+        while True:
+            _att += 1
             try:
-                from dwc.organs.evolver import Mutator as _MM
-                _s0 = dict(cl["sigs"][0])
-                _k = _MM.key_for({"c": _s0.get("c"), "q": _s0.get("q"),
-                                  "fn": _s0.get("fn")})
-                _old = _MM.RULES.get(_k)
-                if isinstance(_old, dict):
-                    _hint = "%s：%s" % (_old.get("m", ""),
-                                       _old.get("patch", ""))
-            except Exception:                   # noqa: BLE001 — 坏则无段
+                _task = cl["sigs"][0].get("task", "")
+                # ★ R300-A · hint 组装（同簇查 RULES，有则禁重复段；try 包，
+                #   坏不断起草——hint 是增强非门槛）。
                 _hint = ""
-            # ★ R305-T3 · project_hint 接线（trace_log 传了⇒同组前情追加；
-            #   不传老路零变。坏不拦，hint 是增强非门槛）。
-            if trace_log:
                 try:
-                    from dwc.llm.project_hint import proj_id as _pid
-                    from dwc.llm.project_hint import project_hint as _ph
-                    _gt: dict = {}
-                    with open(trace_log, encoding="utf-8") as _fh:
-                        for _ln in _fh.read().splitlines():
-                            try:
-                                import json as _js
-                                _d = _js.loads(_ln)
-                            except Exception:
-                                continue
-                            if isinstance(_d, dict) and _d.get("task"):
-                                _gt.setdefault(
-                                    _pid(str(_d["task"])), []).append(
-                                        _ln[:200])
-                    _ph_seg = _ph(_task, _gt)
-                    if _ph_seg:
-                        _hint = (_hint + "\n" + _ph_seg) if _hint else _ph_seg
+                    from dwc.organs.evolver import Mutator as _MM
+                    _s0 = dict(cl["sigs"][0])
+                    _k = _MM.key_for({"c": _s0.get("c"), "q": _s0.get("q"),
+                                      "fn": _s0.get("fn")})
+                    _old = _MM.RULES.get(_k)
+                    if isinstance(_old, dict):
+                        _hint = "%s：%s" % (_old.get("m", ""),
+                                           _old.get("patch", ""))
                 except Exception:               # noqa: BLE001 — 坏则无段
-                    pass
-            p = mu.propose_from_cluster(cl["sigs"], context,
-                                        want_code=want_code_of(_task),
-                                        learned_hint=_hint)
-        except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
-            item["reason"] = "起草抛错：%r" % (exc,)
+                    _hint = ""
+                # ★ R305-T3 · project_hint 接线（trace_log 传了⇒同组前情追加；
+                #   不传老路零变。坏不拦，hint 是增强非门槛）。
+                if trace_log:
+                    try:
+                        from dwc.llm.project_hint import proj_id as _pid
+                        from dwc.llm.project_hint import project_hint as _ph
+                        _gt: dict = {}
+                        with open(trace_log, encoding="utf-8") as _fh:
+                            for _ln in _fh.read().splitlines():
+                                try:
+                                    import json as _js
+                                    _d = _js.loads(_ln)
+                                except Exception:
+                                    continue
+                                if isinstance(_d, dict) and _d.get("task"):
+                                    _gt.setdefault(
+                                        _pid(str(_d["task"])), []).append(
+                                            _ln[:200])
+                        _ph_seg = _ph(_task, _gt)
+                        if _ph_seg:
+                            _hint = ((_hint + "\n" + _ph_seg)
+                                     if _hint else _ph_seg)
+                    except Exception:           # noqa: BLE001 — 坏则无段
+                        pass
+                p = mu.propose_from_cluster(cl["sigs"], context,
+                                            want_code=want_code_of(_task),
+                                            learned_hint=_hint)
+            except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
+                item["reason"] = "起草抛错：%r" % (exc,)
+                _fatal = True
+                break
+            if p is None:
+                item["reason"] = mu.last_reason
+                _fatal = True
+                break
+            item["drafted"] = True
+            item["proposal_id"] = p.proposal_id
+            t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
+            item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
+            # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
+            _ok = (t.get("success") if isinstance(t, dict) else t)
+            if _ok is True or _att >= max(1, max_attempts):
+                break
+        item["attempts"] = _att
+        if _fatal:
             results.append(item)
             continue
-        if p is None:
-            item["reason"] = mu.last_reason
-            results.append(item)
-            continue
-        item["drafted"] = True
-        item["proposal_id"] = p.proposal_id
-        t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
-        item["trial"] = t                      # ★ 原样存（bool/dict 照旧）
-        # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
-        _ok = (t.get("success") if isinstance(t, dict) else t)
+        if _att > 1 and _ok is not True:
+            item["reason"] = "重试预算耗尽（%d 次 trial 未过）" % (_att,)
         # ★ R290-P1 · adopt 门真输入：dict trial 带 baseline_in/in_score ⇒
         #   传真 baseline/current（held_out 仍缺 ⇒ 仍 blocked，但带真 Δ_in）；
         #   bool/None trial ⇒ 占位 {} ⇒ accept 照旧 not_evaluated。
@@ -230,6 +250,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 "date": _date, "key": cl["key"], "n": len(cl["sigs"]),
                 "proposal_id": item.get("proposal_id"),
                 "ok": _ok, "landed": item.get("landed", False),
+                "attempts": item.get("attempts", 1),
                 "ts": time.time()})
     # ★ R285-P2 · 未接线清单（QUALITY_GATE Γ："本应调用但未调用"负事件）。
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
