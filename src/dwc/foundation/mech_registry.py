@@ -26,6 +26,14 @@ def load(root: Optional[str] = None) -> Dict[str, dict]:
     for it in items:
         if not isinstance(it, dict) or not it.get("name") or not it.get("entry"):
             raise ValueError("机制条目缺 name/entry: %r" % (it,))
+        # ★ 审计红修复 · entry 存在性校验（import+getattr，缺函数 raise ——
+        #   声称即验证：目录登记=可调用，虚条目在此拦，不流到 call 才炸）
+        _mod, _, _fn = str(it["entry"]).partition(":")
+        try:
+            _m = importlib.import_module(_mod)
+            getattr(_m, _fn)
+        except Exception as _e:
+            raise ValueError("机制 entry 不可调用 %r: %r" % (it["entry"], _e))
         reg[it["name"]] = it
     return reg
 

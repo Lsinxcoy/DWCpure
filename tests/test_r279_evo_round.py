@@ -64,6 +64,28 @@ class TestCollect:
                                  fn_of=lambda r: "x", task_of=lambda r: "y")
 
 
+class TestMechAdvise:
+    def test_mech_advise_wired(self, tmp_path, monkeypatch):
+        # ★ 审计黄① · mech_log 传了⇒轮尾 advise，低分立案进 report；
+        #   不传⇒老路零变（mech_advise=[]）。
+        import dwc_evo_round as _E
+        log = tmp_path / "mech.jsonl"
+        with open(str(log), "w", encoding="utf-8") as fh:
+            for _ in range(10):
+                fh.write('{"mech": "monitor_skip", "event": "skip",'
+                         ' "ok": false}\n')
+        monkeypatch.setattr(_E, "collect_unmapped", lambda *a, **k: [])
+        rep = _E.run_round("x", Evolver(), None, context="",
+                           trial_fn=lambda t, p, code=None: True,
+                           apply=False, rules_path="y",
+                           mech_log=str(log))
+        assert any(a["mech"] == "monitor_skip" for a in rep["mech_advise"])
+        rep0 = _E.run_round("x", Evolver(), None, context="",
+                            trial_fn=lambda t, p, code=None: True,
+                            apply=False, rules_path="y")
+        assert rep0["mech_advise"] == []
+
+
 class TestRound:
     def test_draft_and_trial_pass(self, tmp_path):
         db = _tmpdb(str(tmp_path / "p.sqlite"))

@@ -61,7 +61,7 @@ def collect_unmapped(db_path, evolver, fn_of, task_of):
 
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
-              want_code_of=None):
+              want_code_of=None, mech_log=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -160,8 +160,21 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     #   门：Loop.round 生产调用之日即摘牌之时，在此之前任何接线 PR 一律拒。
     # ★ R294 · 三项全摘（R290-P0 world.select IG 排序／R291-P4 metric.select→
     #   adopt 真 held_out／R290-P2 direction 起草环）⇒ 清单清零（全接线）。
+    # ★ 审计黄① · 机制健康门（只读+建议：读目录 enabled＋mech 留痕→advise，
+    #   立案进 report；绝不改配置。mech_log=None 老路零变）。
+    _mech_advise = []
+    if mech_log:
+        try:
+            from dwc.foundation.mech_registry import load as _mload
+            from dwc.foundation.mech_health import advise as _madv
+            from dwc.llm.mech_trace import read_mech_events as _mread
+            _reg = _mload()
+            _en = [n for n, e in _reg.items() if e.get("enabled")]
+            _mech_advise = _madv(_en, _mread(mech_log))
+        except Exception:                   # noqa: BLE001 — 坏不断轮
+            _mech_advise = []
     return {"n_clusters": len(clusters), "results": results,
-            "not_wired": []}
+            "not_wired": [], "mech_advise": _mech_advise}
 
 
 # ★ R291-P4 Task 3 · _land（legacy 直落落盘）已删 —— 唯一调用点已删，

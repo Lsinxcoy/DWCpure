@@ -30,3 +30,18 @@ def test_call_unknown_raises():
     reg = M.load()
     with _p.raises(KeyError):
         M.call(reg, "no_such_mech")
+
+
+def test_load_rejects_dead_entry(tmp_path, monkeypatch):
+    import yaml
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "mechanisms.yaml").write_text(
+        yaml.safe_dump(
+            [{"name": "ghost", "entry": "dwc.llm.task_exec:no_such_fn_xyz",
+              "enabled": True}]),
+        encoding="utf-8")
+    import dwc.foundation.mech_registry as _M
+    monkeypatch.setattr(_M, "find_root", lambda: str(tmp_path))
+    import pytest as _p
+    with _p.raises(ValueError):
+        _M.load()

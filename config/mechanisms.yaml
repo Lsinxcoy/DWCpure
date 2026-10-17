@@ -16,6 +16,7 @@
   since: R302
 - name: delegate
   caps: ["真子代理", "独立上下文隔离"]
-  entry: dwc.llm.task_exec:delegate_subagent
+  entry: dwc.llm.task_exec:execute_user_task
+  note: op分支无独立函数，经execute_user_task(op=delegate)分发（R223/R227）
   enabled: true
   since: R223
