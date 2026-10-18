@@ -1,0 +1,75 @@
+{
+ "round": "R313",
+ "date": "2026-10-18",
+ "主题": "A2门参数显式化",
+ "verify": {
+  "pytest": "2101绿+1噪声(单跑5绿证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "T恒错值报3红再恢复绿"
+ },
+ "inheritance": {
+  "gen": 313,
+  "at": "2026-10-18T18:40:00+08:00",
+  "parent_gen": 312,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 397,
+   "pytest": 2100,
+   "truth_sha8": "eb9ad7b8",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A2门参数显式化: accept加lam/delta/gamma可选参数+Cor1对应docstring+8出口T条件透出, 判分零改",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "tests/test_a2_params.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a2_params.py 3/3",
+     "claim": "T默认值+显式透出+判分一致+出口齐"
+    },
+    {
+     "type": "test",
+     "ref": "全量2101绿+1真端点噪声(单跑5绿)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A2轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "eb9ad7b8",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2101+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2101绿(1噪声单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "lam/gamma启用需另轮改判据+对照实验; T条件可供Thm5熔断消费"
+  }
+ }
+}

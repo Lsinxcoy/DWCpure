@@ -20,8 +20,8 @@
 
 | 项 | 依赖 | 状态 |
 |---|---|---|
-| D1 execution variation（spread 常驻 report） | 无 | todo（先做，A3 依赖它） |
-| A3 小 Δ 熔断（Δ＜spread 不验） | D1 | todo |
+| D1 execution variation（spread 常驻 report） | 无 | done（R311：--repeat N＋spread，3测绿/2096回归绿） |
+| A3 小 Δ 熔断（Δ＜spread 直接不验） | D1 | done（R312：_evo_spread＋双路熔断，4测绿/2100回归绿） |
 | A2 门参数 (λ,δ,γ) 显式化（注释级） | 无 | todo |
 | A4 J 保护机器化（gate 加"evo 写 judge/anchor 即红"） | 无 | todo |
 | A6 peak-picking 禁令（纪律） | 无 | todo |
