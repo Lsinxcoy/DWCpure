@@ -1,0 +1,75 @@
+{
+ "round": "R311",
+ "date": "2026-10-18",
+ "主题": "D1 execution variation",
+ "verify": {
+  "pytest": "2096 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "spread恒0报2红再恢复绿"
+ },
+ "inheritance": {
+  "gen": 311,
+  "at": "2026-10-18T17:30:00+08:00",
+  "parent_gen": 274,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 395,
+   "pytest": 2093,
+   "truth_sha8": "1212034e",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "D1 execution variation: bench --repeat N frozen重跑+spread常驻report",
+   "files": [
+    "scripts/dwc_bench.py",
+    "tests/test_d1_spread.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_d1_spread.py 3/3",
+     "claim": "repeat聚合+spread算式+frozen门"
+    },
+    {
+     "type": "test",
+     "ref": "全量2096绿+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "D1轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "1212034e",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2096+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2096绿",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "spread生产首测待nightbench; A3熔断消费spread待D1后"
+  }
+ }
+}

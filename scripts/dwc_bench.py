@@ -6,8 +6,9 @@
   —— 每任务经真实执行链路（task_exec.execute_user_task, 同一代码路径）,
   结果由**可机判 verifier** 按动态计算的真值打分（不硬编码, 不人工判）。
 
-★ 用法: python scripts/dwc_bench.py [--only T_id] [--timeout 150]
+★ 用法: python scripts/dwc_bench.py [--only T_id] [--timeout 150] [--repeat N]
 ★ 输出: var/dwc_bench_results.json + stdout 汇总; 台账记 bench 事件
+★ D1: --repeat N=同任务 frozen 重跑（均分±spread 常驻 report；默认 1=老路）。
 """
 from __future__ import annotations
 
@@ -199,7 +200,7 @@ def _pre_setup():
             ).write("3 17 42 8 100")
 
 
-def run_one(task, timeout):
+def run_one(task, timeout, ctx=None, record=True):
     tid = task["id"]
     t0 = time.time()
     # 真实签名（task_exec.py:94）: task 位置参数, llm/max_rounds/ctx 关键字
@@ -207,10 +208,14 @@ def run_one(task, timeout):
     #   不重试会把端点毛刺误记为执行能力缺失）
     # ★ R213 回路注入: 同类历史教训拼进 ctx（教训从上一轮失败积累 —
     #   学习曲线可测: round1 空注入=对照, round2+ 带注入）
-    ctx = task.get("ctx") or ""
-    injected = Q.lessons_context(task["task"])
-    if injected:
-        ctx = (ctx + "\n" + injected) if ctx else injected
+    # ★ D1 · frozen ctx（execution variation）：调用方传 ctx ⇒ 复用（repeat
+    #   内状态冻结，不随 lessons 生长漂移）；None ⇒ 老路现算。record=False
+    #   ⇒ 跳过 lessons 沉淀＋predictor 观测（纯测 variation，不喂回路）。
+    if ctx is None:
+        ctx = task.get("ctx") or ""
+        injected = Q.lessons_context(task["task"])
+        if injected:
+            ctx = (ctx + "\n" + injected) if ctx else injected
     report = None
     for attempt in range(3):
         report = TE.execute_user_task(task["task"], ctx=ctx or None,
@@ -225,22 +230,24 @@ def run_one(task, timeout):
     except Exception as exc:                    # noqa: BLE001 — verifier 自身错
         ok, detail = False, "verifier ERROR: %s: %s" % (type(exc).__name__, exc)
     # ★ R213 沉淀: 失败分类落 lessons（下轮/下次接单可检索）
+    # ★ D1 · record=False ⇒ 纯测 variation（repeat 中间轮）：不沉淀不观测。
     fm = Q.classify_fail(report, bool(ok))
-    if fm != "ok":
+    if record and fm != "ok":
         Q.record_lesson(tid, fm, task["task"], "verdict=%s status=%s"
                         % (detail, report["status"]))
     # ★ R231 接线: bench 结果回写预测器（视图层 — 键含任务/梯级/失败模式）
-    try:
-        from dwc.organs.predictor import OutcomePredictor
-        _pred = OutcomePredictor()
-        _pred.observe("bench:" + tid, bool(ok), evidence_ref=tid)
-        _pred.observe("rung:%s" % task.get("verifier_rung", "?"), bool(ok),
-                      evidence_ref=tid)
-        if fm != "ok":
-            _pred.observe("fail:" + fm, False, evidence_ref=tid)
-    except Exception as _pe:                  # noqa: BLE001 — 预测器故障不拖垮 bench
-        import sys as _sy
-        _sy.stderr.write("predictor observe 失败: %s\n" % _pe)
+    if record:
+        try:
+            from dwc.organs.predictor import OutcomePredictor
+            _pred = OutcomePredictor()
+            _pred.observe("bench:" + tid, bool(ok), evidence_ref=tid)
+            _pred.observe("rung:%s" % task.get("verifier_rung", "?"), bool(ok),
+                          evidence_ref=tid)
+            if fm != "ok":
+                _pred.observe("fail:" + fm, False, evidence_ref=tid)
+        except Exception as _pe:                  # noqa: BLE001 — 预测器故障不拖垮 bench
+            import sys as _sy
+            _sy.stderr.write("predictor observe 失败: %s\n" % _pe)
     return {"id": tid, "exec_status": report["status"], "pass": bool(ok),
             "fail_mode": fm, "lessons_total": len(Q.load_lessons()),
             "verdict": detail, "rounds": report.get("rounds"),
@@ -266,11 +273,22 @@ def bench_select(tasks, lam, predictor=None):
     return [t for _, _, t in sorted(scored)]
 
 
+def _spread(xs) -> Optional[float]:
+    """★ D1 · 总体标准差（execution variation）。n<=1 ⇒ None（未测≠0）。"""
+    if len(xs) <= 1:
+        return None
+    m = sum(xs) / len(xs)
+    return round((sum((x - m) ** 2 for x in xs) / len(xs)) ** 0.5, 4)
+
+
 def main(argv) -> int:
     only = argv[argv.index("--only") + 1] if "--only" in argv else None
     timeout = int(argv[argv.index("--timeout") + 1]) if "--timeout" in argv \
         else 150
     sel_mode = argv[argv.index("--select") + 1] if "--select" in argv else "full"
+    # ★ D1 · execution variation：同任务 frozen 重跑 N 次（默认 1=老路）。
+    rep_i = argv.index("--repeat") + 1 if "--repeat" in argv else None
+    repeat = max(1, int(argv[rep_i])) if rep_i else 1
     bench = json.loads(_src("config", "task_bench.json"))
     _pre_setup()
     tasks = list(bench["tasks"])
@@ -287,14 +305,35 @@ def main(argv) -> int:
     for task in tasks:
         if only and task["id"] != only:
             continue
-        r = run_one(task, timeout)
+        # ★ D1 · frozen repeat：ctx 首轮固定（lessons 不随跑生长），前 N-1
+        #   轮 record=False 纯测，末轮 record=True 正常沉淀。n=1 即老路。
+        _fctx = task.get("ctx") or ""
+        _inj = Q.lessons_context(task["task"])
+        if _inj:
+            _fctx = (_fctx + "\n" + _inj) if _fctx else _inj
+        _passes = []
+        r = None
+        for _i in range(repeat):
+            r = run_one(task, timeout, ctx=_fctx,
+                        record=(_i == repeat - 1))
+            _passes.append(1.0 if r["pass"] else 0.0)
+        r["pass_mean"] = round(sum(_passes) / len(_passes), 4)
+        r["pass_spread"] = _spread(_passes)
+        r["n_repeats"] = repeat
         results.append(r)
+        _sp = ("spread=%s" % (r["pass_spread"],) if repeat > 1 else "single")
         mark = "✓" if r["pass"] else "✗"
-        print("%s %-18s %-10s %4.0fs  %s" % (mark, r["id"], r["exec_status"],
-                                             r["secs"], r["verdict"][:60]))
+        print("%s %-18s %-10s %4.0fs  %s  [%s]" % (mark, r["id"], r["exec_status"],
+                                             r["secs"], r["verdict"][:60], _sp))
     npass = sum(1 for r in results if r["pass"])
+    # ★ D1 · spread 常驻 report（companion Table 5）：各任务 spread 均值
+    #  （未测任务 None 跳过）；npass 沿用末轮 pass（老口径不断）。
+    _sps = [r["pass_spread"] for r in results
+            if r.get("pass_spread") is not None]
     out = {"at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
            "select_mode": sel_mode, "select_lambda": sel_lam,
+           "repeat": repeat,
+           "spread_mean": (round(sum(_sps) / len(_sps), 4) if _sps else None),
            "n": len(results), "pass": npass,
            "pass_rate": round(npass / len(results), 3) if results else 0.0,
            "results": results}
@@ -307,7 +346,9 @@ def main(argv) -> int:
                      encoding="utf-8") as fh:
             fh.write(json.dumps({"event": "bench", "ts": out["at"],
                                  "n": out["n"], "pass": out["pass"],
-                                 "pass_rate": out["pass_rate"]},
+                                 "pass_rate": out["pass_rate"],
+                                 "repeat": out["repeat"],
+                                 "spread_mean": out["spread_mean"]},
                                 ensure_ascii=False) + "\n")
     except Exception:                           # noqa: BLE001
         pass
