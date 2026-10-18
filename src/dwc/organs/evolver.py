@@ -2960,3 +2960,191 @@ def rollback_rule(key: str, rules_path: str, backup_root: str) -> Dict[str, Any]
     with open(rules_path, "w", encoding="utf-8") as _fh:
         json.dump(_cur, _fh, ensure_ascii=False, indent=1)
     return {"restored": key, "from": _stamp}
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★ R355–R360 · MASS absorption (Multi-Agent Self-Supervision)
+# ═══════════════════════════════════════════════════════════
+
+from dataclasses import dataclass, field as _field
+
+
+@dataclass
+class WorkflowGraph:
+    """★ R355 · 工作流作为可进化对象（MASS inner loop）。
+
+    agents: [{agent_id, role, instruction, output_contract}]
+    routing: {from: [to,...]} 信息路由
+    contracts: {agent_id: schema} 输出契约
+    """
+    agents: List[Dict[str, Any]] = _field(default_factory=list)
+    routing: Dict[str, Any] = _field(default_factory=dict)
+    contracts: Dict[str, Any] = _field(default_factory=dict)
+
+    def validate(self) -> List[str]:
+        errs: List[str] = []
+        if not self.agents:
+            errs.append("workflow has no agents")
+        seen = set()
+        for a in self.agents:
+            aid = a.get("agent_id")
+            if not aid:
+                errs.append("agent missing agent_id")
+                continue
+            if aid in seen:
+                errs.append("duplicate agent_id: %s" % aid)
+            seen.add(aid)
+            if not a.get("role"):
+                errs.append("agent %s missing role" % aid)
+        for k in (self.routing or {}):
+            if k not in seen:
+                errs.append("routing references unknown agent: %s" % k)
+        return errs
+
+    def to_prompt(self) -> str:
+        lines = ["# Multi-Agent Workflow"]
+        for a in self.agents:
+            lines.append("- %s (%s)" % (a.get("agent_id"), a.get("role")))
+            if a.get("instruction"):
+                lines.append("  instruction: %s" % a["instruction"])
+            if a.get("output_contract"):
+                lines.append("  output_contract: %s" % a["output_contract"])
+        if self.routing:
+            lines.append("routing: %s" % json.dumps(self.routing, ensure_ascii=False))
+        if self.contracts:
+            lines.append("contracts: %s" % json.dumps(self.contracts, ensure_ascii=False))
+        return "\n".join(lines)
+
+
+# ★ 把 MASS 相关能力挂到 Mutator，便于 gate/测试统一入口
+class _MassMixin:
+    @staticmethod
+    def workflow_graph(agents=None, routing=None, contracts=None) -> "WorkflowGraph":
+        return WorkflowGraph(agents=list(agents or []), routing=dict(routing or {}),
+                            contracts=dict(contracts or {}))
+
+    @staticmethod
+    def encode_workflow(wg) -> str:
+        if isinstance(wg, WorkflowGraph):
+            return wg.to_prompt()
+        if isinstance(wg, dict):
+            return _MassMixin.workflow_graph(
+                wg.get("agents"), wg.get("routing"), wg.get("contracts")).to_prompt()
+        return str(wg)
+
+    @staticmethod
+    def workflow_preference(a: Any, b: Any) -> str:
+        """★ R356 · pairwise preference (MASS inner loop ranking)。"""
+        def _score(x):
+            if isinstance(x, dict):
+                for key in ("observed_effect", "score", "in_score", "win_rate"):
+                    if key in x and x[key] is not None:
+                        try:
+                            return float(x[key])
+                        except (TypeError, ValueError):
+                            continue
+            try:
+                return float(x)
+            except (TypeError, ValueError):
+                return 0.0  # audit: conversion failed -> 0.0
+        sa, sb = _score(a), _score(b)
+        if sa > sb + 1e-9:
+            return "a"
+        if sb > sa + 1e-9:
+            return "b"
+        return "tie"
+
+    @staticmethod
+    def rank_workflows(workflows) -> List[Dict[str, Any]]:
+        ws = list(workflows or [])
+        return sorted(ws, key=lambda w: _MassMixin.workflow_preference(w, {}) == "a",
+                     reverse=True)
+
+    @staticmethod
+    def guardrails_ok(execution) -> Dict[str, Any]:
+        """★ R357 · structural guardrails (MASS)."""
+        ex = execution or {}
+        reasons: List[str] = []
+        worker_calls = int(ex.get("worker_calls", 0) or 0)
+        coverage = float(ex.get("deliverable_coverage", 0.0) or 0.0)
+        loop = bool(ex.get("loop_detected", False))
+        if worker_calls <= 0:
+            reasons.append("no real worker calls")
+        if coverage < 0.6:
+            reasons.append("deliverable_coverage %.2f < 0.6" % coverage)
+        if loop:
+            reasons.append("loop detected")
+        if not ex.get("trajectory"):
+            reasons.append("missing trajectory")
+        return {"ok": len(reasons) == 0, "reasons": reasons}
+
+    @staticmethod
+    def distill_trace(trace) -> Dict[str, Any]:
+        """★ R358 · trace distillation (MASS outer loop → skill bank)."""
+        t = trace or {}
+        name = str(t.get("task") or t.get("name") or "distilled_workflow")
+        skill = {
+            "name": name,
+            "pattern": t.get("workflow_prompt") or t.get("pattern") or "",
+            "exemplar": t.get("trajectory") or t.get("exemplar") or "",
+            "metrics": {
+                "worker_calls": t.get("worker_calls"),
+                "deliverable_coverage": t.get("deliverable_coverage"),
+                "score": t.get("score"),
+            },
+            "source": "mass_trace",
+        }
+        Mutator.SKILLS[name] = skill
+        return skill
+
+    @staticmethod
+    def information_flow(workflow) -> float:
+        """★ R359 · task info flow: contract_info / role_info。"""
+        if isinstance(workflow, WorkflowGraph):
+            agents = workflow.agents
+        elif isinstance(workflow, dict):
+            agents = workflow.get("agents", [])
+        else:
+            agents = []
+        role_info = 0
+        contract_info = 0
+        for a in (agents or []):
+            role_info += len(str(a.get("instruction", "") or ""))
+            contract_info += len(str(a.get("output_contract", "") or ""))
+            # 也计 contracts 字典
+        if isinstance(workflow, dict):
+            for v in (workflow.get("contracts") or {}).values():
+                contract_info += len(str(v))
+        if isinstance(workflow, WorkflowGraph):
+            for v in (workflow.contracts or {}).values():
+                contract_info += len(str(v))
+        if role_info <= 0:
+            return 0.0
+        return round(contract_info / role_info, 4)
+
+    @staticmethod
+    def delegation_rate(traces) -> float:
+        """★ R360 · delegation rate (MASS: 1/110 → 48/110)。"""
+        ts = list(traces or [])
+        if not ts:
+            return 0.0
+        delegated = 0
+        for t in ts:
+            if not isinstance(t, dict):
+                continue
+            if t.get("delegated") is True:
+                delegated += 1
+                continue
+            if int(t.get("worker_calls", 0) or 0) > 0:
+                delegated += 1
+                continue
+            if t.get("subagents"):
+                delegated += 1
+        return round(delegated / len(ts), 4)
+
+
+# ★ 把 _MassMixin 的静态方法挂到 Mutator（避免改动 class 体）
+for _name in ("workflow_graph", "encode_workflow", "workflow_preference",
+              "rank_workflows", "guardrails_ok", "distill_trace",
+              "information_flow", "delegation_rate"):
+    setattr(Mutator, _name, getattr(_MassMixin, _name))

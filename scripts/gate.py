@@ -689,6 +689,31 @@ def gate8_contract() -> dict:
         violations.append({"file": "scripts/dwc_evo_round.py", "rule": "K15 recovery 缺失",
                            "detail": "trial 未记录 recovery_attempted ⇒ R354 无载体"})
 
+    # ── K16: R355 workflow primitive ──
+    if "WorkflowGraph" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K16 WorkflowGraph 缺失",
+                           "detail": "无 WorkflowGraph ⇒ R355 无载体"})
+    # ── K17: R356 pairwise preference ──
+    if "workflow_preference" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K17 workflow_preference 缺失",
+                           "detail": "无 pairwise preference ⇒ R356 无载体"})
+    # ── K18: R357 guardrails ──
+    if "guardrails_ok" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K18 guardrails_ok 缺失",
+                           "detail": "无 structural guardrails ⇒ R357 无载体"})
+    # ── K19: R358 trace distillation ──
+    if "distill_trace" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K19 distill_trace 缺失",
+                           "detail": "无 trace distillation ⇒ R358 无载体"})
+    # ── K20: R359 information flow ──
+    if "information_flow" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K20 information_flow 缺失",
+                           "detail": "无 info-flow metric ⇒ R359 无载体"})
+    # ── K21: R360 delegation rate ──
+    if "delegation_rate" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K21 delegation_rate 缺失",
+                           "detail": "无 delegation rate ⇒ R360 无载体"})
+
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
