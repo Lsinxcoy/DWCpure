@@ -1,0 +1,75 @@
+{
+ "round": "R326",
+ "date": "2026-10-19",
+ "主题": "A1b fresh集V_k首版",
+ "verify": {
+  "pytest": "2129绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "fn撞旧名报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 326,
+  "at": "2026-10-19T01:10:00+08:00",
+  "parent_gen": 325,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 410,
+   "pytest": 2126,
+   "truth_sha8": "620913b0",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A1b fresh集V_k首版: config/anchors/fresh.json 5任务+零交集隔离锁(判分接入fresh split另轮A1b-2)",
+   "files": [
+    "config/anchors/fresh.json",
+    "tests/test_a1b_fresh.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a1b_fresh.py 3/3",
+     "claim": "形态合法/零交集/m声明"
+    },
+    {
+     "type": "test",
+     "ref": "全量2129绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A1b轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "620913b0",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2129+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2129绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "17项全清; fresh split判分接入另轮; 17项共16轮 R311-R326"
+  }
+ }
+}

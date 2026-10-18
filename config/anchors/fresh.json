@@ -1,0 +1,63 @@
+{
+  "_provenance": {
+    "why": "★ A1b · Eq.8 fresh 独立验证集 V_k 首版（18813 Eq.8：m 个采自历史混合分布 —— 首版 5 任务全新 fn，判分接入 fresh split 另轮 A1b-2）",
+    "isolation": "fn/args/expected 与 dev/sealed/pairing 零交集（E1 硬约束：形态不进 trial/peer prompt — tests/test_a1b_fresh.py 锁）",
+    "verifier": "behavior（judge 现成判据，零新判分代码；fn(args)==expected 单参口径）",
+    "m": 5
+  },
+  "fresh_range_sum": {
+    "category": "code_repair",
+    "verifier_rung": 1,
+    "prompt": "实现 fresh_range_sum 函数：输入 [a, b] 列表，返回 a 到 b（含）的整数和",
+    "verifier_kind": "behavior",
+    "expected_behavior": "fresh_range_sum([2,6])==20 and fresh_range_sum([3,7])==25",
+    "checks": [
+      {"fn": "fresh_range_sum", "args": "[2, 6]", "expected": "20"},
+      {"fn": "fresh_range_sum", "args": "[3, 7]", "expected": "25"}
+    ]
+  },
+  "fresh_second_max": {
+    "category": "code_repair",
+    "verifier_rung": 1,
+    "prompt": "实现 fresh_second_max 函数：输入整数列表，返回去重后第二大的值（输入保证至少有两个不同值）",
+    "verifier_kind": "behavior",
+    "expected_behavior": "fresh_second_max([4,1,9])==4 and fresh_second_max([5,5,4])==4",
+    "checks": [
+      {"fn": "fresh_second_max", "args": "[4, 1, 9]", "expected": "4"},
+      {"fn": "fresh_second_max", "args": "[5, 5, 4]", "expected": "4"}
+    ]
+  },
+  "fresh_sq_half": {
+    "category": "code_repair",
+    "verifier_rung": 1,
+    "prompt": "实现 fresh_sq_half 函数：输入整数列表，返回平方和的一半（整除）",
+    "verifier_kind": "behavior",
+    "expected_behavior": "fresh_sq_half([1,2,4])==10 and fresh_sq_half([2,2])==4",
+    "checks": [
+      {"fn": "fresh_sq_half", "args": "[1, 2, 4]", "expected": "10"},
+      {"fn": "fresh_sq_half", "args": "[2, 2]", "expected": "4"}
+    ]
+  },
+  "fresh_vowel_count": {
+    "category": "code_repair",
+    "verifier_rung": 1,
+    "prompt": "实现 fresh_vowel_count 函数：输入字符串，返回其中元音字母（aeiouAEIOU）的个数",
+    "verifier_kind": "behavior",
+    "expected_behavior": "fresh_vowel_count('hello there world')==5 and fresh_vowel_count('aeiou')==5",
+    "checks": [
+      {"fn": "fresh_vowel_count", "args": "'hello there world'", "expected": "5"},
+      {"fn": "fresh_vowel_count", "args": "'aeiou'", "expected": "5"}
+    ]
+  },
+  "fresh_fib": {
+    "category": "code_repair",
+    "verifier_rung": 1,
+    "prompt": "实现 fresh_fib 函数：输入正整数 n，返回第 n 个斐波那契数（fib(1)==1, fib(2)==1）",
+    "verifier_kind": "behavior",
+    "expected_behavior": "fresh_fib(12)==144 and fresh_fib(11)==89",
+    "checks": [
+      {"fn": "fresh_fib", "args": "12", "expected": "144"},
+      {"fn": "fresh_fib", "args": "11", "expected": "89"}
+    ]
+  }
+}
