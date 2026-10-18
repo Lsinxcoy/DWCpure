@@ -2442,8 +2442,14 @@ class Evolver:
             "m_source": _sig.get("m_source", "rule"),
             "patch": p.patch, "rationale": p.rationale,
             # ★ C3 · provenance 落盘（供 withdraw 撤回审计）。
+            # ★ R335 · temporal scope（survey §4.1.1：何时生效/作用域/回滚触发）。
             "provenance": {"task": _sig.get("fn", ""),
-                           "admission_round": admission_round}}
+                           "admission_round": admission_round,
+                           "temporal_scope": {
+                               "effective_from": admission_round,
+                               "scope": "cross-task",
+                               "rollback_trigger": "held-out regression",
+                               "expires": None}}}
         _persist = Mutator.persist_learned()
         return {"outcome": "landed", "key": _key,
                 "persist": _persist}
