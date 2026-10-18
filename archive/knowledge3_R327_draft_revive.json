@@ -1,0 +1,82 @@
+{
+ "round": "R327",
+ "date": "2026-10-19",
+ "主题": "起草复活(reasoning键+预算参数)",
+ "verify": {
+  "pytest": "2133绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "4/4",
+  "破坏验证": "键名改错报1红再恢复",
+  "live": "深挖轮drafted:true trial success(true/1.0/1.0)"
+ },
+ "inheritance": {
+  "gen": 327,
+  "at": "2026-10-19T01:50:00+08:00",
+  "parent_gen": 326,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 411,
+   "pytest": 2129,
+   "truth_sha8": "a7bc4b3d",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "R327 起草复活: client回退链认reasoning键+cron --draft-tokens(默认1500老路)+深挖轮live验证trial success",
+   "files": [
+    "src/dwc/llm/client.py",
+    "scripts/dwc_evo_round_cron.py",
+    "tests/test_r327_reasoning_key.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_r327_reasoning_key.py 4/4",
+     "claim": "content优先/reasoning兜底/双空仍错/接线在位"
+    },
+    {
+     "type": "test",
+     "ref": "全量2133绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "trial_report",
+     "ref": "/tmp/deep5.txt 深挖轮",
+     "claim": "drafted:true trial success in1.0/ho1.0 未adopt(零delta诚实)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "R327轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "a7bc4b3d",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2133+gate8/8+双e2e+live深挖轮",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2133绿+live trial success",
+   "user_decision": "你来决策->修键名回退链+预算参数+重跑验证"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "63条生产sigs vs live基线1.0/1.0: 簇疑似stale(另轮核实); max_tokens预算另轮再调"
+  }
+ }
+}

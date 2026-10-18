@@ -48,6 +48,9 @@ def main() -> int:
                     help="只深挖该 task（task_filter＋hint fresh＋单簇）")
     # ★ B4 · 候选池 N（默认 3 老路；调大涨 LLM 预算 —— Thm 3 Eq.8）。
     _p.add_argument("--pool-n", type=int, default=3)
+    # ★ R327 · 起草预算（默认 1500 老路；reasoning 模型先吃预算再写
+    #   content，撞 length 即空 —— 深挖轮实测 1500 顶格撞线）。
+    _p.add_argument("--draft-tokens", type=int, default=1500)
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
@@ -68,7 +71,8 @@ def main() -> int:
     llm = LLMClient()
     mu = LLMMutator(llm=lambda p: (
         lambda r: r.text if r.ok else (_ for _ in ()).throw(
-            RuntimeError(r.error)))(llm.complete(p, max_tokens=1500)))
+            RuntimeError(r.error)))(
+                llm.complete(p, max_tokens=_a.draft_tokens)))
     rep = EVO.run_round(
         db, Evolver(), mu, "anchors: %s" % (sorted(judge.anchors)[:12],),
         trial_fn=lambda t, pa, code=None: EVO._real_trial(

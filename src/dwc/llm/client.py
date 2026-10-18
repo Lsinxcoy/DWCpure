@@ -394,6 +394,13 @@ class LLMClient:
                 if isinstance(rc, str) and rc.strip():
                     # use reasoning as answer last-resort (stop reason "stop")
                     text = rc
+            if not isinstance(text, str) or not text.strip():
+                # ★ R327 · opencode-go/MiMo 后端键名是 reasoning（实测：
+                #   content 空串＋reasoning 5891 字＋finish length）——
+                #   两键都认，content 优先；都没有才判空（纪律不变）。
+                rs = msg.get("reasoning")
+                if isinstance(rs, str) and rs.strip():
+                    text = rs
         except Exception as e:
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
