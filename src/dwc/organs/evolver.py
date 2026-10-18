@@ -1380,6 +1380,20 @@ class Mutator:
         except (TypeError, ValueError):    # noqa: BLE001 — 计数不断主路
             pass
 
+    # ★ C1 · archive 中间态（18813 §3.2：archive≠adopt —— 进 archive 只
+    #   保留候选供后搜，adopt 还要把选中程序推进 runtime）。
+    #   ARCHIVE：key→list[entry]（同 key 多候选并存；RULES 仍 key→entry
+    #   单条目 —— 结构不动，parent 选择器另轮）。
+    ARCHIVE: Dict[str, list] = {}
+
+    # ★ C1 · 候选进 archive（只保留，不进 RULES —— adopt 另行显式）。
+    @classmethod
+    def archive_candidate(cls, key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+        _lst = cls.ARCHIVE.setdefault(key, [])
+        _lst.append(entry)
+        return {"archived": True, "key": key,
+                "version": len(_lst), "n_versions": len(_lst)}
+
     # ★ C3 · withdraw 撤回（companion §9.7：毒规则必须可撤）。
     #   内存删除＋返回被删条目（含 provenance 供审计）；无 key ⇒
     #   withdrawn False（幂等撤回，不抛）。不自动 persist（写盘是调用方
@@ -1389,7 +1403,13 @@ class Mutator:
     def withdraw(cls, key: str, reason: str = "") -> Dict[str, Any]:
         _entry = cls.RULES.pop(key, None)
         if _entry is None:
-            return {"withdrawn": False, "key": key, "reason": reason}
+            # ★ C1 · RULES 无 ⇒ 撤 archive（整 key 全撤；版本选择另轮）。
+            _arch = cls.ARCHIVE.pop(key, None)
+            if _arch is None:
+                return {"withdrawn": False, "key": key, "reason": reason}
+            return {"withdrawn": True, "key": key,
+                    "entry": _arch, "from": "archive", "reason": reason,
+                    "note": "archive 内存态（落盘另轮）"}
         return {"withdrawn": True, "key": key, "entry": _entry,
                 "reason": reason,
                 "note": ("learned 须调 persist_learned 落盘；"
