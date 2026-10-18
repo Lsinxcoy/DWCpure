@@ -38,8 +38,15 @@ sys.path.insert(0, os.path.join(_code_root(), "src"))
 from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
 
-def collect_unmapped(db_path, evolver, fn_of, task_of):
-    """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。"""
+def collect_unmapped(db_path, evolver, fn_of, task_of,
+                     priority_prefixes=None):
+    """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。
+
+    ★ B3 · 火力转攻（reasoning 组 0.888 验证贵 → code_fix 组主攻）：
+      priority_prefixes＝任务前缀优序（如 ("code_fix",)），稳定排序 ——
+      命中簇按前缀序排前，非命中保原相对序在后。None＝老路插入序
+      （默认，旧调用零变）。簇优序看首个 sig 的 task（同簇同源）。
+    """
     con = sqlite3.connect(db_path)
     try:
         rows = con.execute(
@@ -56,7 +63,17 @@ def collect_unmapped(db_path, evolver, fn_of, task_of):
     for s in out.get("unmapped", []):
         k = Mutator.key_for(s)
         groups.setdefault(k, []).append(s)
-    return [{"key": k, "sigs": v} for k, v in groups.items()]
+    _clusters = [{"key": k, "sigs": v} for k, v in groups.items()]
+    if priority_prefixes:
+        # ★ B3 · 稳定优序：命中 rank 小排前；非命中 rank＝＋∞保原序。
+        def _rank(cl):
+            _t = str((cl["sigs"] or [{}])[0].get("task", "") or "")
+            for _i, _p in enumerate(priority_prefixes):
+                if _t.startswith(_p):
+                    return _i
+            return len(priority_prefixes) + 1
+        _clusters = sorted(_clusters, key=_rank)  # 稳定：同 rank 保原序
+    return _clusters
 
 
 def _read_done(path, date):
@@ -150,7 +167,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
               want_code_of=None, mech_log=None, trace_log=None,
               ledger_path=None, resume=True, ledger_date=None,
-              max_attempts=3):
+              max_attempts=3, priority_prefixes=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -166,11 +183,14 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
       admit（_land_adopted：过门→RULES 落地）。
       旧名保留（collect_unmapped 被 r278 测试直调，改名破调用面 ——
       对齐先行术语，改名另轮）。
+    ★ B3 · 火力转攻：priority_prefixes 透传 collect_unmapped（默认 None
+      老路；cron 传 ("code_fix",) 生产生效）。
     """
     fn_of = fn_of or (lambda r: "")
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
-    clusters = collect_unmapped(db_path, evolver, fn_of, task_of)
+    clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
+                                priority_prefixes=priority_prefixes)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。

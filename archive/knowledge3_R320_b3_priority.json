@@ -1,0 +1,76 @@
+{
+ "round": "R320",
+ "date": "2026-10-18",
+ "主题": "B3火力转攻",
+ "verify": {
+  "pytest": "2109绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "排序反转报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 320,
+  "at": "2026-10-18T22:05:00+08:00",
+  "parent_gen": 319,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 404,
+   "pytest": 2106,
+   "truth_sha8": "b2af9c42",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "B3火力转攻: collect_unmapped优序(code_fix排前, 默认None老路)+run_round透传+cron生产生效",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "scripts/dwc_evo_round_cron.py",
+    "tests/test_b3_priority.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_b3_priority.py 3/3",
+     "claim": "优序/老路/cron接线"
+    },
+    {
+     "type": "test",
+     "ref": "全量2109绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "B3轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "b2af9c42",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2109+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2109绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "P1全清; 簇内多task混源时看首sig(诚实口径)"
+  }
+ }
+}

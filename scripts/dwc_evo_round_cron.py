@@ -72,6 +72,9 @@ def main() -> int:
         rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
         fn_of=lambda r: "average", task_of=lambda r: "code_fix_007",
         max_clusters=3,
+        # ★ B3 · 火力转攻生产生效：库里混入 reasoning sigs 也排后，
+        #   code_fix 簇先吃 max_clusters 预算（验证便宜 u 大好验）。
+        priority_prefixes=("code_fix",),
         want_code_of=lambda t: (
             judge.anchors.get(t, {}) or {}).get(
             "category", "") == "code_repair",
