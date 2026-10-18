@@ -39,7 +39,8 @@ from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
 
 def collect_unmapped(db_path, evolver, fn_of, task_of,
-                     priority_prefixes=None, task_filter=None):
+                     priority_prefixes=None, task_filter=None,
+                     reproducible_only=True):
     """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。
 
     ★ B3 · 火力转攻（reasoning 组 0.888 验证贵 → code_fix 组主攻）：
@@ -49,6 +50,11 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
     ★ B1 · 独立深挖（Cai Thm 3：池子里没有，验证再松也收不到 —— 007
       50 次失败同任务，单独立簇深挖）：task_filter＝只收该 task 的 sigs
      （None＝全收老路）。配 hint_mode="fresh"＋max_clusters=1 即深挖轮。
+    ★ R328 · trial 复现力分流（默认开）：m＝llm_asserted* 是 agent 执行
+      侧自断言 —— trial 的 judge verifier 复现不了（R327 live 实证：63
+      条 trial 全满分，基线亦满分，零 delta 不落地）。evo 只吃 verifier
+      可复现簇，执行侧归 agent_quality 回路。False＝全收老路（预算自负，
+      trial 空转满分已知）。
     """
     con = sqlite3.connect(db_path)
     try:
@@ -62,6 +68,10 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
     if task_filter is not None:
         # ★ B1 · 独立深挖：只收目标 task（单独立簇，深挖一轮）。
         sigs = [s for s in sigs if s.get("task") == task_filter]
+    if reproducible_only:
+        # ★ R328 · 分流：执行侧自断言 trial 复现不了，不进 evo 簇。
+        sigs = [s for s in sigs
+                if not str(s.get("m", "") or "").startswith("llm_asserted")]
     if not sigs:
         return []
     out = evolver.diagnose(sigs)
@@ -174,7 +184,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               want_code_of=None, mech_log=None, trace_log=None,
               ledger_path=None, resume=True, ledger_date=None,
               max_attempts=3, priority_prefixes=None,
-              task_filter=None, hint_mode="reuse", pool_n=None):
+              task_filter=None, hint_mode="reuse", pool_n=None,
+              reproducible_only=True):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -197,6 +208,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
       老路；cron 传 ("code_fix",) 生产生效）。
     ★ B1 · 独立深挖：task_filter＋hint_mode 透传（默认全收＋reuse 老路；
       cron --deep-task 传 task＋fresh＋max_clusters=1 即深挖轮）。
+    ★ R328 · reproducible_only 透传（默认 True 分流；False 全收老路）。
     """
     fn_of = fn_of or (lambda r: "")
     # ★ B4 · 候选池 N 单真源（None⇒max_attempts；单进程串行，无真并行）。
@@ -205,7 +217,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     want_code_of = want_code_of or (lambda t: False)
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
                                 priority_prefixes=priority_prefixes,
-                                task_filter=task_filter)
+                                task_filter=task_filter,
+                                reproducible_only=reproducible_only)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。

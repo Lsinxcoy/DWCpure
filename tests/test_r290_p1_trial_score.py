@@ -34,9 +34,9 @@ def _tmpdb(p):
     c = sqlite3.connect(p)
     c.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
     c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
-              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n1"))
+              ("E_VALUE", "wrong_magnitude", "M-wrong", "n1"))
     c.execute("INSERT INTO failure_sig VALUES (?,?,?,?)",
-              ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n2"))
+              ("E_VALUE", "wrong_magnitude", "M-wrong", "n2"))
     c.commit()
     c.close()
     return p

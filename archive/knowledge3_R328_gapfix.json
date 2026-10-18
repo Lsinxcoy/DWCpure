@@ -1,0 +1,86 @@
+{
+ "round": "R328",
+ "date": "2026-10-19",
+ "主题": "缺口双解(分流+默认4000)",
+ "verify": {
+  "pytest": "2136绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "默认改False报1红再恢复",
+  "live": "深挖轮0簇零成本"
+ },
+ "inheritance": {
+  "gen": 328,
+  "at": "2026-10-19T02:30:00+08:00",
+  "parent_gen": 327,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 413,
+   "pytest": 2133,
+   "truth_sha8": "9c8a20f4",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "R328 缺口双解: collect分流llm_asserted(默认开)+cron默认4000+旧3文件9处fixture换中性m",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "scripts/dwc_evo_round_cron.py",
+    "tests/test_r328_repro.py",
+    "tests/test_r279_evo_round.py",
+    "tests/test_r290_p1_trial_score.py",
+    "tests/test_r291_p4_heldout.py",
+    "tests/test_r327_reasoning_key.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_r328_repro.py 3/3 + r327锁4000",
+     "claim": "分流/退出/透传/默认值全锁"
+    },
+    {
+     "type": "test",
+     "ref": "全量2136绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "8红诚实更新后零回归"
+    },
+    {
+     "type": "trial_report",
+     "ref": "/tmp/deep6.txt 深挖轮",
+     "claim": "分流live: 0簇零成本(68条全执行侧)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "R328轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "9c8a20f4",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2136+gate8/8+双e2e+live分流",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2136绿+live 0簇",
+   "user_decision": "你来决策->分流+默认4000并做"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "执行侧sigs真复现(LLMTaskExecutor)另轮; 原料池68条全执行侧"
+  }
+ }
+}

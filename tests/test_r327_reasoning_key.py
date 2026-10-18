@@ -73,5 +73,5 @@ def test_r327_cron_wires_draft_tokens():
     src = open(os.path.join(ROOT, "scripts",
                             "dwc_evo_round_cron.py"),
                encoding="utf-8").read()
-    assert '"--draft-tokens"' in src
+    assert '"--draft-tokens", type=int, default=4000' in src
     assert "max_tokens=_a.draft_tokens" in src

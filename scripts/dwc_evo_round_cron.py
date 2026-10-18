@@ -48,9 +48,10 @@ def main() -> int:
                     help="只深挖该 task（task_filter＋hint fresh＋单簇）")
     # ★ B4 · 候选池 N（默认 3 老路；调大涨 LLM 预算 —— Thm 3 Eq.8）。
     _p.add_argument("--pool-n", type=int, default=3)
-    # ★ R327 · 起草预算（默认 1500 老路；reasoning 模型先吃预算再写
-    #   content，撞 length 即空 —— 深挖轮实测 1500 顶格撞线）。
-    _p.add_argument("--draft-tokens", type=int, default=1500)
+    # ★ R327 · 起草预算（reasoning 模型先吃预算再写 content，撞 length
+    #   即空 —— R327 深挖轮实测 1500 顶格撞线三次，4000 一次跑通；生产
+    #   默认 4000，普通轮起草同病同治）。
+    _p.add_argument("--draft-tokens", type=int, default=4000)
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))

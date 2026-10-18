@@ -24,9 +24,9 @@ def _tmpdb(path):
     con = sqlite3.connect(path)
     con.execute("CREATE TABLE failure_sig(c,q,m,node_id)")
     con.execute("INSERT INTO failure_sig VALUES(?,?,?,?)",
-                ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n1"))
+                ("E_VALUE", "wrong_magnitude", "M-wrong", "n1"))
     con.execute("INSERT INTO failure_sig VALUES(?,?,?,?)",
-                ("E_VALUE", "wrong_magnitude", "llm_asserted:0.15", "n2"))
+                ("E_VALUE", "wrong_magnitude", "M-wrong", "n2"))
     con.commit()
     con.close()
     return path
@@ -34,7 +34,7 @@ def _tmpdb(path):
 
 def _sig():
     return {"c": "E_VALUE", "q": "wrong_magnitude",
-            "m": "llm_asserted:0.15", "fn": "average", "task": "code_fix_007"}
+            "m": "M-wrong", "fn": "average", "task": "code_fix_007"}
 
 
 _GOOD = {"component": "prompt", "dimension": "D7",
