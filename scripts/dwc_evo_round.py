@@ -335,6 +335,22 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                                             want_code=want_code_of(_task),
                                             learned_hint=_hint,
                                             operator=_op)
+                # ★ R342 · patch 层 dedup：patch 不得包含任何 benchmark 的
+                #   expected_behavior（防 test leakage，OpenRSI dedup 原则）。
+                try:
+                    _forbidden = set()
+                    for _a in (judge.anchors or {}).values():
+                        _eb = (_a or {}).get("expected_behavior")
+                        if _eb:
+                            _forbidden.add(_eb)
+                    if p is not None and any(_f in (p.patch or "")
+                                            for _f in _forbidden):
+                        item["reason"] = ("patch leaks benchmark expected_behavior "
+                                          "(dedup reject)")
+                        _fatal = True
+                        break
+                except Exception:  # noqa: BLE001 — dedup 坏不断轮
+                    pass
             # ★ D4-② propose 段（簇→候选；候选≠有效，门＋试跑在后）。
             except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
                 item["reason"] = "起草抛错：%r" % (exc,)
