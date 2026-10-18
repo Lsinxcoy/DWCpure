@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | N1 | 执行侧真复现（trial 接 LLMTaskExecutor，真跑 agent 路径） | R329 | 大 | todo（需方案轮先行） |
 | N2 | fresh split 判分接入 A1b-2 | R326 | 中 | done（R330） |
-| N3 | C1 parent 选择器＋archive 落盘（adopt 时多版本选一＋archive 持久化） | R324 | 中 | todo |
+| N3 | C1 parent 选择器＋archive 落盘 | R324 | 中 | done（R331） |
 | N4 | lam/gamma 门参数启用（对照实验先行） | R313 | 大 | todo |
 | N5 | evo_1019_01 转单跟进（agent 接单后 average 小数病是否根除，sigs 是否停产） | R329 | 被动 | todo（等 agent） |
 | N6 | 普通轮起草复活验证（默认 4000 后首轮 cron 是否 drafted:true） | R328 | 被动 | todo（等 cron） |

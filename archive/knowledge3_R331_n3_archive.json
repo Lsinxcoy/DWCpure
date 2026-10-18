@@ -1,0 +1,74 @@
+{
+ "round": "R331",
+ "date": "2026-10-19",
+ "主题": "N3 C1 parent选择器+archive落盘",
+ "verify": {
+  "pytest": "2140绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "new_tests": "5/5",
+  "破坏验证": "分流改sealed报3红再恢复"
+ },
+ "inheritance": {
+  "gen": 331,
+  "at": "2026-10-19T04:30:00+08:00",
+  "parent_gen": 330,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 417,
+   "pytest": 2140,
+   "truth_sha8": "de115df2",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "N3 C1 parent选择器+archive落盘: load/persist/select_parent/promote_archived",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "tests/test_n3_archive.py",
+    "archive/plan_next_items.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_n3_archive.py 5/5",
+     "claim": "latest/first/空/roundtrip/lands+幂等"
+    },
+    {
+     "type": "test",
+     "ref": "全量2140绿(2噪声文件除外, 单跑证)+gate8/8",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "N3轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "de115df2",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2140+gate8/8",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2140绿(噪声文件单跑证)",
+   "user_decision": "你来做决策 直到收官 -> N3"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "Mutator.load_archive()启动接线另轮(需core接入)"
+  }
+ }
+}

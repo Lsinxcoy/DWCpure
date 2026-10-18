@@ -1380,11 +1380,81 @@ class Mutator:
         except (TypeError, ValueError):    # noqa: BLE001 — 计数不断主路
             pass
 
-    # ★ C1 · archive 中间态（18813 §3.2：archive≠adopt —— 进 archive 只
-    #   保留候选供后搜，adopt 还要把选中程序推进 runtime）。
-    #   ARCHIVE：key→list[entry]（同 key 多候选并存；RULES 仍 key→entry
-    #   单条目 —— 结构不动，parent 选择器另轮）。
+    # ★ C1 · ARCHIVE 中间态（多版本并存；RULES 仍单条目）。
     ARCHIVE: Dict[str, list] = {}
+
+    # ★ N3 · archive 持久化路径（与 LEARNED_PATH 同族 —— 跨进程存活）。
+    ARCHIVE_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))),
+        "config", "anchors", "archive.json")
+
+    @classmethod
+    def load_archive(cls) -> int:
+        """★ 把落盘 archive 合并进 ARCHIVE（进程启动时调）。
+
+        ★ 文件不存在 ⇒ 0（没 archive 过是常态）；合并而非替换。
+        """
+        try:
+            with io.open(cls.ARCHIVE_PATH, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return 0
+        n = 0
+        for k, v in (data.get("archive") or {}).items():
+            if isinstance(v, list):
+                cls.ARCHIVE.setdefault(k, []).extend(v)
+                n += len(v)
+        return n
+
+    @classmethod
+    def persist_archive(cls) -> Dict[str, Any]:
+        """★ 把 ARCHIVE 全量写盘（archive ≠ adopt，落盘供后搜）。
+
+        ★ 返回 {path, n_written}。
+        """
+        os.makedirs(os.path.dirname(cls.ARCHIVE_PATH), exist_ok=True)
+        payload = {"archive": cls.ARCHIVE}
+        with io.open(cls.ARCHIVE_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=1)
+        return {"path": cls.ARCHIVE_PATH,
+                "n_written": sum(len(v) for v in cls.ARCHIVE.values())}
+
+    @classmethod
+    def select_parent(cls, key: str, strategy: str = "latest") -> Optional[Dict[str, Any]]:
+        """★ N3 · parent 选择器（多版本 archive ⇒ 选一）。
+
+        ★ strategy:
+          - "latest"（默认）：最后追加的版本（版本号最大）；
+          - "first"：最早版本。
+        ★ 空 archive ⇒ None（诚实缺席，不编）。
+        """
+        _lst = cls.ARCHIVE.get(key) or []
+        if not _lst:
+            return None
+        if strategy == "first":
+            return dict(_lst[0])
+        return dict(_lst[-1])
+
+    @classmethod
+    def promote_archived(cls, key: str, strategy: str = "latest") -> Dict[str, Any]:
+        """★ N3 · 把选中的 archive parent 推进 RULES（adopt 路）。
+
+        ★ 选 parent ⇒ 写 RULES（幂等：已存在 ⇒ already_landed）；
+          随 persist_learned 落盘。archive 保留（不删 —— 历史供后搜）。
+        """
+        _parent = cls.select_parent(key, strategy=strategy)
+        if _parent is None:
+            return {"outcome": "no_parent", "key": key, "strategy": strategy}
+        if key in cls.RULES:
+            return {"outcome": "already_landed", "key": key,
+                    "strategy": strategy}
+        cls.RULES[key] = dict(_parent)
+        _persist = cls.persist_learned()
+        return {"outcome": "landed", "key": key, "strategy": strategy,
+                "version": (cls.ARCHIVE.get(key) or []).index(_parent) + 1
+                if _parent in (cls.ARCHIVE.get(key) or []) else None,
+                "persist": _persist}
 
     # ★ C1 · 候选进 archive（只保留，不进 RULES —— adopt 另行显式）。
     @classmethod
