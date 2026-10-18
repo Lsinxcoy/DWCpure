@@ -1,0 +1,75 @@
+{
+ "round": "R315",
+ "date": "2026-10-18",
+ "主题": "A6 peak-picking禁令",
+ "verify": {
+  "pytest": "2101绿(r178除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "1/1",
+  "破坏验证": "删纪律行报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 315,
+  "at": "2026-10-18T19:35:00+08:00",
+  "parent_gen": 314,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 399,
+   "pytest": 2100,
+   "truth_sha8": "3f884a77",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A6 peak-picking禁令: run_round+triage_report docstring 纪律(只报当轮终态+ledger, 禁历史peak, HarnessX 73.8%/49.5%)",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "tests/test_a6_nopeak.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a6_nopeak.py 1/1",
+     "claim": "两处纪律在位"
+    },
+    {
+     "type": "test",
+     "ref": "全量2101绿(r178真端点除外, 单跑5绿证噪声)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A6轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "3f884a77",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2101+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2101绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "report/bench呈現面新增须同律; 趋势需求读ledger全史"
+  }
+ }
+}

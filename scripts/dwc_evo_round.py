@@ -100,6 +100,9 @@ def triage_report(rep):
     纯呈现：只读 rep["results"]，不改任何判定。类别：
     landed（已落）/ready（trial 过待拍板）/stuck（预算耗尽）
     /draft_failed（起草挂）/skipped（resume 跳过）。
+    ★ A6 · peak-picking 禁令（companion：HarnessX 报 peak 73.8% 而终态
+      49.5%）：本报告只呈当轮终态＋ledger 行，不回溯历史 peak，不跨轮
+      取最优。任何新增呈现面同律。
     """
     try:
         tasks = []
@@ -153,6 +156,9 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
       None=不求码，老路零变）。trial_fn 三参契约 (task, patch, code=None)。
     ★ R310-⑤ · max_attempts（默认 3）：单簇 trial 非 True 重试预算。
+    ★ A6 · peak-picking 禁令：返回体只装当轮终态（results 当轮行＋ledger
+      追加行），禁报历史 peak（companion HarnessX 反例：报 peak 73.8% 而
+      终态 49.5%）。调用方要趋势自己读 ledger 全史，本函数不代取最优。
     """
     fn_of = fn_of or (lambda r: "")
     task_of = task_of or (lambda r: "")
