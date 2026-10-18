@@ -5,7 +5,7 @@
 | N1 | 执行侧sigs归agent_quality回路（cron自动投单） | R329 | 中 | done（R332） |
 | N2 | fresh split 判分接入 A1b-2 | R326 | 中 | done（R330） |
 | N3 | C1 parent 选择器＋archive 落盘 | R324 | 中 | done（R331） |
-| N4 | lam/gamma 门参数启用（对照实验先行） | R313 | 大 | deferred（无自动对照 harness；lam 默认 0 保持老路，不静默启用） |
+| N4 | lam/gamma 门参数启用（对照实验先行） | R313 | 大 | deferred（enablement: R336 audit 连续 3 轮 verdict=improver_gain 才允许 lam>0；在此之前 lam 默认 0 保持老路，不静默启用） |
 | N5 | evo_1019_01 转单跟进（agent 接单后 average 小数病是否根除，sigs 是否停产） | R329 | 被动 | monitoring（cron 自动投单已接通，下轮 cron 验证） |
 | N6 | 普通轮起草复活验证（默认 2000 后首轮 cron 是否 drafted:true） | R328 | 被动 | monitoring（下轮 cron 验证） |
 | N7 | max_tokens 预算再校准（probe 实测 want_code 路 1000 fail/1500 pass；默认校准 2000） | R328 | 小 | done（R332，probe） |
