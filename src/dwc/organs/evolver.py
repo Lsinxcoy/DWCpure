@@ -2463,7 +2463,25 @@ class Evolver:
     # ★★★ 关键: 采纳必须同时过**两组 split**（约束 3）
     # ══════════════════════════════════════════════
     @staticmethod
-    def accept(p: Proposal, baseline: Dict[str, Any],
+    def accept(p, baseline, current, *a, **kw):
+        _r = Evolver._accept_core(p, baseline, current, *a, **kw)
+        if isinstance(_r, dict):
+            _ig = kw.get("improver_gain", None)
+            _dec = _r.get("decision")
+            if _dec not in ("accepted", "adopted_not_implemented"):
+                _gt = "none"
+            elif _ig is True:
+                _gt = "both"
+            elif _ig is False:
+                _gt = "capability_only"
+            else:
+                _gt = "capability (improver unverified)"
+            _r = dict(_r)
+            _r.setdefault("gain_type", _gt)
+        return _r
+
+
+    def _accept_core(p: Proposal, baseline: Dict[str, Any],
                current: Dict[str, Any], eps: float = 0.0,
                mode: str = "report",
                lam: float = 0.0,
@@ -2472,6 +2490,7 @@ class Evolver:
                m: Optional[int] = None,
                k_comparisons: int = 1,
                delta_conf: float = 0.05,
+               improver_gain: Optional[bool] = None,
                ) -> Dict[str, Any]:
         """★ 判定一个候选该不该采纳（固定门 𝒢_fixed）。
 
@@ -2555,6 +2574,20 @@ class Evolver:
             return {"m": m, "KT": (k_comparisons
                                    if k_comparisons is not None else None),
                     "T": _T(), "delta": delta_conf, "hoeffding": _hb}
+
+        def _classify_gain(_decision):
+            if _decision != "accepted":
+                return "none"
+            if improver_gain is True:
+                return "both"
+            if improver_gain is False:
+                return "capability_only"
+            return "capability (improver unverified)"
+
+        def _gain_wrap(_d):
+            _d = dict(_d)
+            _d.setdefault("gain_type", _classify_gain(_d.get("decision")))
+            return _d
 
         if b_in is None or c_in is None:
             return {"decision": "not_evaluated", "why": "in-sample 未判过",
