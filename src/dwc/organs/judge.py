@@ -1025,7 +1025,40 @@ class Judge:
             return 0.0
         return None
 
-    def held_out_peer(self, dev_task_id: str) -> Optional[str]:
+    def cross(self, task_id: str,
+              observed: Optional[Dict[str, Any]] = None,
+              predicted: Optional[Any] = None) -> Dict[str, Any]:
+        """★ D3 · crossed evaluation 单版本内 cross（companion §6.3.3）。
+
+        同 task × 双 split（dev＋sealed）：换 anchor/换模型时对任务集跑
+        全集 cross，漂移矩阵＝两次运行 diff。版本间 cross 靠 git 历史＋
+        task_scores ledger（旧版可检出重跑 —— 规程见注记，不在本方法内）。
+        sealed 未落地/无配对 ⇒ sealed 记 None（诚实缺席，不拿 dev 顶替 ——
+        evaluate 同款纪律）。agree＝双非 None 时 dev==sealed。
+        """
+        _dev = self.evaluate(task_id, SPLIT_DEV, observed=observed,
+                             predicted=predicted)
+        # ★ D3 · 配对走 held_out_peer 单真源（不手读 pairing 文件）。
+        try:
+            _sealed_task = self.held_out_peer(task_id)
+        except (JudgeError, KeyError, TypeError):
+            _sealed_task = None
+        _sealed: Optional[bool] = None
+        if _sealed_task is not None and self.sealed is not None:
+            try:
+                _sealed = self.evaluate(
+                    _sealed_task, SPLIT_TEST, observed=observed,
+                    predicted=predicted).success
+            except JudgeError:
+                _sealed = None        # noqa: BLE001 — 判不了记缺席
+        _d = _dev.success
+        return {"task": task_id, "sealed_task": _sealed_task,
+                "dev": _d, "sealed": _sealed,
+                "agree": ((_d == _sealed)
+                          if (_d is not None and _sealed is not None)
+                          else None)}
+
+    def held_out_peer(self, task_id: str) -> Optional[str]:
         """★ R291-P4 Task 4 · dev→sealed 配对查询（同族按序号，显式表）。
 
         表 `config/anchors/dev_sealed_pairing.json`（新文件=增非改）：
@@ -1038,7 +1071,7 @@ class Judge:
             if not os.path.exists(_p):
                 return None
             _m = json.loads(io.open(_p, encoding="utf-8").read())
-            _peer = _m.get(dev_task_id)
+            _peer = _m.get(task_id)
             if not isinstance(_peer, str):
                 return None
             if not isinstance(self.sealed, dict) or _peer not in self.sealed:

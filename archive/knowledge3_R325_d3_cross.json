@@ -1,0 +1,75 @@
+{
+ "round": "R325",
+ "date": "2026-10-19",
+ "主题": "D3 crossed evaluation",
+ "verify": {
+  "pytest": "2126绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "sealed恒None报2红再恢复"
+ },
+ "inheritance": {
+  "gen": 325,
+  "at": "2026-10-19T00:40:00+08:00",
+  "parent_gen": 324,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 409,
+   "pytest": 2123,
+   "truth_sha8": "0e59840f",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "D3 crossed单版本内cross: Judge.cross(dev+sealed双判+agree)+附带真修held_out_peer旧参名dev_task_id致恒None",
+   "files": [
+    "src/dwc/organs/judge.py",
+    "tests/test_d3_cross.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_d3_cross.py 3/3",
+     "claim": "结构/未评价/无配对"
+    },
+    {
+     "type": "test",
+     "ref": "全量2126绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归(含R291配对修复后)"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "D3轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "0e59840f",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2126+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2126绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "版本间cross靠git+ledger规程; R291配对恒None已修(门回归绿)"
+  }
+ }
+}
