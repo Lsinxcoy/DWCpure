@@ -1,0 +1,75 @@
+{
+ "round": "R316",
+ "date": "2026-10-18",
+ "主题": "C2 carried率",
+ "verify": {
+  "pytest": "2104绿(2噪声单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "4/4",
+  "破坏验证": "计数空实现报3红再恢复"
+ },
+ "inheritance": {
+  "gen": 316,
+  "at": "2026-10-18T20:05:00+08:00",
+  "parent_gen": 315,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 400,
+   "pytest": 2101,
+   "truth_sha8": "a55a9944",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "C2 carried率: Mutator._carry计数(propose直接命中+lateral归因kin)+RULES声明放宽Any, learned随落盘累计",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "tests/test_c2_carried.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_c2_carried.py 4/4",
+     "claim": "直命/lateral/脏key/落盘round-trip"
+    },
+    {
+     "type": "test",
+     "ref": "全量2104绿(r178+TUI各1噪声, 单跑5绿+5绿证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "C2轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "a55a9944",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2104+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2104绿(2噪声单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "种子carried重启归零(诚实边界); learned跨重启累计"
+  }
+ }
+}

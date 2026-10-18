@@ -1368,6 +1368,18 @@ class Mutator:
         return {"path": cls.LEARNED_PATH, "n_written": len(learned),
                 "n_seed": len(cls.SEED_KEYS)}
 
+    # ★ C2 · carried 率计数（companion Eq.11 activation 第三级：被后轮
+    #   propose 引用次数）。种子进程内有效（重启归零 —— persist 只写非种
+    #   子）；learned 随落盘跨重启累计。计数永不断提案主路（脏 key 跳过）。
+    @classmethod
+    def _carry(cls, key: str) -> None:
+        try:
+            _r = cls.RULES.get(key)
+            if isinstance(_r, dict):
+                _r["carried"] = int(_r.get("carried", 0) or 0) + 1
+        except (TypeError, ValueError):    # noqa: BLE001 — 计数不断主路
+            pass
+
     @staticmethod
     def key_for(sig: Dict[str, str]) -> str:
         """★ 由失败签名构造**查询键** (c:q:fn) —— 与 propose 同口径。
@@ -1453,7 +1465,7 @@ class Mutator:
             missing.append("key 必须是 c:q:fn 三段")
         return missing
 
-    RULES: Dict[str, Dict[str, str]] = {
+    RULES: Dict[str, Dict[str, Any]] = {
         # ★ 示例规则：sum_first_n 少算一个（off-by-one）
         "E_VALUE:wrong_magnitude:sum_first_n": {
             "component": "control_flow",
@@ -1741,6 +1753,8 @@ class Mutator:
         rule = self.RULES.get(lookup)
         if rule is None:
             return None
+        # ★ C2 · 直接命中即一次引用（carried＋1，供 activation 第三级）。
+        self._carry(lookup)
         pid = "P_" + hashlib.sha256(lookup.encode()).hexdigest()[:8]
         # ★★ 产出的签名**补全** m（由规则给出 —— 第一版无 LLM ⇒ 规则填，
         #   并在 rule 里标注 mechanism_source 以免冒充"模型假设"）
@@ -1804,6 +1818,8 @@ class Mutator:
         if kin is None:
             return None
         rule = self.RULES[kin]
+        # ★ C2 · 近亲引用同样计数（归因到被借的 kin，不归因到无规则的本 fn）。
+        self._carry(kin)
         full = dict(sig)
         full["m"] = rule.get("m", "")
         full["m_source"] = "lateral_rule"
