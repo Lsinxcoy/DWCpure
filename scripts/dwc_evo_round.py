@@ -307,9 +307,16 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 if _fix and _att == 1:
                     _hint = ((_hint + "\n" if _hint else "") +
                              "上轮失败（fix）：%s" % (_fix,))
+                _key = Mutator.key_for(cl["sigs"][0])
+                _op = "draft" if _key not in Mutator.RULES else "improve"
+                if str(_task).startswith("code_fix"):
+                    _op = "debug" if _op == "improve" else _op
+                if len(cl["sigs"]) > 1:
+                    _op = "crossover"
                 p = mu.propose_from_cluster(cl["sigs"], context,
                                             want_code=want_code_of(_task),
-                                            learned_hint=_hint)
+                                            learned_hint=_hint,
+                                            operator=_op)
             # ★ D4-② propose 段（簇→候选；候选≠有效，门＋试跑在后）。
             except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
                 item["reason"] = "起草抛错：%r" % (exc,)

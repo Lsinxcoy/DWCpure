@@ -1093,6 +1093,9 @@ class Proposal:
     #:   component ∈ 𝒦 ⇒ assets · ∈ 𝒦_meta ⇒ architecture
     #:   ⇒⇒ 不一致 = 声明与意图矛盾（判据 K2）
     target_layer: str = ""
+    #: ★ R338 · 原子算子（OpenRSI Draft/Improve/Debug/Crossover）——
+    #:   训练与推理共用同一动作空间；propose 时显式声明。
+    operator: str = "improve"
     is_structural: bool = False
     dimension: Optional[str] = None
     #: ★ R78 批3-D（裁决②: 加）· 进化方向标注 —— 与 direction.EvolutionDirection
@@ -2074,11 +2077,12 @@ class LLMMutator:
         return None
 
     def propose_from_cluster(self, sigs: List[Dict[str, Any]],
-                             context: str = "",
-                             max_attempts: int = 3,
-                             want_code: bool = False,
-                             learned_hint: str = "",
-                             ) -> Optional["Proposal"]:
+                                 context: str = "",
+                                 max_attempts: int = 3,
+                                 want_code: bool = False,
+                                 learned_hint: str = "",
+                                 operator: str = "improve",
+                                 ) -> Optional["Proposal"]:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
             return None
@@ -2146,7 +2150,8 @@ class LLMMutator:
                        % (len(sigs), entry["rationale"])),
             dimension=entry.get("dimension"),
             target_layer=(entry.get("target_layer")
-                          or layer_of(entry["component"])))
+                          or layer_of(entry["component"])),
+            operator=operator)
 
 
 # ══════════════════════════════════════════════════════════
