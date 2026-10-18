@@ -13,3 +13,6 @@
 顺序建议：N2 → N7 → N3 → N1/N4（方案轮）→ N5/N6（被动跟进）。
 N2 理由：fresh 集已落地＋m 参数已就绪，判分接入即闭环 Eq.8 m 真实来源；
 且 N1/N4 动前需要"trial 能判"的基建，N2 正是补这块。
+
+## R333-R337 (RSI survey 落地)
+| R333 | state inheritance 启动接线 + 版本化 | done |

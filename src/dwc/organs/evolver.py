@@ -1359,14 +1359,18 @@ class Mutator:
                 "seed_location": ("src/dwc/organs/evolver.py 的 "
                                   "Mutator.RULES（人工写，可评审）"),
                 "★ 分流": ("种子留代码 · 学到的落盘 —— "
-                       "否则代码与 json 双源，或学到的随进程消失"),
+                       "否则代码与 json **双源**，或学到的随进程消失"),
             },
+            "_version": "R333",
+            "_content_hash": Mutator._state_hash(learned),
             "learned": learned,
         }
         with io.open(cls.LEARNED_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=1)
         return {"path": cls.LEARNED_PATH, "n_written": len(learned),
-                "n_seed": len(cls.SEED_KEYS)}
+                "n_seed": len(cls.SEED_KEYS),
+                "version": "R333",
+                "content_hash": Mutator._state_hash(learned)}
 
     # ★ C2 · carried 率计数（companion Eq.11 activation 第三级：被后轮
     #   propose 引用次数）。种子进程内有效（重启归零 —— persist 只写非种
@@ -1388,6 +1392,19 @@ class Mutator:
         os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))))),
         "config", "anchors", "archive.json")
+
+    @classmethod
+    def bootstrap_state(cls) -> Dict[str, int]:
+        """★ R333 · 启动接线：把落盘 learned + archive 合并进内存。"""
+        return {"learned_loaded": cls.load_learned(),
+                "archive_loaded": cls.load_archive()}
+
+    @staticmethod
+    def _state_hash(payload: Any) -> str:
+        """★ R333 · 持久化产物的内容指纹（可审计 state inheritance）。"""
+        import hashlib
+        blob = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
     @classmethod
     def load_archive(cls) -> int:
@@ -1414,11 +1431,15 @@ class Mutator:
         ★ 返回 {path, n_written}。
         """
         os.makedirs(os.path.dirname(cls.ARCHIVE_PATH), exist_ok=True)
-        payload = {"archive": cls.ARCHIVE}
+        payload = {"_version": "R333",
+                   "_content_hash": Mutator._state_hash(cls.ARCHIVE),
+                   "archive": cls.ARCHIVE}
         with io.open(cls.ARCHIVE_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=1)
         return {"path": cls.ARCHIVE_PATH,
-                "n_written": sum(len(v) for v in cls.ARCHIVE.values())}
+                "n_written": sum(len(v) for v in cls.ARCHIVE.values()),
+                "version": "R333",
+                "content_hash": Mutator._state_hash(cls.ARCHIVE)}
 
     @classmethod
     def select_parent(cls, key: str, strategy: str = "latest") -> Optional[Dict[str, Any]]:
@@ -1949,6 +1970,14 @@ class Mutator:
 #   · m_source 强制 "llm"（防冒充规则推导 — R30 分工）。
 #   · 坏 JSON/缺字段 ⇒ None + last_reason 留痕（禁静默）；
 #     llm 抛异常 ⇒ 原样上抛（大声，不吞）。
+# ★ R333 · 启动接线：进程导入时把落盘 state 合并进内存（state inheritance
+#   的"加载"半边）。文件不存在 ⇒ 0，不报错。
+try:
+    Mutator.bootstrap_state()
+except Exception:  # noqa: BLE001 — 启动接线坏不掀导入
+    pass
+
+
 # ══════════════════════════════════════════════════════════
 
 
