@@ -325,6 +325,14 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 if _fix and _att == 1:
                     _hint = ((_hint + "\n" if _hint else "") +
                              "上轮失败（fix）：%s" % (_fix,))
+                # ★ R349 · reconstructive retrieval：archive 重建上下文喂 propose。
+                try:
+                    _rc = Mutator.reconstruct_context(_task)
+                    if _rc:
+                        _hint = ((_hint + "
+" + _rc) if _hint else _rc)
+                except Exception:  # noqa: BLE001 — 坏不断起草
+                    pass
                 _key = Mutator.key_for(cl["sigs"][0])
                 _op = "draft" if _key not in Mutator.RULES else "improve"
                 if str(_task).startswith("code_fix"):

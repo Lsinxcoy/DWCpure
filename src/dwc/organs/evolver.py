@@ -1412,6 +1412,31 @@ class Mutator:
         except Exception:  # noqa: BLE001 — 坏不断主路
             pass
 
+    @staticmethod
+    def reconstruct_context(task: str) -> str:
+        """★ R349 · Reconstructive retrieval."""
+        try:
+            _fam = str(task).split("_")[0] if task else ""
+            _lines = []
+            for _key, _lst in (Mutator.ARCHIVE or {}).items():
+                for _e in (_lst or []):
+                    _t = (_e or {}).get("task", "")
+                    if _fam and not str(_t).startswith(_fam):
+                        continue
+                    _succ = (_e or {}).get("success")
+                    _partial = (_e or {}).get("partial")
+                    _patch = (_e or {}).get("patch", "")
+                    _patch = (_patch or "")[:120]
+                    _lines.append("  - task=%s success=%s partial=%s patch=%s"
+                                  % (_t, _succ, _partial, _patch))
+            if not _lines:
+                return ""
+            return ("Reconstructed history (family=%s, n=%d):\n%s"
+                    % (_fam, len(_lines), "\n".join(_lines[:20])))
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            return ""
+
+
     # ★ N3 · archive 持久化路径（与 LEARNED_PATH 同族 —— 跨进程存活）。
     ARCHIVE_PATH = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(
