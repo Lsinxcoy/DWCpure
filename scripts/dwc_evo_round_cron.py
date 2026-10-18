@@ -48,10 +48,9 @@ def main() -> int:
                     help="只深挖该 task（task_filter＋hint fresh＋单簇）")
     # ★ B4 · 候选池 N（默认 3 老路；调大涨 LLM 预算 —— Thm 3 Eq.8）。
     _p.add_argument("--pool-n", type=int, default=3)
-    # ★ R327 · 起草预算（reasoning 模型先吃预算再写 content，撞 length
-    #   即空 —— R327 深挖轮实测 1500 顶格撞线三次，4000 一次跑通；生产
-    #   默认 4000，普通轮起草同病同治）。
-    _p.add_argument("--draft-tokens", type=int, default=4000)
+    # ★ N7 · 起草预算校准（probe：want_code 路 1000 fail/1500 pass；
+    #   无码路 800 pass；真实 prompt 多 ~600 字 reasoning 开销 ⇒ 2000 余量）。
+    _p.add_argument("--draft-tokens", type=int, default=2000)
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
@@ -95,6 +94,50 @@ def main() -> int:
         # ★ R309-⑦ · epoch ledger（默认开；--no-resume 关）。
         ledger_path=os.path.join(prod, "var", "evo_round_ledger.jsonl"),
         resume=not _a.no_resume)
+    # ★ N1 · 执行侧 sigs 归 agent_quality 回路：有被分流的 llm_asserted
+    #   sigs ⇒ 写 inbox 任务（去重），让 resident agent 重做（R329 转单
+    #   的自动版；不静默吞掉）。
+    try:
+        _nfiltered = int(rep.get("filtered_nonreproducible") or 0)
+        if _nfiltered > 0:
+            import json as _j
+            _inbox = os.path.join(prod, "var", "dwc_inbox.jsonl")
+            _done = os.path.join(prod, "var", "dwc_inbox_done.json")
+            _done_ids = set()
+            try:
+                with open(_done, encoding="utf-8") as _f:
+                    _done_ids = set(json.load(_f).keys())
+            except (OSError, ValueError):
+                _done_ids = set()
+            _existing = set()
+            try:
+                with open(_inbox, encoding="utf-8") as _f:
+                    for _ln in _f:
+                        try:
+                            _existing.add(json.loads(_ln).get("id"))
+                        except Exception:
+                            pass
+            except OSError:
+                pass
+            # 读 db 取 distinct task
+            import sqlite3 as _sq
+            _con = _sq.connect(db)
+            _tasks = [r[0] for r in _con.execute(
+                "SELECT DISTINCT task FROM failure_sig "
+                "WHERE m LIKE 'llm_asserted%'").fetchall()]
+            _con.close()
+            for _t in _tasks:
+                _tid = "evo_auto_%s" % (_t,)
+                if _tid in _existing or _tid in _done_ids:
+                    continue
+                _line = _j.dumps({"id": _tid, "task": _t,
+                                  "by": "evo_auto_route",
+                                  "ts": __import__("datetime").datetime.now().isoformat()},
+                                 ensure_ascii=False)
+                with open(_inbox, "a", encoding="utf-8") as _f:
+                    _f.write(_line + "\n")
+    except Exception as _e:  # noqa: BLE001 — 路由坏不掀轮
+        print("N1 route warn:", repr(_e))
     try:  # ★ R280 · Brier 每日可观测（坏了留痕不掀报告）
         _op = OutcomePredictor(log_path=os.path.join(
             prod, "var", "dwc_predictor.jsonl"))

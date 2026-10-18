@@ -2,7 +2,7 @@
 
 | # | 项 | 来源 | 成本 | 状态 |
 |---|---|---|---|---|
-| N1 | 执行侧真复现（trial 接 LLMTaskExecutor，真跑 agent 路径） | R329 | 大 | todo（需方案轮先行） |
+| N1 | 执行侧sigs归agent_quality回路（cron自动投单） | R329 | 中 | done（R332） |
 | N2 | fresh split 判分接入 A1b-2 | R326 | 中 | done（R330） |
 | N3 | C1 parent 选择器＋archive 落盘 | R324 | 中 | done（R331） |
 | N4 | lam/gamma 门参数启用（对照实验先行） | R313 | 大 | todo |

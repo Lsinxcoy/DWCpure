@@ -1,0 +1,68 @@
+{
+ "round": "R332",
+ "date": "2026-10-19",
+ "主题": "N1 执行侧sigs归agent_quality回路",
+ "verify": {
+  "pytest": "2140绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "new_tests": "0(复用r328锁)"
+ },
+ "inheritance": {
+  "gen": 332,
+  "at": "2026-10-19T05:00:00+08:00",
+  "parent_gen": 331,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 418,
+   "pytest": 2140,
+   "truth_sha8": "78560662",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "N1 执行侧sigs归agent_quality回路: collect过滤计数+cron自动投单(去重)",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "scripts/dwc_evo_round_cron.py",
+    "archive/plan_next_items.md"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_r328_repro.py 3/3 + r279 15/15",
+     "claim": "过滤/透传/默认值锁"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "N1轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "78560662",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2140+gate8/8",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2140绿(噪声文件单跑证)",
+   "user_decision": "你来做决策 直到收官 -> N1"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "cron路由待下轮实跑验证"
+  }
+ }
+}

@@ -40,7 +40,8 @@ from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
 def collect_unmapped(db_path, evolver, fn_of, task_of,
                      priority_prefixes=None, task_filter=None,
-                     reproducible_only=True):
+                     reproducible_only=True,
+                     filtered_out=None):
     """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。
 
     ★ B3 · 火力转攻（reasoning 组 0.888 验证贵 → code_fix 组主攻）：
@@ -70,8 +71,12 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
         sigs = [s for s in sigs if s.get("task") == task_filter]
     if reproducible_only:
         # ★ R328 · 分流：执行侧自断言 trial 复现不了，不进 evo 簇。
+        _filtered_nonrepro = [s for s in sigs
+                              if str(s.get("m", "") or "").startswith("llm_asserted")]
         sigs = [s for s in sigs
                 if not str(s.get("m", "") or "").startswith("llm_asserted")]
+        if filtered_out is not None:
+            filtered_out.extend(_filtered_nonrepro)
     if not sigs:
         return []
     out = evolver.diagnose(sigs)
@@ -215,10 +220,12 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     _pool_n = pool_n if pool_n is not None else max_attempts
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
+    _nonrepro: list = []
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
                                 priority_prefixes=priority_prefixes,
                                 task_filter=task_filter,
-                                reproducible_only=reproducible_only)
+                                reproducible_only=reproducible_only,
+                                filtered_out=_nonrepro)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
@@ -420,7 +427,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         except Exception:                   # noqa: BLE001 — 坏不断轮
             _mech_advise = []
     _rep = {"n_clusters": len(clusters), "results": results,
-            "not_wired": [], "mech_advise": _mech_advise}
+            "not_wired": [], "mech_advise": _mech_advise,
+            "filtered_nonreproducible": len(_nonrepro)}
     # ★ D2 · envelope 声明（companion：search cost 与 envelope 分开列）。
     #   trial_rounds＝本轮 trial 调用总数（attempts 求和）；by_mode＝trial
     #   mode 分布（按 results 行计末次 trial 的 mode；code 路＝LLM search
