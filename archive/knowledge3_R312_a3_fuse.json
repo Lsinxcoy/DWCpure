@@ -1,0 +1,75 @@
+{
+ "round": "R312",
+ "date": "2026-10-18",
+ "主题": "A3小Δ熔断",
+ "verify": {
+  "pytest": "2100 rc=0",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "4/4",
+  "破坏验证": "判据反转报3红再恢复绿"
+ },
+ "inheritance": {
+  "gen": 312,
+  "at": "2026-10-18T18:10:00+08:00",
+  "parent_gen": 311,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 396,
+   "pytest": 2096,
+   "truth_sha8": "953b0955",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A3小Δ熔断: |Δ_in|<spread跳过peer验证 (_evo_spread读D1常驻spread_mean+_small_delta_fused唯一判据+code/report双路熔断, held_out=None门仍blocked)",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "tests/test_a3_fuse.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a3_fuse.py 4/4",
+     "claim": "熔断逻辑+双路行为+零对零边界"
+    },
+    {
+     "type": "test",
+     "ref": "全量2100绿+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A3轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "953b0955",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2100+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2100绿",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "熔断生产首验待evo轮跑出A3 reason行; spread生产值待bench --repeat"
+  }
+ }
+}

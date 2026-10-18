@@ -377,6 +377,35 @@ def _extract_code(text: str, fn: str = ""):
     return None
 
 
+def _evo_spread():
+    """★ A3 · 小Δ熔断读数：bench report 的 spread_mean（D1 常驻）。
+
+    无文件/无值/坏 ⇒ None（缺席不开门 —— spread 未测时熔断永不开，
+    不猜阈值；0.0=测了零方差，任何非零 |Δ| 都值得验，照样开）。
+    """
+    try:
+        with io.open(os.path.join(_code_root(), "var",
+                                  "dwc_bench_results.json"),
+                     encoding="utf-8") as f:
+            _r = json.load(f).get("spread_mean")
+        return float(_r) if _r is not None else None
+    except (OSError, ValueError, TypeError):    # noqa: BLE001 — 坏不断试跑
+        return None
+
+
+def _small_delta_fused(in_score, base):
+    """★ A3 · 小Δ熔断判据（Cai Thm 5：|Δ|<spread ⇒ 不烧 peer 验证预算）。
+
+    回 (fused, d_in)：差任一 None/读数 None ⇒ (False, d_in) 不熔断。
+    """
+    _d = ((in_score - base)
+          if (in_score is not None and base is not None) else None)
+    _sp = _evo_spread()
+    if _d is not None and _sp is not None and abs(_d) < _sp:
+        return True, _d
+    return False, _d
+
+
 def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
                          hint_code=None):
     """★ R295-Task3 · peer 写码独立评估（fail-closed：任一步坏⇒None）。
@@ -498,6 +527,17 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
                                        "★_executed": True}).success
         # ★ R299-b · 基线用前置快照（判后取=自己，d_in 恒 0 死门已除）。
         base = _base_in
+        _cur = (1.0 if suc is True else (0.0 if suc is False else None))
+        # ★ A3 · 小Δ熔断（code 路）：|Δ_in|<spread ⇒ 跳过 peer 验证，
+        #   省出码+沙箱 LLM 预算；held_out=None ⇒ 门仍 blocked（门语义零改）。
+        _fused, _d_in = _small_delta_fused(_cur, base)
+        if _fused:
+            return {"success": suc, "in_score": _cur,
+                    "baseline_in": base,
+                    "baseline_ho": _base_ho, "held_out": None,
+                    "mode": _mode,
+                    "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
+                               % (_d_in,))}
         return {"success": suc,
                 "in_score": (1.0 if suc is True else
                              (0.0 if suc is False else None)),
@@ -524,6 +564,15 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
                                    "★_executed": True}).success
     # ★ R299-b · 基线用前置快照（report 路同修，自己不当基线）。
     base = _base_in
+    _cur = (1.0 if suc is True else (0.0 if suc is False else None))
+    # ★ A3 · 小Δ熔断（report 路）：判据与 code 路同一函数，口径唯一。
+    _fused, _d_in = _small_delta_fused(_cur, base)
+    if _fused:
+        return {"success": suc, "in_score": _cur,
+                "baseline_in": base,
+                "baseline_ho": _base_ho, "held_out": None, "mode": _mode,
+                "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
+                           % (_d_in,))}
     # ★ R295-Task3 · peer 切写码独立评估（老报数 peer 退役：patch 建议文本
     #   进 peer prompt 是 R294 实证的错配通道，peer 也写码真跑）。
     _ho = _peer_held_out_code(judge, llm, task, max_tokens=max_tokens)
