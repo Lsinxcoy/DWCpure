@@ -568,7 +568,8 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
         return None
 
 
-def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
+def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
+                agent_executor=None):
     """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分 dict。
 
     ★ R290-P1 · 回判分 dict（legacy 退役条件①）：
@@ -621,6 +622,24 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None):
         _peer = None
     _base_in = _snap(task, "dev")
     _base_ho = _snap(_peer, "test") if _peer else None
+    # ★ R339 · agent 路径（可插拔）：若注入 agent_executor，则真跑 agent
+    #   路径，失败 fail-closed（不回落报数路，避免混归因）。
+    if agent_executor is not None:
+        try:
+            _res = agent_executor(task, patch, code)
+        except Exception as _ae:  # noqa: BLE001 — 大声留痕
+            return {"success": None, "in_score": None, "baseline_in": _base_in,
+                    "held_out": None, "mode": "agent",
+                    "reason": "agent 路径抛错：%r" % (_ae,)}
+        if not isinstance(_res, dict) or _res.get("success") is None and \
+                _res.get("in_score") is None:
+            return {"success": None, "in_score": None, "baseline_in": _base_in,
+                    "held_out": None, "mode": "agent",
+                    "reason": "agent 路径无有效结果（fail-closed）"}
+        _res = dict(_res)
+        _res.setdefault("mode", "agent")
+        _res.setdefault("baseline_in", _base_in)
+        return _res
     _mode = "report"
     if code and _cat == "code_repair":
         from dwc.llm.sandbox import run_code_observed, SandboxError
