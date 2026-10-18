@@ -1,0 +1,76 @@
+{
+ "round": "R323",
+ "date": "2026-10-18",
+ "主题": "A1a Eq8四数显式化",
+ "verify": {
+  "pytest": "2120绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "4/4",
+  "破坏验证": "上界算错报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 323,
+  "at": "2026-10-18T23:40:00+08:00",
+  "parent_gen": 322,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 407,
+   "pytest": 2116,
+   "truth_sha8": "300ca429",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A1a Eq8四数显式化: accept加m/k/delta_conf+Eq8透出8出口+evo_round传m/KT(判分零改, fresh集另轮A1b)",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "scripts/dwc_evo_round.py",
+    "tests/test_a1a_eq8.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a1a_eq8.py 4/4",
+     "claim": "默认值/上界值/判分一致/出口齐"
+    },
+    {
+     "type": "test",
+     "ref": "全量2120绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A1a轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "300ca429",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2120+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2120绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "Eq8独立性假设当前不满足(held_out配对复测); fresh集A1b另轮"
+  }
+ }
+}

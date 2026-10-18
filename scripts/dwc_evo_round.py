@@ -334,10 +334,16 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             #   收紧点：trial_fn 带分数之日 legacy 分支删除，见 ★TODO）。
             try:
                 # ★ R300-A · 传 mode（code 路走知识分支；缺省 report 老路）。
+                # ★ A1a · Eq.8 四数：m＝本轮验证样本量（in＋ho 非 None 个数；
+                #   非 dict trial⇒None 诚实缺席）；KT̂＝attempts（比较次数）。
+                _m = (((t.get("in_score") is not None) +
+                       (t.get("held_out") is not None))
+                      if isinstance(t, dict) else None)
                 _ad = evolver.accept(
                     p, baseline=_base, current=_cur,
                     mode=((t.get("mode") or "report")
-                          if isinstance(t, dict) else "report"))
+                          if isinstance(t, dict) else "report"),
+                    m=_m, k_comparisons=_att)
             except Exception as exc_a:  # noqa: BLE001
                 _ad = {"decision": "accept_error",
                        "why": "accept 抛错：%r" % (exc_a,)}

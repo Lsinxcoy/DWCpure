@@ -2339,6 +2339,9 @@ class Evolver:
                lam: float = 0.0,
                delta: Optional[float] = None,
                gamma: float = 0.0,
+               m: Optional[int] = None,
+               k_comparisons: int = 1,
+               delta_conf: float = 0.05,
                ) -> Dict[str, Any]:
         """★ 判定一个候选该不该采纳（固定门 𝒢_fixed）。
 
@@ -2380,6 +2383,15 @@ class Evolver:
             γ̂＝gamma（默认 0.0 未启用，同上）。
           返回体每出口带 "T"＝{lam, delta, gamma}（单真源 _T()），供查账
           与 Thm 5 熔断消费。
+        ★★ A1a · 18813 Eq.8 四数显式化（m/KT/T/δ，判分零改 —— fresh 集
+          另轮 A1b）：Eq.8 准入上界 Δ_k ≤ Δ̂_k＋√(2ln(KT/δ)/m)，只接受上
+          界为负的候选。DWC 当前：m＝验证样本量（调用方传；None＝未声明，
+          hoeffding 记 None 不编数）；KT̂＝k_comparisons（本轮比较次数，
+          evo_round 传 attempts）；T＝_T()（A2 条件）；δ̂＝delta_conf
+          （默认 0.05）。返回体每出口带 "Eq8"（单真源 _E8()）。
+          诚实边界：DWC 的 held_out 是配对复测非盲测（E1 已降级）—— m
+          是复测样本不是 fresh 独立样本，Eq.8 独立性假设当前不满足，
+          上界仅供参考，门判据不动（独立集落地之日再启用上界否决）。
         """
         b_in = baseline.get("in_score")
         c_in = current.get("in_score")
@@ -2399,9 +2411,24 @@ class Evolver:
                     "delta": (eps if delta is None else delta),
                     "gamma": gamma}
 
+        # ★ A1a · Eq.8 四数单真源（m/KT/T/δ）：只显式记录、不改判。
+        def _E8():
+            import math as _math
+            _hb = None
+            try:
+                if (m is not None and m > 0 and k_comparisons is not None
+                        and k_comparisons > 0 and 0 < delta_conf < 1):
+                    _hb = _math.sqrt(2.0 * _math.log(
+                        k_comparisons / delta_conf) / m)
+            except (ValueError, TypeError, ZeroDivisionError):
+                _hb = None    # noqa: BLE001 — 算不出记 None，不断判分
+            return {"m": m, "KT": (k_comparisons
+                                   if k_comparisons is not None else None),
+                    "T": _T(), "delta": delta_conf, "hoeffding": _hb}
+
         if b_in is None or c_in is None:
             return {"decision": "not_evaluated", "why": "in-sample 未判过",
-                    "T": _T(),
+                    "T": _T(), "Eq8": _E8(),
                     "gates": [
                         _g("in_sample_scored", False, "in_score 缺基线/当前"),
                         _g("held_out_present", None, "未及判（前门已拦）"),
@@ -2411,7 +2438,7 @@ class Evolver:
 
         if b_ho is None or c_ho is None:
             return {"decision": "blocked",
-                    "T": _T(),
+                    "T": _T(), "Eq8": _E8(),
                     "why": ("★ 约束 3 需两组 split（Δ_in ∧ Δ_ho），"
                             "而 test split 未落地 ⇒ 不得只凭 in-sample 采纳"
                             "（2606.14249 之戒：Telecom R7 累积 edits 单轮"
@@ -2431,7 +2458,7 @@ class Evolver:
         #   max(...) > 0。第三个条件是"真的有改进"，否则"没退化"就采纳是空过。
         if d_in < -eps or d_ho < -eps:
             return {"decision": "rejected", "delta_in": d_in,
-                    "delta_ho": d_ho, "T": _T(),
+                    "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                     "why": "任一 split 退化 ⇒ 拒（Δ_in ≥ 0 ∧ Δ_ho ≥ 0）",
                     "gates": [
                         _g("in_sample_scored", True,
@@ -2451,7 +2478,7 @@ class Evolver:
                 _key = Mutator.key_for(_sig)
             except Exception as _ke:            # noqa: BLE001 — 键坏大声
                 return {"decision": "accept_error", "delta_in": d_in,
-                        "delta_ho": d_ho, "T": _T(),
+                        "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                         "why": "规则键构造失败：%r" % (_ke,),
                         "gates": [
                             _g("in_sample_scored", True, ""),
@@ -2461,7 +2488,7 @@ class Evolver:
                                "键坏，未及判")]}
             if _key in Mutator.RULES:
                 return {"decision": "rejected", "delta_in": d_in,
-                        "delta_ho": d_ho, "T": _T(),
+                        "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                         "why": "规则重复（key 已在 RULES：%s）⇒见过不采" % (_key,),
                         "gates": [
                             _g("in_sample_scored", True, ""),
@@ -2470,7 +2497,7 @@ class Evolver:
                             _g("real_improvement", False,
                                "知识增量：key 已见过")]}
             return {"decision": "adopted_not_implemented",
-                    "delta_in": d_in, "delta_ho": d_ho, "T": _T(),
+                    "delta_in": d_in, "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                     "rule_key": _key,
                     "gates": [
                         _g("in_sample_scored", True, ""),
@@ -2482,7 +2509,7 @@ class Evolver:
                           "（R14 第五态）")}
         if max(d_in, d_ho) <= 0:
             return {"decision": "rejected", "delta_in": d_in,
-                    "delta_ho": d_ho, "T": _T(),
+                    "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                     "why": ("★ 2606.09498 §3.4 第三条件: max(Δ) > 0"
                             " —— 两组都没退化但也没改进 ⇒ 那是空过，不采纳"),
                     "gates": [
@@ -2494,7 +2521,7 @@ class Evolver:
                         _g("real_improvement", False,
                            "max(Δ)=%.3f≤0，空过" % (max(d_in, d_ho),))]}
         return {"decision": "adopted_not_implemented",
-                "delta_in": d_in, "delta_ho": d_ho, "T": _T(),
+                "delta_in": d_in, "delta_ho": d_ho, "T": _T(), "Eq8": _E8(),
                 "max_delta": max(d_in, d_ho),
                 "gates": [
                     _g("in_sample_scored", True,
