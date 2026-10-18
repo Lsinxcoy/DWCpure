@@ -16,3 +16,10 @@ N2 理由：fresh 集已落地＋m 参数已就绪，判分接入即闭环 Eq.8 
 
 ## R333-R337 (RSI survey 落地)
 | R333 | state inheritance 启动接线 + 版本化 | done |
+
+## R338-R342 (OpenRSI 强化)
+| R338 | Proposal 原子算子字段 + operator-aware 推断 | done |
+| R339 | trial 可插拔 agent 路径 (fail-closed) | done |
+| R340 | accept 记录 gain_type | done |
+| R341 | archive priors 注入 search | done |
+| R342 | patch 层 dedup (防 leakage) | done |
