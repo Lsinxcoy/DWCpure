@@ -1,0 +1,76 @@
+{
+ "round": "R322",
+ "date": "2026-10-18",
+ "主题": "B4候选池N",
+ "verify": {
+  "pytest": "2116绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "pool恒用max报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 322,
+  "at": "2026-10-18T23:10:00+08:00",
+  "parent_gen": 321,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 406,
+   "pytest": 2113,
+   "truth_sha8": "8762d6b6",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "B4候选池N: pool_n单簇上限(None=老路)+envelope pool_N+cron --pool-n",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "scripts/dwc_evo_round_cron.py",
+    "tests/test_b4_pool.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_b4_pool.py 3/3",
+     "claim": "上限/老路/cron接线"
+    },
+    {
+     "type": "test",
+     "ref": "全量2116绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "B4轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "8762d6b6",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2116+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2116绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "P2全清; 真并行需多进程另轮; N调大即涨预算"
+  }
+ }
+}

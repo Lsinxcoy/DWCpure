@@ -46,6 +46,8 @@ def main() -> int:
     # ★ B1 · 独立深挖轮（007 单独立簇＋hint 换血：一轮试跑）。
     _p.add_argument("--deep-task", default=None,
                     help="只深挖该 task（task_filter＋hint fresh＋单簇）")
+    # ★ B4 · 候选池 N（默认 3 老路；调大涨 LLM 预算 —— Thm 3 Eq.8）。
+    _p.add_argument("--pool-n", type=int, default=3)
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
@@ -81,6 +83,7 @@ def main() -> int:
         task_filter=_a.deep_task,
         hint_mode=("fresh" if _a.deep_task else "reuse"),
         max_clusters=(1 if _a.deep_task else 3),
+        pool_n=_a.pool_n,
         want_code_of=lambda t: (
             judge.anchors.get(t, {}) or {}).get(
             "category", "") == "code_repair",

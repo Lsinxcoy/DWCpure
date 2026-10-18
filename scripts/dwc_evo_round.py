@@ -174,12 +174,15 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               want_code_of=None, mech_log=None, trace_log=None,
               ledger_path=None, resume=True, ledger_date=None,
               max_attempts=3, priority_prefixes=None,
-              task_filter=None, hint_mode="reuse"):
+              task_filter=None, hint_mode="reuse", pool_n=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
       None=不求码，老路零变）。trial_fn 三参契约 (task, patch, code=None)。
     ★ R310-⑤ · max_attempts（默认 3）：单簇 trial 非 True 重试预算。
+    ★ B4 · 候选池 N（Cai Thm 3 Eq.8：N 进界 —— 池子里没有，验证再松也
+      收不到）：pool_n＝单簇候选池上限（串行试，单进程无真并行；None＝
+      max_attempts 老路）。调大即涨 LLM 预算（每候选一次起草＋trial）。
     ★ A6 · peak-picking 禁令：返回体只装当轮终态（results 当轮行＋ledger
       追加行），禁报历史 peak（companion HarnessX 反例：报 peak 73.8% 而
       终态 49.5%）。调用方要趋势自己读 ledger 全史，本函数不代取最优。
@@ -196,6 +199,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
       cron --deep-task 传 task＋fresh＋max_clusters=1 即深挖轮）。
     """
     fn_of = fn_of or (lambda r: "")
+    # ★ B4 · 候选池 N 单真源（None⇒max_attempts；单进程串行，无真并行）。
+    _pool_n = pool_n if pool_n is not None else max_attempts
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
@@ -301,7 +306,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
             # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
             _ok = (t.get("success") if isinstance(t, dict) else t)
-            if _ok is True or _att >= max(1, max_attempts):
+            if _ok is True or _att >= max(1, _pool_n):
                 break
         item["attempts"] = _att
         if _fatal:
@@ -410,6 +415,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     _rep["envelope"] = {
         "trial_rounds": sum(int(_it.get("attempts", 1) or 1)
                             for _it in results),
+        "pool_N": _pool_n,  # ★ B4 · 候选池上限（Thm 3 Eq.8 的 N）
         "by_mode": _env_modes,
         "llm_calls": "unmeasured（llm 在 trial_fn 闭包内 — 另轮改契约）",
         "tokens": "unmeasured（R42：DWC 未记 token）",
