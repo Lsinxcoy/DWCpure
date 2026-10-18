@@ -41,7 +41,8 @@ from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 def collect_unmapped(db_path, evolver, fn_of, task_of,
                      priority_prefixes=None, task_filter=None,
                      reproducible_only=True,
-                     filtered_out=None):
+                     filtered_out=None,
+                     use_archive_priors=True):
     """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。
 
     ★ B3 · 火力转攻（reasoning 组 0.888 验证贵 → code_fix 组主攻）：
@@ -79,6 +80,23 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
             filtered_out.extend(_filtered_nonrepro)
     if not sigs:
         return []
+    if use_archive_priors:
+        try:
+            from dwc.organs.evolver import Mutator as _MM
+            _at = []
+            for _lst in (_MM.ARCHIVE or {}).values():
+                for _e in (_lst or []):
+                    _t = (_e or {}).get("task")
+                    if _t and _t not in _at:
+                        _at.append(_t)
+            if _at:
+                _pp = list(priority_prefixes or [])
+                for _t in _at:
+                    if _t not in _pp:
+                        _pp.append(_t)
+                priority_prefixes = tuple(_pp)
+        except Exception:  # noqa: BLE001 — priors 坏不断主路
+            pass
     out = evolver.diagnose(sigs)
     groups = {}
     for s in out.get("unmapped", []):
