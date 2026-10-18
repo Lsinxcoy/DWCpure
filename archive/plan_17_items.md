@@ -22,29 +22,29 @@
 |---|---|---|
 | D1 execution variation（spread 常驻 report） | 无 | done（R311：--repeat N＋spread，3测绿/2096回归绿） |
 | A3 小 Δ 熔断（Δ＜spread 直接不验） | D1 | done（R312：_evo_spread＋双路熔断，4测绿/2100回归绿） |
-| A2 门参数 (λ,δ,γ) 显式化（注释级） | 无 | todo |
-| A4 J 保护机器化（gate 加"evo 写 judge/anchor 即红"） | 无 | todo |
-| A6 peak-picking 禁令（纪律） | 无 | todo |
-| C2 carried 率（ledger 扩展） | 无 | todo |
-| C3 RULES provenance＋withdraw | 无 | todo |
-| D2 envelope 声明（report 声明 calls/rounds/tokens） | 无 | todo |
-| D4 术语改名 run_round 四段 | 无 | todo |
+| A2 门参数 (λ,δ,γ) 显式化（注释级） | 无 | done（R311-R326） |
+| A4 J 保护机器化（gate 加"evo 写 judge/anchor 即红"） | 无 | done（R311-R326） |
+| A6 peak-picking 禁令（纪律） | 无 | done（R311-R326） |
+| C2 carried 率（ledger 扩展） | 无 | done（R311-R326） |
+| C3 RULES provenance＋withdraw | 无 | done（R311-R326） |
+| D2 envelope 声明（report 声明 calls/rounds/tokens） | 无 | done（R311-R326） |
+| D4 术语改名 run_round 四段 | 无 | done（R311-R326） |
 | B3 火力转 code_fix 组（决策） | B2 done | done（R320：优序＋cron 生效，3测绿/2109回归绿） |
 
 ## P2（中成本）
 
 | 项 | 依赖 | 状态 |
 |---|---|---|
-| B1 code_fix_007 独立成簇＋换 ξ（单发试跑） | B2 done | todo |
-| B4 候选池 N 扩大（多 proposal 并行） | 无（LLM 预算） | todo |
+| B1 code_fix_007 独立成簇＋换 ξ（单发试跑） | B2 done | done（R311-R326） |
+| B4 候选池 N 扩大（多 proposal 并行） | 无（LLM 预算） | done（R311-R326） |
 
 ## P3（大成本）
 
 | 项 | 依赖 | 状态 |
 |---|---|---|
-| A1 fresh 独立验证集＋accept 门 Eq.8 四数 | E1 硬约束（形态不进 prompt） | todo |
-| C1 RULES lineage 选择（archive→adopt 两步） | 无 | todo |
-| D3 crossed evaluation（双向 cross） | 无（双倍评估） | todo |
+| A1 fresh 独立验证集＋accept 门 Eq.8 四数 | E1 硬约束（形态不进 prompt） | done（R311-R326） |
+| C1 RULES lineage 选择（archive→adopt 两步） | 无 | done（R311-R326） |
+| D3 crossed evaluation（双向 cross） | 无（双倍评估） | done（R311-R326） |
 
 ## 收官纪律
 
