@@ -600,7 +600,7 @@ def gate8_contract() -> dict:
         "organs/evolver.py": ev_s,
         "organs/candidates.py": ca_s,
     }
-    _er = os.path.join(os.path.dirname(SRC), "scripts", "dwc_evo_round.py")
+    _er = os.path.join(ROOT, "scripts", "dwc_evo_round.py")
     try:
         _evo_side["scripts/dwc_evo_round.py"] = (
             io.open(_er, encoding="utf-8").read() if os.path.isfile(_er)
@@ -621,6 +621,28 @@ def gate8_contract() -> dict:
                                    "rule": "K5 J 被写",
                                    "detail": ("evo 侧写判据面 %s ⇒ 判据在可写面内"
                                             "（18813 §2 禁）" % _hit)})
+    # ── K6: state inheritance 启动接线（R333 · §3.1 最低条件）──
+    #   bootstrap_state 必须存在且被调用（否则 archive 跨进程读不进来）。
+    if "def bootstrap_state" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K6 缺失",
+                           "detail": "bootstrap_state 未定义 ⇒ state inheritance 只写不读"})
+    if "bootstrap_state()" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K6 未调用",
+                           "detail": "bootstrap_state() 未在模块级调用 ⇒ 落盘 state 不会合并"})
+
+    # ── K7: fresh split 判分接入（R330 · §3.3 delayed held-out slice）──
+    _judge_path = os.path.join(SRC, "organs", "judge.py")
+    _judge_s = io.open(_judge_path, encoding="utf-8").read() if os.path.isfile(_judge_path) else ""
+    if "SPLIT_FRESH" not in _judge_s:
+        violations.append({"file": "organs/judge.py", "rule": "K7 缺失",
+                           "detail": "SPLIT_FRESH 未定义 ⇒ Eq.8 V_k 无真实判分面"})
+
+    # ── K8: 执行侧分流（R328 · §3.3 failure criteria: 伪改进拒绝）──
+    _er_s = _evo_side.get("scripts/dwc_evo_round.py", "")
+    if "reproducible_only" not in _er_s:
+        violations.append({"file": "scripts/dwc_evo_round.py", "rule": "K8 缺失",
+                           "detail": "reproducible_only 参数缺失 ⇒ 执行侧 sigs 混入 evo 簇"})
+
     # ★ lesson: 七门对应母巢七条教训（L1-L7）
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
