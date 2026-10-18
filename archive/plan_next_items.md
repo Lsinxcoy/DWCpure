@@ -3,7 +3,7 @@
 | # | 项 | 来源 | 成本 | 状态 |
 |---|---|---|---|---|
 | N1 | 执行侧真复现（trial 接 LLMTaskExecutor，真跑 agent 路径） | R329 | 大 | todo（需方案轮先行） |
-| N2 | fresh split 判分接入 A1b-2（judge 第 4 split，fresh.json 5 任务可判） | R326 | 中 | todo |
+| N2 | fresh split 判分接入 A1b-2 | R326 | 中 | done（R330） |
 | N3 | C1 parent 选择器＋archive 落盘（adopt 时多版本选一＋archive 持久化） | R324 | 中 | todo |
 | N4 | lam/gamma 门参数启用（对照实验先行） | R313 | 大 | todo |
 | N5 | evo_1019_01 转单跟进（agent 接单后 average 小数病是否根除，sigs 是否停产） | R329 | 被动 | todo（等 agent） |

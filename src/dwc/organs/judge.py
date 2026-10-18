@@ -103,6 +103,10 @@ TRUTH_NOT_BUILT: set = set()
 SPLIT_DEV = "dev"        # 锚点集，恒小，每条带 golden reference
 SPLIT_TEST = "test"      # 锁定集，metric 演化不许读
 SPLIT_TRAIN = "train"    # 无标签大集合  ★ 当前不存在（诚实边界④）
+#: ★ R330/N2 · fresh 独立验证面（Eq.8 V_k 专用 —— DWC 自有第 4 面，
+#:   非论文三元组：TRUTH_SOURCE 三元不动；与 dev/sealed 零交集由
+#:   tests/test_a1b_fresh.py 静态锁，不在 _load 里跨文件校验）
+SPLIT_FRESH = "fresh"
 
 
 # ══════════════════════════════════════════════════════════
@@ -610,6 +614,7 @@ class Judge:
     def __init__(self, anchors_path: Optional[str] = None,
                  sealed_path: Optional[str] = None,
                  train_path: Optional[str] = None,
+                 fresh_path: Optional[str] = None,
                  store_path: Optional[str] = None,
                  evidence_path: Optional[str] = None,
                  dw_version: Optional[str] = None):
@@ -649,6 +654,12 @@ class Judge:
             p_test = TRUTH_SOURCE[1][1]
             self.sealed = (self._load(p_test, SPLIT_TEST)
                            if os.path.exists(p_test) else None)
+        # ★ R330/N2 · fresh 面（同 sealed 纪律：文件在才载，缺席=None；
+        #   用到才 raise，不许拿 dev/sealed 顶替 —— 顶替即污染独立验证面）。
+        _p_fresh = (fresh_path or os.path.join(
+            ROOT, "config", "anchors", "fresh.json"))
+        self.fresh = (self._load(_p_fresh, SPLIT_FRESH)
+                      if os.path.exists(_p_fresh) else None)
         self._fallbacks: Dict[str, Callable] = {}
         # ★★ 记住每一次判定，用于"未评价不许悄悄变 True"的审计
         self._log: List[Verdict] = []
@@ -830,21 +841,30 @@ class Judge:
             raise JudgeError(
                 "train split 不存在（诚实边界④）—— 而它按设计是"
                 "『无标签大集合』⇒ 无标签可拿来判分")
-        if split not in (SPLIT_DEV, SPLIT_TEST):
+        if split not in (SPLIT_DEV, SPLIT_TEST, SPLIT_FRESH):
             raise JudgeError("split=%r 不在 %r 内" % (split, (SPLIT_DEV,
-                                                             SPLIT_TEST)))
+                                                             SPLIT_TEST,
+                                                             SPLIT_FRESH)))
         if split == SPLIT_TEST and self.sealed is None:
             #★★★ test 未落地时必须 raise，不许"用 dev 顶替"
             #   （用 dev 顶替 ⇒ 回归检测形同虚设：分子分母同源）
             raise JudgeError(
                 "test split **未落地**（JUDGE_DESIGN §4.5: 必须另建）"
                 " ⇒ 不许用 dev 顶替 —— 那会让保护组回归检测形同虚设")
+        if split == SPLIT_FRESH and self.fresh is None:
+            # ★ R330/N2 · fresh 未落地同样 raise（同 test 纪律 ——
+            #   拿 dev/sealed 顶替即污染 Eq.8 独立验证面）。
+            raise JudgeError(
+                "fresh split **未落地** ⇒ 不许用 dev/sealed 顶替 —— "
+                "那会让 Eq.8 独立验证面形同虚设")
+        src = {SPLIT_DEV: self.anchors, SPLIT_TEST: self.sealed,
+               SPLIT_FRESH: self.fresh}[split]
+        cat = {SPLIT_DEV: "dev_anchors", SPLIT_TEST: "test_sealed",
+               SPLIT_FRESH: "fresh"}[split]
         if split == SPLIT_TEST and self.sealed is None:
             raise JudgeError(
                 "test split **未落地**（JUDGE_DESIGN §4.5: 必须另建）"
                 " ⇒ 不许用 dev 顶替")
-        src = self.anchors if split == SPLIT_DEV else self.sealed
-        cat = "dev_anchors" if split == SPLIT_DEV else "test_sealed"
         if task_id not in src:
             raise JudgeError(
                 "task %r 不在 %s split 里（真值源 %s）"
@@ -1305,6 +1325,10 @@ class Judge:
         """
         if split == SPLIT_TRAIN:
             raise JudgeError("train split 不存在")
+        if split not in (SPLIT_DEV, SPLIT_TEST):
+            # ★ R330/N2 · task_scores 暂只管 dev/test（fresh 批量另轮）——
+            #   不 raise 会静默走 sealed（旧 else 分支），错得无声。
+            raise JudgeError("task_scores split=%r 仅支持 dev/test" % (split,))
         # ★★ test 未落地 ⇒ 返回"无法判分"，不是 0 分（R24 修正）
         if split == SPLIT_TEST and self.sealed is None:
             return {"split": split, "n_tasks": 0, "pass": 0, "fail": 0,

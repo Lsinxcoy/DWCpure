@@ -69,3 +69,47 @@ def test_a1b_m_declared():
     fresh = _load(FRESH)
     assert fresh["_provenance"]["m"] == 5
     assert "Eq.8" in fresh["_provenance"]["why"]
+
+
+# ★ R330/N2 · fresh split 判分接入（Eq.8 V_k 的 m 有了真实来源 ——
+#   judge.evaluate(split="fresh") 走同 behavior 路；DWC 自有第 4 面，
+#   论文三元组不动）。
+def _judge():
+    from dwc.organs.judge import Judge, SPLIT_FRESH
+    return Judge(), SPLIT_FRESH
+
+
+def test_a1b2_fresh_pass():
+    j, fr = _judge()
+    v = j.evaluate("fresh_range_sum", fr, observed={
+        "fresh_range_sum": [[[2, 6], 20], [[3, 7], 25]]})
+    assert v.success is True
+
+
+def test_a1b2_fresh_fail():
+    j, fr = _judge()
+    v = j.evaluate("fresh_range_sum", fr, observed={
+        "fresh_range_sum": [[[2, 6], 21], [[3, 7], 25]]})
+    assert v.success is False
+    assert v.failure_signature is not None
+
+
+def test_a1b2_fresh_unevaluated_and_cross_split_raise():
+    import pytest
+    from dwc.organs.judge import JudgeError
+    j, fr = _judge()
+    assert j.evaluate("fresh_range_sum", fr,
+                      observed=None).success is None
+    with pytest.raises(JudgeError):
+        j.evaluate("fresh_range_sum", "dev", observed={})
+    with pytest.raises(JudgeError):
+        j.evaluate("code_fix_001", fr, observed={})
+
+
+def test_a1b2_fresh_missing_raises_no_substitute():
+    import pytest
+    from dwc.organs.judge import Judge, JudgeError
+    j = Judge(fresh_path=os.path.join(ROOT, "no_such_fresh.json"))
+    assert j.fresh is None
+    with pytest.raises(JudgeError):
+        j.evaluate("fresh_range_sum", "fresh", observed={})
