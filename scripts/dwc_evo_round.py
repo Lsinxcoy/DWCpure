@@ -663,16 +663,17 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
             _res = agent_executor(task, patch, code)
         except Exception as _ae:  # noqa: BLE001 — 大声留痕
             return {"success": None, "in_score": None, "baseline_in": _base_in,
-                    "held_out": None, "mode": "agent",
+                    "held_out": None, "mode": "agent", "partial": None,
                     "reason": "agent 路径抛错：%r" % (_ae,)}
         if not isinstance(_res, dict) or _res.get("success") is None and \
                 _res.get("in_score") is None:
             return {"success": None, "in_score": None, "baseline_in": _base_in,
-                    "held_out": None, "mode": "agent",
+                    "held_out": None, "mode": "agent", "partial": None,
                     "reason": "agent 路径无有效结果（fail-closed）"}
         _res = dict(_res)
         _res.setdefault("mode", "agent")
         _res.setdefault("baseline_in", _base_in)
+        _res.setdefault("partial", _res.get("in_score"))
         return _res
     _mode = "report"
     if code and _cat == "code_repair":
@@ -683,11 +684,11 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 code, obs_skeleton(judge.anchors, task))
         except SandboxError as _se:
             return {"success": None, "in_score": None, "baseline_in": None,
-                    "held_out": None, "mode": _mode,
+                    "held_out": None, "mode": _mode, "partial": None,
                     "reason": "沙箱拒：%s" % (_se,)}
         if _obs is None:
             return {"success": None, "in_score": None, "baseline_in": None,
-                    "held_out": None, "mode": _mode,
+                    "held_out": None, "mode": _mode, "partial": None,
                     "reason": "沙箱跑挂/缺函数（fail-closed）"}
         suc = judge.evaluate(task, "dev",
                              observed={"observed": _obs,
@@ -699,7 +700,8 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         #   省出码+沙箱 LLM 预算；held_out=None ⇒ 门仍 blocked（门语义零改）。
         _fused, _d_in = _small_delta_fused(_cur, base)
         if _fused:
-            return {"success": suc, "in_score": _cur,
+            return {"success": suc,                    "in_score": _cur,
+                    "partial": _cur,
                     "baseline_in": base,
                     "baseline_ho": _base_ho, "held_out": None,
                     "mode": _mode,
@@ -708,6 +710,8 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         return {"success": suc,
                 "in_score": (1.0 if suc is True else
                              (0.0 if suc is False else None)),
+                "partial": (1.0 if suc is True else
+                            (0.0 if suc is False else None)),
                 "baseline_in": base,
                 "baseline_ho": _base_ho,
                 # ★ R299 · trial 成功码喂 peer（成功才传；失败/None 码
@@ -721,11 +725,11 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode}
+                "held_out": None, "mode": _mode, "partial": None}
     obs = parse_llm_observed(r.text or "", skel)
     if obs is None:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode}
+                "held_out": None, "mode": _mode, "partial": None}
     suc = judge.evaluate(task, "dev",
                          observed={"observed": obs,
                                    "★_executed": True}).success
@@ -735,7 +739,8 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     # ★ A3 · 小Δ熔断（report 路）：判据与 code 路同一函数，口径唯一。
     _fused, _d_in = _small_delta_fused(_cur, base)
     if _fused:
-        return {"success": suc, "in_score": _cur,
+        return {"success": suc,                    "in_score": _cur,
+                    "partial": _cur,
                 "baseline_in": base,
                 "baseline_ho": _base_ho, "held_out": None, "mode": _mode,
                 "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
@@ -746,6 +751,8 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     return {"success": suc,
             "in_score": (1.0 if suc is True else
                          (0.0 if suc is False else None)),
+            "partial": (1.0 if suc is True else
+                        (0.0 if suc is False else None)),
             "baseline_in": base,
             "baseline_ho": _base_ho,
             "held_out": _ho, "mode": _mode}

@@ -2464,9 +2464,10 @@ class Evolver:
     # ══════════════════════════════════════════════
     @staticmethod
     def accept(p, baseline, current, *a, **kw):
+        _ig = kw.pop("improver_gain", None)
+        _fpr = kw.pop("fresh_pass_rate", None)
         _r = Evolver._accept_core(p, baseline, current, *a, **kw)
         if isinstance(_r, dict):
-            _ig = kw.get("improver_gain", None)
             _dec = _r.get("decision")
             if _dec not in ("accepted", "adopted_not_implemented"):
                 _gt = "none"
@@ -2478,6 +2479,7 @@ class Evolver:
                 _gt = "capability (improver unverified)"
             _r = dict(_r)
             _r.setdefault("gain_type", _gt)
+            _r.setdefault("fresh_pass_rate", _fpr)
         return _r
 
 

@@ -643,7 +643,15 @@ def gate8_contract() -> dict:
         violations.append({"file": "scripts/dwc_evo_round.py", "rule": "K8 缺失",
                            "detail": "reproducible_only 参数缺失 ⇒ 执行侧 sigs 混入 evo 簇"})
 
-    # ★ lesson: 七门对应母巢七条教训（L1-L7）
+    # ── K9: Terminal-RSI 回归监控（strict success + gain_type + partial）──
+    #   trial 必须记录 partial；accept 必须记录 gain_type；回归门不只看 score。
+    if "\"partial\"" not in _er_s:
+        violations.append({"file": "scripts/dwc_evo_round.py", "rule": "K9 partial 缺失",
+                           "detail": "trial 未记录 partial ⇒ Terminal-RSI partial credit 无载体"})
+    if "\"gain_type\"" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K9 gain_type 缺失",
+                           "detail": "accept 未记录 gain_type ⇒ 回归监控缺类型"})
+
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
