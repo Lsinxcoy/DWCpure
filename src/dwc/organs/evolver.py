@@ -1380,6 +1380,21 @@ class Mutator:
         except (TypeError, ValueError):    # noqa: BLE001 — 计数不断主路
             pass
 
+    # ★ C3 · withdraw 撤回（companion §9.7：毒规则必须可撤）。
+    #   内存删除＋返回被删条目（含 provenance 供审计）；无 key ⇒
+    #   withdrawn False（幂等撤回，不抛）。不自动 persist（写盘是调用方
+    #   决策 —— R32 落盘点明确）；诚实边界：种子 withdraw 进程内有效，
+    #   重启复活（种子在代码里，彻底删须改代码）。
+    @classmethod
+    def withdraw(cls, key: str, reason: str = "") -> Dict[str, Any]:
+        _entry = cls.RULES.pop(key, None)
+        if _entry is None:
+            return {"withdrawn": False, "key": key, "reason": reason}
+        return {"withdrawn": True, "key": key, "entry": _entry,
+                "reason": reason,
+                "note": ("learned 须调 persist_learned 落盘；"
+                         "种子重启复活")}
+
     @staticmethod
     def key_for(sig: Dict[str, str]) -> str:
         """★ 由失败签名构造**查询键** (c:q:fn) —— 与 propose 同口径。
@@ -2275,7 +2290,8 @@ class Evolver:
         install_registry(None)      # 复位（防跨实例污染 — R152 铁律）
         return out
 
-    def _land_adopted(self, p: Proposal) -> Dict[str, Any]:
+    def _land_adopted(self, p: Proposal,
+                      admission_round: Optional[str] = None) -> Dict[str, Any]:
         """★ R287-C · 第五态下游落地（幂等）。
 
         ★ 前置：p.state 必须是 adopted_not_implemented（adopt() 判过的），
@@ -2286,6 +2302,10 @@ class Evolver:
           failure_signature（诚实来源传递，不改写）。
         ★ 幂等：key 已在 RULES ⇒ already_landed（不长双胞胎）；
           落盘走 Mutator.persist_learned（与 R278 同口径）。
+        ★ C3 · provenance（companion §9.7 SkillPoison 95.71%：毒规则
+          必须可撤回 ⇒ 先有来源才有撤回）：条目带 provenance＝{task, 
+          admission_round}；admission_round 由调用方传（evo_round 传
+          ledger_date），None＝未记录（诚实缺席，不编轮号）。
         """
         if p.state != "adopted_not_implemented":
             raise EvolverError(
@@ -2301,7 +2321,10 @@ class Evolver:
             "target_layer": p.target_layer, "target": p.target,
             "m": _sig.get("m", ""),
             "m_source": _sig.get("m_source", "rule"),
-            "patch": p.patch, "rationale": p.rationale}
+            "patch": p.patch, "rationale": p.rationale,
+            # ★ C3 · provenance 落盘（供 withdraw 撤回审计）。
+            "provenance": {"task": _sig.get("fn", ""),
+                           "admission_round": admission_round}}
         _persist = Mutator.persist_learned()
         return {"outcome": "landed", "key": _key,
                 "persist": _persist}

@@ -299,7 +299,9 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 # ★ R291-P4 Task 2 · 门判过⇒置第五态再落地（_land_adopted
                 #   前置要 p.state；置态=记录门判结果，不编造）。
                 p.state = "adopted_not_implemented"
-                item["backup"] = evolver._land_adopted(p)
+                # ★ C3 · provenance：admission 轮用 ledger_date（轮日期口径）。
+                item["backup"] = evolver._land_adopted(
+                    p, admission_round=ledger_date)
                 item["landed"] = True
             else:
                 # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有

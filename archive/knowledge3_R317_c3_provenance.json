@@ -1,0 +1,76 @@
+{
+ "round": "R317",
+ "date": "2026-10-18",
+ "主题": "C3 provenance+withdraw",
+ "verify": {
+  "pytest": "2103绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "3/3",
+  "破坏验证": "task错值报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 317,
+  "at": "2026-10-18T20:35:00+08:00",
+  "parent_gen": 316,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 401,
+   "pytest": 2105,
+   "truth_sha8": "24c8ef28",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "C3 provenance+withdraw: 固化条目带{task,admission_round}(evo_round传ledger_date)+Mutator.withdraw撤回",
+   "files": [
+    "src/dwc/organs/evolver.py",
+    "scripts/dwc_evo_round.py",
+    "tests/test_c3_provenance.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_c3_provenance.py 3/3",
+     "claim": "来源落地/缺席None/撤回幂等"
+    },
+    {
+     "type": "test",
+     "ref": "全量2103绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "C3轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "24c8ef28",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2103+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2103绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "旧条目无provenance(诚实缺席, C1 lineage回填时定); 种子withdraw重启复活"
+  }
+ }
+}
