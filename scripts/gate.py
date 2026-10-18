@@ -586,10 +586,46 @@ def gate8_contract() -> dict:
     n_a = []
     if not files:
         n_a.append("src/dwc 无 .py")
+    # ── K5: J 不可改（★ A4 · 18813 §2：判据在可写面之外）──
+    #   evo 侧（evolver/candidates/evo_round）不许**写**判据面文件：
+    #   judge.py（判分代码）· dev/test 真值 · 判分史（task_scores/evidence/
+    #   score_history，judge.record 专属）。
+    #   放行：rules.json（RULES 落盘合法）· ledger（evo 自家账本）· 纯读。
+    #   静态近似：open/io.open 行内同时出现禁写名＋写标志才红。
+    _J_GUARDED = ("judge.py", "dev.json", "test_sealed.json",
+                  "dev_sealed_pairing.json", "train.json", "broken_dev.json",
+                  "task_scores.jsonl", "evidence.jsonl",
+                  "score_history.jsonl")
+    _evo_side = {
+        "organs/evolver.py": ev_s,
+        "organs/candidates.py": ca_s,
+    }
+    _er = os.path.join(os.path.dirname(SRC), "scripts", "dwc_evo_round.py")
+    try:
+        _evo_side["scripts/dwc_evo_round.py"] = (
+            io.open(_er, encoding="utf-8").read() if os.path.isfile(_er)
+            else "")
+    except OSError:
+        _evo_side["scripts/dwc_evo_round.py"] = ""
+    for _fn, _src in _evo_side.items():
+        for _i, _ln in enumerate(_src.splitlines(), 1):
+            _s = _ln.strip()
+            if "open(" not in _s or _s.startswith("#"):
+                continue
+            _hit = [g for g in _J_GUARDED if g in _s]
+            if not _hit:
+                continue
+            if ("\"w\"" in _s or "\"a\"" in _s or
+                    "'w'" in _s or "'a'" in _s):
+                violations.append({"file": _fn, "line": _i,
+                                   "rule": "K5 J 被写",
+                                   "detail": ("evo 侧写判据面 %s ⇒ 判据在可写面内"
+                                            "（18813 §2 禁）" % _hit)})
     # ★ lesson: 七门对应母巢七条教训（L1-L7）
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
+    #   ★ A4 · K5 对应 18813 §2「J 不可改」—— 判据在可写面之外。
     return {
         "gate": 8, "name": "契约门", "lesson": "L1",
         "files": len(files), "violations": violations,

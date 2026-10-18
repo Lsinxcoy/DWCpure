@@ -1,0 +1,75 @@
+{
+ "round": "R314",
+ "date": "2026-10-18",
+ "主题": "A4 J保护机器化",
+ "verify": {
+  "pytest": "2100绿(r178除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "2/2",
+  "破坏验证": "evo尾加写dev.json行报G8红再恢复"
+ },
+ "inheritance": {
+  "gen": 314,
+  "at": "2026-10-18T19:10:00+08:00",
+  "parent_gen": 313,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 398,
+   "pytest": 2102,
+   "truth_sha8": "2a4eefa0",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "A4 J保护机器化: gate G8加K5(evo侧三文件写判据面即红, rules.json/ledger/纯读放行)",
+   "files": [
+    "scripts/gate.py",
+    "tests/test_a4_k5.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_a4_k5.py 2/2",
+     "claim": "现状干净+K5口径锁"
+    },
+    {
+     "type": "test",
+     "ref": "全量2100绿(r178真端点除外, 单跑5绿证噪声)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "A4轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "2a4eefa0",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2100+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2100绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "K5静态近似(docstring示例行可误报, 实测零误报); 表达式级写需升级"
+  }
+ }
+}
