@@ -668,6 +668,14 @@ def gate8_contract() -> dict:
         violations.append({"file": "organs/evolver.py", "rule": "K11 reconstruct 缺失",
                            "detail": "Mutator 无 reconstruct_context ⇒ R349 无载体"})
 
+    # ── K12: R350 DWC-internal skill system ──
+    if "SKILLS" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K12 skills 缺失",
+                           "detail": "Mutator 无 SKILLS ⇒ R350 无载体"})
+    if "skill_register" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K12 skill_register 缺失",
+                           "detail": "Mutator 无 skill_register ⇒ R350 无载体"})
+
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）

@@ -333,6 +333,14 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
 " + _rc) if _hint else _rc)
                 except Exception:  # noqa: BLE001 — 坏不断起草
                     pass
+                # ★ R350 · skill select：DWC-internal skill 上下文喂 propose。
+                try:
+                    _sk = Mutator.skill_select(_task)
+                    if isinstance(_sk, dict) and _sk.get("content"):
+                        _hint = ((_hint + "
+" + _sk["content"]) if _hint else _sk["content"])
+                except Exception:  # noqa: BLE001 — 坏不断起草
+                    pass
                 _key = Mutator.key_for(cl["sigs"][0])
                 _op = "draft" if _key not in Mutator.RULES else "improve"
                 if str(_task).startswith("code_fix"):

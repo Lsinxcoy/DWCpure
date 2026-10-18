@@ -1391,6 +1391,8 @@ class Mutator:
     ARCHIVE: Dict[str, list] = {}
     # ★ R346 · Raven Gene Bank：quality-diversity，cell=(edit_cat, pathology) → elite。
     GENE_BANK: Dict[str, Any] = {}
+    # ★ R350 · DWC-internal skill system（不依赖 Hermes）。
+    SKILLS: "Dict[str, Dict[str, Any]]" = {}
 
     @staticmethod
     def cell_of(entry: Dict[str, Any]) -> str:
@@ -1411,6 +1413,50 @@ class Mutator:
                 Mutator.GENE_BANK[cell] = dict(entry or {})
         except Exception:  # noqa: BLE001 — 坏不断主路
             pass
+
+    @staticmethod
+    def skill_register(name: str, description: str = "", content: str = "",
+                       trigger: str = "") -> Dict[str, Any]:
+        try:
+            _cur = Mutator.SKILLS.get(name)
+            _ver = 1 if _cur is None else int(_cur.get("version", 0)) + 1
+            Mutator.SKILLS[name] = {
+                "name": name,
+                "description": description,
+                "content": content,
+                "trigger": trigger or name.split("_")[0],
+                "version": _ver,
+            }
+            return {"registered": True, "name": name, "version": _ver}
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            return {"registered": False, "name": name}
+
+    @staticmethod
+    def skill_select(task: str) -> Optional[Dict[str, Any]]:
+        try:
+            _fam = str(task).split("_")[0] if task else ""
+            _best = None
+            for _s in (Mutator.SKILLS or {}).values():
+                if _fam and str(_s.get("trigger", "")).startswith(_fam):
+                    if _best is None or int(_s.get("version", 0)) > int(_best.get("version", 0)):
+                        _best = _s
+            return _best
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            return None
+
+    @staticmethod
+    def skill_evolve_from_sig(sig: Dict[str, Any], patch: str = "",
+                             rationale: str = "") -> Dict[str, Any]:
+        try:
+            _task = (sig or {}).get("task", "")
+            _name = "skill_%s" % (_task or "unknown")
+            _content = (rationale or "") + "\n" + (patch or "")
+            return Mutator.skill_register(
+                _name, description="evolved from %s" % _task,
+                content=_content, trigger=_task.split("_")[0] if _task else "")
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            return {"registered": False, "name": _name if "_name" in locals() else ""}
+
 
     @staticmethod
     def reconstruct_context(task: str) -> str:
