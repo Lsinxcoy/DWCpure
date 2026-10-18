@@ -1,0 +1,72 @@
+{
+ "round": "R329",
+ "date": "2026-10-19",
+ "主题": "病灶定位修正+转单",
+ "verify": {
+  "pytest": "零改码不跑(414 HEAD 2136绿仍有效)",
+  "新证据": "63条task全code_fix_007/m全llm_asserted:0.15/10-15~10-17/63node全关联",
+  "溯源": "judge.py:950/980 m=模型断言actual(R277b)",
+  "转单": "evo_1019_01已进~/.dwc/var/dwc_inbox.jsonl"
+ },
+ "inheritance": {
+  "gen": 329,
+  "at": "2026-10-19T03:05:00+08:00",
+  "parent_gen": 328,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 414,
+   "pytest": 2136,
+   "truth_sha8": "4daf8003",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "R329 转单动作+归因修正: 生产inbox追加evo_1019_01 (副作用已落盘)+R328注释表述修正",
+   "files": [
+    "archive/knowledge3_R329_retarget.json"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "只读取证零改码: dev.json code_fix_007题面 average([0.1,0.2])==0.15000000000000002",
+     "claim": "0.15即round过的漂亮值，与题面逐位一致冲突"
+    },
+    {
+     "type": "commit",
+     "ref": "生产rules.json learned仅E_TYPE:value_mismatch:average (空输入守卫)，无小数守卫",
+     "claim": "候选层无此病，trial满分=无病不是验错"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "~/.dwc/var/dwc_inbox.jsonl evo_1019_01",
+     "claim": "转单已进收件箱(去重后无重复)"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "4daf8003",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "只读取证(零改码不跑套件)",
+   "verdict": "accepted",
+   "evidence_ref": "judge.py 950/980 R277b + memory_node 63/63关联",
+   "user_decision": "你来决策->转单(维持分流，evo不硬啃)"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "R328注释'验错赛道'表述修正为'候选层无病'; agent接单后看average小数病是否根除"
+  }
+ }
+}
