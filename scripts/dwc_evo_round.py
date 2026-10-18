@@ -664,16 +664,17 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         except Exception as _ae:  # noqa: BLE001 — 大声留痕
             return {"success": None, "in_score": None, "baseline_in": _base_in,
                     "held_out": None, "mode": "agent", "partial": None,
-                    "reason": "agent 路径抛错：%r" % (_ae,)}
+                    "reason": "agent 路径抛错：%r" % (_ae,), "activated": False}
         if not isinstance(_res, dict) or _res.get("success") is None and \
                 _res.get("in_score") is None:
             return {"success": None, "in_score": None, "baseline_in": _base_in,
                     "held_out": None, "mode": "agent", "partial": None,
-                    "reason": "agent 路径无有效结果（fail-closed）"}
+                    "reason": "agent 路径无有效结果（fail-closed）", "activated": False}
         _res = dict(_res)
         _res.setdefault("mode", "agent")
         _res.setdefault("baseline_in", _base_in)
         _res.setdefault("partial", _res.get("in_score"))
+        _res.setdefault("activated", True)
         return _res
     _mode = "report"
     if code and _cat == "code_repair":
@@ -685,11 +686,11 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         except SandboxError as _se:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
-                    "reason": "沙箱拒：%s" % (_se,)}
+                    "reason": "沙箱拒：%s" % (_se,), "activated": False}
         if _obs is None:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
-                    "reason": "沙箱跑挂/缺函数（fail-closed）"}
+                    "reason": "沙箱跑挂/缺函数（fail-closed）", "activated": False}
         suc = judge.evaluate(task, "dev",
                              observed={"observed": _obs,
                                        "★_executed": True}).success
@@ -706,7 +707,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                     "baseline_ho": _base_ho, "held_out": None,
                     "mode": _mode,
                     "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
-                               % (_d_in,))}
+                               % (_d_in,)), "activated": True}
         return {"success": suc,
                 "in_score": (1.0 if suc is True else
                              (0.0 if suc is False else None)),
@@ -719,17 +720,17 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 "held_out": _peer_held_out_code(
                     judge, llm, task, max_tokens=max_tokens,
                     hint_code=(code if suc is True else None)),
-                "mode": _mode}
+                "mode": _mode, "activated": True}
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
     r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode, "partial": None}
+                "held_out": None, "mode": _mode, "partial": None, "activated": False}
     obs = parse_llm_observed(r.text or "", skel)
     if obs is None:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode, "partial": None}
+                "held_out": None, "mode": _mode, "partial": None, "activated": False}
     suc = judge.evaluate(task, "dev",
                          observed={"observed": obs,
                                    "★_executed": True}).success
@@ -744,7 +745,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 "baseline_in": base,
                 "baseline_ho": _base_ho, "held_out": None, "mode": _mode,
                 "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
-                           % (_d_in,))}
+                           % (_d_in,)), "activated": True}
     # ★ R295-Task3 · peer 切写码独立评估（老报数 peer 退役：patch 建议文本
     #   进 peer prompt 是 R294 实证的错配通道，peer 也写码真跑）。
     _ho = _peer_held_out_code(judge, llm, task, max_tokens=max_tokens)
@@ -755,7 +756,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                         (0.0 if suc is False else None)),
             "baseline_in": base,
             "baseline_ho": _base_ho,
-            "held_out": _ho, "mode": _mode}
+            "held_out": _ho, "mode": _mode, "activated": True}
 
 
 def main() -> int:

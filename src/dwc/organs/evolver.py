@@ -1389,6 +1389,28 @@ class Mutator:
 
     # ★ C1 · ARCHIVE 中间态（多版本并存；RULES 仍单条目）。
     ARCHIVE: Dict[str, list] = {}
+    # ★ R346 · Raven Gene Bank：quality-diversity，cell=(edit_cat, pathology) → elite。
+    GENE_BANK: Dict[str, Any] = {}
+
+    @staticmethod
+    def cell_of(entry: Dict[str, Any]) -> str:
+        _ec = (entry or {}).get("target_layer") or "runtime"
+        _task = (entry or {}).get("task") or (entry or {}).get(
+            "failure_signature", {}).get("task", "")
+        _path = str(_task).split("_")[0] if _task else "unknown"
+        return "%s|%s" % (_ec, _path)
+
+    @staticmethod
+    def gene_bank_update(cell: str, entry: Dict[str, Any]) -> None:
+        try:
+            _cur = Mutator.GENE_BANK.get(cell)
+            _score = (entry or {}).get("in_score")
+            if _cur is None or (_score is not None and
+                                 (_cur.get("in_score") is None or
+                                  _score > _cur.get("in_score"))):
+                Mutator.GENE_BANK[cell] = dict(entry or {})
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            pass
 
     # ★ N3 · archive 持久化路径（与 LEARNED_PATH 同族 —— 跨进程存活）。
     ARCHIVE_PATH = os.path.join(
@@ -1485,6 +1507,12 @@ class Mutator:
     def archive_candidate(cls, key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
         _lst = cls.ARCHIVE.setdefault(key, [])
         _lst.append(entry)
+        # ★ R346 · Raven Gene Bank：archive 时按 cell 更新 elite（quality-diversity）。
+        try:
+            _cell = cls.cell_of(entry)
+            cls.gene_bank_update(_cell, entry)
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            pass
         return {"archived": True, "key": key,
                 "version": len(_lst), "n_versions": len(_lst)}
 
@@ -2466,6 +2494,7 @@ class Evolver:
     def accept(p, baseline, current, *a, **kw):
         _ig = kw.pop("improver_gain", None)
         _fpr = kw.pop("fresh_pass_rate", None)
+        _ps = kw.pop("paired_screen", None)
         _r = Evolver._accept_core(p, baseline, current, *a, **kw)
         if isinstance(_r, dict):
             _dec = _r.get("decision")
@@ -2480,6 +2509,7 @@ class Evolver:
             _r = dict(_r)
             _r.setdefault("gain_type", _gt)
             _r.setdefault("fresh_pass_rate", _fpr)
+            _r.setdefault("paired_screen", _ps)
         return _r
 
 

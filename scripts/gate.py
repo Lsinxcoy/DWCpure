@@ -652,6 +652,17 @@ def gate8_contract() -> dict:
         violations.append({"file": "organs/evolver.py", "rule": "K9 gain_type 缺失",
                            "detail": "accept 未记录 gain_type ⇒ 回归监控缺类型"})
 
+    # ── K10: Raven Gene Bank + activation + paired screen ──
+    if "GENE_BANK" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K10 gene bank 缺失",
+                           "detail": "Mutator 无 GENE_BANK ⇒ quality-diversity 无载体"})
+    if "\"activated\"" not in _er_s:
+        violations.append({"file": "scripts/dwc_evo_round.py", "rule": "K10 activation 缺失",
+                           "detail": "trial 未记录 activated ⇒ Raven activation gate 无载体"})
+    if "\"paired_screen\"" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K10 paired screen 缺失",
+                           "detail": "accept 未记录 paired_screen ⇒ paired improvement 无载体"})
+
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
