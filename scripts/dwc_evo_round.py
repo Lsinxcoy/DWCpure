@@ -159,11 +159,19 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     ★ A6 · peak-picking 禁令：返回体只装当轮终态（results 当轮行＋ledger
       追加行），禁报历史 peak（companion HarnessX 反例：报 peak 73.8% 而
       终态 49.5%）。调用方要趋势自己读 ledger 全史，本函数不代取最优。
+    ★ D4 · 术语对齐（18813 四段）：本函数四段＝
+      diagnose（collect_unmapped：聚失败签名成簇）→
+      propose（propose_from_cluster：簇→候选）→
+      assess（trial_fn 试跑＋accept 门判：候选→真分）→
+      admit（_land_adopted：过门→RULES 落地）。
+      旧名保留（collect_unmapped 被 r278 测试直调，改名破调用面 ——
+      对齐先行术语，改名另轮）。
     """
     fn_of = fn_of or (lambda r: "")
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of)
+    # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
     _date = ledger_date or time.strftime("%Y-%m-%d")
@@ -239,6 +247,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 p = mu.propose_from_cluster(cl["sigs"], context,
                                             want_code=want_code_of(_task),
                                             learned_hint=_hint)
+            # ★ D4-② propose 段（簇→候选；候选≠有效，门＋试跑在后）。
             except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
                 item["reason"] = "起草抛错：%r" % (exc,)
                 _fatal = True
@@ -250,6 +259,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             item["drafted"] = True
             item["proposal_id"] = p.proposal_id
             t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
+            # ★ D4-③ assess 段（试跑＋门判：候选→真分；真伪由门＋held_out 定）。
             item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
             # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
             _ok = (t.get("success") if isinstance(t, dict) else t)
@@ -300,6 +310,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 #   前置要 p.state；置态=记录门判结果，不编造）。
                 p.state = "adopted_not_implemented"
                 # ★ C3 · provenance：admission 轮用 ledger_date（轮日期口径）。
+                # ★ D4-④ admit 段（过门→RULES 落地；门没过不落地 R291 已删）。
                 item["backup"] = evolver._land_adopted(
                     p, admission_round=ledger_date)
                 item["landed"] = True

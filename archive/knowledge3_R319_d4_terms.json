@@ -1,0 +1,75 @@
+{
+ "round": "R319",
+ "date": "2026-10-18",
+ "主题": "D4术语对齐",
+ "verify": {
+  "pytest": "2106绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "1/1",
+  "破坏验证": "删D4-②行报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 319,
+  "at": "2026-10-18T21:35:00+08:00",
+  "parent_gen": 318,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 403,
+   "pytest": 2105,
+   "truth_sha8": "0924a969",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "D4术语对齐: run_round四段映射diagnose/propose/assess/admit(旧名保留, r278直调不断)",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "tests/test_d4_terms.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_d4_terms.py 1/1",
+     "claim": "四段映射+四段注释在位"
+    },
+    {
+     "type": "test",
+     "ref": "全量2106绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "D4轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "0924a969",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2106+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2106绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "真改名另轮(破r278调用面); 对齐先行术语"
+  }
+ }
+}
