@@ -3148,3 +3148,183 @@ for _name in ("workflow_graph", "encode_workflow", "workflow_preference",
               "rank_workflows", "guardrails_ok", "distill_trace",
               "information_flow", "delegation_rate"):
     setattr(Mutator, _name, getattr(_MassMixin, _name))
+
+
+# ═══════════════════════════════════════════════════════════
+# ★★★ R361–R368 · SwarmRSI absorption (Feedback-Guided Swarm Mutation
+#      + Complementary Recombination + Recursive Swarm Evolution)
+# ═══════════════════════════════════════════════════════════
+
+@dataclass
+class ResearchStateGraph:
+    """★ R362 · 共享研究状态图 𝒢 (SwarmRSI)。
+
+    records: [{H, P_parent, P_result, X (outcome), E (evidence), needs}]
+    edges: hypothesis-program 关联与 parent/reuse 关系
+    """
+    records: List[Dict[str, Any]] = _field(default_factory=list)
+    edges: List[Dict[str, Any]] = _field(default_factory=list)
+    frontiers_H: List[str] = _field(default_factory=list)
+    frontiers_P: List[str] = _field(default_factory=list)
+
+    def add_record(self, rec: Dict[str, Any]) -> None:
+        self.records.append(dict(rec or {}))
+        h = (rec or {}).get("hypothesis")
+        p = (rec or {}).get("program")
+        if h and p:
+            self.edges.append({"type": "hypothesis_program", "h": h, "p": p})
+
+    def assemble(self) -> Dict[str, Any]:
+        return {
+            "hypotheses": [r.get("hypothesis") for r in self.records if r.get("hypothesis")],
+            "programs": [r.get("program") for r in self.records if r.get("program")],
+            "evidence": [r.get("evidence") for r in self.records if r.get("evidence")],
+            "needs": [r.get("need") for r in self.records if r.get("need")],
+            "n_records": len(self.records),
+        }
+
+    def transfer(self, target: str) -> Dict[str, Any]:
+        """★ R368 · 跨任务状态迁移。"""
+        return {"target": target, "records": [dict(r) for r in self.records],
+                "edges": [dict(e) for e in self.edges]}
+
+
+class _SwarmMixin:
+    @staticmethod
+    def mutation_type(proposal) -> str:
+        """★ R361 · H/P mutation 分类。"""
+        if isinstance(proposal, dict):
+            op = str(proposal.get("operator") or proposal.get("mutation") or "").lower()
+            comp = str(proposal.get("component") or "").lower()
+            patch = str(proposal.get("patch") or "")
+            if op in ("h", "h-mutation", "hypothesis"):
+                return "H"
+            if op in ("p", "p-mutation", "program"):
+                return "P"
+            # ★ 启发式：component 属 hypothesis/direction/strategy ⇒ H；code/patch ⇒ P
+            if any(k in comp for k in ("hypothesis", "direction", "strategy", "architecture")):
+                return "H"
+            if any(k in comp for k in ("code", "skill", "config", "prompt")):
+                return "P"
+            if patch and not any(k in patch.lower() for k in ("hypothesis", "approach")):
+                return "P"
+        return "P"
+
+    @staticmethod
+    def research_state_graph() -> "ResearchStateGraph":
+        return ResearchStateGraph()
+
+    @staticmethod
+    def rebase(hypothesis, base_program, state=None) -> Dict[str, Any]:
+        """★ R363 · Rebase：保留 hypothesis，换 base 实现。"""
+        st = state if isinstance(state, dict) else {}
+        return {
+            "hypothesis": hypothesis,
+            "base": base_program,
+            "program": {"hypothesis": hypothesis, "base": base_program,
+                        "rebased": True},
+            "source": "rebase",
+            "state": st,
+        }
+
+    @staticmethod
+    def crossover(parent, donors, instance_utilities=None) -> Dict[str, Any]:
+        """★ R364 · Per-instance crossover（Eq.5）。"""
+        iu = instance_utilities or {}
+        # 选 donor：per-instance 最大优势
+        selected = []
+        for d in (donors or []):
+            adv = 0.0
+            for k, v in (iu.items() if isinstance(iu, dict) else []):
+                try:
+                    if float(v) > adv:
+                        adv = float(v)
+                except (TypeError, ValueError):
+                    # audit: bad utility -> 0
+                    pass
+            selected.append((d, adv))
+        selected.sort(key=lambda x: x[1], reverse=True)
+        top = [d for d, _ in selected[:2]]
+        return {
+            "parent": parent,
+            "donors": top,
+            "program": {"parent": parent, "donors": top, "crossover": True},
+            "source": "crossover",
+        }
+
+    @staticmethod
+    def hp_ucb(frontiers, N_H=0, N_P=0, beta=0.5, gamma=0.25) -> str:
+        """★ R365 · Discounted-UCB H/P selection (Eq.6)。"""
+        fH = frontiers.get("H") if isinstance(frontiers, dict) else None
+        fP = frontiers.get("P") if isinstance(frontiers, dict) else None
+        # 简化：返回分数更高的前沿
+        def _score(mu, N, psi):
+            import math
+            denom = max(1, N)
+            explore = beta * math.sqrt(math.log(1 + N_H + N_P + 1) / denom)
+            return (mu or 0.0) + explore + gamma * min(4, psi or 0) / 4.0
+        sH = _score((fH or {}).get("mu", 0), N_H, (fH or {}).get("psi", 0))
+        sP = _score((fP or {}).get("mu", 0), N_P, (fP or {}).get("psi", 0))
+        # 未试过优先
+        if N_H == 0:
+            return "H"
+        if N_P == 0:
+            return "P"
+        return "H" if sH >= sP else "P"
+
+    @staticmethod
+    def discounted_ucb(*a, **k):
+        return _SwarmMixin.hp_ucb(*a, **k)
+
+    @staticmethod
+    def audit_credit(execution, code_audit=None, scientific_audit=None) -> Dict[str, Any]:
+        """★ R366 · 审计门控 hypothesis credit。"""
+        ex = execution or {}
+        ca = code_audit or {}
+        sa = scientific_audit or {}
+        # code audit: execution status / artifact validity / evaluator feedback
+        code_ok = bool(ca.get("execution_ok", ex.get("success", False)))
+        artifact_ok = bool(ca.get("artifact_valid", True))
+        # scientific audit: source/output flags
+        flagged = bool(sa.get("flagged", False))
+        credit = code_ok and artifact_ok and not flagged and bool(ex.get("score"))
+        return {"credit": credit, "code_ok": code_ok, "artifact_ok": artifact_ok,
+                "flagged": flagged}
+
+    @staticmethod
+    def emit_requests(outcome) -> List[str]:
+        """★ R367 · 请求发射（deepen/broaden）。"""
+        o = outcome or {}
+        reqs: List[str] = []
+        status = str(o.get("status") or o.get("result") or "")
+        gains = o.get("per_instance_gains")
+        if status in ("failure", "failed", "error"):
+            reqs.append("deepen")  # program refinement
+        if isinstance(gains, (list, tuple)) and gains:
+            pos = sum(1 for g in gains if (g or 0) > 0)
+            neg = sum(1 for g in gains if (g or 0) < 0)
+            if pos > 0 and neg > 0:
+                reqs.append("broaden")  # hypothesis exploration
+        if o.get("new_incumbent"):
+            reqs.append("deepen")  # retained hypotheses on new incumbent
+        if not reqs:
+            reqs.append("deepen")
+        return reqs
+
+    @staticmethod
+    def transfer_state(graph, target: str) -> Dict[str, Any]:
+        """★ R368 · 跨任务状态迁移。"""
+        if isinstance(graph, ResearchStateGraph):
+            return graph.transfer(target)
+        if isinstance(graph, dict):
+            g = ResearchStateGraph()
+            for r in (graph.get("records") or []):
+                g.add_record(r)
+            return g.transfer(target)
+        return {"target": target, "records": [], "edges": []}
+
+
+for _name in ("mutation_type", "research_state_graph", "rebase", "crossover",
+              "hp_ucb", "discounted_ucb", "audit_credit", "emit_requests",
+              "transfer_state"):
+    setattr(Mutator, _name, getattr(_SwarmMixin, _name))

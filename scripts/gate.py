@@ -714,6 +714,39 @@ def gate8_contract() -> dict:
         violations.append({"file": "organs/evolver.py", "rule": "K21 delegation_rate 缺失",
                            "detail": "无 delegation rate ⇒ R360 无载体"})
 
+    # ── K22: R361 H/P mutation ──
+    if "mutation_type" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K22 mutation_type 缺失",
+                           "detail": "无 H/P 分类 ⇒ R361 无载体"})
+    # ── K23: R362 shared state graph ──
+    if "ResearchStateGraph" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K23 ResearchStateGraph 缺失",
+                           "detail": "无共享状态图 ⇒ R362 无载体"})
+    # ── K24: R363 rebase ──
+    if "def rebase" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K24 rebase 缺失",
+                           "detail": "无 rebase operator ⇒ R363 无载体"})
+    # ── K25: R364 crossover ──
+    if "def crossover" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K25 crossover 缺失",
+                           "detail": "无 per-instance crossover ⇒ R364 无载体"})
+    # ── K26: R365 UCB ──
+    if "hp_ucb" not in ev_s and "discounted_ucb" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K26 hp_ucb 缺失",
+                           "detail": "无 UCB 选择 ⇒ R365 无载体"})
+    # ── K27: R366 audit credit ──
+    if "audit_credit" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K27 audit_credit 缺失",
+                           "detail": "无审计门控 ⇒ R366 无载体"})
+    # ── K28: R367 emit requests ──
+    if "emit_requests" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K28 emit_requests 缺失",
+                           "detail": "无请求发射 ⇒ R367 无载体"})
+    # ── K29: R368 transfer state ──
+    if "transfer_state" not in ev_s:
+        violations.append({"file": "organs/evolver.py", "rule": "K29 transfer_state 缺失",
+                           "detail": "无跨任务迁移 ⇒ R368 无载体"})
+
     #   G8 对应 **L1「设计定了但没人实现」** —— 文档里 K1-K6 写得
     #   一字不差，而 `target_layer` 在 src 出现 0 次
     #   ⇒⇒ 与母巢「门存在但没被执行」是同一族病（QUALITY_GATE 封底）
