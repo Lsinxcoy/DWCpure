@@ -43,6 +43,9 @@ def main() -> int:
     import argparse as _ap
     _p = _ap.ArgumentParser()
     _p.add_argument("--no-resume", action="store_true")
+    # ★ B1 · 独立深挖轮（007 单独立簇＋hint 换血：一轮试跑）。
+    _p.add_argument("--deep-task", default=None,
+                    help="只深挖该 task（task_filter＋hint fresh＋单簇）")
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
@@ -71,10 +74,13 @@ def main() -> int:
         apply=False,
         rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
         fn_of=lambda r: "average", task_of=lambda r: "code_fix_007",
-        max_clusters=3,
         # ★ B3 · 火力转攻生产生效：库里混入 reasoning sigs 也排后，
         #   code_fix 簇先吃 max_clusters 预算（验证便宜 u 大好验）。
         priority_prefixes=("code_fix",),
+        # ★ B1 · 独立深挖轮（--deep-task）：单 task＋hint 换血＋单簇。
+        task_filter=_a.deep_task,
+        hint_mode=("fresh" if _a.deep_task else "reuse"),
+        max_clusters=(1 if _a.deep_task else 3),
         want_code_of=lambda t: (
             judge.anchors.get(t, {}) or {}).get(
             "category", "") == "code_repair",

@@ -1,0 +1,76 @@
+{
+ "round": "R321",
+ "date": "2026-10-18",
+ "主题": "B1独立深挖",
+ "verify": {
+  "pytest": "2113绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "4/4",
+  "破坏验证": "换血关闭报1红再恢复"
+ },
+ "inheritance": {
+  "gen": 321,
+  "at": "2026-10-18T22:40:00+08:00",
+  "parent_gen": 320,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 405,
+   "pytest": 2109,
+   "truth_sha8": "bcf529c6",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "B1独立深挖: task_filter+h均换血fresh+run_round透传+cron --deep-task(单task+fresh+单簇)",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "scripts/dwc_evo_round_cron.py",
+    "tests/test_b1_deep.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_b1_deep.py 4/4",
+     "claim": "过滤/换血/老路/cron接线"
+    },
+    {
+     "type": "test",
+     "ref": "全量2113绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "B1轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "bcf529c6",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2113+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2113绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "深挖试跑待cron --deep-task code_fix_007首跑; hint明细截10行"
+  }
+ }
+}

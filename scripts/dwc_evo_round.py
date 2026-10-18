@@ -39,13 +39,16 @@ from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
 
 def collect_unmapped(db_path, evolver, fn_of, task_of,
-                     priority_prefixes=None):
+                     priority_prefixes=None, task_filter=None):
     """★ 读库 → diagnose → 只收 unmapped 簇（按 key_for 分组）。
 
     ★ B3 · 火力转攻（reasoning 组 0.888 验证贵 → code_fix 组主攻）：
       priority_prefixes＝任务前缀优序（如 ("code_fix",)），稳定排序 ——
       命中簇按前缀序排前，非命中保原相对序在后。None＝老路插入序
       （默认，旧调用零变）。簇优序看首个 sig 的 task（同簇同源）。
+    ★ B1 · 独立深挖（Cai Thm 3：池子里没有，验证再松也收不到 —— 007
+      50 次失败同任务，单独立簇深挖）：task_filter＝只收该 task 的 sigs
+     （None＝全收老路）。配 hint_mode="fresh"＋max_clusters=1 即深挖轮。
     """
     con = sqlite3.connect(db_path)
     try:
@@ -56,6 +59,9 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
     sigs = [{"c": r[0], "q": r[1], "m": r[2],
              "fn": fn_of(r), "task": task_of(r), "node_id": r[3]}
             for r in rows]
+    if task_filter is not None:
+        # ★ B1 · 独立深挖：只收目标 task（单独立簇，深挖一轮）。
+        sigs = [s for s in sigs if s.get("task") == task_filter]
     if not sigs:
         return []
     out = evolver.diagnose(sigs)
@@ -167,7 +173,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
               want_code_of=None, mech_log=None, trace_log=None,
               ledger_path=None, resume=True, ledger_date=None,
-              max_attempts=3, priority_prefixes=None):
+              max_attempts=3, priority_prefixes=None,
+              task_filter=None, hint_mode="reuse"):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -185,12 +192,15 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
       对齐先行术语，改名另轮）。
     ★ B3 · 火力转攻：priority_prefixes 透传 collect_unmapped（默认 None
       老路；cron 传 ("code_fix",) 生产生效）。
+    ★ B1 · 独立深挖：task_filter＋hint_mode 透传（默认全收＋reuse 老路；
+      cron --deep-task 传 task＋fresh＋max_clusters=1 即深挖轮）。
     """
     fn_of = fn_of or (lambda r: "")
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
     clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
-                                priority_prefixes=priority_prefixes)
+                                priority_prefixes=priority_prefixes,
+                                task_filter=task_filter)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
@@ -230,7 +240,15 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                     _k = _MM.key_for({"c": _s0.get("c"), "q": _s0.get("q"),
                                       "fn": _s0.get("fn")})
                     _old = _MM.RULES.get(_k)
-                    if isinstance(_old, dict):
+                    if hint_mode == "fresh":
+                        # ★ B1 · hint 换血 ξ（Cai Thm 3：旧 patch 已 50 次证
+                        #   伪，池外无解 —— 不用旧 patch，改喂簇内失败明细）。
+                        _det = "; ".join(
+                            "%s/%s/%s" % (s.get("c"), s.get("q"),
+                                          s.get("m"))
+                            for s in cl["sigs"][:10])
+                        _hint = ("失败明细换血ξ（不用旧patch）：%s" % (_det,))
+                    elif isinstance(_old, dict):
                         _hint = "%s：%s" % (_old.get("m", ""),
                                            _old.get("patch", ""))
                 except Exception:               # noqa: BLE001 — 坏则无段

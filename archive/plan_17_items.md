@@ -29,7 +29,7 @@
 | C3 RULES provenance＋withdraw | 无 | todo |
 | D2 envelope 声明（report 声明 calls/rounds/tokens） | 无 | todo |
 | D4 术语改名 run_round 四段 | 无 | todo |
-| B3 火力转 code_fix 组（决策） | B2 done | todo |
+| B3 火力转 code_fix 组（决策） | B2 done | done（R320：优序＋cron 生效，3测绿/2109回归绿） |
 
 ## P2（中成本）
 
