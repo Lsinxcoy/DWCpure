@@ -348,6 +348,23 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             _mech_advise = []
     _rep = {"n_clusters": len(clusters), "results": results,
             "not_wired": [], "mech_advise": _mech_advise}
+    # ★ D2 · envelope 声明（companion：search cost 与 envelope 分开列）。
+    #   trial_rounds＝本轮 trial 调用总数（attempts 求和）；by_mode＝trial
+    #   mode 分布（按 results 行计末次 trial 的 mode；code 路＝LLM search
+    #   面；report/legacy_bool＝零 search 查表面）；llm_calls/tokens＝unmeasured（llm 在 trial_fn 闭包内＋
+    #   R42 声明 DWC 未记 token —— 诚实缺席，计数需另轮改 trial 契约）。
+    _env_modes: dict = {}
+    for _it in results:
+        _tt = _it.get("trial")
+        _m = (_tt.get("mode") if isinstance(_tt, dict) else "legacy_bool")
+        _env_modes[_m or "report"] = _env_modes.get(_m or "report", 0) + 1
+    _rep["envelope"] = {
+        "trial_rounds": sum(int(_it.get("attempts", 1) or 1)
+                            for _it in results),
+        "by_mode": _env_modes,
+        "llm_calls": "unmeasured（llm 在 trial_fn 闭包内 — 另轮改契约）",
+        "tokens": "unmeasured（R42：DWC 未记 token）",
+        "search_cost": "另列：by_mode.code＝LLM search 面；其余零 search"}
     # ★ R310-③ · triage 附报告（纯呈现，不改判定）。
     _rep["triage"] = triage_report(_rep)
     return _rep

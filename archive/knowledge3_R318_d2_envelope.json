@@ -1,0 +1,75 @@
+{
+ "round": "R318",
+ "date": "2026-10-18",
+ "主题": "D2 envelope声明",
+ "verify": {
+  "pytest": "2105绿(2噪声文件除外单跑证)",
+  "gate": "8/8",
+  "e2e_loop": "rc=0",
+  "e2e_core": "rc=0",
+  "new_tests": "2/2",
+  "破坏验证": "rounds恒999报2红再恢复"
+ },
+ "inheritance": {
+  "gen": 318,
+  "at": "2026-10-18T21:05:00+08:00",
+  "parent_gen": 317,
+  "supersedes": null,
+  "parent_state": {
+   "commits": 402,
+   "pytest": 2103,
+   "truth_sha8": "58a5fba7",
+   "judge_fingerprint": "125f6eab",
+   "epoch_id": 2
+  },
+  "proposed_change": {
+   "kind": "patch",
+   "exec_form": "D2 envelope声明: 每轮report带envelope{trial_rounds, by_mode, llm_calls/tokens诚实unmeasured, search_cost另列}",
+   "files": [
+    "scripts/dwc_evo_round.py",
+    "tests/test_d2_envelope.py"
+   ]
+  },
+  "motivating_evidence": {
+   "refs": [
+    {
+     "type": "test",
+     "ref": "test_d2_envelope.py 2/2",
+     "claim": "rounds求和/mode分布/缺席诚实"
+    },
+    {
+     "type": "test",
+     "ref": "全量2105绿(2噪声文件除外, 单跑证)+gate8/8+双e2e rc=0",
+     "claim": "旧链零回归"
+    },
+    {
+     "type": "gate_trace",
+     "ref": "archive/gate_trace.jsonl",
+     "claim": "D2轮门痕迹可回查"
+    }
+   ]
+  },
+  "evaluation_config": {
+   "truth_source": "config/anchors/dev.json",
+   "truth_sha8": "58a5fba7",
+   "judge_fingerprint": "125f6eab",
+   "judge_frozen": true,
+   "split_fingerprint": "0726ef8b",
+   "epoch_id": 2,
+   "epoch_ledger": "archive/anchor_epochs.jsonl"
+  },
+  "acceptance_decision": {
+   "gate": "四层2105+gate8/8+双e2e",
+   "verdict": "accepted",
+   "evidence_ref": "pytest全量2105绿(噪声文件单跑证)",
+   "user_decision": "全都要 P0-P3顺序推进"
+  },
+  "subsequent_use": {
+   "status": "pending",
+   "access": null,
+   "effect": null,
+   "observed_at_gen": null,
+   "gap_note": "llm_calls计数需另轮改trial契约; tokens需R42后补记账"
+  }
+ }
+}
