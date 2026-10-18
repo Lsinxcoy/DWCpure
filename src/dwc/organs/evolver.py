@@ -1410,9 +1410,35 @@ class Mutator:
             if _cur is None or (_score is not None and
                                  (_cur.get("in_score") is None or
                                   _score > _cur.get("in_score"))):
-                Mutator.GENE_BANK[cell] = dict(entry or {})
+                Mutator.GENE_BANK[cell] = {
+                    **dict(entry or {}),
+                    # ★ R351 · Evo² donor strategy fields
+                    "mechanism": (entry or {}).get("mechanism", ""),
+                    "observed_effect": (entry or {}).get("in_score", 0) -
+                                       (entry or {}).get("baseline_in", 0),
+                    "presence": (entry or {}).get("presence", False),
+                }
         except Exception:  # noqa: BLE001 — 坏不断主路
             pass
+
+    @staticmethod
+    def select_donor(task: str, gene_bank=None) -> Optional[Dict[str, Any]]:
+        """★ R351 · Evo² crossover: 从 donor library 选 strategy。"""
+        try:
+            _gb = gene_bank if gene_bank is not None else Mutator.GENE_BANK
+            _fam = str(task).split("_")[0] if task else ""
+            _best = None
+            for _cell, _entry in (_gb or {}).items():
+                if _fam and _fam not in str(_cell):
+                    continue
+                if _best is None or (_entry.get("observed_effect", 0) or 0) > (
+                        _best.get("observed_effect", 0) or 0):
+                    _best = _entry
+            if _best is None:
+                return None
+            return dict(_best)
+        except Exception:  # noqa: BLE001 — 坏不断主路
+            return None
 
     @staticmethod
     def skill_register(name: str, description: str = "", content: str = "",
@@ -1544,6 +1570,8 @@ class Mutator:
         ★ strategy:
           - "latest"（默认）：最后追加的版本（版本号最大）；
           - "first"：最早版本。
+          - "best"：in_score 最高；
+          - "worst"：in_score 最低（U-shaped 采样用）。
         ★ 空 archive ⇒ None（诚实缺席，不编）。
         """
         _lst = cls.ARCHIVE.get(key) or []
@@ -1551,7 +1579,22 @@ class Mutator:
             return None
         if strategy == "first":
             return dict(_lst[0])
+        if strategy == "best":
+            return dict(max(_lst, key=lambda e: (e or {}).get("in_score") or 0))
+        if strategy == "worst":
+            return dict(min(_lst, key=lambda e: (e or {}).get("in_score") or 0))
         return dict(_lst[-1])
+
+    @staticmethod
+    def ushape_weight(entry: Dict[str, Any], eps: float = 0.05) -> float:
+        """★ R353 · Evo² U-shaped: w(h)=ε+|V̂-1/2|。"""
+        _v = (entry or {}).get("in_score")
+        if _v is None:
+            _v = 0.5
+        try:
+            return float(eps) + abs(float(_v) - 0.5)
+        except (TypeError, ValueError):
+            return float(eps)
 
     @classmethod
     def promote_archived(cls, key: str, strategy: str = "latest") -> Dict[str, Any]:
@@ -2566,13 +2609,16 @@ class Evolver:
         _ig = kw.pop("improver_gain", None)
         _fpr = kw.pop("fresh_pass_rate", None)
         _ps = kw.pop("paired_screen", None)
+        _mr = kw.pop("mechanism_ran", None)
         _r = Evolver._accept_core(p, baseline, current, *a, **kw)
         if isinstance(_r, dict):
             _dec = _r.get("decision")
             if _dec not in ("accepted", "adopted_not_implemented"):
                 _gt = "none"
-            elif _ig is True:
+            elif _ig is True and _mr is True:
                 _gt = "both"
+            elif _ig is True and _mr is False:
+                _gt = "capability (improver unverified)"
             elif _ig is False:
                 _gt = "capability_only"
             else:
@@ -2581,6 +2627,7 @@ class Evolver:
             _r.setdefault("gain_type", _gt)
             _r.setdefault("fresh_pass_rate", _fpr)
             _r.setdefault("paired_screen", _ps)
+            _r.setdefault("mechanism_ran", _mr)
         return _r
 
 

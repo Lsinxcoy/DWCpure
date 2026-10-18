@@ -329,17 +329,42 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 try:
                     _rc = Mutator.reconstruct_context(_task)
                     if _rc:
-                        _hint = ((_hint + "
-" + _rc) if _hint else _rc)
+                        _hint = ((_hint + "\n" + _rc) if _hint else _rc)
                 except Exception:  # noqa: BLE001 — 坏不断起草
                     pass
                 # ★ R350 · skill select：DWC-internal skill 上下文喂 propose。
                 try:
                     _sk = Mutator.skill_select(_task)
                     if isinstance(_sk, dict) and _sk.get("content"):
-                        _hint = ((_hint + "
-" + _sk["content"]) if _hint else _sk["content"])
+                        _hint = ((_hint + "\n" + _sk["content"]) if _hint else _sk["content"])
                 except Exception:  # noqa: BLE001 — 坏不断起草
+                    pass
+                # R351 Evo2 donor strategy injection
+                try:
+                    _donor = Mutator.select_donor(_task)
+                    if isinstance(_donor, dict) and _donor.get("mechanism"):
+                        _hint = ((_hint + "\n[donor: %s -> d=%.3f]" % (
+                            _donor["mechanism"], _donor.get("observed_effect", 0)))
+                                 if _hint else "[donor: %s]" % _donor["mechanism"])
+                except Exception:
+                    pass
+                # R351 Evo2 donor strategy injection
+                try:
+                    _donor = Mutator.select_donor(_task)
+                    if isinstance(_donor, dict) and _donor.get("mechanism"):
+                        _hint = ((_hint + "\n[donor: %s -> d=%.3f]" % (
+                            _donor["mechanism"], _donor.get("observed_effect", 0)))
+                                 if _hint else "[donor: %s]" % _donor["mechanism"])
+                except Exception:
+                    pass
+                # R351 Evo2 donor strategy injection
+                try:
+                    _donor = Mutator.select_donor(_task)
+                    if isinstance(_donor, dict) and _donor.get("mechanism"):
+                        _hint = ((_hint + "\n[donor: %s -> d=%.3f]" % (
+                            _donor["mechanism"], _donor.get("observed_effect", 0)))
+                                 if _hint else "[donor: %s]" % _donor["mechanism"])
+                except Exception:
                     pass
                 _key = Mutator.key_for(cl["sigs"][0])
                 _op = "draft" if _key not in Mutator.RULES else "improve"
@@ -680,17 +705,21 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         except Exception as _ae:  # noqa: BLE001 — 大声留痕
             return {"success": None, "in_score": None, "baseline_in": _base_in,
                     "held_out": None, "mode": "agent", "partial": None,
-                    "reason": "agent 路径抛错：%r" % (_ae,), "activated": False}
+                    "reason": "agent 路径抛错：%r" % (_ae,), "activated": False,
+                    "mechanism_ran": False}
         if not isinstance(_res, dict) or _res.get("success") is None and \
                 _res.get("in_score") is None:
             return {"success": None, "in_score": None, "baseline_in": _base_in,
                     "held_out": None, "mode": "agent", "partial": None,
-                    "reason": "agent 路径无有效结果（fail-closed）", "activated": False}
+                    "reason": "agent 路径无有效结果（fail-closed）", "activated": False,
+                    "mechanism_ran": False}
         _res = dict(_res)
         _res.setdefault("mode", "agent")
         _res.setdefault("baseline_in", _base_in)
         _res.setdefault("partial", _res.get("in_score"))
         _res.setdefault("activated", True)
+        _res.setdefault("mechanism_ran", True)
+        _res.setdefault("recovery_attempted", False)
         return _res
     _mode = "report"
     if code and _cat == "code_repair":
@@ -723,7 +752,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                     "baseline_ho": _base_ho, "held_out": None,
                     "mode": _mode,
                     "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
-                               % (_d_in,)), "activated": True}
+                               % (_d_in,)), "activated": True, "mechanism_ran": True}
         return {"success": suc,
                 "in_score": (1.0 if suc is True else
                              (0.0 if suc is False else None)),
@@ -742,11 +771,13 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode, "partial": None, "activated": False}
+                "held_out": None, "mode": _mode, "partial": None, "activated": False,
+                "mechanism_ran": False}
     obs = parse_llm_observed(r.text or "", skel)
     if obs is None:
         return {"success": None, "in_score": None, "baseline_in": None,
-                "held_out": None, "mode": _mode, "partial": None, "activated": False}
+                "held_out": None, "mode": _mode, "partial": None, "activated": False,
+                "mechanism_ran": False}
     suc = judge.evaluate(task, "dev",
                          observed={"observed": obs,
                                    "★_executed": True}).success
@@ -772,7 +803,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                         (0.0 if suc is False else None)),
             "baseline_in": base,
             "baseline_ho": _base_ho,
-            "held_out": _ho, "mode": _mode, "activated": True}
+            "held_out": _ho, "mode": _mode, "activated": True, "mechanism_ran": True}
 
 
 def main() -> int:
