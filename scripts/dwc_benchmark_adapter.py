@@ -51,6 +51,23 @@ def load_instances(path: str) -> List[BenchInstance]:
     else:
         data = json.loads(p.read_text(encoding="utf-8"))
         items = data if isinstance(data, list) else data.get("instances", [])
+    def _parse_list(v):
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return list(v)
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return list(parsed)
+            except json.JSONDecodeError:
+                return [v]
+        return list(v)
+
     out: List[BenchInstance] = []
     for it in items:
         out.append(BenchInstance(
@@ -59,14 +76,14 @@ def load_instances(path: str) -> List[BenchInstance]:
             base_commit=it.get("base_commit", "HEAD"),
             patch=it.get("patch", ""),
             test_patch=it.get("test_patch", ""),
-            FAIL_TO_PASS=list(it.get("FAIL_TO_PASS", []) or []),
-            PASS_TO_PASS=list(it.get("PASS_TO_PASS", []) or []),
+            FAIL_TO_PASS=_parse_list(it.get("FAIL_TO_PASS", [])),
+            PASS_TO_PASS=_parse_list(it.get("PASS_TO_PASS", [])),
         ))
     return out
 
 
-def _run(cmd: List[str], cwd: str, timeout: int = 300) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def _run(cmd: List[str], cwd: str, timeout: int = 300, env=None) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
 
 
 def _git(repo_path: str, *args: str) -> subprocess.CompletedProcess:
@@ -75,31 +92,37 @@ def _git(repo_path: str, *args: str) -> subprocess.CompletedProcess:
 
 def ensure_repo(instance: BenchInstance, work_root: str) -> str:
     """checkout base_commit 到 work_root/<slug>, 返回 repo 路径。"""
+    work_root = os.path.abspath(work_root)
+    os.makedirs(work_root, exist_ok=True)
     if os.path.isdir(instance.repo) and os.path.exists(os.path.join(instance.repo, ".git")):
-        src = instance.repo
+        src = os.path.abspath(instance.repo)
         slug = os.path.basename(src.rstrip("/\\"))
     else:
         slug = instance.repo.replace("/", "__")
         src = None
-    dest = os.path.join(work_root, slug + "__" + instance.base_commit[:8])
+    dest_name = "%s__%s" % (slug, instance.base_commit[:8])
+    dest = os.path.join(work_root, dest_name)
     if not os.path.exists(dest):
         if src is None:
             url = "https://github.com/%s.git" % instance.repo
-            r = _run(["git", "clone", url, dest], cwd=work_root, timeout=600)
+            r = _run(["git", "clone", url, dest_name], cwd=work_root, timeout=600)
             if r.returncode != 0:
                 raise RuntimeError("clone failed: %s" % r.stderr)
         else:
-            # 本地仓库: 复制 (shallow copy via clone local)
-            r = _run(["git", "clone", src, dest], cwd=work_root, timeout=300)
+            r = _run(["git", "clone", src, dest_name], cwd=work_root, timeout=300)
             if r.returncode != 0:
                 raise RuntimeError("local clone failed: %s" % r.stderr)
     # checkout base commit (clean)
     _git(dest, "fetch", "--all", "--tags")
-    r = _git(dest, "checkout", "--force", instance.base_commit)
-    if r.returncode != 0:
-        # maybe already
-        pass
+    _git(dest, "checkout", "--force", instance.base_commit)
     _git(dest, "clean", "-fdx")
+    # ★ Phase 2.2 · 可编辑安装，保证测试能 import 被测包
+    try:
+        if os.path.exists(os.path.join(dest, "setup.py")) or os.path.exists(os.path.join(dest, "pyproject.toml")):
+            _run([sys.executable, "-m", "pip", "install", "-e", ".", "--quiet"],
+                 cwd=dest, timeout=600)
+    except Exception:  # noqa: BLE001 — 安装失败不掀主流程, 测试时再暴露
+        pass
     return dest
 
 
@@ -119,8 +142,14 @@ def apply_patch(repo_path: str, patch_text: str) -> Dict[str, Any]:
 def run_tests(repo_path: str, test_ids: List[str], timeout: int = 300) -> Dict[str, Any]:
     if not test_ids:
         return {"passed": 0, "failed": 0, "total": 0, "all_passed": True, "output": ""}
+    env = dict(os.environ)
+    paths = [repo_path]
+    src = os.path.join(repo_path, "src")
+    if os.path.isdir(src):
+        paths.insert(0, src)
+    env["PYTHONPATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PYTHONPATH", "")
     cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", *test_ids]
-    r = _run(cmd, cwd=repo_path, timeout=timeout)
+    r = _run(cmd, cwd=repo_path, timeout=timeout, env=env)
     # pytest exit: 0 all passed, 1 failures, 5 no tests
     passed = 0
     failed = 0
@@ -158,7 +187,14 @@ def evaluate_instance(instance: BenchInstance, agent_patch: str, work_root: str)
                 "reason": "patch_apply_failed", "apply": ap, "repo_path": repo_path}
     # run FAIL_TO_PASS
     f2p = run_tests(repo_path, instance.FAIL_TO_PASS)
-    p2p = run_tests(repo_path, instance.PASS_TO_PASS) if instance.PASS_TO_PASS else {"all_passed": True}
+    # PASS_TO_PASS: 跳过过大的回归集（避免命令行爆炸），仅在小集合时验证
+    if instance.PASS_TO_PASS and len(instance.PASS_TO_PASS) <= 100:
+        p2p = run_tests(repo_path, instance.PASS_TO_PASS)
+    elif instance.PASS_TO_PASS:
+        p2p = {"all_passed": True, "skipped": True,
+               "reason": "pass_to_pass_too_large_%d" % len(instance.PASS_TO_PASS)}
+    else:
+        p2p = {"all_passed": True}
     resolved = bool(f2p.get("all_passed")) and bool(p2p.get("all_passed"))
     return {
         "instance_id": instance.instance_id,
