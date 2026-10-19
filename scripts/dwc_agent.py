@@ -180,10 +180,31 @@ def acquire_singleton(pid_path: str) -> bool:
 #:   协议面; 双处维护必漂移 ⇒ 从它导入）
 from dwc.agent_rpc import (VAR, DB, LOG, PID, HB, FROZEN,   # noqa: E402
                            INBOX, INBOX_DONE, REPORTS, RPC_PORT)
-DEV_POOL = ("code_fix_001", "code_fix_002", "code_fix_003", "code_fix_004",
-            "code_fix_005", "code_fix_006",
-            "reasoning_001", "reasoning_002",
-            "reproduce_001", "reproduce_002", "reproduce_003")
+#: ★ R375 · 任务池 = judge.anchors 的**全部 16 个真任务**（旧池只有 11 个，
+#:   漏掉 code_fix_007/008/009 —— 三个 behavior 任务从未被跑过）。
+#:   behavior = LLM 唯一能接管的一类（`LLMExecutorFactory._enabled`），
+#:   漏在池外 = 那一整片能力面永不执行。有测试锁
+#:   `test_r375_task_selection::test_dev_pool_covers_all_anchor_tasks`。
+DEV_POOL = (
+    # behavior（LLM 可接管 —— 新失败类型的唯一来源）
+    "code_fix_001", "code_fix_002", "code_fix_003", "code_fix_004",
+    "code_fix_005", "code_fix_006", "code_fix_007", "code_fix_008",
+    "code_fix_009",
+    # keyword_match（答案文本执行器）
+    "reasoning_001", "reasoning_002", "reasoning_003", "reasoning_004",
+    # expected_values（答案文本 + 数值对）
+    "reproduce_001", "reproduce_002", "reproduce_003",
+)
+
+#: ★★★ R375 · 逃逸阀阈值：同一任务**连续**被选中 N 次 ⇒ 强制换。
+#:   为什么是 3：① 保留「同一失败重复 3 次」的簇频次信号（run_round 的
+#:   item["n"] 靠它排序）；② 16 任务 × 3 = 48 轮覆盖一圈（600s/term ≈ 8h）。
+#:   0 = 关闭逃逸（回到旧固定点行为，只给回滚/对照实验用）。
+STUCK_LIMIT = 3
+
+#: 选择态（进程内）。last/streak = 连续计数；used = LRU 历史（最近在尾部）；
+#: cooldown = 卡住的任务 → 剩余让位轮数（逃逸后置为「池子扫完一圈」）。
+_sel = {"last": None, "streak": 0, "used": [], "cooldown": {}}
 _day = {"key": time.strftime("%Y-%m-%d"), "terms": 0, "cost": 0.0}
 _stop = {"by": None}
 
@@ -415,16 +436,85 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     return rep
 
 
-def select_task(prev_rep) -> str:
+def _note_used(tid: str) -> None:
+    """记录一次选择（LRU：最近用过的挪到尾部）。"""
+    used = _sel.setdefault("used", [])
+    if tid in used:
+        used.remove(tid)
+    used.append(tid)
+
+
+def _lru_pick(pool, exclude=()) -> str:
+    """池里**最久没用过**的任务（从未用过的优先）。
+
+    ★ 为什么不用随机/顺序轮询：随机会让「刚失败的任务」很快被重选，
+      顺序轮询会周期性回到固定点。LRU 保证逃逸后覆盖的是**最久没碰**的面。
+    """
+    skip = set(exclude)
+    cand = [t for t in pool if t not in skip]
+    if not cand:                        # 整池都在冷却（不该发生）⇒ 取池首
+        return pool[0] if pool else ""
+    used = _sel.get("used", [])
+    for t in cand:                      # 从未用过 ⇒ 优先
+        if t not in used:
+            return t
+    return min(cand, key=lambda t: used.index(t))
+
+
+def _tick_cooldown() -> None:
+    """每轮递减冷却计数，归零即解除。"""
+    cd = _sel.setdefault("cooldown", {})
+    for k in list(cd):
+        cd[k] = int(cd[k]) - 1
+        if cd[k] <= 0:
+            del cd[k]
+
+
+def select_task(prev_rep, pool=None) -> str:
     """★ agent 自主任务源: 上轮 next_task_source 优先（它的测量触发它的
-    下一轮）; 无/空 ⇒ DEV_POOL 轮询（seed 语义）。"""
+    下一轮）; 无/空 ⇒ 池轮询（seed 语义）。
+
+    ★★★ R375 · 逃逸阀: 同一任务**连续**选中超过 `STUCK_LIMIT` 次 ⇒ 强制
+      切到池里最久没用过的任务，并让该任务**冷却一整圈**（直到池里其余
+      任务都被跑过）—— 否则下轮 advice 又把任务拽回去，逃逸形同虚设
+      （实测只给 25% 探索率）。
+      病根: 取 `nodes[0]` 一旦收敛就永久卡住 —— 生产日志 1120 term 只跑过
+      12 个任务, `reproduce_003` 占 949 次（85%）; 而 `Evolver._seen` 按
+      key 去重 ⇒ 重复跑产 0 个新提案。**吞吐 ≠ 信号**。
+    """
+    pool = tuple(pool or DEV_POOL)
+    _tick_cooldown()
+    cd = _sel.setdefault("cooldown", {})
+
     tasks = ((prev_rep.next_task_source or {}).get("tasks")
              if prev_rep is not None else None) or []
     nodes = [t["node"] for t in tasks
              if t.get("kind") == "world_tree_action" and t.get("node")]
-    if nodes:
-        return nodes[0]
-    return DEV_POOL[(_day["terms"]) % len(DEV_POOL)]
+    cand = nodes[0] if nodes else pool[_day["terms"] % len(pool)]
+
+    if cand in cd:                      # 冷却中 ⇒ 让位（advice 不是强制令）
+        cand = _lru_pick(pool, list(cd))
+        _sel["last"] = cand
+        _sel["streak"] = 1
+        _note_used(cand)
+        return cand
+
+    if cand == _sel.get("last"):
+        _sel["streak"] = int(_sel.get("streak", 0)) + 1
+    else:
+        _sel["last"] = cand
+        _sel["streak"] = 1
+
+    if STUCK_LIMIT and _sel["streak"] > STUCK_LIMIT:
+        stuck = cand
+        # ★ 冷却一整圈：池里其余任务各跑一次之前不回来
+        cd[stuck] = max(1, len(pool) - 1)
+        cand = _lru_pick(pool, list(cd))
+        _sel["last"] = cand
+        _sel["streak"] = 1
+
+    _note_used(cand)
+    return cand
 
 
 def collapse_triggered(best_pass, pr, collapse, synthetic=False):
@@ -664,7 +754,6 @@ def main(argv) -> int:
             _heartbeat(status="alive", last_user_task=item["id"],
                        result="async_started")
             # 主循环继续走自主 term —— 不阻塞不 sleep 不 continue
-        task = select_task(prev)
         # ★ R305 · monitor 接线（三条件全 calm ⇒ 跳过本轮省 LLM；
         #   有委托/首轮/上轮崩/连跳≥2 ⇒ 照跑。跳过不计 term、不改判分）。
         _sk = _maybe_skip(prev is not None, item, globals().get("_SKIPS", 0))
@@ -683,6 +772,12 @@ def main(argv) -> int:
             _heartbeat(status="alive", skipped=True)
             time.sleep(interval)
             continue
+        # ★★★ R375 · select_task 必须在 monitor 跳过判定**之后**调用 ——
+        #   否则被跳过的 tick 也消耗「连续计数/冷却轮数」：生产实测
+        #   interval=90 时 5 分钟里 2 次跳过 + 2 个 term，选择态空转了
+        #   2 格，冷却会在池子扫完前就到期（逃逸保证被削弱）。
+        #   有源码序测试锁（test_r375::test_select_task_after_monitor_skip）。
+        task = select_task(prev)
         globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
