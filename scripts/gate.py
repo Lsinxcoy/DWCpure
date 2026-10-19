@@ -745,6 +745,11 @@ def gate8_contract() -> dict:
     # ── K29: R368 transfer state ──
     # ── K30: Phase 2.1 benchmark adapter ──
     # ── K31: Phase 1.2 synthetic honesty field ──
+    # ── K32: Phase 1.3 collapse pure function ──
+    if "def collapse_triggered" not in open(os.path.join(ROOT,"scripts","dwc_agent.py"),encoding="utf-8").read():
+        violations.append({"file": "scripts/dwc_agent.py", "rule": "K32 collapse_triggered 缺失",
+                           "detail": "塌陷判定不可测 ⇒ 生命周期回归无载体"})
+
     rt_path = os.path.join(ROOT, "src", "dwc", "harness", "run_term.py")
     rt_src = open(rt_path, encoding="utf-8").read()
     if "synthetic: bool = False" not in rt_src:

@@ -427,6 +427,19 @@ def select_task(prev_rep) -> str:
     return DEV_POOL[(_day["terms"]) % len(DEV_POOL)]
 
 
+def collapse_triggered(best_pass, pr, collapse, synthetic=False):
+    """★ Phase 1.3 · 塌陷判定纯函数（可测）。
+
+    返回 (triggered, new_collapse)。synthetic=True 时永不触发且重置。
+    """
+    if synthetic:
+        return False, 0
+    if pr is not None and pr < 0.1 and best_pass > 0.1:
+        collapse = int(collapse or 0) + 1
+        return collapse >= 2, collapse
+    return False, 0
+
+
 def _freeze_check() -> bool:
     if os.path.exists(FROZEN):
         _log({"event": "agent_stopped", "by": "freeze_flag"})
@@ -696,14 +709,15 @@ def main(argv) -> int:
                    last_task=task, pass_rate=pr)
         if pr is not None and pr > best_pass:
             best_pass = pr
-        if pr is not None and pr < 0.1 and best_pass > 0.1 and not bool(getattr(rep, "synthetic", False)):
-            collapse += 1
-            if collapse >= 2:
-                _log({"event": "agent_stopped", "by": "collapse",
-                      "best_pass": best_pass})
-                _stop["by"] = "collapse"
-                break
-        else:
+        triggered, collapse = collapse_triggered(
+            best_pass, pr, collapse, bool(getattr(rep, "synthetic", False)))
+        if triggered:
+            _log({"event": "agent_stopped", "by": "collapse",
+                  "best_pass": best_pass})
+            _stop["by"] = "collapse"
+            break
+        if not (pr is not None and pr < 0.1 and best_pass > 0.1
+                and not bool(getattr(rep, "synthetic", False))):
             collapse = 0
         prev = rep
         if _stop["by"] is None:
