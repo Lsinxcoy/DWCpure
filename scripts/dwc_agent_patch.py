@@ -37,6 +37,9 @@ from dwc.harness.agent_harness import (  # noqa: E402
     AgentHarness, HarnessDeps, Policy,
 )
 from dwc.organs.processors import default_registry  # noqa: E402
+from dwc.organs.benchmark_fitness import (  # noqa: E402
+    fitness_breakdown, record_from_harness,
+)
 
 PY38 = os.environ.get(
     "DWC_PY38",
@@ -74,6 +77,14 @@ def list_py_files(repo_path: str, max_files: int = 40):
     return sorted(out)[:max_files]
 
 
+def _cut_lines(text: str, limit: int) -> str:
+    """按行边界截断（不在行中间切，避免 LLM 抄到半行片段）。"""
+    if len(text) <= limit:
+        return text
+    cut = text.rfind("\n", 0, limit)
+    return text[:cut] if cut > 0 else text[:limit]
+
+
 def read_file_content(repo_path: str, rel_path: str, max_chars: int = 2000):
     fp = os.path.join(repo_path, rel_path.replace("/", os.sep))
     if not os.path.exists(fp):
@@ -83,13 +94,15 @@ def read_file_content(repo_path: str, rel_path: str, max_chars: int = 2000):
     except (OSError, UnicodeDecodeError):
         return None
     if len(content) > max_chars:
-        # 大文件取与常见缺陷模式相关的片段
+        # 大文件取与常见缺陷模式相关的片段（两端都按行对齐）
         for keyword in ("expect_docstring", "docstring", "isinstance(item", "ast.Expr"):
             idx = content.find(keyword)
             if idx != -1:
                 start = max(0, idx - 300)
-                return content[start:start + max_chars]
-    return content[:max_chars]
+                nl = content.rfind("\n", 0, start)
+                start = nl + 1 if nl >= 0 else 0
+                return _cut_lines(content[start:], max_chars)
+    return _cut_lines(content, max_chars)
 
 
 def check_syntax(path: str):
@@ -205,6 +218,11 @@ def main(argv=None) -> int:
         "last_tool_result": res.last_tool_result,
         "last_error": res.previous_error,
     }
+    report["fitness"] = fitness_breakdown([record_from_harness(report)])
+    print("Fitness:", report["fitness"]["verdict"],
+          "realization=%s" % report["fitness"]["realization"],
+          "outcome=%s" % report["fitness"]["outcome"],
+          "scalar=%s" % report["fitness"]["scalar"])
     os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
     json.dump(report, open(REPORT_PATH, "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)

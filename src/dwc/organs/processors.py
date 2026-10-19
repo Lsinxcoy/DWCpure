@@ -141,8 +141,9 @@ _INSTRUCTION = (
     '"old_string": the EXACT original code to replace '
     "(copy-paste from above, must match character-for-character),\n"
     '"new_string": the replacement code.\n\n'
-    "CRITICAL: old_string must be an EXACT substring of the source code above. "
-    "Copy lines verbatim, including indentation.\n"
+    "CRITICAL: old_string must be a WHOLE-LINE block copied verbatim from above "
+    "(never a partial line or a fragment of a line). Include every full line you "
+    "want to replace, with its original indentation.\n"
     "Output valid JSON only. No explanation.\n"
 )
 

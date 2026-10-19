@@ -29,13 +29,16 @@ def external_score(report: Dict[str, Any]) -> float:
     """外部 resolved rate (0..1)。缺失 ⇒ 0.0 (fail-closed, 不猜)。"""
     if not isinstance(report, dict):
         return 0.0
+    if "resolved_rate" in report and report.get("resolved_rate") is not None:
+        try:
+            return float(report["resolved_rate"])
+        except (TypeError, ValueError):
+            _INVALID_RATE_COUNT[0] += 1
     if "rate" in report and report.get("rate") is not None:
         try:
             return float(report["rate"])
         except (TypeError, ValueError):
-            # 无效 rate ⇒ 落到 results 重算; 计数留痕 (非静默)
             _INVALID_RATE_COUNT[0] += 1
-            pass
     res = report.get("results") or []
     if not res:
         return 0.0
@@ -84,6 +87,97 @@ def fitness_signal(report: Dict[str, Any],
         "calibration": cal,
         # fitness 主值: 优先外部 (真值), 内部仅作参考
         "fitness": ext,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# Phase C · 分级 fitness（6 级，替代二值 resolved）
+# ══════════════════════════════════════════════════════════════════
+
+#: 六级的固定顺序（前 3 级量"变异有没有落地"，后 3 级量"问题有没有解决"）
+GRADED_LEVELS = ("parse_ok", "apply_ok", "syntax_ok",
+                 "f2p_ok", "p2p_ok", "verifier_ok")
+
+#: 落地层 / 结果层
+REALIZATION_LEVELS = ("parse_ok", "apply_ok", "syntax_ok")
+OUTCOME_LEVELS = ("f2p_ok", "p2p_ok", "verifier_ok")
+
+
+def _rate(records, level: str) -> Optional[float]:
+    """某一级的通过率；该级无任何已测样本 ⇒ None（不是 0）。
+
+    ★ 纪律：未填 ≠ 测得零。`None` 字段不计入分母。
+    """
+    vals = [r.get(level) for r in records if r.get(level) is not None]
+    if not vals:
+        return None
+    return sum(1 for v in vals if v) / len(vals)
+
+
+def fitness_breakdown(records) -> Dict[str, Any]:
+    """把逐 instance 的六元组汇总成分级 fitness。
+
+    输入: [{instance_id, parse_ok, apply_ok, syntax_ok,
+            f2p_ok, p2p_ok, verifier_ok}, ...]（缺失字段用 None）
+
+    输出:
+      counts     每级 {ok, total, rate}
+      realization 落地率 = 前 3 级已测项的平均
+      outcome     结果率 = 后 3 级已测项的平均
+      scalar      realization * outcome（落地是前提：落地为 0 ⇒ scalar 为 0）
+    """
+    recs = [r for r in (records or []) if isinstance(r, dict)]
+    counts: Dict[str, Dict[str, Any]] = {}
+    for lv in GRADED_LEVELS:
+        vals = [r.get(lv) for r in recs if r.get(lv) is not None]
+        counts[lv] = {
+            "ok": sum(1 for v in vals if v),
+            "total": len(vals),
+            "rate": _rate(recs, lv),
+        }
+
+    def _mean(levels) -> Optional[float]:
+        got = [counts[lv]["rate"] for lv in levels if counts[lv]["rate"] is not None]
+        return sum(got) / len(got) if got else None
+
+    realization = _mean(REALIZATION_LEVELS)
+    outcome = _mean(OUTCOME_LEVELS)
+    if realization is None or outcome is None:
+        scalar = None
+        verdict = "insufficient_data"
+    else:
+        scalar = realization * outcome
+        verdict = "measured"
+
+    return {
+        "n": len(recs),
+        "counts": counts,
+        "realization": realization,
+        "outcome": outcome,
+        "scalar": scalar,
+        "verdict": verdict,
+    }
+
+
+def record_from_harness(report: Dict[str, Any]) -> Dict[str, Any]:
+    """把 `dwc_agent_patch` 的报告转成一条分级记录。
+
+    ★ 只做字段搬运，不补值：harness 没测的级保持 None。
+    """
+    tr = report.get("last_tool_result") or {}
+    f2p = tr.get("f2p") or {}
+    verdict = tr.get("verdict")
+
+    parse_ok = True if tr else None          # 有 tool_result ⇒ 解析成功过
+    return {
+        "instance_id": report.get("instance_id", ""),
+        "parse_ok": parse_ok,
+        "apply_ok": tr.get("applied"),
+        "syntax_ok": tr.get("syntax_ok"),
+        "f2p_ok": f2p.get("all_passed"),
+        "p2p_ok": None,                       # harness 当前只跑 F2P
+        "verifier_ok": (verdict == "PASS") if verdict else None,
+        "resolved": bool(report.get("success")),
     }
 
 
