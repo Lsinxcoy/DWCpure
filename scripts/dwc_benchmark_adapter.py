@@ -118,7 +118,14 @@ def ensure_repo(instance: BenchInstance, work_root: str) -> str:
     _git(dest, "clean", "-fdx")
     # ★ Phase 2.2 · 可编辑安装，保证测试能 import 被测包
     try:
-        if os.path.exists(os.path.join(dest, "setup.py")) or os.path.exists(os.path.join(dest, "pyproject.toml")):
+        if "pytest" in instance.repo:
+            # pytest 仓库: 不全局安装 (避免覆盖系统 pytest), 仅补 _version
+            ver = os.path.join(dest, "src", "_pytest", "_version.py")
+            if not os.path.exists(ver):
+                os.makedirs(os.path.dirname(ver), exist_ok=True)
+                with open(ver, "w", encoding="utf-8") as f:
+                    f.write('version = "9.9.9"\nversion_tuple = (9, 9, 9)\n')
+        elif os.path.exists(os.path.join(dest, "setup.py")) or os.path.exists(os.path.join(dest, "pyproject.toml")):
             _run([sys.executable, "-m", "pip", "install", "-e", ".", "--quiet"],
                  cwd=dest, timeout=600)
     except Exception:  # noqa: BLE001 — 安装失败不掀主流程, 测试时再暴露

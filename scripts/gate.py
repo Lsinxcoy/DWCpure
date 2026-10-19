@@ -748,6 +748,12 @@ def gate8_contract() -> dict:
     # ── K32: Phase 1.3 collapse pure function ──
     # ── K33: Phase 1.4 internal eval chain integrity ──
     # ── K34: Phase 3.1 benchmark fitness signal ──
+    # ── K35: Phase 4 long-term eval set ──
+    _es = os.path.join(ROOT, "config", "bench_eval_set.json")
+    if not os.path.exists(_es):
+        violations.append({"file": _es, "rule": "K35 eval set 缺失",
+                           "detail": "长期评测稳定集缺失"})
+
     _bf = os.path.join(ROOT, "src", "dwc", "organs", "benchmark_fitness.py")
     if not os.path.exists(_bf):
         violations.append({"file": _bf, "rule": "K34 benchmark_fitness 缺失",
