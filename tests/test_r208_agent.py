@@ -110,17 +110,30 @@ def test_agent_freeze_gate():
 
 
 # ═══ 守夜人 ═══
-def test_watchdog_detects_dead_agent():
-    """★★ 判活: agent 未跑 ⇒ _alive False（守夜人会拉活）。"""
+def test_watchdog_detects_dead_agent(monkeypatch):
+    """★★ 判活: agent 未跑 ⇒ _alive False（守夜人会拉活）。
+
+    ★ R370 · 测试隔离：生产常驻 agent 在跑时 `process_iter` 会命中
+      ⇒ 本测试必须先屏蔽进程扫描（它测的是「无进程 + pid 文件缺失 ⇒
+      False」这条判据，不是「生产有没有 agent」）。
+    """
     import dwc_agent_watch as W
+    import psutil
+    monkeypatch.setattr(psutil, "process_iter", lambda *a, **k: iter([]))
+
     pidf = os.path.join(VAR, "dwc_agent.pid")
-    exists_before = os.path.exists(pidf)
+    old = None
+    if os.path.exists(pidf):
+        with open(pidf, encoding="utf-8") as fh:
+            old = fh.read()
+        os.remove(pidf)
     try:
-        if exists_before:
-            os.remove(pidf)
         assert W._alive() is False
     finally:
-        pass   # pid 文件不恢复（生产 agent 当前冻结中, 由守夜人拉活）
+        # ★ 恢复生产 pid 文件 —— 测试不许把生产状态留在被删状态
+        if old is not None:
+            with open(pidf, "w", encoding="utf-8") as fh:
+                fh.write(old)
 
 
 def test_watchdog_respects_freeze():

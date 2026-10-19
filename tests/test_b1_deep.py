@@ -49,7 +49,7 @@ class _Mu:
         self.hints = []
 
     def propose_from_cluster(self, sigs, context, want_code=False,
-                             learned_hint=""):
+                             learned_hint="", operator="improve"):
         self.hints.append(learned_hint)
         return types.SimpleNamespace(proposal_id="P1", patch="patch",
                                      code=None, state=None)

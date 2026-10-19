@@ -797,8 +797,15 @@ def gate8_contract() -> dict:
                            "detail": "塌陷判定不可测 ⇒ 生命周期回归无载体"})
 
     rt_path = os.path.join(ROOT, "src", "dwc", "harness", "run_term.py")
-    rt_src = open(rt_path, encoding="utf-8").read()
-    if "synthetic: bool = False" not in rt_src:
+    # ★ R370 · 载体缺失时必须报违规，不许 open() 抛 FileNotFoundError
+    #   （src/dwc 为空时 G8 会把 gate.py 整个打崩 ⇒ 输出为空 ⇒
+    #    「什么都没检到」与「门崩了」无法区分，R10 同族病）
+    rt_src = _read(rt_path) if os.path.isfile(rt_path) else ""
+    if not os.path.isfile(rt_path):
+        violations.append({"file": "src/dwc/harness/run_term.py",
+                           "rule": "K31 载体缺失",
+                           "detail": "run_term.py 不存在 ⇒ synthetic 字段无法核"})
+    elif "synthetic: bool = False" not in rt_src:
         violations.append({"file": "src/dwc/harness/run_term.py", "rule": "K31 synthetic 缺失",
                            "detail": "pass_rate 无法区分合成/真实 ⇒ 指标不可信"})
 

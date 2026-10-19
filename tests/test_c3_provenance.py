@@ -39,8 +39,15 @@ def test_c3_provenance_landed():
         out = ev._land_adopted(_proposal(), admission_round="2026-10-18")
         assert out["outcome"] == "landed"
         prov = Mutator.RULES[key]["provenance"]
-        assert prov == {"task": "c3_tmp_fn",
-                        "admission_round": "2026-10-18"}
+        assert prov["task"] == "c3_tmp_fn"
+        assert prov["admission_round"] == "2026-10-18"
+        # ★ R340 · temporal scope 四字段必须落盘
+        #   （无回滚触发条件的改进不算可持久 — RSI 审计纪律）
+        ts = prov["temporal_scope"]
+        assert set(ts) == {"effective_from", "scope",
+                           "rollback_trigger", "expires"}
+        assert ts["effective_from"] == "2026-10-18"
+        assert ts["rollback_trigger"], "回滚触发条件不许为空"
     finally:
         _clean(key)
 

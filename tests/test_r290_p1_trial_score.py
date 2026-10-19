@@ -73,8 +73,17 @@ def test_real_trial_llm_down_returns_none_scored():
             return type("R", (), {"ok": False, "error": "down"})()
 
     r = EVO._real_trial(Judge(), _DeadLLM(), "code_fix_007", "patch")
-    assert r == {"success": None, "in_score": None, "baseline_in": None,
-                 "held_out": None, "mode": "report"}  # ★ R291-P4 Task 2 加键（P1 精确断言同步）＋R295 mode 键
+    # ★ 核心判据: LLM 挂 ⇒ 不编分数（None 透传）
+    assert r["success"] is None
+    assert r["in_score"] is None
+    assert r["baseline_in"] is None
+    assert r["held_out"] is None
+    assert r["mode"] == "report"
+    # ★ R346 / R343 新增键：未激活、机制未跑、partial 未评 —— 诚实缺席
+    #   （旧锁是精确 dict 相等，加键即红 ⇒ 改成「逐键锁语义」更强）
+    assert r["activated"] is False
+    assert r["mechanism_ran"] is False
+    assert r["partial"] is None
 
 
 def test_round_scores_dict_trial_into_adopt(tmp_path):

@@ -64,11 +64,13 @@ def test_project_hint_appends(tmp_path, monkeypatch):
     got = {}
     monkeypatch.setattr(_E, "collect_unmapped",
                         lambda *a, **k: [{"key": "k",
-                                          "sigs": [{"task": "code_fix_009"}]}])
+                                          "sigs": [{"c": "C1", "q": "Q1",
+                                                    "fn": "f", "m": "M1",
+                                                    "task": "code_fix_009"}]}])
 
     class _Mu:
         def propose_from_cluster(self, sigs, context, want_code=None,
-                                 learned_hint=""):
+                                 learned_hint="", operator="improve"):
             got["hint"] = learned_hint
             return None
         last_reason = "t"
