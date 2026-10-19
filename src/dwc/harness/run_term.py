@@ -343,6 +343,9 @@ class TermReport:
     #: ★ R276b · 本轮回灌 EXPERIENCE 的失败签名条数（判分→记忆的生产回灌）
     evo_backfilled: int = 0
     evo_n_fail: int = 0  # ★ R277 · 本轮 verdict False 数（-1=落盘失败）
+    #: ★ R370 · B2 · 失败签名喂给 evolver 的结果
+    #:   （灰度关时 {"enabled": False, "why": ...} —— 关也是可审计状态）
+    evo_feed: Dict[str, Any] = field(default_factory=dict)
     dials: Dict[str, Any] = field(default_factory=dict)
     #: 五环各环节的记录（判据 T1 要求都在）
     stages: List[Dict[str, Any]] = field(default_factory=list)

@@ -34,6 +34,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 import uuid
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -513,7 +514,71 @@ class DWC:
         """
         rep = self.runner.run_term(task, n_steps=n_steps, **kwargs)
         self._snapshot_worlds()
+        # ★ R370 · B2: 失败签名 → evolver（灰度开关；关时也留 enabled=False）
+        rep.evo_feed = self._feed_evolver(rep)
         return rep
+
+    def _feed_evolver(self, rep) -> Dict[str, Any]:
+        """★ R370 · B2: 把本 term 的失败签名喂给 evolver.diagnose。
+
+        为什么落在这里而不在 TermRunner:
+          TermRunner 不持有 evolver（run_term.py 自陈），DWC 同时持有
+          rep 与 self.evolver —— 这是唯一两边都拿得到的层。
+
+        为什么默认关（config/evolution.yaml）:
+          diagnose 产提案 → 提案会走 trial/accept 改行为。灰度让
+          「先观测能喂多少、产什么提案」与「启用」分两步，可回滚。
+
+        签名口径:
+          · 只取 success is False 的观测（None 跳过 — Verdict 纪律）
+          · 需要 c/q（记忆口径）与 fn（diagnose 查询键）；fn 缺则用 task_id
+          · 超过 max_sigs_per_term 截断，截掉的条数如实记 n_dropped
+        """
+        from dwc.foundation.dial_config import load_evolution
+        try:
+            cfg = load_evolution()
+        except Exception as exc:                    # noqa: BLE001
+            sys.stderr.write("进化喂食配置读取失败: %s\n" % exc)
+            return {"enabled": False,
+                    "why": "evolution.yaml 读取失败: %s" % exc}
+        if not cfg["feed_from_terms"]:
+            return {"enabled": False,
+                    "why": "feed_from_terms=false（灰度默认关）"}
+
+        sigs: List[Dict[str, str]] = []
+        for d in ((rep.judgement or {}).get("details") or []):
+            if not isinstance(d, dict) or d.get("success") is not False:
+                continue
+            raw = list(d.get("sigs") or []) or [d.get("failure_signature") or {}]
+            for s in raw:
+                s = dict(s or {})
+                if not (s.get("c") and s.get("q")):
+                    continue
+                fn = s.get("fn") or d.get("task_id") or ""
+                if not fn:
+                    continue          # diagnose 的查询键缺 fn ⇒ 不喂
+                sigs.append({"c": str(s["c"]), "q": str(s["q"]),
+                             "fn": str(fn), "m": str(s.get("m") or "")})
+
+        limit = cfg["max_sigs_per_term"]
+        dropped = max(0, len(sigs) - limit)
+        sigs = sigs[:limit]
+        if not sigs:
+            return {"enabled": True, "n_sigs": 0, "n_dropped": 0,
+                    "why": "本 term 无可用失败签名（c/q/fn 齐）"}
+
+        try:
+            diag = self.evolver.diagnose(sigs)
+        except Exception as exc:                    # noqa: BLE001
+            sys.stderr.write("evolver.diagnose 失败: %s\n" % exc)
+            return {"enabled": True, "n_sigs": len(sigs),
+                    "n_dropped": dropped,
+                    "error": "%s: %s" % (type(exc).__name__, exc)}
+        return {"enabled": True, "n_sigs": len(sigs),
+                "n_dropped": dropped,
+                "n_proposals": len(diag.get("proposals") or []),
+                "n_unmapped": diag.get("n_unmapped", 0),
+                "n_clusters": diag.get("n_clusters", 0)}
 
     def _snapshot_worlds(self) -> int:
         """把当前各世界树 deepcopy 进 ℋ（超 history_max 丢最旧）。"""

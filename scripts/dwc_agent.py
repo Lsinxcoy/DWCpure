@@ -703,6 +703,7 @@ def main(argv) -> int:
               "iron_block": ir.get("block"), "iron_warn": ir.get("warn"),
               "drift": (rep.drift or {}).get("gdi"),
               "synthetic": bool(getattr(rep, "synthetic", False)),
+              "evo_feed": rep.evo_feed,
               "next": [t.get("kind") for t in
                        (rep.next_task_source or {}).get("tasks", [])]})
         _heartbeat(status="alive", terms=_day["terms"],

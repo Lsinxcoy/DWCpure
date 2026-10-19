@@ -305,6 +305,12 @@ def test_d8_require_evidence_required():
 
 
 def test_validate_all_includes_retention():
-    """意图: validate_all 必须覆盖四份配置。"""
+    """意图: validate_all 必须覆盖全部已落盘的配置。
+
+    ★ R370 · B2 起从四份变五份（新增 evolution.yaml 灰度开关）。
+    """
     v = dc.validate_all()
-    assert set(v) == {"world_tree", "difficulty", "dials", "retention"}
+    assert set(v) == {"world_tree", "difficulty", "dials", "retention",
+                      "evolution"}
+    # 强化: 新键必须由校验器真产出（不是硬塞空 dict）
+    assert set(v["evolution"]) == {"feed_from_terms", "max_sigs_per_term"}

@@ -1,0 +1,25 @@
+# DWC · 进化喂食灰度开关（R370 · B2）
+#
+# ★ 存在理由: run_term 每轮都产出失败签名（judge.details[].sigs），
+#   但在 B2 之前这些签名只回灌 EXPERIENCE 记忆，**从未进过 evolver**
+#   ⇒ 进化系统在生产上零输入。本文件控制这条新通路。
+#
+# ★ 为什么默认关（灰度纪律）:
+#   evolver.diagnose 会产提案，提案会走 trial/accept 改变行为。
+#   先观测一轮「能喂进去多少、产多少提案」，确认不拖慢主循环、不产垃圾提案，
+#   再由用户拍板打开。关着的时候字段仍然写进 TermReport（enabled=False），
+#   所以「关」也是可审计的状态，不是静默缺席。
+#
+# ★ 与 dials.yaml 的分工:
+#   dials.yaml  = GAI 五元盘点的**声明**（m/ρ 四布尔）
+#   本文件      = 运行时**行为开关**（喂不喂、喂多少）
+version: 1
+
+evolution:
+  # 是否把 term 的失败签名喂给 evolver.diagnose（必填 · 无默认）
+  feed_from_terms: false
+
+  # 单 term 最多喂多少条签名（必填 · 无默认）
+  # ★ 上限的理由: 一次 term 可能产出上百条签名（每个失败观测一条），
+  #   全喂会拖慢常驻主循环；超出的部分丢弃并在 evo_feed 里如实记 n_dropped。
+  max_sigs_per_term: 50

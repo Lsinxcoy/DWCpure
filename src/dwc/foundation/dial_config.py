@@ -32,6 +32,7 @@ WORLD_TREE_PATH = os.path.join(CFG, "world_tree.yaml")
 DIFFICULTY_PATH = os.path.join(CFG, "difficulty.yaml")
 REPLAY_PATH = os.path.join(CFG, "replay.yaml")
 DIALS_PATH = os.path.join(CFG, "dials.yaml")
+EVOLUTION_PATH = os.path.join(CFG, "evolution.yaml")
 
 
 class DialError(Exception):
@@ -425,6 +426,30 @@ def load_retention(path: str = RETENTION_PATH) -> Dict[str, Any]:
     return r
 
 # ══════════════════════════════════════════════════════════
+# evolution.yaml — R370 · B2 进化喂食灰度开关
+# ══════════════════════════════════════════════════════════
+
+def load_evolution(path: str = EVOLUTION_PATH) -> Dict[str, Any]:
+    """run_term 结束后是否把失败签名喂给 evolver.diagnose。
+
+    ★ 两个键都必填无默认（灰度纪律: 默认关这件事必须写在文件里，
+      不许代码里 `get(..., False)` 悄悄兜底 —— 兜底会让「配置文件缺失」
+      和「显式关闭」变得不可区分）。
+    """
+    o = _load(path)
+    ev = _need(o, "evolution", "evolution.yaml")
+    feed = _need(ev, "feed_from_terms", "evolution.evolution")
+    if not isinstance(feed, bool):
+        raise DialError(
+            "R370: evolution.feed_from_terms 须为 bool, 实为 %r" % (feed,))
+    mx = _need(ev, "max_sigs_per_term", "evolution.evolution")
+    if not isinstance(mx, int) or isinstance(mx, bool) or mx < 1:
+        raise DialError(
+            "R370: evolution.max_sigs_per_term 须为 ≥1 整数, 实为 %r" % (mx,))
+    return {"feed_from_terms": feed, "max_sigs_per_term": mx}
+
+
+# ══════════════════════════════════════════════════════════
 
 def validate_all() -> Dict[str, Any]:
     return {
@@ -432,6 +457,7 @@ def validate_all() -> Dict[str, Any]:
         "difficulty": load_difficulty(),
         "dials": load_dials(),
         "retention": load_retention(),
+        "evolution": load_evolution(),
     }
 
 
