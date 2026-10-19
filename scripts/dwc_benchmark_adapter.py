@@ -159,9 +159,10 @@ def run_tests(repo_path: str, test_ids: List[str], timeout: int = 300,
         paths.append(src)
     paths.append(repo_path)
     env["PYTHONPATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     LAUNCHER = os.path.join(ROOT, "scripts", "py38_pytest_launcher.py")
     py = python_exe or sys.executable
-    cmd = [py, LAUNCHER, repo_path, "-q", "--no-header", "-p", "no:cacheprovider", *test_ids]
+    cmd = [py, LAUNCHER, repo_path, "-q", "-p", "no:cacheprovider", *test_ids]
     r = _run(cmd, cwd=repo_path, timeout=timeout, env=env)
     # pytest exit: 0 all passed, 1 failures, 5 no tests
     passed = 0
