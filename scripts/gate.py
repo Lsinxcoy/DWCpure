@@ -744,6 +744,13 @@ def gate8_contract() -> dict:
                            "detail": "无请求发射 ⇒ R367 无载体"})
     # ── K29: R368 transfer state ──
     # ── K30: Phase 2.1 benchmark adapter ──
+    # ── K31: Phase 1.2 synthetic honesty field ──
+    rt_path = os.path.join(ROOT, "src", "dwc", "harness", "run_term.py")
+    rt_src = open(rt_path, encoding="utf-8").read()
+    if "synthetic: bool = False" not in rt_src:
+        violations.append({"file": "src/dwc/harness/run_term.py", "rule": "K31 synthetic 缺失",
+                           "detail": "pass_rate 无法区分合成/真实 ⇒ 指标不可信"})
+
     adapter_path = os.path.join(ROOT, "scripts", "dwc_benchmark_adapter.py")
     if not os.path.exists(adapter_path):
         violations.append({"file": "scripts/dwc_benchmark_adapter.py", "rule": "K30 adapter 缺失",

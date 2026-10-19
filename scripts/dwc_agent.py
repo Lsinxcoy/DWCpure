@@ -689,13 +689,14 @@ def main(argv) -> int:
               "advice_consumed": (rep.iwm_advice or {}).get("consumed_action"),
               "iron_block": ir.get("block"), "iron_warn": ir.get("warn"),
               "drift": (rep.drift or {}).get("gdi"),
+              "synthetic": bool(getattr(rep, "synthetic", False)),
               "next": [t.get("kind") for t in
                        (rep.next_task_source or {}).get("tasks", [])]})
         _heartbeat(status="alive", terms=_day["terms"],
                    last_task=task, pass_rate=pr)
         if pr is not None and pr > best_pass:
             best_pass = pr
-        if pr is not None and pr < 0.1 and best_pass > 0.1:
+        if pr is not None and pr < 0.1 and best_pass > 0.1 and not bool(getattr(rep, "synthetic", False)):
             collapse += 1
             if collapse >= 2:
                 _log({"event": "agent_stopped", "by": "collapse",

@@ -338,6 +338,8 @@ class TermReport:
     judgement: Optional[Dict[str, Any]] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
     score_delta: Optional[float] = None
+    #: ★ Phase 1.2 · 是否为自造观测（executor 未注入 ⇒ 合成, 不代表真实能力）
+    synthetic: bool = False
     #: ★ R276b · 本轮回灌 EXPERIENCE 的失败签名条数（判分→记忆的生产回灌）
     evo_backfilled: int = 0
     evo_n_fail: int = 0  # ★ R277 · 本轮 verdict False 数（-1=落盘失败）
@@ -957,6 +959,7 @@ class TermRunner:
         #   ⇒⇒ 诚实标注: 它证明的是"接线通了"，不是"判分有效"
         verdict = None
         if self.judge is not None:
+            rep.synthetic = (self.executor is None)
             obs = self._build_observations(rep)
             verdict = self.judge.score("dev", obs)
         self._record(cid, "change", "C_%s" % tid[-4:],
