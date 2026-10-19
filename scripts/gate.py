@@ -747,6 +747,17 @@ def gate8_contract() -> dict:
     # ── K31: Phase 1.2 synthetic honesty field ──
     # ── K32: Phase 1.3 collapse pure function ──
     # ── K33: Phase 1.4 internal eval chain integrity ──
+    # ── K34: Phase 3.1 benchmark fitness signal ──
+    _bf = os.path.join(ROOT, "src", "dwc", "organs", "benchmark_fitness.py")
+    if not os.path.exists(_bf):
+        violations.append({"file": _bf, "rule": "K34 benchmark_fitness 缺失",
+                           "detail": "外部基准 fitness 信号无载体"})
+    else:
+        _src = open(_bf, encoding="utf-8").read()
+        if "def fitness_signal" not in _src:
+            violations.append({"file": _bf, "rule": "K34 fitness_signal 缺失",
+                               "detail": "进化闭环信号函数缺失"})
+
     _chain_files = [
         os.path.join(ROOT, "src", "dwc", "harness", "run_term.py"),
         os.path.join(ROOT, "src", "dwc", "organs", "iwm.py"),
