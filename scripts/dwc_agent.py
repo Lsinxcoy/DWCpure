@@ -573,6 +573,17 @@ def main(argv) -> int:
     if not _got:
         print("已有 agent 在跑 — 拒绝双开", file=sys.stderr)
         return 1
+    # ── ★ R369 · 心跳守护线程（防 watchdog 误判：sleep 期间心跳仍更新）──
+    def _hb_loop():
+        while _stop["by"] is None:
+            try:
+                _heartbeat(status="alive", thread=True)
+            except Exception:  # noqa: BLE001 — 心跳失败不掀主循环
+                pass
+            time.sleep(60)
+    import threading as _th
+    _th.Thread(target=_hb_loop, daemon=True, name="heartbeat").start()
+
     # ── R210 · 指令面: HTTP RPC server（daemon 线程, 只走文件协议 ⇒ 线程安全）──
     rpc_port = int(argv[argv.index("--rpc-port") + 1]) \
         if "--rpc-port" in argv else RPC_PORT
@@ -698,6 +709,10 @@ def main(argv) -> int:
             time.sleep(interval)
     if os.path.exists(PID):
         os.remove(PID)
+    try:
+        os.remove(PID + ".lock")
+    except OSError:  # noqa: BLE001 — 锁文件可能已无，不掀退出
+        pass
     return 0 if _stop["by"] in ("freeze", "daily_limit", "signal") else 1
 
 

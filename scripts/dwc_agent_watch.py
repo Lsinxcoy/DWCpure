@@ -72,17 +72,26 @@ def _agent_python() -> str:
 
 
 def _alive() -> bool:
+    # ★ R369: 以真实进程为准，避免 stale 心跳/锁误判
+    try:
+        import psutil
+        for _p in psutil.process_iter(['cmdline']):
+            _c = _p.info.get('cmdline') or []
+            if len(_c) >= 2 and 'dwc_agent.py' in str(_c[1]):
+                return True
+    except Exception:  # noqa: BLE001
+        pass
     if not os.path.exists(PID):
         return False
     try:
         pid = int(open(PID, encoding="utf-8").read().strip())
-    except Exception:                          # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return False
     try:
         import psutil
         return psutil.pid_exists(pid) and psutil.Process(
             pid).status() != psutil.STATUS_ZOMBIE
-    except Exception:                          # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -151,6 +160,17 @@ def main() -> int:
         reason = "心跳停滞（> %d 分钟无心跳）" % (STALL_S // 60)
     if reason is None:
         return 0                              # 活着且新鲜 = 静默
+    # ★ R369: 清理 stale 锁文件（进程死但 .lock 残留）—— 仅在可加锁时删
+    try:
+        _lfd = os.open(os.path.join(os.path.dirname(PID), os.path.basename(PID) + ".lock"),
+                       os.O_RDWR)
+        import msvcrt
+        msvcrt.locking(_lfd, msvcrt.LK_NBLCK, 1)
+        msvcrt.locking(_lfd, msvcrt.LK_UNLCK, 1)
+        os.close(_lfd)
+        os.remove(os.path.join(os.path.dirname(PID), os.path.basename(PID) + ".lock"))
+    except (OSError, FileNotFoundError):   # noqa: BLE001 — 活锁或无文件，不删
+        pass
     # 拉活: 后台启动 agent（与 watchdog 同目录的副本）
     agent = os.path.join(HERE, "dwc_agent.py")
     py = _agent_python()

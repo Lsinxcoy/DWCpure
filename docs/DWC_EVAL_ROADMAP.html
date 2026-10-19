@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DWC 评测规划 — 内部扎实 + 外部榜单</title>
+<style>
+body{font-family:-apple-system,"Segoe UI",sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:24px;line-height:1.6}
+h1{color:#58a6ff;border-bottom:1px solid #30363d;padding-bottom:8px}
+h2{color:#79c0ff;margin-top:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin:12px 0}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+th,td{border:1px solid #30363d;padding:8px;text-align:left}
+th{background:#21262d}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px}
+.p0{background:#f85149;color:#fff}.p1{background:#d29922;color:#000}.p2{background:#238636;color:#fff}
+ul{margin:8px 0;padding-left:20px}
+code{background:#21262d;padding:2px 6px;border-radius:4px;font-family:monospace}
+</style>
+</head>
+<body>
+<h1>DWC 评测规划：内部扎实 + 外部榜单</h1>
+<p>定位：DWC 是自进化/创生的独立 agent，评测必须同时覆盖「内部进化指标」与「外部标准基准」。</p>
+
+<h2>Phase 0 · 运行时稳定（已完成 tonight）</h2>
+<div class="card">
+<ul>
+<li>stale lock 清理 + 心跳守护线程</li>
+<li>watchdog 以真实进程为准，避免误判</li>
+<li>双副本同步（E: → ~/.dwc → hermes/scripts）</li>
+<li>agent 当前 pid 35704，心跳 thread:true，alive</li>
+</ul>
+</div>
+
+<h2>Phase 1 · 内部评测扎实（2-3 轮）</h2>
+<div class="card">
+<table>
+<tr><th>任务</th><th>产出</th><th>优先级</th></tr>
+<tr><td>sealed tasks 覆盖率 100%</td><td>capability_groups G1-G6 全绿</td><td><span class="badge p0">P0</span></td></tr>
+<tr><td>drift / pass_rate 指标可信度</td><td>指标与真实 trial 对齐，无静默 except</td><td><span class="badge p0">P0</span></td></tr>
+<tr><td>agent 生命周期回归测试</td><td>test_r208_agent 全绿 + 新增 freeze/daily_limit/collapse 用例</td><td><span class="badge p1">P1</span></td></tr>
+<tr><td>gate 守门扩展</td><td>K30-K33：内部评测链 integrity</td><td><span class="badge p1">P1</span></td></tr>
+</table>
+</div>
+
+<h2>Phase 2 · 外部基准接入（SWE-bench Verified 子集）</h2>
+<div class="card">
+<table>
+<tr><th>步骤</th><th>内容</th><th>优先级</th></tr>
+<tr><td>2.1</td><td>新增 <code>scripts/dwc_benchmark_adapter.py</code>：加载 instance、checkout repo、跑 test、返回 resolved</td><td><span class="badge p0">P0</span></td></tr>
+<tr><td>2.2</td><td>1 个样例 instance 端到端跑通（agent_executor 接入）</td><td><span class="badge p0">P0</span></td></tr>
+<tr><td>2.3</td><td>扩展到 10-20 个 instance，产出 <code>benchmark_report.json</code></td><td><span class="badge p1">P1</span></td></tr>
+<tr><td>2.4</td><td>resolved rate 接入 DWC drift/pass_rate 体系</td><td><span class="badge p1">P1</span></td></tr>
+<tr><td>2.5</td><td>gate 守门：adapter 可 import + smoke test</td><td><span class="badge p2">P2</span></td></tr>
+</table>
+</div>
+
+<h2>Phase 3 · 进化闭环（可选）</h2>
+<div class="card">
+<ul>
+<li>benchmark score 作为 fitness 信号输入进化循环</li>
+<li>内部指标 vs 外部 resolved rate 对比，校准 drift</li>
+<li>GAIA 子集（通用助理能力）作为第二基准</li>
+</ul>
+</div>
+
+<h2> tonight 不做的事</h2>
+<div class="card">
+<ul>
+<li>不启动 SWE-bench 全量（成本/时间）</li>
+<li>不碰 WebArena/OSWorld（DWC 非主战场）</li>
+<li>不改 collapse/daily_limit 逻辑（先稳运行时）</li>
+</ul>
+</div>
+
+<h2>下一步</h2>
+<div class="card">
+<p>若同意，下一轮开始 Phase 1.1 + 2.1 骨架（sealed tasks 覆盖率 + adapter 骨架），先跑通 1 个 SWE-bench instance。</p>
+</div>
+</body>
+</html>

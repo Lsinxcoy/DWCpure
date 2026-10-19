@@ -743,6 +743,22 @@ def gate8_contract() -> dict:
         violations.append({"file": "organs/evolver.py", "rule": "K28 emit_requests 缺失",
                            "detail": "无请求发射 ⇒ R367 无载体"})
     # ── K29: R368 transfer state ──
+    # ── K30: Phase 2.1 benchmark adapter ──
+    adapter_path = os.path.join(ROOT, "scripts", "dwc_benchmark_adapter.py")
+    if not os.path.exists(adapter_path):
+        violations.append({"file": "scripts/dwc_benchmark_adapter.py", "rule": "K30 adapter 缺失",
+                           "detail": "外部基准适配器缺失 ⇒ Phase 2.1 无载体"})
+    else:
+        try:
+            import importlib.util, sys
+            spec = importlib.util.spec_from_file_location("dwc_benchmark_adapter", adapter_path)
+            m = importlib.util.module_from_spec(spec)
+            sys.modules["dwc_benchmark_adapter"] = m
+            spec.loader.exec_module(m)
+        except Exception as e:  # noqa: BLE001 — 导入失败即门禁失败
+            violations.append({"file": "scripts/dwc_benchmark_adapter.py", "rule": "K30 adapter 导入失败",
+                               "detail": str(e)})
+
     if "transfer_state" not in ev_s:
         violations.append({"file": "organs/evolver.py", "rule": "K29 transfer_state 缺失",
                            "detail": "无跨任务迁移 ⇒ R368 无载体"})
