@@ -1,0 +1,7 @@
+{
+  "_comment": "复制为 config/llm.json 后填入真实值。该文件已被 .gitignore 排除，禁止提交真实 key。",
+  "base_url": "https://api.example.com/v1",
+  "model": "your-model-name",
+  "api_key": "sk-REPLACE_ME",
+  "timeout": 120
+}

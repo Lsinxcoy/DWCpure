@@ -158,32 +158,78 @@ def test_drift_watch_health_is_silent():
     ★ 行为级: 直接跑脚本, 断言 rc=0 且空 stdout（不是只读源码文本）。
     ★ 日度心跳例外: 当天首次 tick 发一条后, 后续 tick 必须静默（已由
       cron copy 的 state 验证 — 手动 run1 后 run2 空）。
+    ★★★ R371 · 跨午夜修复: 必须**先种「今日心跳已发」**再跑 ——
+      否则新的一天首个 tick 按设计会发心跳 ⇒ 测试在 00:00 后必红
+      （2026-10-19→20 实测踩中）。state 文件用「读旧→写→finally 还原」
+      保护生产状态。
     """
+    import json as _json
     import subprocess
+    import time as _t
     ROOT_DIR = r"E:\Divine Wisdom Core"
-    r = subprocess.run(
-        [sys.executable, os.path.join(ROOT_DIR, "scripts",
-                                      "dwc_anchor_drift_watch.py")],
-        capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr[-300:]
-    assert r.stdout == "", (
-        "健康 tick 必须静默（空 stdout），实得:\n%r" % r.stdout[:300])
+    st_path = os.path.join(os.environ["LOCALAPPDATA"], "hermes", "scripts",
+                           ".dwc_drift_watch_state.json")
+    old = None
+    if os.path.exists(st_path):
+        try:
+            old = open(st_path, encoding="utf-8").read()
+        except OSError:
+            old = None
+    try:
+        os.makedirs(os.path.dirname(st_path), exist_ok=True)
+        with open(st_path, "w", encoding="utf-8") as fh:
+            _json.dump({"heartbeat": _t.strftime("%Y-%m-%d"), "sugg": None},
+                       fh, ensure_ascii=False)
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT_DIR, "scripts",
+                                          "dwc_anchor_drift_watch.py")],
+            capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[-300:]
+        assert r.stdout == "", (
+            "健康 tick 必须静默（空 stdout），实得:\n%r" % r.stdout[:300])
+    finally:
+        if old is not None:
+            try:
+                with open(st_path, "w", encoding="utf-8") as fh:
+                    fh.write(old)
+            except OSError:
+                pass
 
 
 def test_drift_watch_no_heartbeat_on_second_tick_of_day():
-    """★★ 当日第二次 tick 静默（心跳只发一条, cron 不轰炸）。"""
+    """★★ 当日第二次 tick 静默（心跳只发一条, cron 不轰炸）。
+
+    ★ R371 · state 用「读旧→写→finally 还原」—— 原实现写完不管，
+      跑一次测试就把当天真实心跳吃掉（生产副作用）。
+    """
     import json as _json
+    import subprocess
+    import time as _t
     st_path = os.path.join(os.environ["LOCALAPPDATA"], "hermes", "scripts",
                            ".dwc_drift_watch_state.json")
-    import time as _t
-    st = {"heartbeat": _t.strftime("%Y-%m-%d"), "sugg": None}
-    _json.dump(st, open(st_path, "w", encoding="utf-8"), ensure_ascii=False)
-    import subprocess
-    r = subprocess.run(
-        [sys.executable, r"E:\Divine Wisdom Core\scripts\dwc_anchor_drift_watch.py"],
-        capture_output=True, text=True)
-    assert r.returncode == 0
-    assert r.stdout == "", "同日二次 tick 不得输出"
+    old = None
+    if os.path.exists(st_path):
+        try:
+            old = open(st_path, encoding="utf-8").read()
+        except OSError:
+            old = None
+    try:
+        os.makedirs(os.path.dirname(st_path), exist_ok=True)
+        with open(st_path, "w", encoding="utf-8") as fh:
+            _json.dump({"heartbeat": _t.strftime("%Y-%m-%d"), "sugg": None},
+                       fh, ensure_ascii=False)
+        r = subprocess.run(
+            [sys.executable, r"E:\Divine Wisdom Core\scripts\dwc_anchor_drift_watch.py"],
+            capture_output=True, text=True)
+        assert r.returncode == 0
+        assert r.stdout == "", "同日二次 tick 不得输出"
+    finally:
+        if old is not None:
+            try:
+                with open(st_path, "w", encoding="utf-8") as fh:
+                    fh.write(old)
+            except OSError:
+                pass
 
 
 def test_cron_copy_in_sync():

@@ -16,7 +16,12 @@ def miss_count():
 
 
 def _load_key():
-    """凭据: 环境变量优先, 其次 ~/.dwc_llm_key（仓库外）。绝不写死。"""
+    """★ 历史兜底凭据（~/.dwc_llm_key）。
+
+    ★★ 2026-10-19 起 **不再是主源**：统一配置改为 `config/llm.json`
+      （与 `src/dwc/llm/client.py` 同一份）。这里只在
+      「环境变量没给 且 config/llm.json 没 key」时才被调用。
+    """
     k = os.environ.get("DWC_LLM_API_KEY", "").strip()
     if k:
         return k
@@ -30,13 +35,55 @@ def _load_key():
     return ""
 
 
+#: ★★★ 统一配置源（唯一真源）: `config/llm.json`
+#:   `src/dwc/llm/client.py` 与 本脚本 读的是**同一个文件** ——
+#:   2026-10-19 之前两套配置各走各的（AMD/MiMo vs opencode/minimax），
+#:   模型/key/端点全不同 ⇒ 排障时无法判断「是哪个模型的问题」。
+_CFG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "config", "llm.json")
+
+
+def _shared() -> dict:
+    """读统一配置。文件缺失/坏掉 ⇒ {} 并留痕（不抛 —— 没配是常态）。"""
+    try:
+        with open(_CFG_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError:
+        return {}
+    except ValueError as e:
+        note_miss("config/llm.json 解析失败: %s" % e)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _api_url(base: str) -> str:
+    """base_url → chat/completions 全 URL（已带后缀则不重复拼）。"""
+    b = (base or "").strip().rstrip("/")
+    if not b:
+        return ""
+    return b if b.endswith("/chat/completions") else b + "/chat/completions"
+
+
 def get_config():
+    """★ 优先级: 环境变量 > config/llm.json > ~/.dwc_llm_key（仅 key 兜底）。
+
+    ★★ 不再有硬编码端点/模型兜底 —— 缺配置就 `note_miss` + 返回空，
+      不偷偷指向一个可能已死的端点（那是「降级与成功不可区分」）。
+    """
+    s = _shared()
+    base = (os.environ.get("DWC_LLM_API_URL")
+            or os.environ.get("DWC_LLM_BASE_URL")
+            or s.get("base_url") or "")
     return {
-        "api_url": os.environ.get("DWC_LLM_API_URL", "https://opencode.ai/zen/go/v1/chat/completions"),
-        "model": os.environ.get("DWC_LLM_MODEL", "minimax-m2.5"),
-        "api_key": _load_key(),
-        "max_tokens": int(os.environ.get("DWC_LLM_MAX_TOKENS", "2000")),
-        "timeout": int(os.environ.get("DWC_LLM_TIMEOUT", "120")),
+        "api_url": _api_url(base),
+        "model": os.environ.get("DWC_LLM_MODEL") or s.get("model") or "",
+        "api_key": (os.environ.get("DWC_LLM_API_KEY")
+                    or s.get("api_key") or _load_key()),
+        "max_tokens": int(os.environ.get("DWC_LLM_MAX_TOKENS")
+                          or s.get("max_tokens") or 2000),
+        "timeout": int(os.environ.get("DWC_LLM_TIMEOUT")
+                       or s.get("timeout") or 120),
     }
 
 
@@ -46,8 +93,12 @@ def call_llm(system_prompt, user_prompt, max_tokens=None):
     url = cfg["api_url"]
     model = cfg["model"]
     key = cfg["api_key"]
+    if not url or not model:
+        note_miss("LLM 配置不全（config/llm.json 缺 base_url 或 model）"
+                  " — 不偷偷回落到硬编码端点")
+        return ""
     if not key:
-        note_miss("缺 DWC_LLM_API_KEY 且无 ~/.dwc_llm_key")
+        note_miss("缺 DWC_LLM_API_KEY / config/llm.json 的 api_key")
         return ""
     mt = max_tokens or cfg["max_tokens"]
     for attempt in range(5):

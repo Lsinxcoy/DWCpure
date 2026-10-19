@@ -26,7 +26,7 @@ def test_slash_suggests_commands():
         inp = app.query_one("#ask")
         inp.value = "/"
         app.on_input_changed(type("E", (), {"value": "/"})())
-        await pilot.pause(0.05)
+        await pilot.pause()          # ★ R371 · 队列排空（固定 0.05s 在满载时不够 ⇒ 套件内 NoMatches 抖动）
         sug = app.query_one("#suggest")
         assert sug.display is True
         assert "/help" in str(sug.render())
@@ -40,7 +40,7 @@ def test_tab_completes():
         inp = app.query_one("#ask")
         inp.value = "/he"
         app.on_input_changed(type("E", (), {"value": "/he"})())
-        await pilot.pause(0.05)
+        await pilot.pause()          # ★ R371 · 队列排空（固定 0.05s 在满载时不够 ⇒ 套件内 NoMatches 抖动）
         assert app._sug, "候选为空"
         app._suggest_apply()
         assert inp.value == "/help"
@@ -54,7 +54,7 @@ def test_at_suggests_files():
         inp = app.query_one("#ask")
         inp.value = "@predictor"
         app.on_input_changed(type("E", (), {"value": "@predictor"})())
-        await pilot.pause(0.05)
+        await pilot.pause()          # ★ R371 · 队列排空（固定 0.05s 在满载时不够 ⇒ 套件内 NoMatches 抖动）
         body = str(app.query_one("#suggest").render())
         assert "predictor" in body
         assert len(app._sug) <= 8
@@ -85,6 +85,6 @@ def test_suggest_keeps_focus_in_input():
         inp = app.query_one("#ask")
         inp.value = "/"
         app.on_input_changed(type("E", (), {"value": "/"})())
-        await pilot.pause(0.05)
+        await pilot.pause()          # ★ R371 · 队列排空（固定 0.05s 在满载时不够 ⇒ 套件内 NoMatches 抖动）
         assert app.focused is inp
     _run(_check)

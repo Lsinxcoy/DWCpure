@@ -15,7 +15,9 @@ import shutil
 import sys
 
 FILES = ("dwc_agent.py", "dwc_agent_watch.py", "dwc_evo_round.py",
-         "dwc_evo_round_cron.py")
+         "dwc_evo_round_cron.py", "dwc_llm_client.py")
+# ★ 2026-10-19 加 dwc_llm_client.py：dwc_agent_patch / dwc_verifier 依赖它
+#   （`from scripts.dwc_llm_client import call_llm`）；漏同步 = 导入即崩。
 
 SRC = os.path.dirname(os.path.abspath(__file__))
 DST = os.path.join(os.environ.get("LOCALAPPDATA", ""), "hermes", "scripts")
