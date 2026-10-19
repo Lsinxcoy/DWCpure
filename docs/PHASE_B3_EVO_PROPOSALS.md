@@ -140,7 +140,8 @@ from-proposals: 0 簇 / 0 签名
 
 ## 七、诚实边界
 
-1. **开关仍默认关** —— `feed_from_terms: false`。打开才会产提案并落盘。
+1. **开关已打开**（`feed_from_terms: true`，2026-10-19 用户拍板）——
+   生产 term 现在会产提案并落盘；起草（evo_round）仍不排 cron。
 2. **只落盘，不自动起草** —— evo_round 仍是独立调用（手动或 cron），
    agent 循环内不会自己发起 trial。这是刻意的：起草要花 LLM 预算。
 3. **消费标记只在 landed** —— 起草失败/未过门的簇会一直留在 pending，

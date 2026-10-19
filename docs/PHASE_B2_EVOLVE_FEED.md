@@ -134,8 +134,10 @@ evolution:
 
 ## 七、诚实边界
 
-1. **默认关** —— 生产上这条通路还没打开。打开 = 改 `config/evolution.yaml` 一行，
-   但会开始产提案，**要用户拍板**。
+1. **开关已打开**（2026-10-19 用户拍板，`config/evolution.yaml` 的
+   `feed_from_terms: true`）—— 生产 term 现在会把失败签名喂进 evolver。
+   关闭 = 改回 false 一行，但必须同轮改测试
+   `test_real_config_feed_switch_is_on_by_decision`。
 2. **只诊断，不落地** —— `diagnose` 产提案，提案到落地还要走 trial/accept
    （`scripts/dwc_evo_round.py` 的链）。B2 只负责把燃料送进炉子。
 3. **提案质量未评估** —— 9 条签名产 1 个提案、8 条未映射，说明现有 RULES

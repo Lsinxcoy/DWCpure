@@ -17,7 +17,8 @@ version: 1
 
 evolution:
   # 是否把 term 的失败签名喂给 evolver.diagnose（必填 · 无默认）
-  feed_from_terms: false
+  # ★ 2026-10-19 用户拍板打开（"打开"）—— 先观察落盘量，暂不排 cron 起草
+  feed_from_terms: true
 
   # 单 term 最多喂多少条签名（必填 · 无默认）
   # ★ 上限的理由: 一次 term 可能产出上百条签名（每个失败观测一条），

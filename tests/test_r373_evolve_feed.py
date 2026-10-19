@@ -237,11 +237,15 @@ def test_load_evolution_rejects_zero_limit(tmp_path):
         load_evolution(str(p))
 
 
-def test_real_config_is_off_by_default():
-    """★ 生产配置当前必须是关 —— 打开要用户拍板，不许偷偷开。"""
+def test_real_config_feed_switch_is_on_by_decision():
+    """★ 灰度开关的值 = 用户决策，测试锁住当前状态。
+
+    2026-10-19 用户拍板打开（"打开"）。将来若关闭，必须同轮改这条 ——
+    目的不是"必须开"，而是**开关的每次变更都留下痕迹**（不许静默翻转）。
+    """
     from dwc.foundation.dial_config import load_evolution
     cfg = load_evolution()
-    assert cfg["feed_from_terms"] is False
+    assert cfg["feed_from_terms"] is True
     assert cfg["max_sigs_per_term"] >= 1
 
 
