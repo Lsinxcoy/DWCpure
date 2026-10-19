@@ -344,20 +344,32 @@ class DWC:
                         "how": "R138 真路由: self.dream(k2_max=%d)"
                                % self._DREAM_K2,
                         "v_star": rep.v_star, "n_worlds": rep.n_worlds}
-        elif action in ("learn", "evolve"):
-            # ★ R141 如实修正: R138 原判"方法不存在"是**陈旧自陈误导** —
-            #   evolve 侧 evolver.py L1683 Evolver 已实现（失败签名→提案→
-            #   过门）; 缺的是 step 分发的接线（调用 evolver.diagnose 的
-            #   输入=失败签名链, 本轮不阔配以免改判据面 — 留 R142）
-            if action == "evolve":
+        elif action == "evolve":
+            # ★ R369 · B1: 真分发（R141 的「未接线」到此销账）。
+            #   输入 = 本 step 判分产出的失败签名（judgement["failure_signature"]）。
+            #   无签名 / 签名缺 c/q/fn ⇒ 诚实 not_dispatched（没有诊断对象，
+            #   不编造；diagnose 的查询键正是 c/q/fn，缺一即抛）。
+            _sig = (judgement or {}).get("failure_signature")
+            if not _sig:
                 dispatch = {"kind": "evolve", "dispatched": False,
-                            "why": "not_dispatched: 器官已实现"
-                                   "(evolver.Evolver) 但 step 分发未接线"
-                                   "（缺失败签名输入链）— R141 如实修正"}
+                            "why": "not_dispatched: 本 step 无失败签名"
+                                   "（判分缺席或通过）— 没有诊断对象, 不编造"}
+            elif not all(_sig.get(k) for k in ("c", "q", "fn")):
+                dispatch = {"kind": "evolve", "dispatched": False,
+                            "why": "not_dispatched: 失败签名缺 c/q/fn"
+                                   "（查询键不全）: %r" % (_sig,)}
             else:
-                dispatch = {"kind": "learn", "dispatched": False,
-                            "why": "not_dispatched: learn 器未实现"
-                                   "（无对应器官 — 与 evolve 区别标注）"}
+                _diag = self.evolver.diagnose([_sig])
+                dispatch = {"kind": "evolve", "dispatched": True,
+                            "how": "evolver.diagnose([failure_signature])",
+                            "n_signatures": 1,
+                            "n_proposals": len(_diag.get("proposals") or []),
+                            "n_unmapped": _diag.get("n_unmapped", 0),
+                            "n_clusters": _diag.get("n_clusters", 0)}
+        elif action == "learn":
+            dispatch = {"kind": "learn", "dispatched": False,
+                        "why": "not_dispatched: learn 器未实现"
+                               "（无对应器官 — 与 evolve 区别标注）"}
         elif action == "maintain":
             dispatch = {"kind": "maintain", "dispatched": False,
                         "why": "not_dispatched: maintain 属记忆维护面, "

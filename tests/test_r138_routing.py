@@ -80,16 +80,66 @@ def test_dream_dispatch_actually_runs():
         assert disp["n_worlds"] >= 1
 
 
-def test_learn_evolve_not_dispatched_with_reason():
-    """★ learn/evolve ⇒ 显式 False + 方法不存在理由。"""
+def test_learn_not_dispatched_but_evolve_dispatches():
+    """★ R369 · B1: learn 仍无器官 ⇒ False；evolve 改为真调 evolver.diagnose。
+
+    行为语义变更（R138 的「evolve 未接线」已由 B1 销账）⇒ 旧锁按新语义重锚，
+    并补更强断言：有失败签名时 dispatched=True 且带诊断产物。
+    """
     from dwc.core import DWC
     src = inspect.getsource(DWC.step)
-    assert 'elif action in ("learn", "evolve")' in src
-    assert "方法不存在" in src
-    # 行为级: 直接验证 DWC 确实没有这两方法（理由与事实一致）
+    assert '"kind": "learn", "dispatched": False' in src
+    assert "self.evolver.diagnose([_sig])" in src
+
     d = _dwc()
-    assert not hasattr(d, "learn")
-    assert not hasattr(d, "evolve")
+    assert not hasattr(d, "learn")      # learn 仍无器官
+    assert hasattr(d, "evolver")        # evolve 的器官在场
+
+    # 行为级: 有失败签名 ⇒ 真分发
+    d._decide = lambda task: {"source": "llm", "action": "evolve",
+                              "_chain_id": "c-evolve"}
+    d._judge_and_backfill = lambda task, trace: {
+        "task_id": "code_fix_001", "success": False, "reason": "stub",
+        "failure_signature": {"c": "wrong_result", "q": "dev",
+                              "fn": "code_fix_001"},
+        "repair_layer": "verification",
+    }
+    out = d.step({"task_id": "code_fix_001", "kind": "dev"}, executor=_Ex())
+    disp = out["action_dispatched"]
+    assert disp["kind"] == "evolve"
+    assert disp["dispatched"] is True
+    assert disp["n_signatures"] == 1
+    assert isinstance(disp["n_proposals"], int)
+
+
+def test_evolve_not_dispatched_without_signature():
+    """★ 无失败签名 ⇒ 诚实 False（没有诊断对象，不编造）。"""
+    d = _dwc()
+    d._decide = lambda task: {"source": "llm", "action": "evolve",
+                              "_chain_id": "c-evolve2"}
+    d._judge_and_backfill = lambda task, trace: None
+    out = d.step({"task_id": "code_fix_001", "kind": "dev"}, executor=_Ex())
+    disp = out["action_dispatched"]
+    assert disp["kind"] == "evolve"
+    assert disp["dispatched"] is False
+    assert "无失败签名" in disp["why"]
+
+
+def test_evolve_not_dispatched_when_signature_incomplete():
+    """★ 签名缺 c/q/fn ⇒ 诚实 False（查询键不全，不硬调 diagnose）。"""
+    d = _dwc()
+    d._decide = lambda task: {"source": "llm", "action": "evolve",
+                              "_chain_id": "c-evolve3"}
+    d._judge_and_backfill = lambda task, trace: {
+        "task_id": "code_fix_001", "success": False, "reason": "stub",
+        "failure_signature": {"c": "wrong_result"},   # 缺 q/fn
+        "repair_layer": "verification",
+    }
+    out = d.step({"task_id": "code_fix_001", "kind": "dev"}, executor=_Ex())
+    disp = out["action_dispatched"]
+    assert disp["kind"] == "evolve"
+    assert disp["dispatched"] is False
+    assert "缺 c/q/fn" in disp["why"]
 
 
 def test_maintain_not_dispatched_with_reason():

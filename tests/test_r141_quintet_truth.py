@@ -67,10 +67,15 @@ def test_quintet_build_uses_real_roles():
 
 
 def test_core_dispatch_why_corrected():
-    """★ step 分发 why 如实: evolve=器官已实现未接线（不是"方法不存在"）。"""
+    """★ R369: evolve 已从「器官已实现但未接线」升级为真分发。
+
+    旧锁守的是「why 不能说方法不存在」；现在再进一步——
+    不能再说「未接线」，且必须真调 evolver.diagnose（B1 销账）。
+    """
     from dwc.core import DWC
     src = inspect.getsource(DWC.step)
-    assert "器官已实现" in src
+    assert "self.evolver.diagnose([_sig])" in src
+    assert "step 分发未接线" not in src          # 旧缺口文字必须消失
     # 旧误导文字必须消失
     assert "方法不存在（DWC 未实现 evolve 器" not in src
 

@@ -166,7 +166,13 @@ def record_from_harness(report: Dict[str, Any]) -> Dict[str, Any]:
     """
     tr = report.get("last_tool_result") or {}
     f2p = tr.get("f2p") or {}
+    p2p = tr.get("p2p") or {}
     verdict = tr.get("verdict")
+
+    # p2p 被跳过（集合过大 / 实例无 P2P）⇒ None，不当成 0
+    p2p_ok = None
+    if p2p and not p2p.get("skipped"):
+        p2p_ok = p2p.get("all_passed")
 
     parse_ok = True if tr else None          # 有 tool_result ⇒ 解析成功过
     return {
@@ -175,9 +181,72 @@ def record_from_harness(report: Dict[str, Any]) -> Dict[str, Any]:
         "apply_ok": tr.get("applied"),
         "syntax_ok": tr.get("syntax_ok"),
         "f2p_ok": f2p.get("all_passed"),
-        "p2p_ok": None,                       # harness 当前只跑 F2P
+        "p2p_ok": p2p_ok,
         "verifier_ok": (verdict == "PASS") if verdict else None,
         "resolved": bool(report.get("success")),
+    }
+
+
+def compare_policies(policy_records: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """在**共同测量集**上比较多个策略的 fitness（可比口径）。
+
+    ★ 为什么需要：`fitness_breakdown` 的 outcome 分母随 realization 变化——
+      策略 A 的补丁语法失败时 f2p 未测，策略 B 语法通过后 f2p 被测且失败，
+      于是 outcome 从 2/3 变 2/4，**看起来变差，实际是测得更全**。
+      直接比较 scalar 会得出反向结论（Phase C 实测踩中）。
+
+    口径：
+      1. `common_instances` = 所有策略都有记录的 instance_id 交集
+      2. 每一级再取「所有策略都测到该级」的子集（None 不进分母）
+      3. 各策略在同一子集上算 rate ⇒ realization / outcome / scalar 可比
+    """
+    pols = [p for p, recs in (policy_records or {}).items() if recs]
+    if len(pols) < 2:
+        return {"comparable": False, "why": "少于两个策略，无可比对象",
+                "policies": pols}
+
+    by_id: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for p in pols:
+        for r in policy_records[p]:
+            iid = r.get("instance_id")
+            if iid:
+                by_id.setdefault(iid, {})[p] = r
+
+    common_ids = sorted(iid for iid, m in by_id.items() if all(p in m for p in pols))
+
+    per_level: Dict[str, Dict[str, Any]] = {}
+    for lv in GRADED_LEVELS:
+        ids = [iid for iid in common_ids
+               if all(by_id[iid][p].get(lv) is not None for p in pols)]
+        rates = {}
+        for p in pols:
+            if ids:
+                rates[p] = sum(1 for iid in ids if by_id[iid][p][lv]) / len(ids)
+            else:
+                rates[p] = None
+        per_level[lv] = {"n": len(ids), "rates": rates}
+
+    def _mean(levels, p):
+        got = [per_level[lv]["rates"][p] for lv in levels
+               if per_level[lv]["rates"][p] is not None]
+        return sum(got) / len(got) if got else None
+
+    per_policy = {}
+    for p in pols:
+        rl = _mean(REALIZATION_LEVELS, p)
+        oc = _mean(OUTCOME_LEVELS, p)
+        per_policy[p] = {
+            "realization": rl,
+            "outcome": oc,
+            "scalar": (rl * oc) if (rl is not None and oc is not None) else None,
+        }
+
+    return {
+        "comparable": True,
+        "common_instances": common_ids,
+        "per_level": per_level,
+        "per_policy": per_policy,
+        "note": "所有比率均在同一 instance 子集上计算；None 级不进分母",
     }
 
 

@@ -266,18 +266,23 @@ class AgentHarness:
             state["previous_error"] = "语法检查失败（已回滚）:\n%s" % err[:500]
             return out
 
-        f2p = self.deps.run_tests()
+        tests = self.deps.run_tests()
+        f2p = tests.get("f2p") or tests      # 兼容旧回调（直接返回 f2p 形态）
+        p2p = tests.get("p2p") or {}
         out["f2p"] = f2p
+        out["p2p"] = p2p
 
         verdict, findings = "", ""
         if state["policy"].verifier:
             diff = self._diff(path, old, new)
             test_output = "F2P: %s/%s" % (f2p.get("passed"), f2p.get("total"))
+            if p2p and not p2p.get("skipped"):
+                test_output += " | P2P: %s/%s" % (p2p.get("passed"), p2p.get("total"))
             verdict, findings = self.deps.verify(
                 state["problem_statement"], diff, test_output)
         out["verdict"], out["findings"] = verdict, findings
 
-        passed = bool(f2p.get("all_passed"))
+        passed = bool(tests.get("all_passed"))
         rejected = verdict == "FAIL"
         out["ok"] = passed and not rejected
 

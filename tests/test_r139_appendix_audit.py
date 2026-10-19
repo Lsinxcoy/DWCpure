@@ -40,11 +40,15 @@ def test_appendix_d_code_rx_only_impl_names():
 
 
 def test_routing_semantic_coverage():
-    """★ 语义判据: ACTIONS=5, dispatched=True 分支=2 ⇒ 未全覆盖 ⇒ partial。"""
+    """★ 语义判据: ACTIONS=5, dispatched=True 分支=3 ⇒ 未全覆盖 ⇒ partial。
+
+    R369 · B1 后 evolve 也进 dispatched=True（remember/dream/evolve 三条），
+    未覆盖降为 learn/maintain 两条 —— 仍非全覆盖，判据口径不变。
+    """
     cov = routing_coverage()
     assert cov["actions_total"] == 5
-    assert cov["dispatched_true_branches"] == 2      # remember + dream
-    assert cov["uncovered"] == 3                     # learn/evolve/maintain
+    assert cov["dispatched_true_branches"] == 3      # remember + dream + evolve
+    assert cov["uncovered"] == 2                     # learn/maintain
     assert cov["fully_routed"] is False
 
 

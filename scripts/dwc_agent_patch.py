@@ -184,7 +184,23 @@ def main(argv=None) -> int:
             f.write(content)
 
     def _tests():
-        return run_tests(repo_path, f2p, python_exe=get_pyexe())
+        """F2P + P2P 都跑；P2P 过大则跳过并标 skipped（不当成 0）。"""
+        f = run_tests(repo_path, f2p, python_exe=get_pyexe())
+        if p2p and len(p2p) <= 100:
+            p = run_tests(repo_path, p2p, python_exe=get_pyexe())
+            # 节点名含特殊字符时 pytest 集合失败 ⇒ suspect（harness 问题，
+            # 不是 agent 问题 — 与 adapter 的既有口径一致）
+            if p.get("returncode") == 4 or "not found" in (p.get("output") or ""):
+                p["suspect"] = True
+        elif p2p:
+            p = {"all_passed": True, "skipped": True,
+                 "reason": "p2p_too_large_%d" % len(p2p)}
+        else:
+            p = {"all_passed": True, "skipped": True, "reason": "no_p2p"}
+        ok = bool(f.get("all_passed")) and (bool(p.get("all_passed"))
+                                            or bool(p.get("suspect")))
+        return {"all_passed": ok, "f2p": f, "p2p": p,
+                "passed": f.get("passed"), "total": f.get("total")}
 
     deps = HarnessDeps(
         call_llm=lambda system, prompt, max_tokens: call_llm(system, prompt, max_tokens),
