@@ -746,6 +746,35 @@ def gate8_contract() -> dict:
     # ── K30: Phase 2.1 benchmark adapter ──
     # ── K31: Phase 1.2 synthetic honesty field ──
     # ── K32: Phase 1.3 collapse pure function ──
+    # ── K33: Phase 1.4 internal eval chain integrity ──
+    _chain_files = [
+        os.path.join(ROOT, "src", "dwc", "harness", "run_term.py"),
+        os.path.join(ROOT, "src", "dwc", "organs", "iwm.py"),
+        os.path.join(ROOT, "src", "dwc", "organs", "judge.py"),
+        os.path.join(ROOT, "src", "dwc", "foundation", "capability_groups.py"),
+        os.path.join(ROOT, "config", "capability_groups.yaml"),
+        os.path.join("E:/", "ARSI", "config", "sealed_tasks.yaml"),
+    ]
+    # sealed tasks path is external; check the configured SEALED_PATH constant
+    try:
+        import importlib.util, sys
+        spec = importlib.util.spec_from_file_location("cg", os.path.join(ROOT,"src","dwc","foundation","capability_groups.py"))
+        m = importlib.util.module_from_spec(spec); sys.modules["cg"]=m; spec.loader.exec_module(m)
+        sealed = getattr(m, "SEALED_PATH", None)
+        if sealed:
+            _chain_files.append(sealed)
+    except Exception:  # noqa: BLE001 — 导入失败不阻断此门, 其他门会报
+        pass
+    for _f in _chain_files:
+        if not os.path.exists(_f):
+            violations.append({"file": _f, "rule": "K33 eval chain 缺失",
+                               "detail": "内部评测链文件缺失 ⇒ Phase 1.4 无载体"})
+    # 测试文件存在性
+    for _t in ("test_run_term.py", "test_capability_groups.py", "test_iwm.py"):
+        if not os.path.exists(os.path.join(ROOT, "tests", _t)):
+            violations.append({"file": "tests/"+_t, "rule": "K33 eval test 缺失",
+                               "detail": "内部评测回归测试缺失"})
+
     if "def collapse_triggered" not in open(os.path.join(ROOT,"scripts","dwc_agent.py"),encoding="utf-8").read():
         violations.append({"file": "scripts/dwc_agent.py", "rule": "K32 collapse_triggered 缺失",
                            "detail": "塌陷判定不可测 ⇒ 生命周期回归无载体"})
