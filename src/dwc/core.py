@@ -558,7 +558,8 @@ class DWC:
                 if not fn:
                     continue          # diagnose 的查询键缺 fn ⇒ 不喂
                 sigs.append({"c": str(s["c"]), "q": str(s["q"]),
-                             "fn": str(fn), "m": str(s.get("m") or "")})
+                             "fn": str(fn), "m": str(s.get("m") or ""),
+                             "task": str(d.get("task_id") or "")})
 
         limit = cfg["max_sigs_per_term"]
         dropped = max(0, len(sigs) - limit)
@@ -574,11 +575,41 @@ class DWC:
             return {"enabled": True, "n_sigs": len(sigs),
                     "n_dropped": dropped,
                     "error": "%s: %s" % (type(exc).__name__, exc)}
-        return {"enabled": True, "n_sigs": len(sigs),
-                "n_dropped": dropped,
-                "n_proposals": len(diag.get("proposals") or []),
-                "n_unmapped": diag.get("n_unmapped", 0),
-                "n_clusters": diag.get("n_clusters", 0)}
+
+        # ★ R370 · B3: 产物落盘 —— 不落盘 = 提案被 _seen 去重后永久丢失。
+        #   写盘失败不掀 term（诊断已完成），但必须留痕（n_persist_error）。
+        from dwc.harness import evo_proposals
+        meta = {"term_id": getattr(rep, "term_id", ""),
+                "chain_id": getattr(rep, "chain_id", "")}
+        recs: List[Dict[str, Any]] = []
+        for p in (diag.get("proposals") or []):
+            psig = dict(getattr(p, "failure_signature", None) or {})
+            if not psig.get("fn"):
+                psig["fn"] = next((s["fn"] for s in sigs
+                                   if s["c"] == psig.get("c")
+                                   and s["q"] == psig.get("q")), "")
+            recs.append(evo_proposals.proposal_record(meta, psig, p))
+        for s in (diag.get("unmapped") or []):
+            recs.append(evo_proposals.unmapped_record(meta, s))
+        n_persisted = 0
+        persist_error = ""
+        try:
+            n_persisted = evo_proposals.append_records(
+                evo_proposals.DEFAULT_PATH, recs)
+        except Exception as exc:                    # noqa: BLE001
+            persist_error = "%s: %s" % (type(exc).__name__, exc)
+            sys.stderr.write("提案落盘失败: %s\n" % persist_error)
+
+        out = {"enabled": True, "n_sigs": len(sigs),
+               "n_dropped": dropped,
+               "n_proposals": len(diag.get("proposals") or []),
+               "n_unmapped": diag.get("n_unmapped", 0),
+               "n_clusters": diag.get("n_clusters", 0),
+               "n_persisted": n_persisted,
+               "path": evo_proposals.DEFAULT_PATH}
+        if persist_error:
+            out["persist_error"] = persist_error
+        return out
 
     def _snapshot_worlds(self) -> int:
         """把当前各世界树 deepcopy 进 ℋ（超 history_max 丢最旧）。"""

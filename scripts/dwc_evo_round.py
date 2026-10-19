@@ -208,7 +208,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               ledger_path=None, resume=True, ledger_date=None,
               max_attempts=3, priority_prefixes=None,
               task_filter=None, hint_mode="reuse", pool_n=None,
-              reproducible_only=True):
+              reproducible_only=True, clusters=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -239,11 +239,16 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
     task_of = task_of or (lambda r: "")
     want_code_of = want_code_of or (lambda t: False)
     _nonrepro: list = []
-    clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
-                                priority_prefixes=priority_prefixes,
-                                task_filter=task_filter,
-                                reproducible_only=reproducible_only,
-                                filtered_out=_nonrepro)
+    # ★ B3 · 外部簇注入（--from-proposals）：给了就不读库 —— live 路径
+    #   的签名带 fn/task，比 failure_sig 表（无 fn 列）更准。
+    if clusters is None:
+        clusters = collect_unmapped(db_path, evolver, fn_of, task_of,
+                                    priority_prefixes=priority_prefixes,
+                                    task_filter=task_filter,
+                                    reproducible_only=reproducible_only,
+                                    filtered_out=_nonrepro)
+    else:
+        clusters = list(clusters)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
@@ -817,6 +822,9 @@ def main() -> int:
     #   默认对准已知的 007 簇；多任务泛化等 node_id→task 映射落地后再做。
     ap.add_argument("--fn", default="average")
     ap.add_argument("--task", default="code_fix_007")
+    # ★ B3 · 从 live 提案账读簇（给了就不读 failure_sig 表）
+    ap.add_argument("--from-proposals", default="",
+                    help="读 var/evo_proposals.jsonl 的未映射簇（B3）")
     args = ap.parse_args()
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
@@ -834,6 +842,22 @@ def main() -> int:
         lambda r: r.text if r.ok else (_ for _ in ()).throw(
             RuntimeError(r.error)))(llm.complete(p, max_tokens=800)))
     ctx = "anchors tasks: %s" % (sorted(judge.anchors.keys())[:12],)
+
+    # ★ B3 · 外部簇（live 提案账）—— 给了就不读库
+    _clusters = None
+    _ep = None
+    _prop_path = args.from_proposals
+    if _prop_path:
+        from dwc.harness import evo_proposals as _ep_mod
+        _ep = _ep_mod
+        _items = _ep.pending_unmapped(_prop_path)
+        _clusters = _ep.group_by_key(_items)
+        print("from-proposals: %d 簇 / %d 签名 (path=%s)"
+              % (len(_clusters), len(_items), _prop_path))
+        if not _clusters:
+            print("无待起草簇 —— 不跑本轮")
+            return 0
+
     rep = run_round(db, Evolver(), mu, ctx,
                     trial_fn=lambda t, pa, code=None: _real_trial(
                         judge, llm, t, pa, code=code),
@@ -842,10 +866,19 @@ def main() -> int:
                     fn_of=lambda r: args.fn,
                     task_of=lambda r: args.task,
                     max_clusters=args.max_clusters,
+                    clusters=_clusters,
                     want_code_of=lambda t: (
                         judge.anchors.get(t, {}) or {}).get(
                         "category", "") == "code_repair")
     print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000])
+    # ★ B3 · 已落地的簇标记消费（未落地的下轮重试 —— 不静默丢弃）
+    if _prop_path and _clusters and _ep is not None:
+        _landed = [r["key"] for r in (rep.get("results") or [])
+                   if r.get("landed") is True and r.get("key")]
+        if _landed:
+            _ep.mark_consumed(_prop_path, _landed)
+        print("consumed: %d/%d 簇已落地并标记"
+              % (len(_landed), len(_clusters)))
     return 0
 
 

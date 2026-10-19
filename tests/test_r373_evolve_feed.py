@@ -42,6 +42,28 @@ class _FakeEvolver:
                 "unmapped": [], "n_unmapped": 0, "n_clusters": 1}
 
 
+class _P:
+    """Proposal 的最小替身（只带落盘需要的字段）。"""
+
+    def __init__(self, sig, patch="x"):
+        self.failure_signature = dict(sig)
+        self.proposal_id = "P1"
+        self.component = "assets"
+        self.target = "t"
+        self.patch = patch
+        self.rationale = "r"
+        self.operator = "improve"
+        self.target_layer = ""
+
+
+@pytest.fixture(autouse=True)
+def _isolate_proposals(tmp_path, monkeypatch):
+    """★ 提案落盘必须隔离 —— 测试写进生产 var/ 会污染真实提案账。"""
+    from dwc.harness import evo_proposals
+    monkeypatch.setattr(evo_proposals, "DEFAULT_PATH",
+                        str(tmp_path / "evo_proposals.jsonl"))
+
+
 class _Host:
     """只借 DWC._feed_evolver，不构造整个 DWC（避免加载全部器官）。"""
 
@@ -91,7 +113,10 @@ def test_feed_disabled_does_not_call_diagnose(monkeypatch):
 
 def test_feed_enabled_calls_diagnose_with_cqf(monkeypatch):
     _cfg(monkeypatch, feed=True)
-    ev = _FakeEvolver(proposals=[{"k": 1}, {"k": 2}])
+    ev = _FakeEvolver(proposals=[
+        _P({"c": "wrong", "q": "dev", "fn": "t1"}),
+        _P({"c": "wrong", "q": "dev", "fn": "t1"}),
+    ])
     out = _Host(ev)._feed_evolver(
         _rep([_fail({"c": "wrong", "q": "dev", "m": "assert 1==2"},
                     task_id="t1")]))
@@ -100,8 +125,10 @@ def test_feed_enabled_calls_diagnose_with_cqf(monkeypatch):
     assert out["n_sigs"] == 1
     assert out["n_proposals"] == 2
     assert out["n_dropped"] == 0
+    assert out["n_persisted"] == 2, "★ B3: 提案必须落盘（否则被 _seen 去重后丢失）"
     assert ev.calls and ev.calls[0][0]["fn"] == "t1"
     assert ev.calls[0][0]["m"] == "assert 1==2"
+    assert ev.calls[0][0]["task"] == "t1"
 
 
 # ══════════════════════════════════════════════════════════════════
