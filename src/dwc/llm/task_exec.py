@@ -533,6 +533,41 @@ _FIND_PY = (
 )
 
 
+#: ★★★ R394 · `search_code` 用 Python 实现（不再走 grep）。
+#:   现场（2026-10-20 20:19 全池）：cl01「execute_user_task 定义在哪个文件」
+#:   第一轮 grep 成功，之后连续 3 轮 ok=False（同一词搜不到）⇒ 复读熔断。
+#:   根因：`grep -rn` 返回的是**所有引用**（几十行），定义行被淹没在
+#:   调用点里；模型读不出"哪个是定义"，只好换个词再搜。
+#:   修：定义（def/class X）**置顶**，引用**限流**，一眼就能看到答案。
+_SEARCH_PY = (
+    "import os,sys,re\n"
+    "pat=sys.argv[1]; root=sys.argv[2]\n"
+    "skip={'.git','var','archive','node_modules','__pycache__','.venv'}\n"
+    "rx_def=re.compile(r'^\\s*(?:async\\s+)?(?:def|class)\\s+'+re.escape(pat)+r'\\b')\n"
+    "rx=re.compile(re.escape(pat))\n"
+    "defs=[]; refs=[]\n"
+    "for d,ds,fs in os.walk(root):\n"
+    "    ds[:]=[x for x in ds if x not in skip]\n"
+    "    for f in fs:\n"
+    "        if not f.endswith('.py'): continue\n"
+    "        p=os.path.join(d,f)\n"
+    "        try: lines=open(p,encoding='utf-8',errors='replace').read().splitlines()\n"
+    "        except Exception: continue\n"
+    "        for i,l in enumerate(lines,1):\n"
+    "            if rx_def.match(l): defs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
+    "            elif rx.search(l): refs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
+    "print('=== DEFINITIONS (%d) ===' % len(defs))\n"
+    "for x in defs[:20]: print(x)\n"
+    "print('=== REFERENCES (%d) ===' % len(refs))\n"
+    "for x in refs[:30]: print(x)\n"
+)
+
+
+def _search_to_python(pat: str, path: str):
+    """search_code ⇒ Python 实现（定义置顶 + 限流）。"""
+    return [sys.executable or "python", "-c", _SEARCH_PY, pat, path]
+
+
 def _find_to_python(toks: list):
     """把 `find PATH [-type f] [-name|-iname PAT]` 转成 Python argv。
 
@@ -672,16 +707,10 @@ def _tool_calls_to_step(tool_calls: list):
         path = str(args.get("path") or "src")     # ★ 默认只搜 src（全仓 grep 太慢）
         if not pat:
             return None
-        # ★★★ 直接构造 argv —— 不要走 "字符串 + shlex"：
-        #   Windows 上 `shlex.split(posix=False)` **保留引号**，grep 会收到
-        #   `'"def execute_user_task"'`（带字面引号）⇒ 永远搜不到（已踩）。
-        # ★ 排除重目录：全仓 grep 实测 189s 超时（cl02），src 只要几秒。
+        # ★★★ R394 · 改用 Python 实现：定义置顶 + 引用限流
+        #   （grep 会把定义埋在几十行引用里 ⇒ 模型读不出答案，反复重搜）
         return {"op": "run", "readonly": True,
-                "cmd": ["grep", "-rn", "--include=*.py",
-                        "--exclude-dir=.git", "--exclude-dir=var",
-                        "--exclude-dir=archive", "--exclude-dir=node_modules",
-                        "--exclude-dir=__pycache__",
-                        pat, path]}
+                "cmd": _search_to_python(pat, path)}
     if name == "find_files":
         pat = str(args.get("pattern") or "")
         path = str(args.get("path") or ".")

@@ -199,13 +199,22 @@ def test_list_dir_becomes_argv():
 
 
 def test_search_code_tool_exists():
-    """★★★ code-locate 类任务必须有搜索工具（只有 read 找不到符号）。"""
+    """★★★ code-locate 类任务必须有搜索工具（只有 read 找不到符号）。
+
+    ★ R394 重锚：实现从 `grep` 换成 Python（定义置顶 + 限流）。
+      原因：grep 把 `def X` 埋在几十行引用里，模型读不出答案，
+      反复重搜直到复读熔断（现场 cl01 第 1 轮 ok=True、后 3 轮全 False）。
+      所以这里不再断言"必须是 grep"，改为断言**搜索真能命中定义**。
+    """
     names = [t["function"]["name"] for t in T.TASK_TOOLS]
     assert "search_code" in names, "缺 search_code —— 定位符号只能瞎猜"
     step = T._tool_calls_to_step(_tc("search_code",
-                                     {"pattern": "class MemoryKernel"}))
-    assert isinstance(step["cmd"], list)
-    assert "grep" in step["cmd"][0], step["cmd"]
+                                     {"pattern": "MemoryKernel"}))
+    assert isinstance(step["cmd"], list), step
+    obs = T._do_action(step["op"], step)
+    out = str(obs.get("out") or "")
+    assert obs.get("ok") is True, obs
+    assert "memory.py" in out.split("=== REFERENCES")[0], out[:300]
 
 
 def test_argv_strips_quotes():
