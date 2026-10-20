@@ -55,6 +55,7 @@ import io
 
 import json
 import os
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -72,6 +73,19 @@ ENV_TIMEOUT = "DWC_LLM_TIMEOUT"
 #: ★ R377 · 推理预算（真修「任务未完成」：推理模型会把 max_tokens 吃光）
 ENV_MAX_TOKENS = "DWC_LLM_MAX_TOKENS"
 ENV_REASONING_EFFORT = "DWC_LLM_REASONING_EFFORT"
+
+#: ★★★ R379 · 模块级 HTTP 串行锁。
+#:   现场取证（2026-10-20 对照实验）: 同一端点、同一 prompt、同一配置，
+#:     · 串行 4 个任务 ⇒ 4/4 返回 JSON
+#:     · 并发 4 线程  ⇒ 0/4 返回 JSON（含 finish=tool_calls、content 空、
+#:       自然语言散文）
+#:     · 并发 + 各自独立 session ⇒ 仍 0/4
+#:     · 并发 + 全局锁串行化     ⇒ 4/4
+#:   ⇒ 端点**并发下不遵守 `response_format: json_object`**。而 DWC 的
+#:     `Semaphore(2)` 允许 2 单并发（收件箱异步接单）⇒ 生产必踩。
+#:   确定性控制用代码（不是靠 prompt 求模型）：请求串行化，模型侧行为恢复。
+#:   必须**模块级**（生产每单新建 `LLMClient()`，实例锁挡不住跨实例并发）。
+_HTTP_LOCK = threading.Lock()
 
 
 def _load_file_config() -> Dict[str, str]:
@@ -396,8 +410,10 @@ class LLMClient:
             headers=_headers,
             method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                raw = resp.read().decode("utf-8", "replace")
+            # ★★★ R379 · 串行化（端点并发下不遵守 json_mode，见 _HTTP_LOCK 注释）
+            with _HTTP_LOCK:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    raw = resp.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
             # ★★★ R265 · 5xx/429 **网关瞬时类**也重试（2026-10-14 用户实测:
             #   "流式失败且回退失败: HTTP 502" 16.2s 任务判死 — 原 R36 只重试
@@ -545,38 +561,41 @@ class LLMClient:
         rc_chunks: List[str] = []
         finish = [None]
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                ctype = (resp.headers.get("Content-Type") or "").lower()
-                if "event-stream" not in ctype and "text/plain" not in ctype:
-                    raise ValueError("非 SSE 响应: %s" % ctype[:60])
-                for raw in resp:
-                    line = raw.decode("utf-8", "replace").strip()
-                    if not line.startswith("data:"):
-                        continue
-                    payload = line[5:].strip()
-                    if payload == "[DONE]":
-                        break
-                    try:
-                        ch = json.loads(payload)["choices"][0]
-                        delta = ch.get("delta", {}) or {}
-                        if ch.get("finish_reason"):
-                            finish[0] = ch["finish_reason"]
-                    except (ValueError, KeyError, IndexError):
-                        continue                # 单帧坏不炸流
-                    # ★★★ R376 · 推理 delta 绝不拼进正文 —— 旧代码
-                    #   `if not piece: piece = delta.get("reasoning_content")`
-                    #   把推理当正文推给 on_delta，下游拼出的 text 是英文
-                    #   散文（用户看到「任务未完成」的真因）。
-                    piece = delta.get("content")
-                    if not piece:
-                        rc_piece = (delta.get("reasoning_content")
-                                    or delta.get("reasoning"))
-                        if rc_piece:
-                            rc_chunks.append(rc_piece)
-                        continue
-                    chunks.append(piece)
-                    if on_delta:
-                        on_delta(piece)
+            # ★★★ R379 · 串行化（流式同样 —— 生产 progress 路径走这里）
+            with _HTTP_LOCK:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    ctype = (resp.headers.get("Content-Type") or "").lower()
+                    if ("event-stream" not in ctype
+                            and "text/plain" not in ctype):
+                        raise ValueError("非 SSE 响应: %s" % ctype[:60])
+                    for raw in resp:
+                        line = raw.decode("utf-8", "replace").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        payload = line[5:].strip()
+                        if payload == "[DONE]":
+                            break
+                        try:
+                            ch = json.loads(payload)["choices"][0]
+                            delta = ch.get("delta", {}) or {}
+                            if ch.get("finish_reason"):
+                                finish[0] = ch["finish_reason"]
+                        except (ValueError, KeyError, IndexError):
+                            continue                # 单帧坏不炸流
+                        # ★★★ R376 · 推理 delta 绝不拼进正文 —— 旧代码
+                        #   `if not piece: piece = delta.get("reasoning_content")`
+                        #   把推理当正文推给 on_delta，下游拼出的 text 是英文
+                        #   散文（用户看到「任务未完成」的真因）。
+                        piece = delta.get("content")
+                        if not piece:
+                            rc_piece = (delta.get("reasoning_content")
+                                        or delta.get("reasoning"))
+                            if rc_piece:
+                                rc_chunks.append(rc_piece)
+                            continue
+                        chunks.append(piece)
+                        if on_delta:
+                            on_delta(piece)
             text = "".join(chunks)
             reasoning = "".join(rc_chunks)
         except Exception as e:                  # noqa: BLE001 — 流失败回退整段

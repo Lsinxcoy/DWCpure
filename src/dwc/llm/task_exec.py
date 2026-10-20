@@ -854,12 +854,26 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     "actions_log": log}
         step = _extract_json(res.text)
         if step is None:
-            # ★ R217 · 容错后仍失败才报 incomplete（bench 最大失败单点
-            #   llm_format: 模型爱包 ```json 代码块/多行/前后缀文本）
+            # ★★★ R380 · 纯文本答案**不许判死**。
+            #   现场（2026-10-20 09:40 跑批）：8 单失败里 7 单的 `why`
+            #   就是答案本身（`prev_node_id` / `dwc_pairs.jsonl` /
+            #   `memory_kernel.py`）—— 模型答对了，只是输出纯文本而不是
+            #   `{"op":"final","answer":...}`，被这里判死。
+            #   成因：`reasoning_effort="none"`（R377 为修「推理吃光
+            #   token」而加）压制推理后，模型不再"先想格式再答"。
+            #   ⇒ 格式判死把正确答案一起扔了。**用格式换正确率是错的**。
+            #   护栏：空/纯空白仍判 incomplete（"什么都没有"≠答案）。
+            _raw = str(getattr(res, "text", "") or "")
+            if _raw.strip():
+                return {"task": task, "task_id": sid,
+                        "status": "done", "rounds": rnd,
+                        "answer": _raw.strip(),
+                        "artifacts": [], "actions_log": log,
+                        "answer_mode": "plain_text",
+                        "why": "模型直接给出纯文本答案（非 JSON）—— 已收下"}
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
-                    "why": "LLM 响应非 JSON（容错提取后仍失败）: %s"
-                           % str(res.text)[:120],
+                    "why": "LLM 返回空内容（既非 JSON 也非文本）",
                     "actions_log": log}
         op = step.get("op")
         # ★ R223 · delegate 子代理（真子代理最小形态: 独立上下文隔离 —

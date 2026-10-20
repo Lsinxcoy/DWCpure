@@ -71,16 +71,43 @@ def _inbox_push(task: str, tid: str) -> None:
                             ensure_ascii=False) + "\n")
 
 
-def _wait_report(tid: str, timeout_min: int) -> dict:
+def make_tid(i: int) -> str:
+    """★ R378 · 批次唯一 tid（`nb_<MMDD>_<HHMMSS>_<i>`）。
+
+    旧实现 `nb_%s_%02d`（月日 + 轮内序号）**同一天第二次跑批必撞名**
+    ⇒ `_wait_report` 命中上一批的 `var/dwc_reports/{tid}.json`
+    ⇒ 判据验的是**上一批的答案**。2026-10-20 08:51 实跑实证：
+    报告 mtime 是 02:35–04:01，却报"3/9 通过"。
+    """
+    return "nb_%s_%s_%02d" % (time.strftime("%m%d"),
+                              time.strftime("%H%M%S"), i)
+
+
+def _wait_report(tid: str, timeout_min: float, since=None) -> dict:
+    """轮询 `var/dwc_reports/{tid}.json` 至超时。
+
+    ★★★ R378 · `since`（投单时刻的 epoch）是**防旧报告**的关键：
+      旧实现只看 `os.path.exists()` ⇒ 上一批同名报告让"等 12 分钟"
+      瞬间变成"立刻拿到结果"，判据验的是昨天的答案。
+      传 `since` ⇒ 只认 mtime ≥ since 的报告（本轮真产出）。
+      不传 ⇒ 保持旧语义（兼容既有调用）。
+    """
     p = os.path.join(REPORTS, "%s.json" % tid)
     deadline = time.time() + timeout_min * 60
     while time.time() < deadline:
         if os.path.exists(p):
-            try:
-                return json.load(io.open(p, encoding="utf-8"))
-            except (ValueError, OSError):
-                pass
-        time.sleep(30)
+            fresh = True
+            if since is not None:
+                try:
+                    fresh = os.path.getmtime(p) >= float(since) - 1.0
+                except OSError:
+                    fresh = False
+            if fresh:
+                try:
+                    return json.load(io.open(p, encoding="utf-8"))
+                except (ValueError, OSError):
+                    pass
+        time.sleep(5 if timeout_min <= 1 else 30)
     return {}
 
 
@@ -169,15 +196,19 @@ def main() -> int:
     while i < len(order):
         t = order[i]
         i += 1
-        tid = "nb_%s_%02d" % (day, i)
+        tid = make_tid(i)
         _inbox_push(t["task"], tid)
         print("[投单 %d/%d] %s (%s)" % (i, len(order), tid, t["kind"]),
               flush=True)
-        rep = _wait_report(tid, args.wait_min)
+        # ★★★ R378 · 记投单时刻 —— _wait_report 只认此后写的报告
+        _t_push = time.time()
+        rep = _wait_report(tid, args.wait_min, since=_t_push)
         ok = False
         how = "timeout/no-report"
         if rep:
-            ok, how = B2.verify(t["check"], str(rep.get("answer", "")))
+            # ★★★ R378 · 传 since ⇒ 文件类判据只认本轮写的文件
+            ok, how = B2.verify(t["check"], str(rep.get("answer", "")),
+                                since=_t_push)
             done += 1
         n_ok += 1 if ok else 0
         row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tid": tid,

@@ -46,8 +46,16 @@ def _file_of(path_rel: str) -> str:
     return os.path.join(_ROOT, path_rel)
 
 
-def verify(check: dict, answer: str) -> tuple:
-    """返回 (ok: bool, how: str)。how 记录判定依据（审计）。"""
+def verify(check: dict, answer: str, since=None) -> tuple:
+    """返回 (ok: bool, how: str)。how 记录判定依据（审计）。
+
+    ★★★ R378 · `since`（投单时刻 epoch）—— 文件类判据必须校验文件是
+      **本轮写的**。现场取证（2026-10-20 09:00 跑批）：`wr08` 被判 ✓，
+      但 `var/inbox_work/` 里那个文件 mtime 是 **528591 秒前**（6 天前
+      残留），任务本身 `status=incomplete, answer=None`。
+      ⇒ 判据验的是历史残留，不是本轮产出。
+      不传 `since` ⇒ 保持旧语义（兼容既有调用）。
+    """
     t = check.get("type")
     ans = answer or ""
     if t == "contains":
@@ -80,6 +88,14 @@ def verify(check: dict, answer: str) -> tuple:
         p = _file_of(check["path"])
         if not os.path.exists(p):
             return (False, "file missing: %s" % check["path"])
+        # ★★★ R378 · 旧文件不算本轮产出（防历史残留假通过）
+        if since is not None:
+            try:
+                if os.path.getmtime(p) < float(since) - 1.0:
+                    return (False, "file stale（mtime 早于本轮投单）: %s"
+                            % check["path"])
+            except OSError as exc:
+                return (False, "file mtime 读失败: %s" % exc)
         body = io.open(p, encoding="utf-8", errors="replace").read()
         if t == "file_contains":
             return (check["target"] in body, "file contains %r"
