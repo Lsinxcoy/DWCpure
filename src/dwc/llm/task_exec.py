@@ -508,19 +508,33 @@ def _argv_of(cmd):
     现场：`run` op 严格要求 **argv 列表**（`cmd 必须是非空 argv 列表`），
     而原生工具的 `run_command(cmd: string)` 传的是字符串
     ⇒ 所有命令都报 `ok: False`（an01 实测 `ls -la` 连挂两次）。
-    Windows 上用 posix=False 的 shlex 更稳（保留反斜杠路径）。
+
+    ★ 必须用 `posix=True`：模型常传 `-E "max_round|max_rounds"` 这种
+      带引号的串；`posix=False` 会**保留引号** ⇒ grep 收到
+      `'"max_round|..."'`（带字面引号）⇒ 永远搜不到（已踩两次）。
+      posix=True 会正确剥引号，且把反斜杠当转义 —— 本仓库路径统一用
+      正斜杠，代价可接受。
     """
     if isinstance(cmd, list):
-        return [str(x) for x in cmd]
-    s = str(cmd or "").strip()
-    if not s:
-        return []
-    try:
-        import shlex
-        toks = shlex.split(s, posix=(os.name != "nt"))
-        return [t for t in toks if t]
-    except ValueError:
-        return s.split()
+        toks = [str(x) for x in cmd]
+    else:
+        s = str(cmd or "").strip()
+        if not s:
+            return []
+        try:
+            import shlex
+            toks = [t for t in shlex.split(s, posix=True) if t]
+        except ValueError:
+            # 引号不配对等病态输入 ⇒ 退回朴素切分（至少不炸）
+            toks = s.split()
+    # ★★★ 管道/重定向/串联一律截断（`run` op **不经 shell**，保留这些
+    #   符号只会被当成字面参数传给命令 ⇒ 必然失败；而且过 shell 是注入面）。
+    #   现场：模型爱写 `grep ... | head -20` ⇒ 全部 ok=False。
+    for i, t in enumerate(toks):
+        if t in ("|", "||", "&&", ";", ">", ">>", "2>", "&"):
+            toks = toks[:i]
+            break
+    return [t for t in toks if t]
 
 
 def _tool_calls_to_step(tool_calls: list):

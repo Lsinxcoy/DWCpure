@@ -208,6 +208,40 @@ def test_search_code_tool_exists():
     assert "grep" in step["cmd"][0], step["cmd"]
 
 
+def test_argv_strips_quotes():
+    """★★★ 引号必须被剥掉（posix=False 会保留 ⇒ grep 永远搜不到）。
+
+    现场：模型传 `-E "max_round|max_rounds"`，旧实现给出
+    `'"max_round|max_rounds"'`（带字面引号）⇒ grep 报 ok=False。
+    """
+    got = T._argv_of('-E "max_round|max_rounds"')
+    assert got == ["-E", "max_round|max_rounds"], got
+    assert not any(q in "".join(got) for q in ('"', "'")), got
+
+
+def test_argv_truncates_pipes_and_redirects():
+    """★★★ `run` 不经 shell ⇒ 管道/重定向必须截断（否则必然 ok=False）。
+
+    现场：模型爱写 `grep ... | head -20`，`|` 被当字面参数传给 grep。
+    """
+    got = T._argv_of('grep -rn "熔断" --include=*.py src | head -20')
+    assert got == ["grep", "-rn", "熔断", "--include=*.py", "src"], got
+    assert "|" not in got and "head" not in got
+    got2 = T._argv_of("ls -la src > out.txt")
+    assert got2 == ["ls", "-la", "src"], got2
+
+
+def test_run_command_with_quotes_and_pipe_executes():
+    """★★★ 端到端：带引号+管道的 run_command 要能真跑通。"""
+    step = T._tool_calls_to_step(
+        _tc("run_command", {"cmd": 'grep -rn "import" src/dwc/llm/client.py | head -3'}))
+    assert step["cmd"][0] == "grep"
+    assert "|" not in step["cmd"]
+    obs = T._do_action(step["op"], step)
+    assert obs.get("ok") is True, obs
+    assert "import" in str(obs.get("out") or "")
+
+
 def test_write_file_maps_to_write_op():
     """★★ write_file → op=write（path/content 原名直通）。"""
     step = T._tool_calls_to_step(_tc("write_file",
