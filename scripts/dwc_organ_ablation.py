@@ -97,7 +97,7 @@ def run_arm(arm: str, limit: int = 0, max_rounds: int = 30) -> dict:
                                     task_id="abl_%s_%s" % (arm, t["id"]),
                                     max_rounds=max_rounds)
         dt = time.time() - t0
-        ok, how = B2.verify(t["check"], str(rep.get("answer", "")))
+        ok, how = B2.verify(t["check"], str(rep.get("answer", "")), report=rep)
         n_ok += 1 if ok else 0
         row = {"arm": arm, "id": t["id"], "kind": t["kind"], "ok": ok,
                "verify": how, "status": rep.get("status"),

@@ -49,17 +49,31 @@ def test_taskset_no_llm_selfjudge():
 
 
 def test_verifier_independent_of_agent(tmp_path):
-    """★★★ 验收器独立锁: run 类独立重跑不信 agent 自述; file 类独立读盘。"""
+    """★★★ 验收器独立锁: run 类**复核**独立重跑; file 类独立读盘。
+
+    ★ R388 重锚：原断言是「run 类只要判据自己重跑通过就算 ✓」——
+      那正是 run-verify 10/10 = 100% 假通过的根因（agent 零动作也过）。
+      新语义：**agent 必须先真跑过**（有 actions_log 证据），
+      判据再独立重跑复核；两者都过才 ✓。
+      ⇒ 这里补上"有 agent 证据"的 report，同时新增一条锁
+        "零动作必须失败"（旧断言的反面）。
+    """
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "dwc_bench2", os.path.join(ROOT, "scripts", "dwc_bench2.py"))
     b2 = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(b2)
-    # run: 独立重跑真命令（agent 的 answer 说谎也不影响判定）
-    ok, how = b2.verify({"type": "rc_and_contains", "cmd": "python -c \"print('ANCHOR')\"",
-                         "target": "ANCHOR"}, answer="完全无关的答案")
-    assert ok and "rerun" in how
+    _cmd = "python -c \"print('ANCHOR')\""
+    _chk = {"type": "rc_and_contains", "cmd": _cmd, "target": "ANCHOR"}
+    # run: agent 真跑过 + 判据独立复核 ⇒ ✓（agent 的 answer 说谎也不影响）
+    rep = {"actions_log": [{"phase": "obs", "op": "run", "cmd": _cmd,
+                            "target": _cmd, "ok": True, "obs": "ANCHOR"}]}
+    ok, how = b2.verify(_chk, answer="完全无关的答案", report=rep)
+    assert ok and "rerun" in how, how
+    # ★ R388 新锁：agent 零动作 ⇒ 判据自己重跑再绿也不算通过
+    ok0, how0 = b2.verify(_chk, answer="我已运行并通过", report={"actions_log": []})
+    assert ok0 is False and "no-agent-evidence" in how0, how0
     # file: 独立读盘（repo 内临时目录 — 跨盘 relpath 会炸）
     tmpd = os.path.join(ROOT, "var", "__test_r259__")
     os.makedirs(tmpd, exist_ok=True)

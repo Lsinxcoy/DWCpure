@@ -46,7 +46,90 @@ def _file_of(path_rel: str) -> str:
     return os.path.join(_ROOT, path_rel)
 
 
-def verify(check: dict, answer: str, since=None) -> tuple:
+#: ★★★ R389 · 猜测/弃权措辞（命中即**不算确证**）。
+#:   现场（2026-10-20 全池）：rf05 问"记忆系统内核类名"，agent 答
+#:   「没有取证信息…可能是 MemoryKernel」，判据 `contains` 给了 ✓。
+#:   这不是"找到了"，是"猜对了"。
+#:   ★ 只收**明确的**猜测/弃权标记；"如果…则…"这类假设句**不收**
+#:     （太常见，会误杀正常答案）。
+_HEDGE_PATTERNS = (
+    "可能是", "大概是", "估计是", "也许是", "或许是", "应该是",
+    "推测", "猜测", "我猜", "大概", "或许", "似乎",
+    "无法确认", "无法确定", "无法给出确切", "无法读取", "无法访问",
+    "没有取证", "无取证", "未能找到", "未能确认", "不确定",
+    "没有可用", "缺少取证",
+)
+
+#: 允许"推测"的判据类型（`allow_guess: true` 时跳过检查）
+_GUESS_AWARE_TYPES = ("contains", "contains_any", "contains_equiv",
+                      "contains_all", "regex")
+
+
+def _is_guessing(ans: str) -> str:
+    """返回命中的猜测措辞（空串 = 不是猜测）。"""
+    low = (ans or "").lower()
+    for h in _HEDGE_PATTERNS:
+        if h in low:
+            return h
+    return ""
+
+
+def _hedge_block(check: dict, ans: str):
+    """若答案是猜测且未显式豁免 ⇒ 返回 (False, how)；否则 None。"""
+    if check.get("allow_guess"):
+        return None
+    if check.get("type") not in _GUESS_AWARE_TYPES:
+        return None
+    hit = _is_guessing(ans)
+    if not hit:
+        return None
+    return (False, "guess-credit-blocked: 答案含猜测措辞 %r"
+                   "（不算确证）" % hit)
+
+
+def _agent_ran(cmd: str, report) -> tuple:
+    """★★★ R388 · 在 agent 的 `actions_log` 里找"真跑过这条命令"的证据。
+
+    返回 (found: bool, why: str)。
+
+    证据判据（三重，全部要满足）：
+      ① 有 `op == "run"` 的 obs 动作
+      ② 该动作 `ok` 为真（命令真执行成功，不是失败的尝试）
+      ③ 命令命中同一个目标 —— 用**测试文件名/命令首段**做 needle，
+         允许参数变体（`-q` / `-p no:randomly` / `--tb=short`）
+
+    ★ 为什么不能只信 `ok`：agent 可能跑的是别的命令。
+    ★ 为什么不能只看 answer：agent 会在 answer 里写"已验证通过"（幻觉）。
+    """
+    if not isinstance(report, dict):
+        return (False, "缺 report —— 无法确认 agent 是否执行（禁止静默放行）")
+    log = report.get("actions_log") or []
+    if not isinstance(log, list):
+        return (False, "actions_log 非列表")
+
+    # needle：优先取命令里的测试文件路径，其次取命令首 40 字符
+    needle = ""
+    m = re.search(r"(tests[/\\][\w./\\-]+\.py)", cmd or "")
+    if m:
+        needle = m.group(1).replace("\\", "/")
+    else:
+        needle = (cmd or "").strip()[:40]
+
+    for e in log:
+        if not isinstance(e, dict) or e.get("phase") != "obs":
+            continue
+        if e.get("op") != "run":
+            continue
+        if not e.get("ok"):
+            continue
+        blob = " ".join(str(e.get(k) or "") for k in ("cmd", "target", "obs"))
+        blob = blob.replace("\\", "/")
+        if needle and needle in blob:
+            return (True, "agent 执行过（needle=%r）" % needle[:50])
+    return (False, "agent 未执行该命令（零动作或未命中 %r）" % needle[:50])
+
+
+def verify(check: dict, answer: str, since=None, report=None) -> tuple:
     """返回 (ok: bool, how: str)。how 记录判定依据（审计）。
 
     ★★★ R378 · `since`（投单时刻 epoch）—— 文件类判据必须校验文件是
@@ -58,6 +141,10 @@ def verify(check: dict, answer: str, since=None) -> tuple:
     """
     t = check.get("type")
     ans = answer or ""
+    # ★★★ R389 · 猜测不记功（统一前置，所有答案类判据都过这道门）
+    _hb = _hedge_block(check, ans)
+    if _hb is not None:
+        return _hb
     if t == "contains":
         return (check["target"] in ans, "answer contains %r" % check["target"][:40])
     if t == "regex":
@@ -78,7 +165,16 @@ def verify(check: dict, answer: str, since=None) -> tuple:
         miss = [x for x in check["target"] if x not in ans]
         return (not miss, "answer all-of; miss=%r" % miss)
     if t == "rc_and_contains":
-        # ★ 独立重跑（不信 agent 自述的 rc/输出）
+        # ★★★ R388 · 先要 **agent 侧证据**：它必须真的执行过这条命令。
+        #   现场（2026-10-20 全池）：run-verify 10/10 = 100%，而这是假的 ——
+        #   旧实现只有下面这段"判据自己重跑"，agent 零动作也能过。
+        #   `allow_self_verify` 仅用于自测判据本身。
+        if not check.get("allow_self_verify"):
+            found, why = _agent_ran(check["cmd"], report)
+            if not found:
+                return (False, "no-agent-evidence: " + why)
+        # ★ 独立重跑（不信 agent 自述的 rc/输出）—— 现在只作**复核**，
+        #   不再单独构成通过。
         cmd = check["cmd"]
         try:
             r = subprocess.run(
@@ -90,8 +186,8 @@ def verify(check: dict, answer: str, since=None) -> tuple:
             return (False, "verify-rerun failed: %s" % exc)
         ok = r.returncode == 0 and (not check["target"]
                                     or check["target"] in (r.stdout + r.stderr))
-        return (ok, "rerun rc=%d anchor=%r" % (r.returncode,
-                                               check["target"][:30]))
+        return (ok, "agent-ran + rerun rc=%d anchor=%r"
+                % (r.returncode, check["target"][:30]))
     if t in ("file_contains", "file_contains_all", "file_lines"):
         p = _file_of(check["path"])
         if not os.path.exists(p):
@@ -161,7 +257,7 @@ def run_arm(arm: str, limit: int = 0, max_rounds: int = 30) -> dict:
                                     task_id="eval_%s_%s" % (arm, t["id"]),
                                     max_rounds=max_rounds)
         dt = time.time() - t0
-        ok, how = verify(t["check"], str(rep.get("answer", "")))
+        ok, how = verify(t["check"], str(rep.get("answer", "")), report=rep)
         n_ok += 1 if ok else 0
         row = {"arm": arm, "id": t["id"], "kind": t["kind"], "ok": ok,
                "verify": how, "status": rep.get("status"),

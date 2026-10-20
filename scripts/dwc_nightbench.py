@@ -230,7 +230,7 @@ def main() -> int:
         if rep:
             # ★★★ R378 · 传 since ⇒ 文件类判据只认本轮写的文件
             ok, how = B2.verify(t["check"], str(rep.get("answer", "")),
-                                since=_t_push)
+                                since=_t_push, report=rep)
             done += 1
         n_ok += 1 if ok else 0
         row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tid": tid,

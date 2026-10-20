@@ -23,15 +23,22 @@ for run_p in sys.argv[1:]:
         sp = os.path.join(ROOT, "var", "dwc_sessions",
                           "eval_%s_%s.jsonl" % (r.get("arm", "A"), r["id"]))
         ans = ""
+        acts = []
         if os.path.exists(sp):
             for l in io.open(sp, encoding="utf-8"):
                 try:
                     d = json.loads(l)
                 except ValueError:
                     continue
+                # ★ R388 · 重建 actions_log（离线复核也需要 agent 证据，
+                #   否则 rc_and_contains 会被判 no-agent-evidence）
+                if d.get("phase") == "obs":
+                    acts.append(d)
                 if d.get("op") == "final" and d.get("answer") is not None:
                     ans = str(d["answer"])
-        ok, how = B2.verify(t["check"], ans)
+        rep = dict(r)
+        rep["actions_log"] = acts
+        ok, how = B2.verify(t["check"], ans, report=rep)
         if ok != r["ok"]:
             changed += 1
         r["ok"], r["verify"] = ok, how

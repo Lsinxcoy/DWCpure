@@ -72,7 +72,7 @@ def run(limit: int = 6, max_rounds: int = 30) -> int:
             rep = execute_user_task(pre + t["task"], llm=llm, ctx=None,
                                     task_id="eaw_%s_%s" % (arm, t["id"]),
                                     max_rounds=max_rounds)
-            ok, how = B2.verify(t["check"], str(rep.get("answer", "")))
+            ok, how = B2.verify(t["check"], str(rep.get("answer", "")), report=rep)
             pair[arm] = ok
             pair[arm + "_how"] = how
         time.sleep(3)
