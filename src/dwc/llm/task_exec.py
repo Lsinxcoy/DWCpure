@@ -478,10 +478,20 @@ TASK_TOOLS = [
                        "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "search_code",
-        "description": "在代码里搜索字符串/符号（返回 文件:行号:内容）",
+        "description": "在代码里搜索字符串/符号（返回 文件:行号:内容）。"
+                       "★ 定位「X 定义在哪个文件」时**优先用这个**，"
+                       "不要用 list_dir 逐层翻目录",
         "parameters": {"type": "object",
                        "properties": {"pattern": {"type": "string"},
                                       "path": {"type": "string"}},
+                       "required": ["pattern"]}}},
+    {"type": "function", "function": {
+        "name": "find_files",
+        "description": "按文件名通配符查找文件（如 *.py / README*），返回路径列表",
+        "parameters": {"type": "object",
+                       "properties": {"pattern": {"type": "string"},
+                                      "path": {"type": "string"},
+                                      "ignore_case": {"type": "boolean"}},
                        "required": ["pattern"]}}},
     {"type": "function", "function": {
         "name": "final_answer",
@@ -498,8 +508,59 @@ _TOOL_TO_OP = {
     "run_command": ("run", {"cmd": "cmd"}),
     "list_dir": ("run", {}),          # 转成 ls 命令
     "search_code": ("run", {}),       # 转成 grep 命令
+    "find_files": ("run", {}),        # 转成 Python find（避开 Windows find.exe）
     "final_answer": ("final", {"answer": "answer"}),
 }
+
+
+#: ★★★ R391 · `find` 在 Windows 上会解析到 **C:\Windows\System32\find.exe**
+#:   （语法完全不同：`find "str" file`），模型写的 GNU 写法
+#:   `find src -type f -name *.py` 一律 rc=2「参数格式不正确」
+#:   ⇒ 模型重试到复读熔断（现场 nb_1020_185347_28 / 185728_32 卡死）。
+#:   修：`find` 一律转成等价的 Python 实现（不依赖 PATH 里哪个 find）。
+_FIND_PY = (
+    "import os,sys,fnmatch\n"
+    "root=sys.argv[1]; pat=sys.argv[2]; ic=sys.argv[3]=='1'\n"
+    "skip={'.git','var','archive','node_modules','__pycache__','.venv'}\n"
+    "n=0\n"
+    "for d,ds,fs in os.walk(root):\n"
+    "    ds[:]=[x for x in ds if x not in skip]\n"
+    "    for f in fs:\n"
+    "        a=f.lower() if ic else f; b=pat.lower() if ic else pat\n"
+    "        if fnmatch.fnmatch(a,b):\n"
+    "            print(os.path.join(d,f)); n+=1\n"
+    "print('TOTAL',n)\n"
+)
+
+
+def _find_to_python(toks: list):
+    """把 `find PATH [-type f] [-name|-iname PAT]` 转成 Python argv。
+
+    解析不了就返回 None（交给原命令，至少不改变语义）。
+    """
+    if not toks or str(toks[0]).lower() != "find":
+        return None
+    path = "."
+    pat = "*"
+    ic = False
+    i = 1
+    seen_path = False
+    while i < len(toks):
+        t = str(toks[i])
+        if t in ("-name", "-iname") and i + 1 < len(toks):
+            pat = str(toks[i + 1])
+            ic = (t == "-iname")
+            i += 2
+            continue
+        if t == "-type" and i + 1 < len(toks):
+            i += 2          # 只支持 -type f；目录也无所谓，输出只列文件
+            continue
+        if not seen_path and not t.startswith("-"):
+            path = t
+            seen_path = True
+        i += 1
+    return [sys.executable or "python", "-c", _FIND_PY,
+            path, pat, "1" if ic else "0"]
 
 
 def _argv_of(cmd):
@@ -568,13 +629,16 @@ def _argv_of(cmd):
             continue
         head, had_sep = _split_cmd_tok(toks[i])
         if had_sep:
-            return [head] if head else []
-        out = list(toks[i:])
-        # 遇到独立分隔符 ⇒ 截断
-        for j, t in enumerate(out):
-            if t in _SEPS:
-                return [x for x in out[:j] if x]
-        return [x for x in out if x]
+            seg = [head] if head else []
+        else:
+            seg = list(toks[i:])
+            for j, t in enumerate(seg):
+                if t in _SEPS:
+                    seg = seg[:j]
+                    break
+        # ★★★ R391 · `find` ⇒ Python 实现（Windows 的 find.exe 语法不同）
+        _f = _find_to_python(seg)
+        return _f if _f is not None else [x for x in seg if x]
     return []
 
 
@@ -618,6 +682,15 @@ def _tool_calls_to_step(tool_calls: list):
                         "--exclude-dir=archive", "--exclude-dir=node_modules",
                         "--exclude-dir=__pycache__",
                         pat, path]}
+    if name == "find_files":
+        pat = str(args.get("pattern") or "")
+        path = str(args.get("path") or ".")
+        if not pat:
+            return None
+        return {"op": "run",
+                "cmd": _find_to_python(
+                    ["find", path, "-name", pat] if not args.get("ignore_case")
+                    else ["find", path, "-iname", pat])}
     step = {"op": op}
     for src_k, dst_k in mapping.items():
         if src_k in args:
@@ -1019,9 +1092,18 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         " \"read|write|run|final\", ...参数}。"
         # ★★★ R384 · 原生工具模式下必须换口径（旧口径会让模型困惑）
         " 【原生工具模式】你已挂载函数工具：read_file / write_file /"
-        " run_command / list_dir / final_answer。**必须调用工具**，"
+        " run_command / list_dir / search_code / find_files / final_answer。"
+        "**必须调用工具**，"
         "不要在正文里描述「我将要做什么」或「已做了什么」——"
         " 只有真正调用工具才算执行。"
+        # ★★★ R391 · 探索策略（code-locate 20% 的主因是"逐层 ls"）
+        " ★★ 定位策略（找「X 定义在哪个文件/哪一行」）:"
+        " **第一步就用 search_code(pattern='X')**，它会直接给出"
+        "「文件:行号:内容」；**不要用 list_dir / ls 逐层翻目录**"
+        "（现场：反复 `ls -la .` 直到复读熔断，11 轮零进展）。"
+        " 找不到再放宽: 换符号名/换路径 path='.'; 找文件用 find_files。"
+        " ★ 不要在 Windows 上直接用 `find`（会命中 Windows 的 find.exe，"
+        "语法不同必失败）—— 用 find_files 工具。"
         " 任务完成时立即调用 final_answer，**不要反复验证同一件事**"
         "（一次成功即收工；实测 26 轮里有 20 轮是多余自证）。"
         " · 读文件: {\"op\":\"read\",\"path\":\"相对路径\"}"

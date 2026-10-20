@@ -74,17 +74,73 @@ def _is_guessing(ans: str) -> str:
     return ""
 
 
+def _sentences(ans: str) -> list:
+    """按中英文句末标点/换行切句（保留分隔符，便于回拼）。"""
+    parts = re.split(r"(?<=[。！？!?；;\n])", ans or "")
+    return [p for p in parts if p.strip()]
+
+
+def _match_sentences(check: dict, ans: str) -> list:
+    """找出**命中答案**的那一句（或多句）。
+
+    ★ R392 · 猜测判定必须只看命中句 —— 长答案里一句免责声明
+      不该把整条确证答案判死（R389 按全文扫，误杀了大量正确回答）。
+    """
+    t = check.get("type")
+    sents = _sentences(ans)
+    if not sents:
+        return []
+    if t == "regex":
+        m = re.search(check.get("pattern") or "", ans)
+        if not m:
+            return []
+        pos = m.start()
+        acc = 0
+        for s in sents:
+            if acc <= pos < acc + len(s):
+                return [s]
+            acc += len(s)
+        return []
+    if t == "contains":
+        needles = [check.get("target") or ""]
+    elif t in ("contains_any", "contains_equiv", "contains_all"):
+        needles = [str(x) for x in (check.get("target") or [])]
+    else:
+        return []
+    needles = [n for n in needles if n]
+    if not needles:
+        return []
+    hits = []
+    for s in sents:
+        for n in needles:
+            ok = (n.lower() in s.lower()) if t == "contains_equiv" else (n in s)
+            if ok:
+                hits.append(s)
+                break
+    return hits
+
+
 def _hedge_block(check: dict, ans: str):
-    """若答案是猜测且未显式豁免 ⇒ 返回 (False, how)；否则 None。"""
+    """若**命中句**是猜测且未显式豁免 ⇒ 返回 (False, how)；否则 None。
+
+    ★★★ R392 · 句子级（不是全文级）：
+      · "定义在 task_exec.py。别的不确定。"  ⇒ 命中句确证 ⇒ ✓
+      · "无法确认。不过可能是 task_exec.py"  ⇒ 命中句猜测 ⇒ ✗
+      定位不到命中句（target 不在答案里）⇒ 不判猜测（让未命中逻辑判 ✗）。
+    """
     if check.get("allow_guess"):
         return None
     if check.get("type") not in _GUESS_AWARE_TYPES:
         return None
-    hit = _is_guessing(ans)
-    if not hit:
+    ctx = _match_sentences(check, ans)
+    if not ctx:
         return None
-    return (False, "guess-credit-blocked: 答案含猜测措辞 %r"
-                   "（不算确证）" % hit)
+    for s in ctx:
+        hit = _is_guessing(s)
+        if hit:
+            return (False, "guess-credit-blocked: 命中句含猜测措辞 %r"
+                           "（不算确证）" % hit)
+    return None
 
 
 def _agent_ran(cmd: str, report) -> tuple:
