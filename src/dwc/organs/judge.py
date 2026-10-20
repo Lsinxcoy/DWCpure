@@ -46,6 +46,7 @@ import io
 import json
 import re
 import os
+import sys as _sys
 from dwc.foundation.paths import find_root as _fr
 ROOT = _fr()
 import time
@@ -70,6 +71,31 @@ from dwc.foundation.version import dw_version as _git_version
 #:   ⇒ ⇒★ 三处共用本常量，改字段只改一处
 DIFF_FIELDS = ("index", "kind", "fn", "kw", "args",
                "expected", "actual", "ok", "reason")
+
+def _append_line(path: str, text: str) -> None:
+    """★★★ R395 · 用**单次 `os.write`** 追加一行（不要 TextIOWrapper 缓冲）。
+
+    现场（2026-10-20 21:12）：`config/anchors/task_scores.jsonl` 里出现
+
+        …"recorded_at": "2026-10-20T21:1        ← 第 46 行（半行）
+        7:51"}                                  ← 第 47 行（尾巴）
+
+    一条记录被拆成两行 ⇒ 读侧 `json.loads` 抛 ⇒ 每次构造 `Loop()` 都崩
+    ⇒ 全量测试 59 failed + 37 errors。
+
+    原因：`io.open(path, "a")` 是**带缓冲的文本流**，`f.write()` 不保证
+    一次落到文件；多进程/异常中断时就会写出半行。
+    `os.write` 到 O_APPEND fd 对 ≤4KB 的小写入是单次原子追加。
+    """
+    data = (text.rstrip("\n") + "\n").encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    try:
+        n = os.write(fd, data)
+        while n < len(data):          # 极少见的部分写：补完
+            n += os.write(fd, data[n:])
+    finally:
+        os.close(fd)
+
 
 class JudgeError(Exception):
     """违反 judge 契约。★ 承重代码不许吞异常（判据 E2/E3）。"""
@@ -509,20 +535,64 @@ class TaskScoreStore:
         self._evidence: Dict[str, Dict[str, Any]] = {}
         self._n_mem_evi = 0
         if path and os.path.exists(path):
-            for line in io.open(path, encoding="utf-8").read().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                self._points.append(TaskScorePoint(**json.loads(line)))
+            self._load_jsonl_tolerant(path, self._points, TaskScorePoint)
         if evidence_path and os.path.exists(evidence_path):
-            for line in io.open(evidence_path,
-                                encoding="utf-8").read().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
+            self._load_evidence_tolerant(evidence_path)
+
+    # ── 容忍式装载（R395）──────────────────────────────────
+    def _load_jsonl_tolerant(self, path: str, sink: list, cls) -> None:
+        """逐行装载 JSONL；**坏行跳过但计数并大声报**（不许静默吞）。
+
+        ★★★ R395 现场（2026-10-20 21:12）：
+          `config/anchors/task_scores.jsonl` 第 46 行被写成半行
+          （`…"recorded_at": "2026-10-20T21:1` + 下一行 `7:51"}`），
+          旧实现 `json.loads` 直接抛 ⇒ **每次构造 Loop() 都崩**
+          ⇒ 全量测试 59 failed + 37 errors。
+
+          一条半行不该让整个系统起不来：跳过 + 计数 + 打警告，
+          把损坏暴露出来（`self.n_corrupt`），而不是假装没事。
+        """
+        n_bad = 0
+        try:
+            lines = io.open(path, encoding="utf-8").read().splitlines()
+        except Exception as exc:                       # noqa: BLE001
+            _sys.stderr.write("judge store 读取失败 %s: %s\n" % (path, exc))
+            self.n_corrupt = getattr(self, "n_corrupt", 0)
+            return
+        for i, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                sink.append(cls(**json.loads(line)))
+            except Exception:                          # noqa: BLE001
+                n_bad += 1
+                _sys.stderr.write(
+                    "judge store 坏行已跳过 %s:%d %r\n"
+                    % (path, i, line[:80]))
+        self.n_corrupt = getattr(self, "n_corrupt", 0) + n_bad
+
+    def _load_evidence_tolerant(self, path: str) -> None:
+        """同 `_load_jsonl_tolerant`（evidence 版本）。"""
+        n_bad = 0
+        try:
+            lines = io.open(path, encoding="utf-8").read().splitlines()
+        except Exception as exc:                       # noqa: BLE001
+            _sys.stderr.write("evidence 读取失败 %s: %s\n" % (path, exc))
+            return
+        for i, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
                 d = json.loads(line)
                 ref = d.pop("_ref")
                 self._evidence[ref] = d
+            except Exception:                          # noqa: BLE001
+                n_bad += 1
+                _sys.stderr.write(
+                    "evidence 坏行已跳过 %s:%d %r\n" % (path, i, line[:80]))
+        self.n_corrupt = getattr(self, "n_corrupt", 0) + n_bad
 
     # ── 写入（判分点 → 分数点）────────────────────────────
     def record(self, verdict: "Verdict", *, group_id: str,
@@ -553,8 +623,9 @@ class TaskScoreStore:
             recorded_at=time.strftime("%Y-%m-%dT%H:%M:%S"))
         self._points.append(pt)
         if self.path:
-            with io.open(self.path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(asdict(pt), ensure_ascii=False) + "\n")
+            # ★ R395 · 原子追加（单次 os.write，避免半行）
+            _append_line(self.path,
+                         json.dumps(asdict(pt), ensure_ascii=False))
         return pt
 
     def _store_evidence(self, verdict: "Verdict") -> str:
@@ -566,9 +637,9 @@ class TaskScoreStore:
                                               encoding="utf-8")
                         if line.strip())
             ref = "%s#%d" % (os.path.basename(self.evidence_path), n + 1)
-            with io.open(self.evidence_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(dict(d, _ref=ref),
-                                   ensure_ascii=False) + "\n")
+            # ★ R395 · 原子追加（单次 os.write，避免半行）
+            _append_line(self.evidence_path,
+                         json.dumps(dict(d, _ref=ref), ensure_ascii=False))
         else:
             self._n_mem_evi += 1
             ref = "mem#%d" % self._n_mem_evi
