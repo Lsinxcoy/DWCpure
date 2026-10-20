@@ -251,9 +251,34 @@ def _done_state() -> dict:
         return {}
 
 
+#: ★★★ R398 · 同一单最多被"重取"几次（stale 恢复）。
+#:   现场：一单被重跑 52 次，把收件箱堵死、端点打满。
+MAX_REPICK = 3
+#: 重取计数落盘（跨重启保持 —— 重启不该重置重试预算）
+ATTEMPTS = os.path.join(VAR, "dwc_inbox_attempts.json")
+
+
+def _bump_attempt(tid: str) -> int:
+    """同一 task_id 的重取次数 +1（落盘，跨重启保持）。"""
+    try:
+        d = {}
+        if os.path.exists(ATTEMPTS):
+            try:
+                d = json.loads(open(ATTEMPTS, encoding="utf-8").read()) or {}
+            except Exception:                      # noqa: BLE001
+                d = {}
+        n = int(d.get(tid, 0)) + 1
+        d[tid] = n
+        os.makedirs(VAR, exist_ok=True)
+        with open(ATTEMPTS, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, ensure_ascii=False)
+        return n
+    except Exception:                              # noqa: BLE001
+        return 1                                   # 计数失败不阻断取单
+
+
 def take_inbox():
     """★ 取第一条未处理的收件箱任务（None = 空）。done 态落 INBOX_DONE。
-
     ★★★ R382 · 必须持锁（`_INBOX_LOCK`）：
       现场（2026-10-20 全池跑批）收件箱改成独立轮询线程后，轮询线程与
       其它调用方会并发读同一个 INBOX 文件；"读到未处理 → 返回"之间没有
@@ -286,6 +311,22 @@ def _take_inbox_locked():
                         continue
                 except (ValueError, IndexError):
                     pass
+                # ★★★ R398 · **重取次数上限** —— 现场（2026-10-21 00:09）：
+                #   一单 analyze 跑了 45 分钟，会话日志里 **52 个 task_mode**
+                #   （同一 task_id 被反复重跑，每 30~60 秒一次），把收件箱
+                #   堵死、把端点打满，整轮跑批作废。
+                #   根因是 `running:<ts>` 在长任务里不刷新 ⇒ 15 分钟后被判
+                #   stale ⇒ 重取；重取的线程又写回旧标记 ⇒ 永远 stale。
+                #   ⇒ 加硬上限：同一单最多重取 MAX_REPICK 次，超了标记
+                #     `failed:too_many_attempts` 并**停止重试**（不许无限烧）。
+                _n = _bump_attempt(tid)
+                if _n > MAX_REPICK:
+                    st[tid] = "failed:too_many_attempts"
+                    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
+                        json.dump(st, fh, ensure_ascii=False)
+                    _log({"event": "inbox_attempt_cap", "id": tid,
+                          "attempts": _n})
+                    continue
                 st[tid] = "stale_recovered"
                 with open(INBOX_DONE, "w", encoding="utf-8") as fh:  # 留痕落盘
                     json.dump(st, fh, ensure_ascii=False)
@@ -407,18 +448,44 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     _st[item["id"]] = "running:%.0f" % time.time()
     with open(INBOX_DONE, "w", encoding="utf-8") as fh:
         json.dump(_st, fh, ensure_ascii=False)
-    if not getattr(llm, "configured", False):
+    # ★★★ R398 · **执行期间刷新 running 标记**（每 60s）。
+    #   现场：一单 analyze 跑 45 分钟，标记停在起始时刻 ⇒ 15 分钟后
+    #   被 `take_inbox()` 判 stale ⇒ 重取 ⇒ 同一单被重跑 52 次。
+    #   心跳让它一直是"新鲜 running"，正常长任务不会被抢走。
+    _hb_stop = threading.Event()
+
+    def _hb_refresh():
+        while not _hb_stop.wait(60):
+            try:
+                s = _done_state()
+                s[item["id"]] = "running:%.0f" % time.time()
+                with open(INBOX_DONE, "w", encoding="utf-8") as fh:
+                    json.dump(s, fh, ensure_ascii=False)
+            except Exception:          # noqa: BLE001 — 心跳失败不影响执行
+                pass
+
+    threading.Thread(target=_hb_refresh, daemon=True,
+                     name="inbox-hb-" + item["id"]).start()
+    try:
+        if not getattr(llm, "configured", False):
+            rep = {"task": item.get("task"), "status": "incomplete",
+                   "why": "LLM 未配置（收件箱任务需要 LLM 通道; --llm 启动）"}
+        else:
+            # ★ R213: 历史教训检索注入（agent_quality 回路 — 同类失败不再重犯）
+            from dwc.agent_quality import lessons_context
+            ctx = item.get("ctx")
+            lc = lessons_context(str(item.get("task", "")))
+            if lc:
+                ctx = (ctx + "\n" + lc) if ctx else lc
+            rep = execute_user_task(str(item.get("task", "")), llm=llm,
+                                    ctx=ctx, task_id=item["id"])
+    except Exception as exc:          # noqa: BLE001
+        # ★ R398 · 执行抛异常也必须**停心跳**，否则标记永远是 running
+        #   ⇒ 这一单既不会完成也不会被重取（比崩溃更糟）。
+        _hb_stop.set()
         rep = {"task": item.get("task"), "status": "incomplete",
-               "why": "LLM 未配置（收件箱任务需要 LLM 通道; --llm 启动）"}
-    else:
-        # ★ R213: 历史教训检索注入（agent_quality 回路 — 同类失败不再重犯）
-        from dwc.agent_quality import lessons_context
-        ctx = item.get("ctx")
-        lc = lessons_context(str(item.get("task", "")))
-        if lc:
-            ctx = (ctx + "\n" + lc) if ctx else lc
-        rep = execute_user_task(str(item.get("task", "")), llm=llm,
-                                ctx=ctx, task_id=item["id"])
+               "why": "执行异常: %s: %s" % (type(exc).__name__, exc)}
+    _hb_stop.set()                    # ★ R398 · 正常路径也停心跳
     rep = {"id": item["id"], **rep,
            "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")}
     os.makedirs(REPORTS, exist_ok=True)
@@ -427,6 +494,7 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
         json.dump(rep, fh, ensure_ascii=False, indent=1)
     st = _done_state()
     st[item["id"]] = rep["status"]
+    _hb_stop.set()                    # ★ R398 · 先停心跳，再写终态（防覆盖）
     with open(INBOX_DONE, "w", encoding="utf-8") as fh:
         json.dump(st, fh, ensure_ascii=False)
     # ★ R231 接线: 任务结果回写预测器（视图层 — 台账族; 树族读树不写）
