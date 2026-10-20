@@ -168,6 +168,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--wait-min", type=int, default=40)
+    # ★ R381 · 跑全池（52 单），并从 0 开始不旋转
+    ap.add_argument("--all", action="store_true",
+                    help="跑全部任务（覆盖 --n，从第 0 条开始）")
+    # ★ R381 · agent 轮询间隔（看门狗拉起时用）
+    ap.add_argument("--interval", type=int, default=20)
+    # ★ R381 · 禁用"连续 3 单全过就提前收工"（跑全池要完整样本）
+    ap.add_argument("--no-saturate", action="store_true",
+                    help="不因连续 3 单全过而提前收工")
     args = ap.parse_args()
     tasks = [json.loads(l) for l in io.open(TASKS, encoding="utf-8")]
     st = {"rot": 0}
@@ -177,6 +185,9 @@ def main() -> int:
         except (ValueError, OSError):
             pass
     rot = int(st.get("rot", 0))
+    if args.all:
+        args.n = len(tasks)
+        rot = 0                       # 全池从第 0 条开始，保证覆盖
     picks = [tasks[(rot + i) % len(tasks)] for i in range(args.n)]
     st["rot"] = (rot + args.n) % len(tasks)
     _sd = os.path.dirname(STATE)  # ★ R276c · 新机 var/eval 不存在则建（否则首跑必炸）
@@ -193,10 +204,21 @@ def main() -> int:
     seen: set = set()
     bonus_used = 0
     i = 0
+    rows_all: list = []   # ★ R381 · 收集全部行，末尾做失败分类
     while i < len(order):
         t = order[i]
         i += 1
         tid = make_tid(i)
+        # ★★★ R381 · 投单前确保 agent 活着（今天已静默死 2 次：
+        #   无 traceback / 无冻结 / 预算未到 / pid 残留 ⇒ 死因未明，
+        #   只能"死了就发现并拉起"，否则整轮结果被 timeout 污染）。
+        try:
+            import dwc_watchdog as _WD
+            _w = _WD.ensure(interval=max(10, args.interval))
+            if _w.get("action") not in ("none",):
+                print("  ⚠ agent 看门狗: %s" % _w.get("action"), flush=True)
+        except Exception as _exc:                    # noqa: BLE001
+            print("  ⚠ 看门狗不可用: %s" % str(_exc)[:60], flush=True)
         _inbox_push(t["task"], tid)
         print("[投单 %d/%d] %s (%s)" % (i, len(order), tid, t["kind"]),
               flush=True)
@@ -224,6 +246,7 @@ def main() -> int:
         with io.open(CURVE, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         print("  → %s (%s)" % ("✓" if ok else "✗", how[:60]), flush=True)
+        rows_all.append(row)
         hist.append({"ok": ok, "verify": how})  # ★ R269-③
         if _unseen_fail(ok, how, seen, bonus_used):
             seen.add(_fail_sig(how))
@@ -233,7 +256,7 @@ def main() -> int:
         else:
             seen.add(_fail_sig(how))
         stop, reason = _should_stop(hist)
-        if stop:
+        if stop and not args.no_saturate:
             st["saturated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
             with io.open(STATE, "w", encoding="utf-8") as fh:
                 json.dump(st, fh)
@@ -241,7 +264,76 @@ def main() -> int:
             break
         time.sleep(10)      # 单间隔（端点限流教训）
     print("\n本轮: %d/%d（%d 单等到报告）" % (n_ok, len(order), done))
+    _print_breakdown(rows_all)
     return 0
+
+
+def _print_breakdown(rows: list) -> None:
+    """★ R381 · 失败分类汇总 —— 跑全池时最需要的是"哪类任务失败在哪"，
+    而不只是一个通过率数字。
+
+    分三个维度：
+      ① kind（任务类型）
+      ② 失败归因（timeout / 答案不对 / 状态未完成 / 旧文件）
+      ③ 状态分布（done / incomplete）
+    """
+    if not rows:
+        return
+    import collections
+    print("\n" + "=" * 66)
+    print("失败分类")
+    print("=" * 66)
+
+    # ① 按 kind
+    by_kind = collections.defaultdict(lambda: [0, 0])
+    for r in rows:
+        k = r.get("kind") or "?"
+        by_kind[k][1] += 1
+        if r.get("ok"):
+            by_kind[k][0] += 1
+    print("%-16s %-10s %s" % ("任务类型", "通过", "通过率"))
+    print("-" * 66)
+    for k in sorted(by_kind, key=lambda x: -by_kind[x][1]):
+        ok, n = by_kind[k]
+        print("%-16s %-10s %d/%d = %.0f%%" % (
+            k, "%d/%d" % (ok, n), ok, n, 100.0 * ok / n if n else 0))
+
+    # ② 失败归因
+    def _cause(r):
+        if r.get("ok"):
+            return None
+        v = str(r.get("verify") or "")
+        st = r.get("status")
+        if "timeout" in v or "no-report" in v:
+            return "A. 没等到报告（agent 死/超时）"
+        if "stale" in v:
+            return "B. 旧文件（不是本轮产出）"
+        if st == "incomplete":
+            return "C. 任务未完成（模型中途放弃）"
+        if st == "done":
+            return "D. 答完了但答案不对"
+        return "E. 其它"
+
+    causes = collections.Counter(_cause(r) for r in rows if not r.get("ok"))
+    print("\n失败归因:")
+    if not causes:
+        print("  （无失败）")
+    for c, n in causes.most_common():
+        print("  %-32s %d" % (c, n))
+
+    # ③ 状态分布
+    sts = collections.Counter(str(r.get("status")) for r in rows)
+    print("\n报告状态:", dict(sts))
+
+    # ④ 逐条失败明细（便于定向下钻）
+    fails = [r for r in rows if not r.get("ok")]
+    if fails:
+        print("\n失败明细:")
+        for r in fails:
+            print("  %-6s %-14s %-12s %s" % (
+                r.get("task_id"), r.get("kind"), r.get("status"),
+                str(r.get("verify"))[:52]))
+    print("=" * 66)
 
 
 if __name__ == "__main__":

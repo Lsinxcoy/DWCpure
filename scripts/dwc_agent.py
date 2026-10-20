@@ -53,6 +53,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 
 #: ★ 固定仓库路径（drift watch 同款）—— CRON RUNS THE COPY: 副本在
@@ -208,6 +209,17 @@ _sel = {"last": None, "streak": 0, "used": [], "cooldown": {}}
 _day = {"key": time.strftime("%Y-%m-%d"), "terms": 0, "cost": 0.0}
 _stop = {"by": None}
 
+#: ★★★ R382 · 收件箱互斥锁 —— 轮询线程与其它调用方并发读 INBOX 时，
+#:   "读到未处理 → 返回" 不是原子的 ⇒ 同一单会被取两次（重复投递）。
+_INBOX_LOCK = threading.Lock()
+
+#: ★★★ R382 · 收件箱轮询间隔（秒）。
+#:   现场（2026-10-20 全池跑批）：投单 13:47:29 → 接单 13:55:06
+#:   （排队 7 分 37 秒），执行只用 5 秒。根因是 `take_inbox()` 在主循环
+#:   里、每个 term 才轮询一次，而一个 term 实测 ~10 分钟。
+#:   ⇒ 用户委托被排在自主循环后面，52 单要跑 6 小时。
+INBOX_POLL_SEC = 3.0
+
 
 def _log(entry: dict) -> None:
     entry["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
@@ -240,7 +252,19 @@ def _done_state() -> dict:
 
 
 def take_inbox():
-    """★ 取第一条未处理的收件箱任务（None = 空）。done 态落 INBOX_DONE。"""
+    """★ 取第一条未处理的收件箱任务（None = 空）。done 态落 INBOX_DONE。
+
+    ★★★ R382 · 必须持锁（`_INBOX_LOCK`）：
+      现场（2026-10-20 全池跑批）收件箱改成独立轮询线程后，轮询线程与
+      其它调用方会并发读同一个 INBOX 文件；"读到未处理 → 返回"之间没有
+      原子性 ⇒ 同一单被取两次（重复投递/重复计费）。
+    """
+    with _INBOX_LOCK:
+        return _take_inbox_locked()
+
+
+def _take_inbox_locked():
+    """take_inbox 的实体（调用方必须已持 `_INBOX_LOCK`）。"""
     st = _done_state()
     if not os.path.exists(INBOX):
         return None
@@ -617,6 +641,63 @@ def startup_selfcheck(pairs=None):
         return "自检异常：%r" % (_oe,)
 
 
+def _dispatch_inbox(item: dict, use_llm: bool) -> None:
+    """★ R382 · 把一单收件箱任务派给后台线程（Semaphore 限并发 2）。"""
+    _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(2))
+
+    def _bg(it=item):
+        with _sema:
+            try:
+                run_user_task(it, use_llm)
+            except Exception as exc:   # noqa: BLE001 — 线程内不许炸主循环
+                _log({"event": "user_task_crashed", "id": it["id"],
+                      "error": "%s: %s" % (type(exc).__name__, exc)})
+
+    threading.Thread(target=_bg, daemon=True,
+                     name="inbox-" + item["id"]).start()
+    _log({"event": "user_task_async_started", "id": item["id"]})
+    _heartbeat(status="alive", last_user_task=item["id"],
+               result="async_started")
+
+
+def start_inbox_poller(interval: float = INBOX_POLL_SEC,
+                       stop_event=None, use_llm: bool = True):
+    """★★★ R382 · 独立的收件箱轮询线程（秒级，不等 term 间隙）。
+
+    现场（2026-10-20 全池跑批）：投单 13:47:29 → 接单 13:55:06，
+    **排队 7 分 37 秒**，而执行只用 5 秒。根因：`take_inbox()` 在主循环
+    里，每个 term 才轮询一次，一个 term 实测 ~10 分钟。注释写着
+    「收件箱优先（用户委托 > 自我改进锚任务）」，实现却是"收件箱每
+    10 分钟才被看一次" —— 52 单要跑 6 小时。
+
+    修法：轮询与自主 term **解耦**，独立 daemon 线程按秒轮询。
+    用户委托不再排在自主循环后面。
+
+    `stop_event` 为 `threading.Event`，置位即优雅退出（返回线程对象）。
+    """
+    stop_event = stop_event or threading.Event()
+
+    def _loop():
+        while not stop_event.is_set():
+            try:
+                item = take_inbox()      # 内部已持 _INBOX_LOCK
+            except Exception as exc:     # noqa: BLE001 — 轮询不许死
+                _log({"event": "inbox_poll_error",
+                      "error": "%s: %s" % (type(exc).__name__, exc)})
+                item = None
+            if item is not None:
+                try:
+                    _dispatch_inbox(item, use_llm)
+                except Exception as exc:  # noqa: BLE001
+                    _log({"event": "inbox_dispatch_error", "id": item.get("id"),
+                          "error": "%s: %s" % (type(exc).__name__, exc)})
+            stop_event.wait(interval)    # ★ 可被 stop_event 立即唤醒
+
+    t = threading.Thread(target=_loop, daemon=True, name="inbox-poller")
+    t.start()
+    return t
+
+
 def main(argv) -> int:
     # ── 控制子命令（人工门）──
     if "--freeze" in argv:
@@ -725,6 +806,14 @@ def main(argv) -> int:
     best_pass = 0.0
     _log({"event": "agent_started", "pid": os.getpid(),
           "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port})
+    # ★★★ R382 · 收件箱改**独立轮询线程**（秒级），不再等 term 间隙。
+    #   现场：投单 13:47:29 → 接单 13:55:06（排队 7 分 37 秒），执行只用
+    #   5 秒；一个 term 实测 ~10 分钟 ⇒ 52 单要跑 6 小时。
+    #   用户委托不该排在自主循环后面。
+    _inbox_stop = threading.Event()
+    start_inbox_poller(INBOX_POLL_SEC, _inbox_stop, use_llm)
+    _log({"event": "inbox_poller_started", "interval": INBOX_POLL_SEC})
+
     while _stop["by"] is None:
         if _freeze_check() or _budget_check(tpd, bpd):
             break
@@ -733,27 +822,9 @@ def main(argv) -> int:
             _day.update(key=time.strftime("%Y-%m-%d"), terms=0, cost=0.0)
         # ★ R266C · 进化投单（每轮开头: 未派发论文 → 深读任务候选）
         maybe_dispatch_reading()
-        # ── R209 · 收件箱优先（用户委托 > 自我改进锚任务 — 独立 agent 接单）──
-        item = take_inbox()
-        if item is not None:
-            # ★ R219 · 异步接单（头部 agent 标配: 接单不阻塞自主循环 —
-            #   旧同步形态一单 3-5min 全停; Semaphore 限并发 2 防打爆 LLM）
-            import threading
-            _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(2))
-
-            def _bg(it=item):
-                with _sema:
-                    try:
-                        run_user_task(it, use_llm)
-                    except Exception as exc:   # noqa: BLE001 — 线程内不许炸主循环
-                        _log({"event": "user_task_crashed", "id": it["id"],
-                              "error": "%s: %s" % (type(exc).__name__, exc)})
-            threading.Thread(target=_bg, daemon=True,
-                             name="inbox-" + item["id"]).start()
-            _log({"event": "user_task_async_started", "id": item["id"]})
-            _heartbeat(status="alive", last_user_task=item["id"],
-                       result="async_started")
-            # 主循环继续走自主 term —— 不阻塞不 sleep 不 continue
+        # ── R209 · 收件箱已由 start_inbox_poller 独立消费（R382）──
+        #   主循环不再同步取单（否则与轮询线程抢单）。
+        item = None
         # ★ R305 · monitor 接线（三条件全 calm ⇒ 跳过本轮省 LLM；
         #   有委托/首轮/上轮崩/连跳≥2 ⇒ 照跑。跳过不计 term、不改判分）。
         _sk = _maybe_skip(prev is not None, item, globals().get("_SKIPS", 0))

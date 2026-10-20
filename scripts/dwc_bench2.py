@@ -66,6 +66,14 @@ def verify(check: dict, answer: str, since=None) -> tuple:
     if t == "contains_any":
         hits = [x for x in check["target"] if x in ans]
         return (bool(hits), "answer any-of %r" % hits[:3])
+    if t == "contains_equiv":
+        # ★★★ R381 · 等价形式判据（任一等价写法命中即通过）。
+        #   现场（2026-10-20 第 0 步实验）：`rf01` 问「PowerShell 需要
+        #   TrimStart 的字符码」，判据只认 `0xfeff`，模型答 `65279`
+        #   —— **65279 就是 0xFEFF**，答对了却被判 ✗。
+        #   ⇒ 判据验的是"写法"不是"答案"，把正确答案判死。
+        hits = [x for x in check["target"] if str(x).lower() in ans.lower()]
+        return (bool(hits), "answer equiv-of %r" % hits[:3])
     if t == "contains_all":
         miss = [x for x in check["target"] if x not in ans]
         return (not miss, "answer all-of; miss=%r" % miss)

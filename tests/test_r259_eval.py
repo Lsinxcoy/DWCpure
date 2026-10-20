@@ -31,8 +31,16 @@ def test_taskset_integrity():
 
 
 def test_taskset_no_llm_selfjudge():
-    """★★★ G2 锁: check 类型全集在机器可验集合内（无 LLM 自评类型）。"""
+    """★★★ G2 锁: check 类型全集在机器可验集合内（无 LLM 自评类型）。
+
+    ★ R381 重锚：加入 `contains_equiv`（等价形式判据）。
+      理由：`rf01` 原判据只认 `0xfeff`，模型答 `65279`（== 0xFEFF）
+      被判 ✗ —— 判据验的是"写法"不是"答案"，系统性低估通过率。
+      `contains_equiv` 仍是**纯字符串匹配**（无 LLM 参与），
+      与 G2 的初衷（禁 LLM 自评）不冲突，故纳入白名单。
+    """
     allowed = {"contains", "regex", "contains_any", "contains_all",
+               "contains_equiv",
                "rc_and_contains", "file_contains", "file_contains_all",
                "file_lines"}
     for l in io.open(TASKS, encoding="utf-8"):

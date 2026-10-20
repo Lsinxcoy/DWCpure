@@ -1,4 +1,4 @@
-{"id": "rf01", "kind": "read-fact", "task": "DWC 的一行安装命令中, PowerShell 需要 TrimStart 的字符码是什么？只答字符码。", "check": {"type": "contains", "target": "0xfeff"}}
+{"id": "rf01", "kind": "read-fact", "task": "DWC 的一行安装命令中, PowerShell 需要 TrimStart 的字符码是什么？只答字符码。", "check": {"type": "contains_equiv", "target": ["0xfeff", "0xFEFF", "65279"], "_note": "0xFEFF 的等价写法（十六进制/十进制）都算对"}}
 {"id": "rf02", "kind": "read-fact", "task": "README 里全屏 TUI 的命令面板快捷键是什么？只答快捷键。", "check": {"type": "contains", "target": "Ctrl+P"}}
 {"id": "rf03", "kind": "read-fact", "task": "DWC 的复读熔断是连续几轮同动作同结果触发？只答数字。", "check": {"type": "regex", "pattern": "^[\\s'\\\"（）()]*3[\\s'\\\"（）()]*$"}}
 {"id": "rf04", "kind": "read-fact", "task": "DWC 任务执行核的最大轮数是多少？只答数字。", "check": {"type": "regex", "pattern": "(999)"}}
