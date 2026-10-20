@@ -87,7 +87,15 @@ def test_stream_falls_back_on_non_sse(monkeypatch):
 
 def test_token_events_reach_progress(monkeypatch):
     """★★★ task_exec 流接线: 有 progress 的调用走 complete_stream,
-    每 delta 发 token 事件（final 轮流式输出的数据源）。"""
+    每 delta 发 token 事件（final 轮流式输出的数据源）。
+
+    ★ R384 重锚：流式只存在于 **JSON 路径**。原生 tool calling 走非流式
+      （tool_calls 要解析 delta 分片，端点按整段返回），这是明确取舍：
+      正确性（真调工具）> 逐字动画。
+      故本条显式关掉原生工具来测流式接线；下面再锁"原生模式下不流式
+      但仍有 round 事件"的新语义。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
     events = []
     class _LLM:
         configured = True
@@ -111,6 +119,39 @@ def test_token_events_reach_progress(monkeypatch):
             return SimpleNamespace(ok=True, error=None,
                 text='{"analysis": "x", "op": "final", "answer": "y"}')
     assert TE.execute_user_task("t", llm=_LLM2())["status"] == "done"
+
+
+def test_native_tools_mode_is_not_streaming_but_reports_rounds(monkeypatch):
+    """★★★ R384 新语义：原生工具模式**不走流式**，但 round 事件照发。
+
+    取舍理由：tool_calls 需按整段解析，流式分片会拆坏参数。
+    正确性（真调工具，全池零动作 94%→0%）> 逐字动画。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "1")
+    events = []
+
+    class _LLM:
+        configured = True
+
+        def complete(self, *a, **k):
+            return SimpleNamespace(
+                ok=True, error=None, text="",
+                meta={"tool_calls": [{"id": "c", "type": "function",
+                                      "function": {
+                                          "name": "final_answer",
+                                          "arguments": '{"answer": "原生答案"}'}}],
+                      "finish_reason": "tool_calls"})
+
+        def complete_stream(self, *a, **k):
+            raise AssertionError("原生工具模式不该走流式")
+
+    rep = TE.execute_user_task("t", llm=_LLM(), progress=events.append)
+    assert rep["status"] == "done"
+    assert "原生答案" in str(rep.get("answer") or "")
+    rounds = [e for e in events if isinstance(e, dict) and e["ev"] == "round"]
+    assert rounds, "原生模式也要发 round 事件（否则前端没进度）"
+    toks = [e for e in events if isinstance(e, dict) and e["ev"] == "token"]
+    assert not toks, "原生模式不该发 token 事件（非流式）"
 
 
 def test_answer_state_machine():

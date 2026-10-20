@@ -447,6 +447,161 @@ def _looks_like_refusal(text: str, n_actions: int) -> str:
     return m.group(0)[:40] if m else ""
 
 
+#: ★★★ R384 · 原生 tool calling 的工具表（与内部 op 白名单一一对应）。
+#:   模型本来就会调工具（实测 finish=tool_calls / read_file{path:...}），
+#:   是旧代码用手拼 JSON 提示词逼它输出散文 ⇒ 全池 51/54 = 94% 零动作。
+TASK_TOOLS = [
+    {"type": "function", "function": {
+        "name": "read_file",
+        "description": "读取仓库内文件的文本内容（相对路径）",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "write_file",
+        "description": "把内容写入文件（相对路径，覆盖写）",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"},
+                                      "content": {"type": "string"}},
+                       "required": ["path", "content"]}}},
+    {"type": "function", "function": {
+        "name": "run_command",
+        "description": "在仓库根目录执行 shell 命令并返回输出",
+        "parameters": {"type": "object",
+                       "properties": {"cmd": {"type": "string"}},
+                       "required": ["cmd"]}}},
+    {"type": "function", "function": {
+        "name": "list_dir",
+        "description": "列出目录下的文件名",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "search_code",
+        "description": "在代码里搜索字符串/符号（返回 文件:行号:内容）",
+        "parameters": {"type": "object",
+                       "properties": {"pattern": {"type": "string"},
+                                      "path": {"type": "string"}},
+                       "required": ["pattern"]}}},
+    {"type": "function", "function": {
+        "name": "final_answer",
+        "description": "任务完成时调用，提交最终答案（中文）",
+        "parameters": {"type": "object",
+                       "properties": {"answer": {"type": "string"}},
+                       "required": ["answer"]}}},
+]
+
+#: 工具名 → 内部 op 名 + 参数改名
+_TOOL_TO_OP = {
+    "read_file": ("read", {"path": "path"}),
+    "write_file": ("write", {"path": "path", "content": "content"}),
+    "run_command": ("run", {"cmd": "cmd"}),
+    "list_dir": ("run", {}),          # 转成 ls 命令
+    "search_code": ("run", {}),       # 转成 grep 命令
+    "final_answer": ("final", {"answer": "answer"}),
+}
+
+
+def _argv_of(cmd):
+    """★★★ R384-fix · 把 `run_command` 的字符串拆成 argv 列表。
+
+    现场：`run` op 严格要求 **argv 列表**（`cmd 必须是非空 argv 列表`），
+    而原生工具的 `run_command(cmd: string)` 传的是字符串
+    ⇒ 所有命令都报 `ok: False`（an01 实测 `ls -la` 连挂两次）。
+    Windows 上用 posix=False 的 shlex 更稳（保留反斜杠路径）。
+    """
+    if isinstance(cmd, list):
+        return [str(x) for x in cmd]
+    s = str(cmd or "").strip()
+    if not s:
+        return []
+    try:
+        import shlex
+        toks = shlex.split(s, posix=(os.name != "nt"))
+        return [t for t in toks if t]
+    except ValueError:
+        return s.split()
+
+
+def _tool_calls_to_step(tool_calls: list):
+    """★★★ R384 · 原生 tool_calls → 内部 step dict（复用既有 dispatch）。
+
+    只做**转换**，不改执行路径 —— 既有 op 白名单/沙箱/审计全部保留。
+    """
+    if not tool_calls:
+        return None
+    tc = tool_calls[0] or {}
+    fn = tc.get("function") or {}
+    name = fn.get("name") or ""
+    if name not in _TOOL_TO_OP:
+        return None
+    op, mapping = _TOOL_TO_OP[name]
+    raw = fn.get("arguments")
+    try:
+        args = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except (ValueError, TypeError):
+        args = {}
+    if not isinstance(args, dict):
+        args = {}
+    if name == "list_dir":
+        return {"op": "run",
+                "cmd": ["ls", "-la", str(args.get("path") or ".")]}
+    if name == "run_command":
+        return {"op": "run", "cmd": _argv_of(args.get("cmd"))}
+    if name == "search_code":
+        pat = str(args.get("pattern") or "")
+        path = str(args.get("path") or "src")     # ★ 默认只搜 src（全仓 grep 太慢）
+        if not pat:
+            return None
+        # ★★★ 直接构造 argv —— 不要走 "字符串 + shlex"：
+        #   Windows 上 `shlex.split(posix=False)` **保留引号**，grep 会收到
+        #   `'"def execute_user_task"'`（带字面引号）⇒ 永远搜不到（已踩）。
+        # ★ 排除重目录：全仓 grep 实测 189s 超时（cl02），src 只要几秒。
+        return {"op": "run",
+                "cmd": ["grep", "-rn", "--include=*.py",
+                        "--exclude-dir=.git", "--exclude-dir=var",
+                        "--exclude-dir=archive", "--exclude-dir=node_modules",
+                        "--exclude-dir=__pycache__",
+                        pat, path]}
+    step = {"op": op}
+    for src_k, dst_k in mapping.items():
+        if src_k in args:
+            step[dst_k] = args[src_k]
+    return step
+
+
+#: ★★★ R385 · 原生工具模式的硬轮数上限。
+#:   现场：rf01 在 `max_rounds=999` 下跑 **140 轮 / 278 动作 / 625 秒**
+#:   还给出空答案；同批 rf02 只要 2 轮 6.5 秒。不是慢，是死循环。
+#:   一个任务烧 10 分钟 ⇒ 52 单 9 小时且答案为空。
+NATIVE_TOOLS_MAX_ROUNDS = 15
+
+#: ★★★ R385 · 同一 (op,target) 重复达到此次数 ⇒ 下一轮强制 final。
+NATIVE_TOOLS_REPEAT_LIMIT = 4
+
+
+def _use_native_tools() -> bool:
+    """★★★ R384 · 是否走原生 tool calling（默认开；可 env/config 关掉）。
+
+    关闭方式（排障用）：`DWC_LLM_NATIVE_TOOLS=0`。
+    走哪条路会写进报告（`tool_mode`），降级与成功可区分。
+    """
+    v = os.environ.get("DWC_LLM_NATIVE_TOOLS")
+    if v is not None:
+        return v.strip().lower() not in ("0", "false", "no", "off")
+    return True
+
+
+def _tools_unsupported(res) -> bool:
+    """★★ 端点不认识 `tools` 参数（400 / unknown field）⇒ 可诚实回退。"""
+    err = str(getattr(res, "error", "") or "").lower()
+    code = (getattr(res, "meta", None) or {}).get("http_code")
+    if code == 400 and ("tool" in err or "unknown" in err or "invalid" in err):
+        return True
+    return ("tool" in err and ("unsupported" in err or "not support" in err
+                               or "unknown" in err))
+
+
 def _extract_json(text: str):
     """★ R217 · LLM 响应 JSON 鲁棒提取（判据: 拿到能用的 dict, 不苛求纯净）。
 
@@ -772,6 +927,10 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
     actions_log, why} — status ∈ {done, incomplete}。
     """
+    # ★★★ R385 · 原生工具模式硬上限（rf01 实测 140 轮 / 625 秒 / 空答案）。
+    #   `max_rounds=999` 是给 JSON 路径的历史宽松值；原生工具会死循环。
+    if _use_native_tools() and max_rounds > NATIVE_TOOLS_MAX_ROUNDS:
+        max_rounds = NATIVE_TOOLS_MAX_ROUNDS
     os.makedirs(WORK, exist_ok=True)
     # ★ R218 · 自我认知注入（每次接单加载, 跨任务存活 — CLAUDE.md 同款;
     #   文件缺席=空串不装有, 读失败不炸单）
@@ -803,6 +962,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "你是 DWC 独立 agent 的任务执行体。完成用户的任务。每轮只输出一个"
         " JSON 对象（无多余文本）: {\"analysis\": \"本步思考\", \"op\":"
         " \"read|write|run|final\", ...参数}。"
+        # ★★★ R384 · 原生工具模式下必须换口径（旧口径会让模型困惑）
+        " 【原生工具模式】你已挂载函数工具：read_file / write_file /"
+        " run_command / list_dir / final_answer。**必须调用工具**，"
+        "不要在正文里描述「我将要做什么」或「已做了什么」——"
+        " 只有真正调用工具才算执行。"
+        " 任务完成时立即调用 final_answer，**不要反复验证同一件事**"
+        "（一次成功即收工；实测 26 轮里有 20 轮是多余自证）。"
         " · 读文件: {\"op\":\"read\",\"path\":\"相对路径\"}"
         " · 写文件(只许 var/inbox_work/ 下): {\"op\":\"write\",\"path\":"
         "\"var/inbox_work/x.md\",\"content\":\"...\"}"
@@ -860,6 +1026,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                               % (_SRC_FAIL[0], _exc))
     log: List[Dict[str, Any]] = []
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
+    #: ★ R384 · 原生工具模式下"只输出正文不调工具"的已重试次数（上限 1）
+    _native_nudge = [0]
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     _r4_blanks = 0      # ★ R302补5b · R4 无 op 连空计数（≥3 诚实收敛）
@@ -882,24 +1050,91 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 prompt = ("任务: %s\n已取证 %d 次（read 成功）。不要再收集，"
                           "现在基于已有信息直接 final 作答（answer≥10 字中文）。"
                           % (task, _n_read))
+        # ★★★ R385 · 原生工具模式的死循环防护（rf01 实测 140 轮/625 秒）。
+        #   两个出口：
+        #   ① 同一 (op,target) 重复 ≥ NATIVE_TOOLS_REPEAT_LIMIT ⇒ 强制 final
+        #   ② 轮数逼近上限 ⇒ 强制 final（给一次收尾机会）
+        if _use_native_tools():
+            _rep_cnt: dict = {}
+            for e in log or []:
+                if isinstance(e, dict) and e.get("phase") == "obs":
+                    _k = (e.get("op"), str(e.get("target") or "")[:80])
+                    _rep_cnt[_k] = _rep_cnt.get(_k, 0) + 1
+            _max_rep = max(_rep_cnt.values()) if _rep_cnt else 0
+            if (_max_rep >= NATIVE_TOOLS_REPEAT_LIMIT
+                    or rnd >= NATIVE_TOOLS_MAX_ROUNDS):
+                # ★ 追加而不是覆盖 —— qa_mode 的取证上限提示要保留
+                #   （覆盖会让两套收敛信号互相抵消，test_r301f 抓到过）
+                prompt = (prompt + "\n\n★ 停止收集/执行。同一动作已重复 %d 次"
+                          "（本轮第 %d 轮），继续重复不会得到新信息。\n"
+                          "**现在立即调用 final_answer** 提交你目前掌握的最佳答案"
+                          "（answer≥10 字中文）。不要再调用 read_file / "
+                          "run_command / search_code。"
+                          % (_max_rep, rnd))
         # ★ R237 token 级流式: 有 progress 且 client 支持 ⇒ SSE 流,
         #   每 delta 发 token 事件（chat 端状态机提取 answer 流式打印;
         #   中间轮 JSON 无 answer 键 ⇒ 天然静默, final 轮才见逐字输出）
-        if progress and hasattr(llm, "complete_stream"):
-            res = llm.complete_stream(
-                prompt, system=system, json_mode=True,
-                images=_imgs,
-                on_delta=lambda t: progress({"ev": "token", "t": t}))
-        else:
-            res = llm.complete(prompt, system=system,
-                               json_mode=True, images=_imgs)
+        # ★★★ R384 · 原生 tool calling 优先。
+        #   端点实测正常返回 `finish=tool_calls` + 结构化参数；旧的手拼
+        #   JSON 提示词逼模型输出散文 ⇒ 全池 51/54 = 94% 零动作。
+        #   流式与 tool_calls 不兼容（要解析 delta 里的 tool_call 分片），
+        #   故工具路径走非流式；非工具路径保持原流式行为。
+        _native = _use_native_tools()
+        if _native:
+            try:
+                res = llm.complete(prompt, system=system,
+                                   tools=TASK_TOOLS, tool_choice="auto")
+            except TypeError as _exc:
+                # ★ 该 LLM 实现不支持 tools 参数（旧桩/别的 provider）
+                #   ⇒ 诚实回退到 JSON 路径，并把回退写进报告。
+                if "tools" in str(_exc):
+                    _native = False
+                    res = None
+                else:
+                    raise
+            # ★ 端点不支持 tools（400/unknown field）⇒ 诚实回退到 JSON 路径
+            if _native and res is not None \
+                    and not getattr(res, "ok", False) and _tools_unsupported(res):
+                _native = False
+                res = None
+        if not _native:
+            if progress and hasattr(llm, "complete_stream"):
+                res = llm.complete_stream(
+                    prompt, system=system, json_mode=True,
+                    images=_imgs,
+                    on_delta=lambda t: progress({"ev": "token", "t": t}))
+            else:
+                res = llm.complete(prompt, system=system,
+                                   json_mode=True, images=_imgs)
+        _tool_mode = "native" if _native else "json"
         if not getattr(res, "ok", False):
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
                     "why": "LLM 失败: %s" % getattr(res, "error", "?"),
                     "actions_log": log}
-        step = _extract_json(res.text)
+        # ★★★ R384 · 优先用**原生 tool_calls**（端点本来就会调工具，
+        #   是旧代码把手拼 JSON 逼它输出散文 —— 全池 51/54 = 94% 零动作）。
+        _tcs = (getattr(res, "meta", None) or {}).get("tool_calls") or []
+        step = _tool_calls_to_step(_tcs) if _tcs else _extract_json(res.text)
         if step is None:
+            # ★★★ R384 · 原生工具模式下，模型**不调工具却输出散文**是协议
+            #   违反（我们已把工具挂上去了）。现场：wr02 只 1 轮 0 动作，
+            #   回"I'll check the directory structure"就被当答案。
+            #   处理：先重试一次并明确要求调用工具；仍不调 ⇒ 判 incomplete。
+            if _native:
+                if _native_nudge[0] < 1:
+                    _native_nudge[0] += 1
+                    prompt = (
+                        "任务: %s\n★ 你**没有调用任何工具**，只是输出了正文。"
+                        "这不算执行。请立刻调用工具（read_file / write_file / "
+                        "run_command / list_dir / search_code / final_answer），"
+                        "不要输出任何正文说明。" % task)
+                    continue
+                return {"task": task, "task_id": sid,
+                        "status": "incomplete", "rounds": rnd,
+                        "why": "原生工具模式下模型只输出正文、未调用任何工具"
+                               "（重试 1 次后仍如此）—— 未执行",
+                        "actions_log": log}
             # ★★★ R380 · 纯文本答案**不许判死**。
             #   现场（2026-10-20 09:40 跑批）：8 单失败里 7 单的 `why`
             #   就是答案本身（`prev_node_id` / `dwc_pairs.jsonl` /

@@ -39,6 +39,25 @@ from typing import Any, Dict, List, Optional, Tuple
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
 VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "web_search", "final")
 
+#: ★★★ R386 · 只读命令白名单（qa_mode 下放行 —— 只读不等于禁用命令）。
+#:   现场：cl01「execute_user_task 定义在哪个文件？」被判 qa_mode ⇒
+#:   `search_code` 转成的 `run(grep ...)` 被 R5 连拦 4 轮 ⇒ 答不出。
+#:   而 grep 一行就能定位（实测 task_exec.py:914）⇒ code-locate 30%。
+#:   只收**纯读**命令；任何可能改状态的都不进这张表。
+READONLY_CMDS = frozenset((
+    "grep", "egrep", "fgrep", "rg", "ag",
+    "ls", "dir", "find", "tree",
+    "cat", "head", "tail", "wc", "stat", "file",
+    "pwd", "echo", "which", "type", "where", "du", "df",
+))
+
+#: 只读命令里也不许出现的东西（夹带写操作 / 管道到解释器 / 重定向写）
+_READONLY_BREAKERS = (
+    ">", ">>", "|", "&&", "||", ";", "`", "$(",
+    " rm ", " mv ", " cp ", " del ", " touch ", " tee ",
+    "-exec", "-delete", "-execdir", "python", "node", "bash", "sh -c",
+)
+
 
 class JudgeError(ValueError):
     """判别/校验违规必须大声报错（G7 静默门同族）。"""
@@ -85,6 +104,34 @@ def _sig_args(step: Dict[str, Any]) -> str:
     return "%s|%s|%s" % (op, tgt[:160], extra)
 
 
+def _is_readonly_run(step: Dict[str, Any]) -> bool:
+    """★★★ R386 · 该 run 是否**只读**（不改仓库/系统状态）。
+
+    现场（2026-10-20 cl01）：qa_mode 的 R301-D 硬约束只许
+    `read`/`ask`/`web_read`，`search_code` 转成的 `run(grep ...)` 每轮都被
+    R5 拦（`target: "R5_blocked"` ×4），最后答"未能确认定义文件"。
+    而 grep 一行就能定位 —— **拦 grep 等于把"查证"本身禁了**。
+
+    qa_mode 的本意是「只读、不许改状态」，不是「不许用命令」。
+    """
+    if step.get("op") != "run":
+        return False
+    cmd = step.get("cmd")
+    if not isinstance(cmd, list) or not cmd:
+        return False
+    head = str(cmd[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if head.endswith(".exe"):
+        head = head[:-4]
+    if head not in READONLY_CMDS:
+        return False
+    joined = " ".join(str(x) for x in cmd).lower()
+    # ★ 双重保险：只读命令也不许夹带写操作/管道到解释器
+    for bad in _READONLY_BREAKERS:
+        if bad in joined:
+            return False
+    return True
+
+
 def judge_step(step: Dict[str, Any],
                recent_obs: List[Dict[str, Any]],
                qa_mode: bool = False) -> Tuple[str, str, str]:
@@ -104,9 +151,15 @@ def judge_step(step: Dict[str, Any],
     if op == "final":
         return "critical", "final 不判（论文: finish 不判）", "-"
     # ★ R301-D · qa 硬约束（final 已在上分支放行；ask 归主干 critical）。
+    # ★★★ R386 · 但**只读命令**必须放行：qa 的本意是「只读、不许改状态」，
+    #   不是「不许用命令」。现场 cl01 的 `search_code`→`run(grep)` 被 R5
+    #   连拦 4 轮 ⇒ 答不出定义文件；而 grep 一行就能定位。
     if qa_mode and op not in ("read", "ask", "web_read"):
-        return "noisy", ("qa 问答只许 read/web_read 取证或 final（op=%s 须走执行任务）"
-                         % op), "R5"
+        if _is_readonly_run(step):
+            pass                      # 只读命令放行（继续走后面的重复判定）
+        else:
+            return "noisy", ("qa 问答只许 read/web_read/只读命令 取证或 final"
+                             "（op=%s 须走执行任务）" % op), "R5"
     tgt = _tgt(step)
     hist = [e for e in recent_obs
             if isinstance(e, dict) and e.get("op") == op]

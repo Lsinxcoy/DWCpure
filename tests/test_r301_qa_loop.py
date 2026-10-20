@@ -133,13 +133,20 @@ def test_r301c_exec_still_r4():
 
 
 def test_r301e_r5_blocked_no_exec():
-    """★ E：qa 下连出 run⇒R5 短路（不执行真命令，≤3 轮 final）。"""
+    """★ E：qa 下连出**改状态**命令⇒R5 短路（不执行真命令，≤3 轮 final）。
+
+    ★ R386 重锚：原测试用 `grep -rn x src/` 当"违禁动作"，但 grep 是
+      **只读**的 —— qa 的本意是「只读、不许改状态」，不是「不许用命令」。
+      现场：cl01 的 search_code→grep 被 R5 连拦 4 轮 ⇒ 答不出定义文件
+      （而 grep 一行就能定位）。故这里改用真·改状态命令（pip install）
+      来验证 R5 短路，另加一条锁"只读命令必须放行"。
+    """
     import dwc.llm.task_exec as T
 
     class _R:
         ok = True
-        text = ('{"op": "run", "cmd": ["grep", "-rn", "x", "src/"], '
-                '"analysis": "搜一下"}')
+        text = ('{"op": "run", "cmd": ["pip", "install", "requests"], '
+                '"analysis": "装个包"}')
 
     class _F:
         ok = True
@@ -166,7 +173,49 @@ def test_r301e_r5_blocked_no_exec():
     finally:
         T._do_action = orig
     assert r["status"] == "done", r
-    assert box["exec"] == 0, box  # ★ R5 短路：真命令零执行
+    assert box["exec"] == 0, box  # ★ R5 短路：改状态命令零执行
+
+
+def test_r386_readonly_grep_is_allowed_in_qa():
+    """★★★ R386 新语义：qa 下**只读**命令必须放行（grep 不是写操作）。
+
+    现场：cl01「execute_user_task 定义在哪个文件？」被判 qa_mode，
+    `search_code`→`run(grep)` 被 R5 连拦 4 轮 ⇒ 答"未能确认"。
+    修后实测 2 轮 41 秒答出 `src/dwc/llm/task_exec.py`。
+    """
+    import dwc.llm.task_exec as T
+
+    class _R:
+        ok = True
+        text = ('{"op": "run", "cmd": ["grep", "-rn", "x", "src/"], '
+                '"analysis": "搜一下"}')
+
+    class _F:
+        ok = True
+        text = '{"op": "final", "answer": "基于搜索结果回答", "analysis": "收"}'
+
+    seq = [_R(), _F()]
+    box = {"n": 0, "exec": 0}
+    orig = T._do_action
+
+    class _LLM:
+        def complete(self, prompt, **kw):
+            r = seq[min(box["n"], 1)]
+            box["n"] += 1
+            return r
+
+    def _spy(op, step):
+        box["exec"] += 1
+        return {"ok": True, "rc": 0, "out": "src/x.py:1:hit", "err": ""}
+
+    T._do_action = _spy
+    try:
+        r = T.execute_user_task("execute_user_task 定义在哪个文件",
+                                llm=_LLM(), task_id="T_R386",
+                                retry_on_fail=False)
+    finally:
+        T._do_action = orig
+    assert box["exec"] >= 1, "只读 grep 仍被拦（R5 把查证本身禁了）"
 
 
 def test_r301f_qa_read_cap_forces_final():

@@ -59,6 +59,16 @@ class T_Result:
         self.meta = {"finish_reason": "stop"}
 
 
+@pytest.fixture(autouse=True)
+def _json_path(monkeypatch):
+    """★ R384 · 本文件锁的是 **JSON 回退路径**的语义（原生模式见 test_r384）。
+
+    原生 tool calling 下模型输出散文属协议违反 ⇒ 直接判 incomplete；
+    R380 的"纯文本答案收下"只适用于不支持 tools 的端点/provider。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
+
+
 @pytest.fixture()
 def work(tmp_path, monkeypatch):
     monkeypatch.setattr(T, "WORK", str(tmp_path))

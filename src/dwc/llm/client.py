@@ -337,7 +337,9 @@ class LLMClient:
 
     def complete(self, prompt: str, *, system: Optional[str] = None,
                  max_tokens: Optional[int] = None, json_mode: bool = False,
-                 images: Optional[List[str]] = None) -> LLMResult:
+                 images: Optional[List[str]] = None,
+                 tools: Optional[List[dict]] = None,
+                 tool_choice: Optional[str] = None) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
         ★★★ 为什么不用异常: 调用方最常见的写法是
@@ -386,6 +388,11 @@ class LLMClient:
         }
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        # ★★★ R384 · 原生 tool calling（不传则不出现该键，老调用方行为不变）
+        if tools:
+            body["tools"] = tools
+            if tool_choice:
+                body["tool_choice"] = tool_choice
         # ★ R377 · 推理强度（配了才发；未配不猜端点支持什么）
         if getattr(self, "reasoning_effort", ""):
             body["reasoning_effort"] = self.reasoning_effort
@@ -428,7 +435,8 @@ class LLMClient:
                 _t.sleep(min(0.5 * (2 ** (self._attempts - 1)), 3.0))  # 退避
                 return self.complete(prompt, system=system,
                                      max_tokens=max_tokens,
-                                     json_mode=json_mode, images=images)
+                                     json_mode=json_mode, images=images,
+                                     tools=tools, tool_choice=tool_choice)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="HTTP %s: %s" % (e.code, e.reason),
@@ -443,7 +451,8 @@ class LLMClient:
                 _t.sleep(min(0.5 * (2 ** (self._attempts - 1)), 3.0))  # 退避
                 return self.complete(prompt, system=system,
                                      max_tokens=max_tokens,
-                                     json_mode=json_mode, images=images)
+                                     json_mode=json_mode, images=images,
+                                     tools=tools, tool_choice=tool_choice)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="%s: %s" % (type(e).__name__, e),
@@ -462,6 +471,11 @@ class LLMClient:
             ch0 = data["choices"][0]
             finish = ch0.get("finish_reason")
             text = msg.get("content")
+            # ★★★ R384 · 原生 tool_calls —— 端点返回 tool_calls 时
+            #   `content` 是**空串**。旧代码下面 `if not text.strip()`
+            #   直接判 kind="empty" ⇒ **tool_calls 被当成空响应丢弃**，
+            #   这是「94% 零动作」的致命一环（模型想调工具也没用）。
+            _tool_calls = msg.get("tool_calls") or []
             # R327 兼容: opencode/MiMo 用 `reasoning` 键名。两键都认，
             # 但**只用于诊断**，绝不顶替正文。
             rc = msg.get("reasoning_content") or msg.get("reasoning") or ""
@@ -471,6 +485,16 @@ class LLMClient:
                              error="响应解析失败: %s" % e,
                              meta={"kind": "parse"})
         if not isinstance(text, str) or not text.strip():
+            # ★★★ R384 · 有 tool_calls ⇒ 这不是空响应，是「模型要调工具」。
+            #   必须在"空内容判死"**之前**拦下（否则 tool_calls 被丢弃）。
+            if _tool_calls:
+                self.n_ok += 1
+                self._attempts = 0
+                return LLMResult(ok=True, text="", source="llm",
+                                 meta={"model": self._model,
+                                       "tool_calls": _tool_calls,
+                                       "finish_reason": finish,
+                                       "content_chars": 0})
             self.n_fail += 1
             if isinstance(rc, str) and rc.strip():
                 # 推理吃光 token ⇒ 如实报「只有推理，没有正文」，不冒充答案

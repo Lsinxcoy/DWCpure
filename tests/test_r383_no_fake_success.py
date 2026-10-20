@@ -54,6 +54,18 @@ class _LLM:
         return _Res(self._t.pop(0) if self._t else "")
 
 
+@pytest.fixture(autouse=True)
+def _json_path(monkeypatch):
+    """★ R384 · 本文件锁的是 **JSON 回退路径**的语义。
+
+    原生 tool calling 模式下，模型输出散文属于**协议违反**（工具已挂上去
+    却不调用）⇒ 直接判 incomplete，不走 R380/R383 的纯文本判定。
+    所以这里显式关掉原生模式，专测 JSON 路径（别的 provider / 端点不支
+    持 tools 时的兜底行为）。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
+
+
 @pytest.fixture()
 def work(tmp_path, monkeypatch):
     monkeypatch.setattr(T, "WORK", str(tmp_path))
