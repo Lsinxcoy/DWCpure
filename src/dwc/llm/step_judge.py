@@ -116,6 +116,14 @@ def _is_readonly_run(step: Dict[str, Any]) -> bool:
     """
     if step.get("op") != "run":
         return False
+    # ★★★ R393 · 工具层生成的只读命令（list_dir / search_code / find_files）
+    #   自带 `readonly: True` 标记 —— 它们由 `_tool_calls_to_step` 构造，
+    #   **不是模型手写的 shell 串**，安全性由工具层保证。
+    #   现场（R391 回归）：`find` 转成 `python -c <os.walk 脚本>` 后，
+    #   head=`python.exe` 不在白名单 ⇒ qa_mode 下 **R5 全拦**
+    #   ⇒ code-locate 的 find_files/search_code 全废（13/14 两单全 R5_blocked）。
+    if step.get("readonly") is True:
+        return True
     cmd = step.get("cmd")
     if not isinstance(cmd, list) or not cmd:
         return False

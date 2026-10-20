@@ -663,7 +663,7 @@ def _tool_calls_to_step(tool_calls: list):
     if not isinstance(args, dict):
         args = {}
     if name == "list_dir":
-        return {"op": "run",
+        return {"op": "run", "readonly": True,
                 "cmd": ["ls", "-la", str(args.get("path") or ".")]}
     if name == "run_command":
         return {"op": "run", "cmd": _argv_of(args.get("cmd"))}
@@ -676,7 +676,7 @@ def _tool_calls_to_step(tool_calls: list):
         #   Windows 上 `shlex.split(posix=False)` **保留引号**，grep 会收到
         #   `'"def execute_user_task"'`（带字面引号）⇒ 永远搜不到（已踩）。
         # ★ 排除重目录：全仓 grep 实测 189s 超时（cl02），src 只要几秒。
-        return {"op": "run",
+        return {"op": "run", "readonly": True,
                 "cmd": ["grep", "-rn", "--include=*.py",
                         "--exclude-dir=.git", "--exclude-dir=var",
                         "--exclude-dir=archive", "--exclude-dir=node_modules",
@@ -687,7 +687,7 @@ def _tool_calls_to_step(tool_calls: list):
         path = str(args.get("path") or ".")
         if not pat:
             return None
-        return {"op": "run",
+        return {"op": "run", "readonly": True,
                 "cmd": _find_to_python(
                     ["find", path, "-name", pat] if not args.get("ignore_case")
                     else ["find", path, "-iname", pat])}
