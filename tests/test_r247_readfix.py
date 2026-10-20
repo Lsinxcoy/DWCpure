@@ -82,13 +82,47 @@ def test_default_max_rounds_999():
 
 
 def test_dup_fusion_blowout():
-    """★★★ 复读熔断锁: 同 read×3 ⇒ 立即 incomplete 带熔断 why
-    （999 轮的硬出口 — 不许空转打满）。"""
+    """★★★ 复读熔断锁: 同 read×3 ⇒ 不再空转（999 轮的硬出口）。
+
+    ★ R396 重锚：旧语义是"立即 incomplete"；新语义是
+      **先给一次强制 final 的机会**（模型能答就答），仍不提交才判 incomplete。
+      现场（21:35 全池）模型已经 read 到答案却继续重复搜索，被熔断直接
+      判死 —— 本可答对，所以加了这次机会。
+      本测试锁的是**不许空转打满轮数**，不是"必须失败"。
+    """
     steps = [{"analysis": "读", "op": "read", "path": "config/drift.yaml"}] * 6
     rep = _run("熔断测试", steps)
-    assert rep["status"] == "incomplete"
-    assert "复读熔断" in rep["why"]
-    assert rep["rounds"] <= 4, rep["rounds"]
+    assert rep["rounds"] <= 6, rep["rounds"]
+    if rep["status"] == "incomplete":
+        assert "复读熔断" in rep["why"], rep["why"]
+    else:
+        assert rep.get("answer"), "done 必须带答案（不许空答案冒充完成）"
+
+
+def test_dup_blowout_never_finalizing_is_incomplete():
+    """★★★ 强制 final 之后仍不提交 ⇒ 必须判 incomplete（不许假装完成）。"""
+    class _NeverFinal:
+        def __init__(self):
+            self.n = 0
+
+        def complete(self, prompt, **kw):
+            self.n += 1
+            # 永远返回同一个 read，永远不 final
+            return SimpleNamespace(
+                ok=True, error="",
+                text=json.dumps({"analysis": "读", "op": "read",
+                                 "path": "config/drift.yaml"}),
+                meta={})
+
+        def complete_stream(self, prompt, **kw):
+            return self.complete(prompt, **kw)
+
+    rep = TE.execute_user_task("熔断测试", llm=_NeverFinal(),
+                               task_id="T_R247_NEVER", max_rounds=12,
+                               retry_on_fail=False)
+    assert rep["status"] == "incomplete", rep.get("answer")
+    assert "复读熔断" in str(rep.get("why")), rep.get("why")
+    assert rep["rounds"] <= 8, rep["rounds"]
 
 
 def test_system_declares_env_and_paging():

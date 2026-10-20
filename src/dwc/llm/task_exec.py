@@ -1194,6 +1194,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     #: ★ R384 · 原生工具模式下"只输出正文不调工具"的已重试次数（上限 1）
     _native_nudge = [0]
+    #: ★ R396 · 强制 final 的状态（熔断后给一次机会，仍不提交才判死）
+    _ff_used = [0]
+    _ff_pending = [False]
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     _r4_blanks = 0      # ★ R302补5b · R4 无 op 连空计数（≥3 诚实收敛）
@@ -1220,6 +1223,10 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         #   两个出口：
         #   ① 同一 (op,target) 重复 ≥ NATIVE_TOOLS_REPEAT_LIMIT ⇒ 强制 final
         #   ② 轮数逼近上限 ⇒ 强制 final（给一次收尾机会）
+        _force_final = False          # ★ R396 · 每轮先归零
+        if _ff_pending[0]:            # ★ 上一轮熔断 ⇒ 本轮强制 final
+            _force_final = True
+            _ff_pending[0] = False
         if _use_native_tools():
             _rep_cnt: dict = {}
             for e in log or []:
@@ -1237,6 +1244,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                           "（answer≥10 字中文）。不要再调用 read_file / "
                           "run_command / search_code。"
                           % (_max_rep, rnd))
+                # ★★★ R396 · 光靠提示词不够 —— 现场（21:35 全池）模型
+                #   已经 read 到答案（`read memory.py ok=True`）却继续重复
+                #   同一搜索 3 次，直到复读熔断判 incomplete。
+                #   ⇒ 卡住时用 **tool_choice 强制 final_answer**（API 层硬约束，
+                #   不依赖模型自觉）。端点不支持就自动退回 auto。
+                _force_final = True
         # ★ R237 token 级流式: 有 progress 且 client 支持 ⇒ SSE 流,
         #   每 delta 发 token 事件（chat 端状态机提取 answer 流式打印;
         #   中间轮 JSON 无 answer 键 ⇒ 天然静默, final 轮才见逐字输出）
@@ -1248,8 +1261,11 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         _native = _use_native_tools()
         if _native:
             try:
+                _tc = ("auto" if not _force_final else
+                       {"type": "function",
+                        "function": {"name": "final_answer"}})
                 res = llm.complete(prompt, system=system,
-                                   tools=TASK_TOOLS, tool_choice="auto")
+                                   tools=TASK_TOOLS, tool_choice=_tc)
             except TypeError as _exc:
                 # ★ 该 LLM 实现不支持 tools 参数（旧桩/别的 provider）
                 #   ⇒ 诚实回退到 JSON 路径，并把回退写进报告。
@@ -1647,6 +1663,18 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             .encode("utf-8", "replace")).hexdigest()[:12])
         dup_sigs.append(_sig)
         if len(dup_sigs) >= 3 and len(set(dup_sigs[-3:])) == 1:
+            # ★★★ R396 · 原生工具模式：熔断**不要直接判死** ——
+            #   现场（21:35 全池）模型已经 read 到答案，却继续重复搜索，
+            #   熔断直接把任务判 incomplete（本可答对）。
+            #   ⇒ 先给**一次强制 final** 的机会（API 层 tool_choice 硬约束），
+            #   仍不提交才判死。
+            if _use_native_tools() and _ff_used[0] < 1:
+                _ff_used[0] += 1
+                _ff_pending[0] = True
+                dup_sigs.clear()
+                _sess({"round": rnd, "phase": "force_final",
+                       "why": "复读熔断 ⇒ 强制 final_answer 收尾"})
+                continue
             # ★ R302补2b · qa 熔断亦诚实收敛（熔断在 judge 前截，
             #   R4 收敛分支不可达——同条件在此复用，零编造）。
             if qa_mode and sum(
