@@ -231,6 +231,38 @@ def test_argv_truncates_pipes_and_redirects():
     assert got2 == ["ls", "-la", "src"], got2
 
 
+def test_argv_handles_glued_semicolon():
+    """★★★ 无空格串联：`ls; find ...` 不能被切成 `['ls;', ...]`。
+
+    现场 nb_1020_185728_32：模型写 `ls; find . -iname README*`，
+    shlex 切出首 token `'ls;'` ⇒ 不是可执行文件 ⇒ 卡死 11 轮。
+    """
+    got = T._argv_of("ls; find . -iname README*")
+    assert got == ["ls"], got
+
+
+def test_argv_skips_cd_builtin():
+    """★★★ `cd` 是 shell 内建（Windows 无 cd.exe）⇒ 跳过该段取下一段。
+
+    现场：模型写 `cd . && ls -la` ⇒ 旧实现跑 `cd` 必然失败。
+    """
+    assert T._argv_of("cd . && ls -la") == ["ls", "-la"]
+    assert T._argv_of("cd src; ls") == ["ls"]
+    # 纯 cd 没有后续命令 ⇒ 空（交给上层报错，不假装成功）
+    assert T._argv_of("cd src") == []
+
+
+def test_argv_preserves_grep_alternation():
+    """★★★ grep 的 `|` 交替模式必须原样保留（不能按中间 `|` 切）。
+
+    现场：`-E "max_round|max_rounds"` 被切坏 ⇒ grep 只搜 `max_round`。
+    """
+    got = T._argv_of('-E "max_round|max_rounds"')
+    assert got == ["-E", "max_round|max_rounds"], got
+    got2 = T._argv_of('grep -rn -iE "circuit|repeat" src')
+    assert got2 == ["grep", "-rn", "-iE", "circuit|repeat", "src"], got2
+
+
 def test_run_command_with_quotes_and_pipe_executes():
     """★★★ 端到端：带引号+管道的 run_command 要能真跑通。"""
     step = T._tool_calls_to_step(

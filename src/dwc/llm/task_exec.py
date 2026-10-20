@@ -527,14 +527,55 @@ def _argv_of(cmd):
         except ValueError:
             # 引号不配对等病态输入 ⇒ 退回朴素切分（至少不炸）
             toks = s.split()
-    # ★★★ 管道/重定向/串联一律截断（`run` op **不经 shell**，保留这些
-    #   符号只会被当成字面参数传给命令 ⇒ 必然失败；而且过 shell 是注入面）。
-    #   现场：模型爱写 `grep ... | head -20` ⇒ 全部 ok=False。
-    for i, t in enumerate(toks):
-        if t in ("|", "||", "&&", ";", ">", ">>", "2>", "&"):
-            toks = toks[:i]
-            break
-    return [t for t in toks if t]
+    # ★★★ 管道/重定向/串联：`run` op **不经 shell**，这些符号只会被当
+    #   字面参数传给命令 ⇒ 必然失败；过 shell 又是注入面。
+    #   现场：模型爱写 `grep ... | head -20` / `ls; find . -name x`
+    #   （**没有空格**时 shlex 切出 `'ls;'`，不是可执行文件 ⇒ 卡死）。
+    #
+    #   ★ 必须在 **token 层**处理，不能在字符串层按 `|` 切：
+    #     `-E "max_round|max_rounds"` 里的 `|` 是 grep 的**交替模式**，
+    #     按字符串切会把模式切坏（已踩）。shlex 已把引号内当整体。
+    _SEPS = ("||", "&&", "|", ";", ">>", ">", "2>", "&")
+
+    def _is_boundary(t):
+        """token 是**独立**分隔符，或以分隔符**结尾/开头**（`ls;` / `;ls`）。
+
+        ★ 不认"中间夹着"的写法：`max_round|max_rounds` 是 grep 的交替
+          模式，必须原样保留（已踩 —— 按中间 `|` 切会把模式切坏）。
+        """
+        if t in _SEPS:
+            return True
+        return any(t.endswith(s) or t.startswith(s) for s in _SEPS)
+
+    def _split_cmd_tok(t):
+        """命令位置 token 若以分隔符结尾（`ls;`），返回 (头, 是边界)。"""
+        for sep in _SEPS:
+            if t.endswith(sep):
+                return t[:-len(sep)], True
+            if t.startswith(sep):
+                return "", True
+        return t, False
+
+    i = 0
+    while i < len(toks):
+        # `cd` / `pushd` 是 shell 内建（Windows 无 cd.exe），cwd 固定为仓库根
+        # ⇒ 跳过这一段，继续找下一条真命令（`cd . && ls -la` ⇒ 跑 `ls -la`）
+        if toks[i].strip("\"'").lower() in ("cd", "pushd"):
+            i += 1
+            while i < len(toks) and not _is_boundary(toks[i]):
+                i += 1
+            i += 1                      # 跳过该边界 token
+            continue
+        head, had_sep = _split_cmd_tok(toks[i])
+        if had_sep:
+            return [head] if head else []
+        out = list(toks[i:])
+        # 遇到独立分隔符 ⇒ 截断
+        for j, t in enumerate(out):
+            if t in _SEPS:
+                return [x for x in out[:j] if x]
+        return [x for x in out if x]
+    return []
 
 
 def _tool_calls_to_step(tool_calls: list):
