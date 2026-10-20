@@ -171,6 +171,20 @@ def _agent_ran(cmd: str, report) -> tuple:
     else:
         needle = (cmd or "").strip()[:40]
 
+    # ★★★ R397 · **归一化匹配** —— 判据里写的是字符串命令
+    #   `python -c "import os;n=sum(...)"`，而 agent 的动作是 argv 列表
+    #   `['python','-c','import os;n=sum(...)']`，JSON 序列化后是
+    #   `["python", "-c", "import os..."]` ⇒ 带引号/空格的 needle
+    #   **永远匹配不到** ⇒ 3 单 run-verify 被误判 no-agent-evidence
+    #   （现场 rv06/rv07/rv08）。
+    #   修：两边都去掉所有非字母数字字符再比。
+    def _norm(s: str) -> str:
+        return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (s or "").lower())
+
+    _needle_n = _norm(needle)
+    if not _needle_n:
+        return (False, "无法从命令提取特征（cmd 为空）")
+
     for e in log:
         if not isinstance(e, dict) or e.get("phase") != "obs":
             continue
@@ -179,8 +193,7 @@ def _agent_ran(cmd: str, report) -> tuple:
         if not e.get("ok"):
             continue
         blob = " ".join(str(e.get(k) or "") for k in ("cmd", "target", "obs"))
-        blob = blob.replace("\\", "/")
-        if needle and needle in blob:
+        if _needle_n in _norm(blob):
             return (True, "agent 执行过（needle=%r）" % needle[:50])
     return (False, "agent 未执行该命令（零动作或未命中 %r）" % needle[:50])
 

@@ -147,3 +147,37 @@ def test_evidence_requires_ok_true():
         "python -m pytest tests/test_r252_effort.py -q", ok=False)])
     ok, how = B2.verify(_check(), "passed", report=rep)
     assert ok is False, how
+
+
+def test_evidence_matches_argv_list_vs_string_command():
+    """★★★ R397 · 判据写的是**字符串**命令，agent 动作是 **argv 列表**。
+
+    现场（2026-10-20 22:15 全池）rv06/rv07/rv08 全被判
+    `no-agent-evidence`，但 agent 其实跑了：
+
+        判据 cmd:   python -c "import os;n=sum(...)"
+        agent cmd:  ['python', '-c', 'import os;n=sum(...)']
+        JSON 形态:  ["python", "-c", "import os;n=sum(...)"]
+
+    带引号+空格的 needle 永远匹配不到 ⇒ 3 单被误判。
+    修：两边去掉非字母数字字符后再比。
+    """
+    chk = {"type": "rc_and_contains",
+           "cmd": 'python -c "print(1)"', "target": "1"}
+    rep = _report([{"round": 1, "phase": "obs", "op": "run",
+                    "cmd": ["python", "-c", "print(1)"],
+                    "target": "['python', '-c', 'print(1)']",
+                    "ok": True, "obs": "1"}])
+    ok, how = B2.verify(chk, "1", report=rep)
+    assert ok is True, how
+
+
+def test_evidence_normalized_match_still_rejects_other_command():
+    """★★ 归一化不能变成"什么都能匹配"（跑的是别的命令 ⇒ 仍 ✗）。"""
+    chk = {"type": "rc_and_contains",
+           "cmd": 'python -c "print(ALPHA_ONLY)"', "target": "ALPHA_ONLY"}
+    rep = _report([{"round": 1, "phase": "obs", "op": "run",
+                    "cmd": ["python", "-c", "print(BETA_OTHER)"],
+                    "ok": True, "obs": "BETA_OTHER"}])
+    ok, how = B2.verify(chk, "ALPHA_ONLY", report=rep)
+    assert ok is False, how
