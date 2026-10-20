@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import os
 import re  # ★ R276c · ask 词边界（platform/transform 误含 rm 曾误拦只读扫描）
@@ -181,6 +182,36 @@ def _html_to_text(html: str) -> str:
         import re as _re
         return _re.sub(r"<[^>]+>", " ", html)
     return "\n".join(t._buf)
+
+
+def _args_snapshot(step: Dict[str, Any], limit: int = 200) -> str:
+    """★★★ R400 · 留痕参数快照 —— **JSON 必须完整**。
+
+    现场（2026-10-21 00:41 全池，code-locate 5 单灭 4 单）：
+      `json.dumps({...})[:160]` 把 JSON **从中间切断** ⇒ 留下非法 JSON
+      ⇒ `step_judge.judge_step` 回读时 `json.loads` 抛
+        `JSONDecodeError: Unterminated string starting at char 100`
+      ⇒ 整个动作被判失败（其实命令已经成功了）⇒ 模型重试同一脚本
+      ⇒ 再崩 ⇒ 最后放弃作答。
+
+    修：值可截断，JSON 不许截断；另存 `_h` = 全量参数指纹，
+    保证"前 160 字符相同的两条长命令"仍可区分（否则去重会误判重复）。
+    """
+    d = {k: step.get(k) for k in ("offset", "limit", "cmd")
+         if step.get(k) is not None}
+    if not d:
+        return ""
+    raw = json.dumps(d, ensure_ascii=False, sort_keys=True, default=str)
+    d["_h"] = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    s = json.dumps(d, ensure_ascii=False, default=str)
+    if len(s) <= limit:
+        return s
+    # 超长 ⇒ 逐值截断，`_h` 保真
+    budget = max(24, (limit - 60) // max(1, len(d)))
+    d2 = {k: (v if k == "_h" else str(v)[:budget]) for k, v in d.items()}
+    s2 = json.dumps(d2, ensure_ascii=False, default=str)
+    return s2 if len(s2) <= limit else json.dumps(
+        {"_h": d["_h"]}, ensure_ascii=False)
 
 
 def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -360,6 +391,22 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         hit = [w for w in _FORBIDDEN if w in joined]
         if hit:
             raise TaskExecError("危险命令黑名单命中 %s: %s" % (hit, joined[:120]))
+        # ★★★ R400 · 拦截"自写搜索脚本" —— 现场（cl02/cl07）模型不用
+        #   search_code，改用 `python -c <自己写的 os.walk 脚本>`：
+        #   ① 它的分类逻辑把『MemoryKernel 的定义行』归到 REFERENCES（答不出）
+        #   ② 脚本自己还会抛 `TypeError: Object of type set is not JSON
+        #      serializable`，模型据此"撤回"正确答案
+        #   工具层（readonly=True，如 search_code 自己）不拦。
+        if (not args.get("_from_tool") and len(cmd) >= 3
+                and str(cmd[0]).lower().endswith(("python", "python.exe"))
+                and str(cmd[1]) == "-c"
+                and ("definitions" in joined
+                     or ("os.walk" in joined and "re." in joined))):
+            return {"ok": False,
+                    "error": "已拦截：不要用 run_command 跑自写的搜索脚本"
+                             "（分类会错、参数还会被截断）。"
+                             "请直接调用 search_code(pattern='符号名')，"
+                             "答案在它的 === DEFINITIONS 段。"}
         ask = _ask_level(joined)
         confirmed = args.get("_confirmed") or set()
         if ask and any(str(c) in joined for c in confirmed):
@@ -478,9 +525,15 @@ TASK_TOOLS = [
                        "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "search_code",
-        "description": "在代码里搜索字符串/符号（返回 文件:行号:内容）。"
-                       "★ 定位「X 定义在哪个文件」时**优先用这个**，"
-                       "不要用 list_dir 逐层翻目录",
+        "description": "在代码里搜索字符串/符号。输出分两段："
+                       "=== DEFINITIONS (N) === 是**定义行**（def/class），"
+                       "=== REFERENCES (N) === 是引用行。"
+                       "★ 问「X 定义在哪个文件」时**只看 DEFINITIONS 段**，"
+                       "答案就在那里。"
+                       "★★ 定位符号**必须用这个工具**：不要用 run_command "
+                       "跑自写的 python 搜索脚本（参数太长会被截断，"
+                       "而且自己写的脚本常把定义误判成引用）。"
+                       "不要用 list_dir 逐层翻目录。",
         "parameters": {"type": "object",
                        "properties": {"pattern": {"type": "string"},
                                       "path": {"type": "string"}},
@@ -564,8 +617,24 @@ _SEARCH_PY = (
 
 
 def _search_to_python(pat: str, path: str):
-    """search_code ⇒ Python 实现（定义置顶 + 限流）。"""
-    return [sys.executable or "python", "-c", _SEARCH_PY, pat, path]
+    """search_code ⇒ Python 实现（定义置顶 + 限流）。
+
+    ★★★ R403 · **剥掉模型误带的 `def `/`class ` 前缀**。
+    现场（cl02，03:40）：模型传 `pattern="class MemoryKernel"`，
+    定义正则变成 `class class MemoryKernel` ⇒ DEFINITIONS **0 条**，
+    而原文匹配到 1 行 ⇒ 全落在 REFERENCES。模型据此认为"没有定义"，
+    转头答了一个不存在文件（memory_kernel.py）。
+
+    剥前缀后 `class MemoryKernel` ⇒ 定义 1 条 ⇒ 直接命中 memory.py。
+    """
+    p = str(pat or "").strip()
+    _m = re.match(r"^(?:def|class)\s+(.+)$", p)
+    if _m:
+        p = _m.group(1).strip()
+    # ★ 模型还会带尾巴：`class MemoryKernel:` / `def foo(` —— 尾部的
+    #   `:` `(` 会让 `\b` 边界失效（`: ` 不是词字符）⇒ 定义又判 0 条。
+    p = p.rstrip(":(").strip()
+    return [sys.executable or "python", "-c", _SEARCH_PY, p, path]
 
 
 def _find_to_python(toks: list):
@@ -698,7 +767,7 @@ def _tool_calls_to_step(tool_calls: list):
     if not isinstance(args, dict):
         args = {}
     if name == "list_dir":
-        return {"op": "run", "readonly": True,
+        return {"op": "run", "readonly": True, "_from_tool": True,
                 "cmd": ["ls", "-la", str(args.get("path") or ".")]}
     if name == "run_command":
         return {"op": "run", "cmd": _argv_of(args.get("cmd"))}
@@ -709,14 +778,14 @@ def _tool_calls_to_step(tool_calls: list):
             return None
         # ★★★ R394 · 改用 Python 实现：定义置顶 + 引用限流
         #   （grep 会把定义埋在几十行引用里 ⇒ 模型读不出答案，反复重搜）
-        return {"op": "run", "readonly": True,
+        return {"op": "run", "readonly": True, "_from_tool": True,
                 "cmd": _search_to_python(pat, path)}
     if name == "find_files":
         pat = str(args.get("pattern") or "")
         path = str(args.get("path") or ".")
         if not pat:
             return None
-        return {"op": "run", "readonly": True,
+        return {"op": "run", "readonly": True, "_from_tool": True,
                 "cmd": _find_to_python(
                     ["find", path, "-name", pat] if not args.get("ignore_case")
                     else ["find", path, "-iname", pat])}
@@ -1131,6 +1200,21 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "「文件:行号:内容」；**不要用 list_dir / ls 逐层翻目录**"
         "（现场：反复 `ls -la .` 直到复读熔断，11 轮零进展）。"
         " 找不到再放宽: 换符号名/换路径 path='.'; 找文件用 find_files。"
+        # ★★★ R400 · 现场（cl02/cl04/cl07/cl08）：模型不用 search_code，
+        #   改用 run_command 跑**自写的 python 搜索脚本** —— ①参数太长被截断
+        #   ②自己的脚本把『MemoryKernel 的定义行』归到 REFERENCES ⇒ 答不出。
+        " ★★★ **绝对不要**用 run_command 跑自写的 python/grep 搜索脚本："
+        "参数太长会被截断，而且自己写的分类逻辑常把定义误判成引用。"
+        "search_code 的输出里 **=== DEFINITIONS 段就是答案**。"
+        # ★ R400 · cl04 现场：DEFINITIONS(1) 已给出 effort.py，但后续一次
+        #   工具报错后模型**撤回了正确答案**并拒答 ⇒ 证据一旦到手就别撤回。
+        " 一旦 DEFINITIONS 段给出了文件，**直接用它作答**；"
+        "后续工具报错不代表已有证据失效，不要因此撤回正确答案。"
+        # ★ R400-d · cl08 现场：问「CLI 入口路由文件叫什么」——没有符号名，
+        #   模型反复搜不存在的符号、find TOTAL 0，最后拒答。
+        " 若问题**没有给出符号名**（如「入口/路由/配置文件叫什么」）："
+        "用 find_files(pattern='cli*') 或 search_code(pattern='ArgumentParser')"
+        " / 'add_parser' 这类**结构性特征**去定位，不要凭空猜文件名。"
         " ★ 不要在 Windows 上直接用 `find`（会命中 Windows 的 find.exe，"
         "语法不同必失败）—— 用 find_files 工具。"
         " 任务完成时立即调用 final_answer，**不要反复验证同一件事**"
@@ -1479,6 +1563,29 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         _sess({"round": rnd, "op": op,
                "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
+            # ★★★ R400-f · **零取证的"文件名断言"必须打回** ——
+            #   现场（cl02/cl08）：模型第 1 轮直接 final 猜 `memory_kernel.py`
+            #   / `task_router.py`（都不存在），引用校验打回后它撤回并拒答。
+            #   规则：答案里出现文件名 ⇒ 必须至少有一次成功取证（obs ok）。
+            #   （纯知识问答不涉及文件名 ⇒ 不受影响。）
+            if qa_mode and _r302_strikes < 2:
+                _ans0 = str(step.get("answer", ""))
+                _claims_file = bool(re.search(
+                    r"[\w\-/\\]+\.(?:py|md|json|ya?ml|toml|jsonl|txt)",
+                    _ans0))
+                _has_ev = any(isinstance(e, dict)
+                              and e.get("phase") == "obs" and e.get("ok")
+                              for e in log)
+                if _claims_file and not _has_ev:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "零取证的文件名断言（凭印象猜）"})
+                    prompt = ("任务: %s\n你在**没有做任何取证**的情况下直接"
+                              "给出了文件名 —— 这是猜测，不予采纳。\n"
+                              "先调用 search_code(pattern='<问题里的符号名>')，"
+                              "从 === DEFINITIONS 段拿到真实文件，再 final。"
+                              % task)
+                    continue
             # ★ R302 · qa 引用校验（ALCE 本地版；执行路零变）。
             #   不实⇒打回重答（走 prompt，revision 禁 final 走不通）；
             #   同任务≥2 次⇒放行（防 F 型死循环）。
@@ -1497,9 +1604,16 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _r302_strikes += 1
                     _sess({"round": rnd, "phase": "refcheck", "ok": False,
                            "why": _ref_err[:150]})
-                    prompt = ("任务: %s\n你的 final 引用不实（%s）。重答："
-                              "删掉不存在的引用，或只讲有依据的话/观点"
-                              "（观点句无需引用）。" % (task, _ref_err[:150]))
+                    # ★★★ R400-e · 现场（cl02/cl08 反复）：引用被打回后模型
+                    #   **撤回答案并拒答**（"我无法确证"），而不是去取证。
+                    #   提示词必须明确要求"先取证再答"，并给出具体动作。
+                    prompt = ("任务: %s\n你的 final 引用不实（%s）。"
+                              "**不要撤回后拒答** —— 请立即用 "
+                              "search_code(pattern='<问题里的符号名>') 取证，"
+                              "答案在返回的 === DEFINITIONS 段；"
+                              "拿到文件后再 final。"
+                              "若确实搜不到，才答「未找到」，并说明搜过什么。"
+                              % (task, _ref_err[:150]))
                     continue
             if progress:
                 progress({"ev": "final",
@@ -1633,11 +1747,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                "target": str(step.get("path") or step.get("cmd")
                              or step.get("task") or step.get("url")  # R266A
                              or step.get("query") or "")[:160],
-               "args": json.dumps({k: step.get(k) for k in
-                                     ("offset", "limit", "cmd")
-                                     if step.get(k) is not None},
-                                    ensure_ascii=False,
-                                    default=str)[:160],
+               "args": _args_snapshot(step),
                "ok": bool((obs or {}).get("ok", True)),
                "obs": json.dumps(obs, ensure_ascii=False)[:400]})
         # ★ R255 修正: obs 行进 actions_log — judge 的 recent_obs 需要结构化
@@ -1646,11 +1756,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     "target": str(step.get("path") or step.get("cmd")
                                   or step.get("task") or step.get("url")  # R266A
                                   or step.get("query") or "")[:160],
-                    "args": json.dumps({k: step.get(k) for k in
-                                          ("offset", "limit", "cmd")
-                                          if step.get(k) is not None},
-                                         ensure_ascii=False,
-                                         default=str)[:160],
+                    "args": _args_snapshot(step),
                     "ok": bool((obs or {}).get("ok", True)),
                     "obs": json.dumps(obs, ensure_ascii=False)[:300]})
         # ★ R247 复读熔断: 999 轮开放后必须有硬出口 — 连续 3 轮同

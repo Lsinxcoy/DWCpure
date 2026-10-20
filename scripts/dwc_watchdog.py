@@ -114,7 +114,25 @@ def ensure(interval: int = 20) -> dict:
     if st["alive"]:
         return dict(st, action="none")
 
-    # 清理残留 pid 文件（单例锁会拒绝启动）
+    # ★★★ R402 · **有进程就绝不拉新进程** —— 现场（2026-10-21 03:25）：
+    #   `check()` 把"心跳过期"判成"死了"，于是删掉 pid 锁再拉一个新的；
+    #   但老进程还活着 ⇒ **两个 agent 同时消费同一个收件箱**
+    #   ⇒ 同一单被跑 13 次、状态互相覆盖、报告被后跑的覆盖。
+    #   心跳过期 ≠ 进程死亡（长任务里心跳线程可能卡住）。
+    #   宁可告警"心跳过期"，也绝不允许出现第二个消费者。
+    if st.get("pids"):
+        try:
+            err = open(STDERR, "a", encoding="utf-8")
+            err.write("\n===== 心跳过期但进程仍在，拒绝重复拉起 %s · pids=%s · %s =====\n"
+                      % (time.strftime("%Y-%m-%dT%H:%M:%S"),
+                         st.get("pids"), st.get("reason")))
+            err.flush()
+            err.close()
+        except OSError:
+            pass
+        return dict(st, action="stale_heartbeat_refused")
+
+    # 到这里才是"确实没有进程" ⇒ 清理残留 pid 文件（单例锁会拒绝启动）
     for f in (PIDF, PIDF + ".lock"):
         try:
             if os.path.exists(f):

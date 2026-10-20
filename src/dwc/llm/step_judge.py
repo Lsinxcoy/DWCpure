@@ -84,6 +84,28 @@ def is_qa_task(task: str) -> bool:
     return any(q in t for q in _QA_Q) and not any(x in t for x in _QA_X)
 
 
+def _args_of(e: Any) -> Dict[str, Any]:
+    """★★★ R400 · 容错读取留痕参数。
+
+    现场：留痕里的 `args` 曾被 `json.dumps(...)[:160]` 从中间切断，
+    `json.loads` 抛 `JSONDecodeError: Unterminated string`（char 100），
+    异常冒到主循环 ⇒ 整个动作被判失败（命令其实成功了）。
+    历史数据里可能还有这种坏行 ⇒ 读侧必须容错（坏 ⇒ 空 dict，不炸）。
+    """
+    if not isinstance(e, dict):
+        return {}
+    a = e.get("args")
+    if isinstance(a, dict):
+        return a
+    if isinstance(a, str) and a.strip():
+        try:
+            v = json.loads(a)
+            return v if isinstance(v, dict) else {}
+        except Exception:                  # noqa: BLE001 — 坏留痕不阻断判别
+            return {}
+    return {}
+
+
 def _sig_args(step: Dict[str, Any]) -> str:
     """★ R301-A · 去重签名（含 args 指纹）：同 target 不同参数≠重复。
 
@@ -97,8 +119,20 @@ def _sig_args(step: Dict[str, Any]) -> str:
         # ★ 空参归一（无 offset/limit ⇔ 历史无 args 快照 ⇔ extra=""）
         extra = "" if (_o in ("", None) and _l in ("", None)) else             "o=%s|l=%s" % (_o, _l)
     elif op == "run":
-        extra = json.dumps(step.get("cmd"), ensure_ascii=False,
-                           sort_keys=True, default=str)[:160]
+        # ★★★ R400 · 优先用 `_h` 全量指纹：长命令按 160 字符截断后，
+        #   前 160 相同的两条不同命令会被误判"重复"。
+        _h = step.get("_h")
+        if _h:
+            extra = "h=%s" % _h
+        else:
+            # ★ 与 `_args_snapshot` 完全同构：同样取 (offset,limit,cmd) 打包、
+            #   同样 sort_keys ⇒ 两处指纹才会相等（否则历史与当前永不匹配）
+            _payload = {k: step.get(k) for k in ("offset", "limit", "cmd")
+                        if step.get(k) is not None}
+            extra = "h=%s" % hashlib.sha1(
+                json.dumps(_payload, ensure_ascii=False,
+                           sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()[:12]
     else:
         extra = ""
     return "%s|%s|%s" % (op, tgt[:160], extra)
@@ -178,15 +212,10 @@ def judge_step(step: Dict[str, Any],
     _me = _sig_args(step)
     same = [e for e in hist if _sig_args({
         "op": e.get("op"), "path": e.get("target"),
-        "offset": (json.loads(e.get("args") or "{}").get("offset")
-                   if isinstance(e.get("args"), str) else
-                   (e.get("args") or {}).get("offset")),
-        "limit": (json.loads(e.get("args") or "{}").get("limit")
-                  if isinstance(e.get("args"), str) else
-                  (e.get("args") or {}).get("limit")),
-        "cmd": (json.loads(e.get("args") or "{}").get("cmd")
-                if isinstance(e.get("args"), str) else
-                (e.get("args") or {}).get("cmd"))}) == _me]
+        "offset": _args_of(e).get("offset"),
+        "limit": _args_of(e).get("limit"),
+        "cmd": _args_of(e).get("cmd"),
+        "_h": _args_of(e).get("_h")}) == _me]
     if len(same) >= 2:
         return "noisy", ("同 (%s,%s) 已执行 %d 次且无新推进 — 重复"
                          % (op, tgt[:40], len(same) + 1)), "R1"

@@ -223,14 +223,36 @@ INBOX_POLL_SEC = 3.0
 
 def _log(entry: dict) -> None:
     entry["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
-    with open(LOG, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    line = json.dumps(entry, ensure_ascii=False) + "\n"
+    # ★★★ R401 · **原子追加**：`open(LOG,"a")` 是带缓冲的文本流，多线程
+    #   并发写会把一条记录撕成两半（现场 03:03:31 台账里出现
+    #   `2026-10-21T03:03:31+08:00"}` 这种半截尾巴，健康探针直接报红）。
+    #   O_APPEND + 单次 os.write（小写入）保证行不撕裂。
+    try:
+        fd = os.open(LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            data = line.encode("utf-8")
+            os.write(fd, data)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        try:
+            sys.stderr.write("写台账失败: %s: %s\n" % (type(exc).__name__, exc))
+        except Exception:                      # noqa: BLE001
+            pass
 
 
 def _heartbeat(**kw) -> None:
-    with open(HB, "w", encoding="utf-8") as fh:
-        json.dump({"ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
-                   "pid": os.getpid(), **kw}, fh, ensure_ascii=False)
+    # ★ R401 · 原子写（并发读 heartbeat 时不许读到半截 JSON）
+    obj = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+           "pid": os.getpid(), **kw}
+    try:
+        tmp = "%s.tmp.%d" % (HB, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, ensure_ascii=False)
+        os.replace(tmp, HB)
+    except OSError:
+        pass
 
 
 def _feishu_notify(text: str) -> None:
@@ -243,12 +265,78 @@ def _feishu_notify(text: str) -> None:
         _log({"event": "notify_failed", "via": "agent_rpc"})
 
 
-def _done_state() -> dict:
+def _update_done(mutate) -> dict:
+    """★★★ R401 · **持锁的读-改-写**（防丢更新）。
+
+    现场（03:12）：6 单投进去 15 分钟一条报告都没有，`dwc_inbox_done.json`
+    里连 `running:` 标记都没有 —— 因为两个任务线程各自
+    `_done_state()` → 改 → `_write_done()`，后写的把先写的**整个覆盖**，
+    先写的那条任务等于从没被登记过 ⇒ 被反复重取重跑。
+
+    原子写（os.replace）只防"读到半截"，**不防丢更新**；
+    必须让「读 → 改 → 写」整段持同一把锁。
+    """
+    with _INBOX_LOCK:
+        st = _done_state()
+        mutate(st)
+        _write_done(st)
+        return st
+
+
+def _write_done(st: dict) -> None:
+    """★★★ R401 · 状态文件**原子写**（临时文件 + os.replace）。
+
+    现场（2026-10-21 03:05）：`T_r400d1_..._cl02` 一分钟内被跑了 **13 次**，
+    报告被后一次覆盖（先 ✓ 后 ✗）。
+
+    根因：`open(INBOX_DONE,"w")` 先**截断**再写。并发的 `_done_state()`
+    正好读到"已截断但还没写完"的空/半截文件 ⇒ `json.load` 抛异常
+    ⇒ 被 `except: return {}` **静默吞掉** ⇒ 调用方看到"一条都没处理过"
+    ⇒ 所有任务都被重取重跑（这也是之前"一单重跑 52 次"的真正机制）。
+
+    `os.replace` 在同一分区上是原子的 ⇒ 读方要么看到旧内容，要么看到新内容。
+    """
     try:
-        with open(INBOX_DONE, encoding="utf-8") as fh:
-            return json.load(fh)
+        tmp = "%s.tmp.%d" % (INBOX_DONE, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(st, fh, ensure_ascii=False)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, INBOX_DONE)
+    except Exception as exc:                   # noqa: BLE001 — 写失败要可见
+        try:
+            sys.stderr.write("写 INBOX_DONE 失败: %s: %s\n"
+                             % (type(exc).__name__, exc))
+        except Exception:                      # noqa: BLE001
+            pass
+
+
+def _done_state() -> dict:
+    """读状态。★ R401 · 短暂重试：并发写时宁可等，也不许返回 {}。
+
+    返回 `{}` 的语义是"一条都没处理过"——这个默认值会让整个收件箱
+    重跑一遍，代价极高。所以解析失败先重试 3 次，仍失败才空返回
+    （并打 stderr，不许静默）。
+    """
+    last = None
+    for _ in range(3):
+        try:
+            with open(INBOX_DONE, encoding="utf-8") as fh:
+                txt = fh.read()
+            if not txt.strip():
+                last = "empty"
+                time.sleep(0.05)
+                continue
+            v = json.loads(txt)
+            return v if isinstance(v, dict) else {}
+        except Exception as exc:               # noqa: BLE001
+            last = "%s: %s" % (type(exc).__name__, exc)
+            time.sleep(0.05)
+    try:
+        sys.stderr.write("读 INBOX_DONE 失败（返回空）: %s\n" % last)
     except Exception:                          # noqa: BLE001
-        return {}
+        pass
+    return {}
 
 
 #: ★★★ R398 · 同一单最多被"重取"几次（stale 恢复）。
@@ -322,14 +410,12 @@ def _take_inbox_locked():
                 _n = _bump_attempt(tid)
                 if _n > MAX_REPICK:
                     st[tid] = "failed:too_many_attempts"
-                    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
-                        json.dump(st, fh, ensure_ascii=False)
+                    _write_done(st)
                     _log({"event": "inbox_attempt_cap", "id": tid,
                           "attempts": _n})
                     continue
                 st[tid] = "stale_recovered"
-                with open(INBOX_DONE, "w", encoding="utf-8") as fh:  # 留痕落盘
-                    json.dump(st, fh, ensure_ascii=False)
+                _write_done(st)          # 留痕落盘（★ R401 原子写）
             elif v:
                 continue
             return {**item, "id": tid}
@@ -444,10 +530,9 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     # ★ 收件箱任务总是自带 LLM 通道（config/llm.json 自读）—— 不依赖
     #   --llm 启动参数（watchdog 无参拉活的 agent 同样能接单）
     llm = llm or LLMClient()          # ★ llm 注入（测试可测性 — 依赖注入）
-    _st = _done_state()               # ★ R219: 执行中标记（异步期间防重取）
-    _st[item["id"]] = "running:%.0f" % time.time()
-    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
-        json.dump(_st, fh, ensure_ascii=False)
+    # ★★★ R401 · 持锁读-改-写（两个任务线程并发时，后写的会覆盖先写的）
+    _update_done(lambda s: s.__setitem__(
+        item["id"], "running:%.0f" % time.time()))
     # ★★★ R398 · **执行期间刷新 running 标记**（每 60s）。
     #   现场：一单 analyze 跑 45 分钟，标记停在起始时刻 ⇒ 15 分钟后
     #   被 `take_inbox()` 判 stale ⇒ 重取 ⇒ 同一单被重跑 52 次。
@@ -457,10 +542,10 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     def _hb_refresh():
         while not _hb_stop.wait(60):
             try:
-                s = _done_state()
-                s[item["id"]] = "running:%.0f" % time.time()
-                with open(INBOX_DONE, "w", encoding="utf-8") as fh:
-                    json.dump(s, fh, ensure_ascii=False)
+                if _hb_stop.is_set():   # 终态已写就别覆盖
+                    break
+                _update_done(lambda s: s.__setitem__(
+                    item["id"], "running:%.0f" % time.time()))
             except Exception:          # noqa: BLE001 — 心跳失败不影响执行
                 pass
 
@@ -492,11 +577,13 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     with open(os.path.join(REPORTS, item["id"] + ".json"), "w",
               encoding="utf-8") as fh:
         json.dump(rep, fh, ensure_ascii=False, indent=1)
-    st = _done_state()
-    st[item["id"]] = rep["status"]
-    _hb_stop.set()                    # ★ R398 · 先停心跳，再写终态（防覆盖）
-    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
-        json.dump(st, fh, ensure_ascii=False)
+    # ★★★ R400-c · **持锁写终态** —— 现场（02:32）：报告已落盘，但
+    #   `dwc_inbox_done.json` 里仍是 `running:<ts>`。原因是心跳线程
+    #   在一次迭代中已读完旧状态，主路径写 done 之后它才写回 running
+    #   ⇒ 终态被覆盖 ⇒ 这一单 15 分钟后又被当成 stale 重取。
+    # ★★★ R401 · 终态写入也必须持锁读-改-写
+    #   （现场：报告已落盘但状态仍是 running ⇒ 15 分钟后被判 stale 重跑）
+    _update_done(lambda s: s.__setitem__(item["id"], rep["status"]))
     # ★ R231 接线: 任务结果回写预测器（视图层 — 台账族; 树族读树不写）
     try:
         from dwc.organs.predictor import OutcomePredictor
@@ -728,6 +815,21 @@ def _dispatch_inbox(item: dict, use_llm: bool) -> None:
                result="async_started")
 
 
+def _is_singleton_holder() -> bool:
+    """★★★ R402 · 本进程是不是 pid 文件登记的那个 agent？
+
+    只让"登记在册"的进程消费收件箱。多进程同时消费会让同一单被跑
+    多次（现场 13 次），且状态互相覆盖。
+    """
+    try:
+        with open(PID, encoding="utf-8") as fh:
+            return fh.read().strip() == str(os.getpid())
+    except OSError:
+        # pid 文件读不到 ⇒ 不阻止（宁可跑，也不要静默停摆）；
+        # 真正的双开会由 acquire_singleton 挡住。
+        return True
+
+
 def start_inbox_poller(interval: float = INBOX_POLL_SEC,
                        stop_event=None, use_llm: bool = True):
     """★★★ R382 · 独立的收件箱轮询线程（秒级，不等 term 间隙）。
@@ -747,6 +849,14 @@ def start_inbox_poller(interval: float = INBOX_POLL_SEC,
 
     def _loop():
         while not stop_event.is_set():
+            # ★★★ R402 · **单例硬闸**：只有 pid 文件登记的那个进程才许取单。
+            #   现场（03:29）：一个 agent 被拉起后，它自己又用另一个解释器
+            #   起了个同名子进程；`acquire_singleton` 没拦住（子进程先写了
+            #   pid 文件）⇒ 两个消费者抢同一个收件箱 ⇒ 同一单跑 13 次。
+            #   这条闸不依赖锁实现细节：pid 文件写谁，谁干活，其余只待命。
+            if not _is_singleton_holder():
+                stop_event.wait(interval)
+                continue
             try:
                 item = take_inbox()      # 内部已持 _INBOX_LOCK
             except Exception as exc:     # noqa: BLE001 — 轮询不许死
