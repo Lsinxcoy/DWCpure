@@ -69,6 +69,9 @@ ENV_BASE = "DWC_LLM_BASE_URL"
 ENV_KEY = "DWC_LLM_API_KEY"
 ENV_MODEL = "DWC_LLM_MODEL"
 ENV_TIMEOUT = "DWC_LLM_TIMEOUT"
+#: ★ R377 · 推理预算（真修「任务未完成」：推理模型会把 max_tokens 吃光）
+ENV_MAX_TOKENS = "DWC_LLM_MAX_TOKENS"
+ENV_REASONING_EFFORT = "DWC_LLM_REASONING_EFFORT"
 
 
 def _load_file_config() -> Dict[str, str]:
@@ -97,8 +100,13 @@ def _load_file_config() -> Dict[str, str]:
     if not isinstance(data, dict):
         return {}
     # ★ 白名单取键（多余键不认 —— 避免把别的东西当配置）
+    # ★★★ R377 · 白名单必须包含新增键，否则**静默丢弃**（本次事故：
+    #   config 里写了 max_tokens/reasoning_effort 却完全不生效，排障时
+    #   看到的是「配了没用」而不是「没配」—— 最坏的一种静默）。
+    _KEYS = ("base_url", "api_key", "model", "timeout",
+             "max_tokens", "reasoning_effort")
     return {k: str(data[k]).strip()
-            for k in ("base_url", "api_key", "model", "timeout")
+            for k in _KEYS
             if str(data.get(k, "")).strip()}
 
 
@@ -140,7 +148,9 @@ class LLMClient:
                  api_key: Optional[str] = None,
                  model: Optional[str] = None,
                  timeout: Optional[float] = None,
-                 probe: bool = False):
+                 probe: bool = False,
+                 max_tokens: Optional[int] = None,
+                 reasoning_effort: Optional[str] = None):
         # ★★★ R36: timeout 默认必须是 **None**（不是 30.0）
         #   否则"不传参数"= 传了 30 ⇒ env/config 文件永远被盖住
         #   ⇒⇒ 而 docstring 说「参数 > env > 文件」⇒ 又一处不对齐
@@ -197,6 +207,38 @@ class LLMClient:
                 _src["timeout"] = "factory"
         except ValueError:
             self.timeout = float(timeout)
+        # ★★★ R377 · 推理预算（与 timeout 同口径: 显式 > env > 文件 > 工厂）
+        #   为什么默认从 1600 提到 4096: 实测失败任务推理 5500+ 字，
+        #   1600 token 预算被推理吃光 ⇒ content 一个字都没写 ⇒ finish=length。
+        #   推理长度不受 max_tokens 约束（端点把 reasoning 计入 total），
+        #   所以预算必须留足「推理 + 正文」两部分。
+        try:
+            if max_tokens is not None:
+                self.max_tokens = int(max_tokens)
+                _src["max_tokens"] = "explicit"
+            elif os.environ.get(ENV_MAX_TOKENS, ""):
+                self.max_tokens = int(os.environ.get(ENV_MAX_TOKENS, ""))
+                _src["max_tokens"] = "env"
+            elif _fc.get("max_tokens", ""):
+                self.max_tokens = int(_fc.get("max_tokens", ""))
+                _src["max_tokens"] = "file"
+            else:
+                self.max_tokens = 4096
+                _src["max_tokens"] = "factory"
+        except (ValueError, TypeError):
+            self.max_tokens = 4096
+            _src["max_tokens"] = "factory"
+        #: ★ 推理强度（`none`/`low`/`minimal`...）。**未配就不发** ——
+        #:   不猜端点支持什么（对不支持的端点发无效字段会 400）。
+        _re = (reasoning_effort if reasoning_effort is not None
+               else (os.environ.get(ENV_REASONING_EFFORT, "")
+                     or _fc.get("reasoning_effort", "")))
+        self.reasoning_effort = str(_re or "").strip()
+        if self.reasoning_effort:
+            _src["reasoning_effort"] = (
+                "explicit" if reasoning_effort is not None
+                else ("env" if os.environ.get(ENV_REASONING_EFFORT, "")
+                      else "file"))
         #: ★★ 三态分开（纪律③）: configured 是**静态**的
         self.configured = bool(self._base and self._key and self._model)
         self._probe = probe
@@ -280,7 +322,7 @@ class LLMClient:
     # ── 调用 ──────────────────────────────────────────
 
     def complete(self, prompt: str, *, system: Optional[str] = None,
-                 max_tokens: int = 1200, json_mode: bool = False,
+                 max_tokens: Optional[int] = None, json_mode: bool = False,
                  images: Optional[List[str]] = None) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
@@ -292,6 +334,11 @@ class LLMClient:
         if not self.configured:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
+
+        # ★ R377 · 未显式传 ⇒ 用实例配置（env/文件/工厂），不再写死 1200
+        #   ★ getattr 兜底: 旧夹具用 __new__ 绕过 __init__（没有该属性）
+        if max_tokens is None:
+            max_tokens = getattr(self, "max_tokens", 1200)
 
         # ★ R226 · 多模态: images=[文件路径] ⇒ OpenAI content 数组形态
         #   （text + image_url data URI）; 端点不支持会 4xx ⇒ 走失败分支
@@ -325,6 +372,9 @@ class LLMClient:
         }
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        # ★ R377 · 推理强度（配了才发；未配不猜端点支持什么）
+        if getattr(self, "reasoning_effort", ""):
+            body["reasoning_effort"] = self.reasoning_effort
 
         self.n_calls += 1
         if not hasattr(self, "_attempts"):
@@ -385,22 +435,20 @@ class LLMClient:
                                    "n_retry_used": self._attempts})
         try:
             data = json.loads(raw)
-            # ★ opencode reasoning models: content may be null when max_tokens eaten by reasoning;
-            # prefer content, then reasoning_content; if content null but reasoning present, keep both
+            # ★★★ R376 · 推理模型的 `content` 空**不是**「可以拿 reasoning
+            #   顶替答案」的信号 —— 那是 max_tokens 被推理吃光（实测
+            #   max_tokens=300 ⇒ content_len=0 / finish_reason="length"）。
+            #   旧代码用 reasoning_content 顶替并返回 ok=True ⇒ 下游
+            #   `_extract_json` 拿到英文推理散文 ⇒ 报「响应非 JSON」⇒
+            #   用户看到「任务未完成」，而真正的失败原因（token 耗尽）
+            #   被彻底掩盖。**降级与成功必须可区分**（本项目纪律）。
             msg = data["choices"][0]["message"]
+            ch0 = data["choices"][0]
+            finish = ch0.get("finish_reason")
             text = msg.get("content")
-            if not isinstance(text, str) or not text.strip():
-                rc = msg.get("reasoning_content")
-                if isinstance(rc, str) and rc.strip():
-                    # use reasoning as answer last-resort (stop reason "stop")
-                    text = rc
-            if not isinstance(text, str) or not text.strip():
-                # ★ R327 · opencode-go/MiMo 后端键名是 reasoning（实测：
-                #   content 空串＋reasoning 5891 字＋finish length）——
-                #   两键都认，content 优先；都没有才判空（纪律不变）。
-                rs = msg.get("reasoning")
-                if isinstance(rs, str) and rs.strip():
-                    text = rs
+            # R327 兼容: opencode/MiMo 用 `reasoning` 键名。两键都认，
+            # 但**只用于诊断**，绝不顶替正文。
+            rc = msg.get("reasoning_content") or msg.get("reasoning") or ""
         except Exception as e:
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
@@ -408,17 +456,30 @@ class LLMClient:
                              meta={"kind": "parse"})
         if not isinstance(text, str) or not text.strip():
             self.n_fail += 1
+            if isinstance(rc, str) and rc.strip():
+                # 推理吃光 token ⇒ 如实报「只有推理，没有正文」，不冒充答案
+                return LLMResult(
+                    ok=False, source="error",
+                    error=("模型只产出推理、没有正文（finish_reason=%s，"
+                           "推理 %d 字）— 多半是 max_tokens 被推理吃光，"
+                           "请调大 max_tokens 或换非推理模型"
+                           % (finish, len(rc))),
+                    meta={"kind": "reasoning_only",
+                          "finish_reason": finish,
+                          "reasoning_chars": len(rc),
+                          "content_chars": 0})
             return LLMResult(ok=False, source="error",
                              error="返回内容为空（不许静默当成功）",
-                             meta={"kind": "empty"})
+                             meta={"kind": "empty", "finish_reason": finish})
         self.n_ok += 1
         self._attempts = 0      # ★ 成功后归零（下次调用从头数）
         return LLMResult(ok=True, text=text, source="llm",
                          meta={"model": self._model,   # ★ model 名可记
-                               "n_chars": len(text)})
+                               "n_chars": len(text),
+                               "finish_reason": finish})
 
     def complete_stream(self, prompt: str, *, system=None,
-                        max_tokens: int = 1200, json_mode: bool = False,
+                        max_tokens: Optional[int] = None, json_mode: bool = False,
                         images=None, on_delta=None) -> LLMResult:
         """★ token 级流式补全（R237）: SSE 逐 delta 回调 on_delta(text)。
 
@@ -430,6 +491,9 @@ class LLMClient:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
         import copy as _copy
+        # ★ R377 · 未显式传 ⇒ 用实例配置（与 complete 同口径）
+        if max_tokens is None:
+            max_tokens = getattr(self, "max_tokens", 1200)
         # 复用 complete 的 body 构造 — 从一次完整请求拷一份（避免双实现漂移）
         # 快法: 先打一个不读流的探测——直接构造同款请求加 stream:True
         user_content: Any = prompt
@@ -462,6 +526,9 @@ class LLMClient:
         }
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        # ★ R377 · 推理强度（与 complete 同口径）
+        if getattr(self, "reasoning_effort", ""):
+            body["reasoning_effort"] = self.reasoning_effort
         self.n_calls += 1
         url = self._base.rstrip("/") + "/chat/completions"
         if not getattr(self, "_session_id", None):
@@ -475,6 +542,8 @@ class LLMClient:
                      "x-opencode-session": self._session_id},
             method="POST")
         chunks: List[str] = []
+        rc_chunks: List[str] = []
+        finish = [None]
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 ctype = (resp.headers.get("Content-Type") or "").lower()
@@ -488,18 +557,28 @@ class LLMClient:
                     if payload == "[DONE]":
                         break
                     try:
-                        delta = json.loads(payload)["choices"][0] \
-                            .get("delta", {})
+                        ch = json.loads(payload)["choices"][0]
+                        delta = ch.get("delta", {}) or {}
+                        if ch.get("finish_reason"):
+                            finish[0] = ch["finish_reason"]
                     except (ValueError, KeyError, IndexError):
                         continue                # 单帧坏不炸流
+                    # ★★★ R376 · 推理 delta 绝不拼进正文 —— 旧代码
+                    #   `if not piece: piece = delta.get("reasoning_content")`
+                    #   把推理当正文推给 on_delta，下游拼出的 text 是英文
+                    #   散文（用户看到「任务未完成」的真因）。
                     piece = delta.get("content")
                     if not piece:
-                        piece = delta.get("reasoning_content")
-                    if piece:
-                        chunks.append(piece)
-                        if on_delta:
-                            on_delta(piece)
+                        rc_piece = (delta.get("reasoning_content")
+                                    or delta.get("reasoning"))
+                        if rc_piece:
+                            rc_chunks.append(rc_piece)
+                        continue
+                    chunks.append(piece)
+                    if on_delta:
+                        on_delta(piece)
             text = "".join(chunks)
+            reasoning = "".join(rc_chunks)
         except Exception as e:                  # noqa: BLE001 — 流失败回退整段
             if self.retries > 0 and getattr(self, "_stream_fb", False) is False:
                 self._stream_fb = True
@@ -520,13 +599,28 @@ class LLMClient:
             self._stream_fb = False
         if not text.strip():
             self.n_fail += 1
+            if reasoning.strip():
+                # ★ R376 · 只有推理没有正文 ⇒ 如实报，不冒充答案
+                return LLMResult(
+                    ok=False, source="error",
+                    error=("模型只产出推理、没有正文（finish_reason=%s，"
+                           "推理 %d 字）— 多半是 max_tokens 被推理吃光，"
+                           "请调大 max_tokens 或换非推理模型"
+                           % (finish[0], len(reasoning))),
+                    meta={"kind": "reasoning_only",
+                          "finish_reason": finish[0],
+                          "reasoning_chars": len(reasoning),
+                          "content_chars": 0,
+                          "streamed": True})
             return LLMResult(ok=False, source="error",
-                             error="流式返回内容为空", meta={"kind": "empty"})
+                             error="流式返回内容为空",
+                             meta={"kind": "empty", "finish_reason": finish[0]})
         self.n_ok += 1
         return LLMResult(ok=True, text=text, source="llm",
                          meta={"model": self._model, "streamed": True,
                                "n_chars": len(text),
-                               "n_chunks": len(chunks)})
+                               "n_chunks": len(chunks),
+                               "finish_reason": finish[0]})
 
     def stats(self) -> Dict[str, Any]:
         """★ 调用账本（不含量任何凭证）。"""

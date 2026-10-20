@@ -2,6 +2,10 @@
   "_comment": "复制为 config/llm.json 后填入真实值。该文件已被 .gitignore 排除，禁止提交真实 key。",
   "base_url": "https://api.example.com/v1",
   "model": "your-model-name",
-  "api_key": "sk-REPLACE_ME",
-  "timeout": 120
+  "api_key": "sk-your-key-here",
+  "timeout": 120,
+  "max_tokens": 4096,
+  "_max_tokens_note": "推理模型会把预算吃光（实测推理 5500+ 字 / 1600 token ⇒ content 为空）。默认 4096 留足「推理 + 正文」。",
+  "reasoning_effort": "none",
+  "_reasoning_effort_note": "可选。none/low/minimal 压制推理（实测 deepseek-v4.1-flash 支持）。端点不支持就删掉这行 —— 未配则不发该字段。"
 }
