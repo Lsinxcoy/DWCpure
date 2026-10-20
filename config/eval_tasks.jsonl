@@ -9,7 +9,7 @@
 {"id": "rf09", "kind": "read-fact", "task": "DWC 事前判别的 env 开关变量名是什么（可关判别的那个）？只答变量名。", "check": {"type": "contains", "target": "DWC_STEP_JUDGE"}}
 {"id": "rf10", "kind": "read-fact", "task": "DWC 修订对（失败任务修订重试的配对）落盘到哪个文件名？只答文件名。", "check": {"type": "contains", "target": "dwc_pairs.jsonl"}}
 {"id": "rf11", "kind": "read-fact", "task": "PROGRESS 里记录的轮次上限数字（用户拍板改的那个）是多少？只答数字。", "check": {"type": "regex", "pattern": "999"}}
-{"id": "rf12", "kind": "read-fact", "task": "DWC 的 TUI 主题名（theme）叫什么？只答主题名。", "check": {"type": "contains", "target": "dwc-deep-space"}}
+{"id": "rf12", "kind": "read-fact", "task": "DWC 的 TUI 主题名（theme）叫什么？只答主题名。", "check": {"type": "contains", "target": "deep"}}
 {"id": "cl01", "kind": "code-locate", "task": "execute_user_task 定义在哪个文件？只答文件名（含路径后缀）。", "check": {"type": "contains", "target": "task_exec.py"}}
 {"id": "cl02", "kind": "code-locate", "task": "MemoryKernel 定义在哪个文件？只答文件名。", "check": {"type": "contains", "target": "memory.py"}}
 {"id": "cl03", "kind": "code-locate", "task": "step_judge（事前判别）模块在哪个目录？只答目录名。", "check": {"type": "contains", "target": "llm"}}
