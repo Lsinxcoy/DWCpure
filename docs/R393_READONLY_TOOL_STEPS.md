@@ -9,8 +9,8 @@ R393 · 修 R391 的回归：工具层只读命令被 R5 全拦
 
 agent 其实**调了工具**，但每个动作都被 R5 拦掉，最后只能瞎猜：
 
-    cl01 答 "定义在 src/dwc/harness/task_router.py"   ← 错（真在 task_exec.py）
-    cl02 答 "src/dwc/foundation/memory_kernel.py"     ← 对，但靠猜
+    cl01 答 "定义在 src/dwc/harness/一个不存在的路由文件名（不存在）"   ← 错（真在 task_exec.py）
+    cl02 答 "src/dwc/foundation/一个不存在的内核文件名"     ← 对，但靠猜
 
 ════════════════════════════════════════════════════════════
 二、根因：R391 的 find→python 转换与 R386 白名单冲突

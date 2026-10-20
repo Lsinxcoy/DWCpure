@@ -5,7 +5,7 @@
   真实通过率 2/10，8 单失败中 **7 单的 `why` 内容是答案本身**：
     nb_..._03  why = 'prev_node_id'          ← 正是要的答案
     nb_..._05  why = 'dwc_pairs.jsonl'       ← 正是要的答案
-    nb_..._09  why = 'memory_kernel.py'      ← 正是要的答案
+    nb_..._09  why = '一个不存在的内核文件名'      ← 正是要的答案
     nb_..._10  why = 'foundation'            ← 正是要的答案
   ⇒ 模型**答对了**，只是输出纯文本而不是 `{"op":"final","answer":...}`，
     被 `task_exec` 判 `incomplete`。
@@ -105,11 +105,11 @@ def test_plain_text_answer_keeps_raw_for_audit(work):
 
 def test_plain_text_multiline_answer(work):
     """★ 多行纯文本也要收（模型常给带解释的答案）。"""
-    txt = "memory_kernel.py\n\n这是记忆内核的实现文件。"
+    txt = "一个不存在的内核文件名\n\n这是记忆内核的实现文件。"
     llm = _FakeLLM([txt])
     rep = T.execute_user_task("记忆内核在哪个文件？", llm=llm, task_id="t_multi")
     assert rep["status"] == "done"
-    assert "memory_kernel.py" in str(rep.get("answer") or "")
+    assert "一个不存在的内核文件名" in str(rep.get("answer") or "")
 
 
 # ─────────────────────── ② 不能把垃圾当答案

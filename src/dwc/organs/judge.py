@@ -131,7 +131,7 @@ SPLIT_TEST = "test"      # 锁定集，metric 演化不许读
 SPLIT_TRAIN = "train"    # 无标签大集合  ★ 当前不存在（诚实边界④）
 #: ★ R330/N2 · fresh 独立验证面（Eq.8 V_k 专用 —— DWC 自有第 4 面，
 #:   非论文三元组：TRUTH_SOURCE 三元不动；与 dev/sealed 零交集由
-#:   tests/test_a1b_fresh.py 静态锁，不在 _load 里跨文件校验）
+#:   R134 静态锁用例，不在 _load 里跨文件校验）
 SPLIT_FRESH = "fresh"
 
 

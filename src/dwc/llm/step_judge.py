@@ -313,7 +313,7 @@ def verify_final_refs(answer: str,
     lived: List[str] = []
     for t in pats:
         t = t.strip()
-        # ★ \w 含汉字（"见 src/a.py"整体命中）⇒ 从首个 ASCII 路径字符切起
+        # ★ \w 含汉字（"见 <路径>"整体命中）⇒ 从首个 ASCII 路径字符切起
         m = re.search(r"[A-Za-z0-9_./\\]", t)
         t = t[m.start():] if m else ""
         if not t or "http" in t:

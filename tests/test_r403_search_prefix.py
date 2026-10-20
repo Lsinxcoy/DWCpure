@@ -11,7 +11,7 @@
         src\\dwc\\organs\\memory.py:223:class MemoryKernel:
 
     定义明明就在输出里，却不在 DEFINITIONS 段 ⇒ 模型判断"没有定义"
-    ⇒ 转头答了不存在的 `memory_kernel.py`。
+    ⇒ 转头答了不存在的 `一个不存在的内核文件名`。
 
 ★ 修法：入口处剥掉 `def `/`class ` 前缀再检索。
 """

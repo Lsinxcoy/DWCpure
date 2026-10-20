@@ -8,8 +8,8 @@
 
   agent 其实调了工具，但**每个动作都被 R5 拦掉**，最后只能瞎猜：
 
-      cl01 答 "定义在 src/dwc/harness/task_router.py"（错，真在 task_exec.py）
-      cl02 答 "src/dwc/foundation/memory_kernel.py"（对，但靠猜）
+      cl01 答 "定义在 src/dwc/harness/一个不存在的路由文件名"（错，真在 task_exec.py）
+      cl02 答 "src/dwc/foundation/一个不存在的内核文件名"（对，但靠猜）
 
 ★ 根因（R391 的回归）：`find` 转成 `python -c <os.walk 脚本>` 后，
   首 token 是 `python.exe` —— **不在 `READONLY_CMDS` 白名单**

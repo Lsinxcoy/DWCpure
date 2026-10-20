@@ -319,9 +319,21 @@ class WorldModel:
         d = os.path.dirname(self.tracked_path)
         if d:
             os.makedirs(d, exist_ok=True)
-        with io.open(self.tracked_path, "w", encoding="utf-8") as f:
+        # ★★★ R406 · **原子写** —— 现场（2026-10-21 05:00）：agent 启动即崩，
+        #   `world_candidates.json`（2.5MB / 13.5 万行）在第 54392 行坏掉。
+        #   原因同上：`io.open(path,"w")` 先截断再写，进程在这中间死掉/被杀
+        #   ⇒ 文件永久损坏 ⇒ 下次启动 `WorldModelError` 直接拒启。
+        #   临时文件 + fsync + os.replace：要么旧文件，要么新文件，不存在半截。
+        tmp = "%s.tmp.%d" % (self.tracked_path, os.getpid())
+        with io.open(tmp, "w", encoding="utf-8") as f:
             json.dump({"tracked": self.tracked}, f, ensure_ascii=False,
                       indent=1)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        os.replace(tmp, self.tracked_path)
 
     # ── Z5: merge 三条件 + 发生率（Appendix D.1 逐字）─────────────
     def merge(self, tree_id: str, a_id: str, b_id: str) -> Dict[str, Any]:

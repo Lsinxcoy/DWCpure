@@ -3,10 +3,10 @@
 
 ★★★ 现场（2026-10-21 02:40~02:50，同一任务 cl02 三次结果不同）：
     第 1 次 ✓（memory.py）
-    第 2 次 ✗（memory_kernel.py —— 这个文件根本不存在）
-    第 3 次 ✗（先答 memory_kernel.py，被引用校验打回后**撤回并拒答**）
+    第 2 次 ✗（猜了一个不存在的文件名 —— zzz_no_such_file_a.py）
+    第 3 次 ✗（先答那个假文件名，被引用校验打回后**撤回并拒答**）
 
-cl08 同款：直接答 `task_router.py`（不存在）。
+cl08 同款：直接答 `zzz_no_such_file_b.py`（不存在）。
 
 ★ 根因：模型**跳过取证**，凭"看起来像"的印象先给一个文件名；
   引用校验（R302）发现路径不存在 ⇒ 打回；模型不重试取证，而是撤回拒答。
@@ -59,7 +59,7 @@ def test_guess_without_evidence_is_rejected():
     """★★★ 零取证 + 给文件名 ⇒ 打回（prompt 要求先 search_code）。"""
     llm = _Script([
         {"analysis": "我记得", "op": "final",
-         "answer": "MemoryKernel 定义在 src/dwc/foundation/memory_kernel.py"},
+         "answer": "MemoryKernel 定义在 src/dwc/foundation/zzz_no_such_file_a.py"},
         {"analysis": "查", "op": "read", "path": "src/dwc/organs/memory.py"},
         {"analysis": "答", "op": "final",
          "answer": "MemoryKernel 定义在 src/dwc/organs/memory.py 第 223 行"},

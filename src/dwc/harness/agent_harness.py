@@ -34,7 +34,7 @@ from dwc.organs.hook import HOOKS, HookRegistry
 
 
 # ══════════════════════════════════════════════════════════════════
-# 1. Policy —— 可进化的策略面（Phase D 会把它移到 organs/policy.py）
+# 1. Policy —— 可进化的策略面（Phase D 会把它移到 organs 下的 policy 模块）
 # ══════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)

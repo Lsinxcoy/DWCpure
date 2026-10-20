@@ -50,7 +50,7 @@ R378–R380 · 拿真实通过率 + 修跑批三处假通过/假失败
 
 【R380 · 纯文本答案被判死】7/8 失败的真因
   取证：8 单失败的 `why` 里有 7 单**就是答案本身**：
-    `prev_node_id` / `dwc_pairs.jsonl` / `memory_kernel.py` / `foundation`
+    `prev_node_id` / `dwc_pairs.jsonl` / `一个不存在的内核文件名` / `foundation`
   ⇒ 模型答对了，只是输出纯文本而非 `{"op":"final","answer":...}`。
   成因：`reasoning_effort="none"`（R377 为修"推理吃光 token"而加）
   压制推理后，模型不再"先想格式再答"。
@@ -78,7 +78,7 @@ R378–R380 · 拿真实通过率 + 修跑批三处假通过/假失败
   cl03 答 `scheduler.py`         判据要 `llm`            ← 答错文件
   cl06 答 `evolver.py`           判据要 `revision.py`    ← 答错文件
   cl07 答 `cli.py`               判据要 `cli_main.py`    ← 近似但不等
-  cl09 答 `task_router.py`       判据要 `agent_quality.py`← 答错文件
+  cl09 答 `一个不存在的路由文件名（不存在）`       判据要 `agent_quality.py`← 答错文件
   cl10 给了整段 bash 计划         判据要 `run-verify` 真跑 ← 没真跑
 
 ⇒ 这是**能力问题，不是判据问题**：模型在 code-locate 类任务上

@@ -29,7 +29,7 @@ def _code_root(start=None) -> str:
                 pass
             return d
         d = os.path.dirname(d)
-    # ★ 回退：仓库本地布局（root/scripts/xxx.py）—— cron 拷贝必有指针，走不到这。
+    # ★ 回退：仓库本地布局（<repo>/scripts/<脚本名>）—— cron 拷贝必有指针，走不到这。
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

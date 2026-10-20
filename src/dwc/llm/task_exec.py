@@ -574,7 +574,7 @@ _TOOL_TO_OP = {
 _FIND_PY = (
     "import os,sys,fnmatch\n"
     "root=sys.argv[1]; pat=sys.argv[2]; ic=sys.argv[3]=='1'\n"
-    "skip={'.git','var','archive','node_modules','__pycache__','.venv'}\n"
+    "skip={'.git','.cache','var','archive','node_modules','__pycache__','.venv','venv','build','dist'}\n"
     "n=0\n"
     "for d,ds,fs in os.walk(root):\n"
     "    ds[:]=[x for x in ds if x not in skip]\n"
@@ -595,7 +595,7 @@ _FIND_PY = (
 _SEARCH_PY = (
     "import os,sys,re\n"
     "pat=sys.argv[1]; root=sys.argv[2]\n"
-    "skip={'.git','var','archive','node_modules','__pycache__','.venv'}\n"
+    "skip={'.git','.cache','var','archive','node_modules','__pycache__','.venv','venv','build','dist'}\n"
     "rx_def=re.compile(r'^\\s*(?:async\\s+)?(?:def|class)\\s+'+re.escape(pat)+r'\\b')\n"
     "rx=re.compile(re.escape(pat))\n"
     "defs=[]; refs=[]\n"
@@ -623,7 +623,7 @@ def _search_to_python(pat: str, path: str):
     现场（cl02，03:40）：模型传 `pattern="class MemoryKernel"`，
     定义正则变成 `class class MemoryKernel` ⇒ DEFINITIONS **0 条**，
     而原文匹配到 1 行 ⇒ 全落在 REFERENCES。模型据此认为"没有定义"，
-    转头答了一个不存在文件（memory_kernel.py）。
+    转头答了一个不存在的文件名。
 
     剥前缀后 `class MemoryKernel` ⇒ 定义 1 条 ⇒ 直接命中 memory.py。
     """
@@ -975,10 +975,16 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
         # ★ R302补5 · qa 下修订只许 read（通用模板劝 run⇒qa 必驳回，
         #   T_R302Z 现场 10 轮驳回耗尽轮数。约束前移到产出端）。
         % (task,
+           # ★★★ R405 · `default=str` 必须加 —— `step` 里带 `_confirmed`
+           #   （set 类型，人工授权词集合），裸 `json.dumps` 必抛
+           #   `TypeError: Object of type set is not JSON serializable`。
+           #   现场（rv07）：模型执行 gate.py 被拦成噪声 → 构造重写提示时炸
+           #   → 模型看到"命令失败"→ 放弃 → 判 ✗。
            json.dumps({k: v for k, v in step.items()
-                       if k != "analysis"}, ensure_ascii=False)[:400],
+                       if k != "analysis"}, ensure_ascii=False,
+                      default=str)[:400],
            why[:200],
-           json.dumps(recent[-3:], ensure_ascii=False)[:900])
+           json.dumps(recent[-3:], ensure_ascii=False, default=str)[:900])
         + ("问答任务只许取证：op 只能是 read（给 path），不要 final。"
            "只输出 JSON: {\"analysis\": \"…\", \"op\": \"read\", "
            "\"path\": \"…\"}" if qa_mode else
@@ -1404,7 +1410,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             # ★★★ R380 · 纯文本答案**不许判死**。
             #   现场（2026-10-20 09:40 跑批）：8 单失败里 7 单的 `why`
             #   就是答案本身（`prev_node_id` / `dwc_pairs.jsonl` /
-            #   `memory_kernel.py`）—— 模型答对了，只是输出纯文本而不是
+            #   那个不存在的文件名）—— 模型答对了，只是输出纯文本而不是
             #   `{"op":"final","answer":...}`，被这里判死。
             #   成因：`reasoning_effort="none"`（R377 为修「推理吃光
             #   token」而加）压制推理后，模型不再"先想格式再答"。
@@ -1564,8 +1570,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
             # ★★★ R400-f · **零取证的"文件名断言"必须打回** ——
-            #   现场（cl02/cl08）：模型第 1 轮直接 final 猜 `memory_kernel.py`
-            #   / `task_router.py`（都不存在），引用校验打回后它撤回并拒答。
+            #   现场（cl02/cl08）：模型第 1 轮直接 final 猜了一个**不存在的文件名**，
+            #   引用校验打回后它撤回并拒答。
             #   规则：答案里出现文件名 ⇒ 必须至少有一次成功取证（obs ok）。
             #   （纯知识问答不涉及文件名 ⇒ 不受影响。）
             if qa_mode and _r302_strikes < 2:
