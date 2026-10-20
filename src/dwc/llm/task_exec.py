@@ -401,6 +401,52 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                         "web_read/web_search/mcp/delegate/ask/final）" % op)
 
 
+#: ★★★ R383 · 「声称执行了动作」的模式。
+#:   现场（2026-10-20 全池）：模型零动作却在 answer 里写「已写入 xxx」
+#:   「文件创建成功」「已执行命令,退出码 0」—— 全是幻觉。
+#:   注意必须用正则：真实文本是「已**在** `note.txt` **写入**」——
+#:   动词被路径隔开，纯子串「已写入」匹配不到（已踩）。
+_ACTION_CLAIM_RE = re.compile(
+    r"(?:已|成功)[^。\n]{0,40}?(?:写入|创建|保存|生成|修改|删除|追加|执行|运行|提交)"
+    r"|(?:写入|创建|保存|执行|运行)成功"
+    r"|(?:written|created|saved|executed)\b",
+    re.IGNORECASE)
+
+#: ★★★ R383 · 「明确拒绝执行」的模式（这类文本不是答案）。
+_REFUSAL_RE = re.compile(
+    r"我无法(?:执行|直接|完成|访问|读取|写入)"
+    r"|我没有(?:访问|终端|文件|工具)"
+    r"|没有可用的(?:文件|终端|工具|命令)"
+    r"|无法访问文件系统"
+    r"|cannot access|no (?:file )?tools available|no terminal",
+    re.IGNORECASE)
+
+
+def _claimed_action_without_actions(text: str, n_actions: int) -> str:
+    """★★★ R383 · 零动作却声称做过动作 ⇒ 返回命中的片段（否则空串）。
+
+    R380 把"非 JSON 纯文本"收下当答案，结果模型**说**它写了文件就被
+    当成完成（`wr01/wr03/wr05/wr07` 现场：文件根本没写）。
+    这是假成功 —— 降级与成功不可区分。
+    """
+    if n_actions > 0:
+        return ""
+    m = _ACTION_CLAIM_RE.search(text or "")
+    return m.group(0)[:40] if m else ""
+
+
+def _looks_like_refusal(text: str, n_actions: int) -> str:
+    """★★★ R383 · 零动作且明确拒绝 ⇒ 返回命中片段（否则空串）。
+
+    现场：`an04` 答「我无法执行文件写入（没有可用的文件/终端工具）」
+    被判 done —— 这是拒绝，不是答案。
+    """
+    if n_actions > 0:
+        return ""
+    m = _REFUSAL_RE.search(text or "")
+    return m.group(0)[:40] if m else ""
+
+
 def _extract_json(text: str):
     """★ R217 · LLM 响应 JSON 鲁棒提取（判据: 拿到能用的 dict, 不苛求纯净）。
 
@@ -865,6 +911,25 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             #   护栏：空/纯空白仍判 incomplete（"什么都没有"≠答案）。
             _raw = str(getattr(res, "text", "") or "")
             if _raw.strip():
+                # ★★★ R383 · 「声称已执行但零动作」必须判死（修 R380 假成功）。
+                #   现场（2026-10-20 全池 52 单）：51/54 报告 actions_log 空，
+                #   而模型写「已写入 var/inbox_work/list.md」—— 文件根本没写。
+                #   R380 把纯文本收下当答案 ⇒ 模型"说"写了就算完成 = 假成功。
+                #   判据：零动作 + 文本声称做过动作 ⇒ incomplete（幻觉）。
+                _acts = len(log or [])
+                _hit = _claimed_action_without_actions(_raw, _acts)
+                if _hit:
+                    return {"task": task, "task_id": sid,
+                            "status": "incomplete", "rounds": rnd,
+                            "why": "模型声称已执行（%r）但零动作记录 —— "
+                                   "幻觉动作，未真正执行" % _hit,
+                            "actions_log": log}
+                _ref = _looks_like_refusal(_raw, _acts)
+                if _ref:
+                    return {"task": task, "task_id": sid,
+                            "status": "incomplete", "rounds": rnd,
+                            "why": "模型拒绝执行（%r）—— 未完成任务" % _ref,
+                            "actions_log": log}
                 return {"task": task, "task_id": sid,
                         "status": "done", "rounds": rnd,
                         "answer": _raw.strip(),
