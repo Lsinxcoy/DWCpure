@@ -77,6 +77,47 @@ tests/test_r409_evidence_tolerant.py      2 条
 > 诚实边界：两次都是 n=1。单次 ±2 单的构成变化不足以证明任一档位更优。
 > 若要定论，需每档重复 3 次取均值。
 
+### 2.2 R412 诊断 · run-verify 3 单失败**全是判据/策略误判，不是模型问题**
+
+（2026-10-21 15:59，只做了取证，**代码未改**）
+
+原始报告：`var/dwc_reports/nb_1021_151839_28.json`（rv06）、
+`nb_1021_151949_29.json`（rv07）、`nb_1021_152159_30.json`（rv08）。
+
+| 单 | agent 实际做了什么 | 判据要求 | 结论 |
+|---|---|---|---|
+| **rv06** | `python -c "import os;print(sum(1 for r,_,fs in os.walk('src/dwc') for f in fs if f.endswith('.py')))"` → 输出 `98` | 另一条 `python -c "...print('PYFILES',n)"` → 也是 `98` | **答案正确、取证真实**，仅命令串不同 ⇒ 判据误判 |
+| **rv07** | `read scripts/gate.py` 成功（981 行），随后 3 次 `run python scripts/gate.py` **全部 `R5_blocked`** | `python scripts/gate.py` 输出含"全部通过" | **产品 bug**：任务被误判为 qa_mode ⇒ 只读闸拦掉了任务本身要求的执行 |
+| **rv08** | `git log -1` → `182d5d6e…`（当时正确） | `git log -1 --format=%h` | **答案正确、取证真实**，仅命令形式不同 ⇒ 判据误判 |
+
+**rv07 根因链（已定位到行）：**
+
+1. `step_judge.py:68` `_QA_Q` 含 `"是否"` ⇒ 命中；
+2. `step_judge.py:69` `_QA_X` = `("执行","跑","修","查","写","落盘","搜","读","改","删","建","起草","试跑","重启","备份")`
+   —— **没有 `"运行"`** ⇒ 任务「**运行**门禁脚本…报告**是否**全部通过」被判 `qa_mode=True`
+   （实测：`is_qa_task(rv07)=True`，rv06/rv08 均为 False）；
+3. `step_judge.py:58` `_READONLY_BREAKERS` 含 `"python"` ⇒ qa_mode 下
+   `run(['python','scripts/gate.py'])` 被 `_is_readonly_run` 判非只读 ⇒ `R5_blocked`。
+
+**rv06 / rv08 根因**：`scripts/dwc_bench2.py` 的 `rc_and_contains` 只认
+**命令串精确匹配**（R397 的"等价方法不算证据"）。但这两单 agent 的答案
+**来自它自己跑出来的输出**，不是猜的 —— 判据把"真取证"和"猜对了"一起判死了。
+
+**待落地的修法（尚未实施）：**
+
+- **R412**：`_QA_X` 补 `"运行"`（以及 `"启动"/"调用"/"统计"/"输出"` 等执行动词），
+  让「运行脚本…」不再进 qa_mode。★ 需配回归测试：rv06/rv07/rv08 三类句式
+  必须 `is_qa_task=False`，而真问答句（"…是什么/叫什么"）仍为 True。
+- **R413**：`rc_and_contains` 在精确匹配失败后，增加**证据等价**判据 ——
+  agent 的**成功 run 输出**里出现了最终答案（归一化后），即视为取证成立。
+  这仍能挡住"没跑就猜"（猜的人输出里没有答案），但不再误杀等价命令。
+  ★ 需补反面测试：零动作 + 答案正确 ⇒ 仍然判失败。
+- **rv07 的第二层**：`python <仓库内 .py 脚本>` 是否该放行只读闸，
+  需要单独决策（gate.py 可能写报告文件，不宜无脑放行）。
+
+> 注意：以上是**诊断结论**，代码一行未改；下一步按 R412 → R413 → 重跑全池。
+
+
 
 ---
 
@@ -147,18 +188,33 @@ tests/test_r409_evidence_tolerant.py      2 条
 
 ---
 
-## 五、运行时状态（重启前）
+## 五、运行时状态（2026-10-21 15:59）
 
 | 项 | 值 |
 |---|---|
-| agent 进程 | **未运行**（心跳 `var/dwc_agent_heartbeat.json` 停在 10:57:20，pid 36460 已不在） |
+| HEAD | `a893cb0`（R411 全池结果已提交） |
+| agent 进程 | **运行中**，pid 40668（心跳 15:55:43，`--llm --interval 20`） |
+| `reasoning_effort` | **`none`**（R411 起生效；`max_tokens` 仍 4096） |
 | bench | 无运行中任务 |
 | 后台实验 | 全部结束 |
+| 工作区 | 仅 `archive/gate_trace.jsonl` 运行时改动 |
 
-**gateway 重启后需要做的第一件事：拉起 agent。**
+**gateway 重启后需要做的第一件事：确认 agent 是否还活着。**
 
 ```bash
 cd "E:/Divine Wisdom Core"
+PYTHONIOENCODING=utf-8 "C:/Users/41228/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" -c "
+import psutil
+for p in psutil.process_iter(['pid','cmdline']):
+    cl=[str(x) for x in (p.info.get('cmdline') or [])]
+    if '-c' in cl: continue
+    if any(x.endswith('dwc_agent.py') for x in cl): print('agent', p.pid)
+"
+```
+
+若不在：
+
+```bash
 PYTHONIOENCODING=utf-8 "C:/Users/41228/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" \
   "C:/Users/41228/AppData/Local/hermes/cache/scratch/restart_agent.py"
 ```
@@ -170,18 +226,22 @@ PYTHONIOENCODING=utf-8 "C:/Users/41228/AppData/Local/hermes/hermes-agent/venv/Sc
 
 ## 六、待决事项（重启后续接点）
 
-1. **是否把生产切到 `none`？**（推荐）
-   - 改动：`config/llm.json` 的 `reasoning_effort` 一行
-   - 验证：跑一次全池，对比 87.0%；掉分就退回 `low`
-   - 预期：rf12 可过 ⇒ read-fact 12→13，总 47→48（88.9%），耗时降 40%
+**下一步已确定：实现 R412 + R413（诊断见 2.2），然后重跑全池。**
 
-2. **是否放开 `max_tokens`？**
-   - 数据显示 `none` 档 completion tokens 只有 96–341，4096 完全够用
-   - 只有 `high`/`xhigh` 会打满预算（因此返回空答案）
-   - 建议：**保持 4096**，除非切到高档位
+1. **R412**：`_QA_X` 补执行动词（`运行` 等）—— 修 rv07 被误判 qa_mode。
+2. **R413**：`rc_and_contains` 增加"答案出现在 agent 自己成功输出里"的等价取证 ——
+   修 rv06 / rv08 的误杀，同时保留"零动作 ⇒ 判失败"的反面测试。
+3. **rv07 第二层**（`python <仓库脚本>` 是否放行只读闸）需要单独决策，暂不动。
+4. 落地后：全量 pytest → 重启 agent → 全池复测，对比 47/54。
 
-3. **剩余弱项**：run-verify 8/10、historical 1/2 尚未深挖；`rf09` 六档全错，
-   需要判据层硬拦（当前 `_r302_strikes < 2` 两次后就放行）。
+**次要事项（暂缓）：**
+
+- `rf09`（编造 env 变量名）六档全错，需要判据层硬拦（当前 `_r302_strikes < 2` 两次后放行）。
+- `cl08`（无符号名查询答 `cli_main.py`）模型幻觉。
+- `hs01`（any-of 空）判据待查。
+- `reasoning_effort` 定论需每档重复 3 次（当前 n=1）。
+- 两个坏 cron：`3c630a7186a1`（nightbench 3600s 超时）、`efda640ea187`（`No module named 'yaml'`）。
+
 
 ---
 
