@@ -1,0 +1,53 @@
+[投单 1/13] nb_1022_000621_01 (code-locate)
+  → ✗ (answer contains 'cli_main.py')
+  ★ 新失败类，加练一单（+1/2）
+[投单 2/14] nb_1022_000801_02 (analyze)
+  → ✓ (answer any-of ['config'])
+[投单 3/14] nb_1022_000941_03 (analyze)
+  → ✓ (answer contains 'dwc_agent_heartbeat.json')
+[投单 4/14] nb_1022_001152_04 (write)
+  → ✓ (file contains 'EVAL_WRITE_OK')
+[投单 5/14] nb_1022_001302_05 (write)
+  → ✓ (file contains 'eval')
+[投单 6/14] nb_1022_001342_06 (write)
+  → ✓ (file contains '-')
+[投单 7/14] nb_1022_001452_07 (write)
+  → ✓ (file contains '3')
+[投单 8/14] nb_1022_001532_08 (write)
+  → ✓ (file all-of; miss=[])
+[投单 9/14] nb_1022_001642_09 (write)
+  → ✓ (file contains '0xfeff')
+[投单 10/14] nb_1022_001752_10 (write)
+  → ✓ (file lines=2 want=2)
+[投单 11/14] nb_1022_001832_11 (write)
+  → ✓ (file contains 'EVAL_E2E_COMPLETE')
+[投单 12/14] nb_1022_001912_12 (historical)
+  → ✓ (answer any-of ['探索', '导航', '世界树'])
+[投单 13/14] nb_1022_002022_13 (historical)
+  → ✓ (answer any-of ['失败', '原因', '轮'])
+[投单 14/14] nb_1022_002132_14 (code-locate)
+  → ✗ (answer contains 'cli_main.py')
+
+本轮: 12/14（14 单等到报告）
+
+==================================================================
+失败分类
+==================================================================
+任务类型             通过         通过率
+------------------------------------------------------------------
+write            8/8        8/8 = 100%
+code-locate      0/2        0/2 = 0%
+analyze          2/2        2/2 = 100%
+historical       2/2        2/2 = 100%
+
+失败归因:
+  D. 答完了但答案不对                      1
+  C. 任务未完成（模型中途放弃）                 1
+
+报告状态: {'done': 13, 'incomplete': 1}
+
+失败明细:
+  cl08   code-locate    done         answer contains 'cli_main.py'
+  cl08   code-locate    incomplete   answer contains 'cli_main.py'
+==================================================================
+EXIT=0

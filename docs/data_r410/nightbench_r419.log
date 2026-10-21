@@ -1,0 +1,151 @@
+[投单 1/52] nb_1021_223954_01 (read-fact)
+  → ✓ (answer equiv-of ['0xfeff', '0xFEFF'])
+[投单 2/52] nb_1021_224104_02 (read-fact)
+  → ✓ (answer contains 'Ctrl+P')
+[投单 3/52] nb_1021_224214_03 (read-fact)
+  → ✓ (answer regex '^[\\s\'\\"（）()]*3[\\s\'\\"（）()]*$')
+[投单 4/52] nb_1021_224324_04 (read-fact)
+  → ✓ (answer regex '(999)')
+[投单 5/52] nb_1021_224434_05 (read-fact)
+  → ✓ (answer contains 'MemoryKernel')
+[投单 6/52] nb_1021_224614_06 (read-fact)
+  → ✓ (answer contains 'dwc start --llm')
+[投单 7/52] nb_1021_224724_07 (read-fact)
+  → ✓ (answer contains 'Lsinxcoy/divine-wisdom-core')
+[投单 8/52] nb_1021_224834_08 (read-fact)
+  → ✓ (answer contains '_rev_prev')
+[投单 9/52] nb_1021_225214_09 (read-fact)
+  → ✗ (answer contains 'DWC_STEP_JUDGE')
+  ★ 新失败类，加练一单（+1/2）
+[投单 10/53] nb_1021_225425_10 (read-fact)
+  → ✓ (answer contains 'dwc_pairs.jsonl')
+[投单 11/53] nb_1021_225605_11 (read-fact)
+  → ✓ (answer regex '999')
+[投单 12/53] nb_1021_225715_12 (read-fact)
+  → ✓ (answer contains 'deep')
+[投单 13/53] nb_1021_225825_13 (code-locate)
+  → ✓ (answer contains 'task_exec.py')
+[投单 14/53] nb_1021_230005_14 (code-locate)
+  → ✓ (answer contains 'memory.py')
+[投单 15/53] nb_1021_230145_15 (code-locate)
+  → ✓ (answer contains 'llm')
+[投单 16/53] nb_1021_230325_16 (code-locate)
+  → ✓ (answer contains 'effort.py')
+[投单 17/53] nb_1021_230505_17 (code-locate)
+  → ✓ (answer contains 'agent_quality.py')
+[投单 18/53] nb_1021_230615_18 (code-locate)
+  → ✓ (answer contains 'foundation')
+[投单 19/53] nb_1021_230725_19 (code-locate)
+  → ✓ (answer contains 'revision.py')
+[投单 20/53] nb_1021_230935_20 (code-locate)
+  → ✗ (answer contains 'cli_main.py')
+  ★ 新失败类，加练一单（+2/2）
+[投单 21/54] nb_1021_231216_21 (code-locate)
+  → ✓ (answer contains 'task_exec.py')
+[投单 22/54] nb_1021_231326_22 (code-locate)
+  → ✓ (answer contains 'agent_quality.py')
+[投单 23/54] nb_1021_231506_23 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 24/54] nb_1021_231647_24 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 25/54] nb_1021_231729_25 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 26/54] nb_1021_231811_26 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 27/54] nb_1021_231852_27 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 28/54] nb_1021_231935_28 (run-verify)
+  → ✓ (agent-ran-equivalent(anchor='98') + rerun rc=0 anchor='PYFIL)
+[投单 29/54] nb_1021_232045_29 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='全部通过')
+[投单 30/54] nb_1021_232157_30 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='')
+[投单 31/54] nb_1021_232237_31 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='10 passed')
+[投单 32/54] nb_1021_232318_32 (run-verify)
+  → ✓ (answer contains '1598')
+[投单 33/54] nb_1021_232428_33 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 34/54] nb_1021_232538_34 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 35/54] nb_1021_232649_35 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 36/54] nb_1021_232829_36 (analyze)
+  → ✓ (answer contains '静默')
+[投单 37/54] nb_1021_232939_37 (analyze)
+  → ✓ (answer contains 'replay.yaml')
+[投单 38/54] nb_1021_233119_38 (analyze)
+  → ✓ (answer contains 'knowledge3_')
+[投单 39/54] nb_1021_233259_39 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 40/54] nb_1021_233409_40 (analyze)
+  → ✓ (answer contains 'calibrate_step_judge.py')
+[投单 41/54] nb_1021_233549_41 (analyze)
+  → ✗ (answer any-of [])
+[投单 42/54] nb_1021_233729_42 (analyze)
+  → ✗ (answer contains 'dwc_agent_heartbeat.json')
+[投单 43/54] nb_1021_233839_43 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/hello.txt)
+[投单 44/54] nb_1021_233949_44 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/stats.json)
+[投单 45/54] nb_1021_234029_45 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/list.md)
+[投单 46/54] nb_1021_234110_46 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/answer.txt)
+[投单 47/54] nb_1021_234150_47 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/note.txt)
+[投单 48/54] nb_1021_234300_48 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/quote.txt)
+[投单 49/54] nb_1021_234340_49 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/two.txt)
+[投单 50/54] nb_1021_234420_50 (write)
+  → ✗ (file stale（mtime 早于本轮投单）: var/inbox_work/flag.txt)
+[投单 51/54] nb_1021_234500_51 (historical)
+  → ✗ (answer any-of [])
+[投单 52/54] nb_1021_234540_52 (historical)
+  → ✗ (answer any-of [])
+[投单 53/54] nb_1021_234620_53 (read-fact)
+  → ✗ (answer equiv-of [])
+[投单 54/54] nb_1021_234730_54 (read-fact)
+  → ✗ (answer contains 'Ctrl+P')
+
+本轮: 38/54（54 单等到报告）
+
+==================================================================
+失败分类
+==================================================================
+任务类型             通过         通过率
+------------------------------------------------------------------
+read-fact        11/14      11/14 = 79%
+code-locate      9/10       9/10 = 90%
+run-verify       10/10      10/10 = 100%
+analyze          8/10       8/10 = 80%
+write            0/8        0/8 = 0%
+historical       0/2        0/2 = 0%
+
+失败归因:
+  B. 旧文件（不是本轮产出）                   8
+  C. 任务未完成（模型中途放弃）                 7
+  D. 答完了但答案不对                      1
+
+报告状态: {'done': 39, 'incomplete': 15}
+
+失败明细:
+  rf09   read-fact      incomplete   answer contains 'DWC_STEP_JUDGE'
+  cl08   code-locate    done         answer contains 'cli_main.py'
+  an09   analyze        incomplete   answer any-of []
+  an10   analyze        incomplete   answer contains 'dwc_agent_heartbeat.json'
+  wr01   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/hello.txt
+  wr02   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/stats.json
+  wr03   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/list.md
+  wr04   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/answer.txt
+  wr05   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/note.txt
+  wr06   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/quote.txt
+  wr07   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/two.txt
+  wr08   write          incomplete   file stale（mtime 早于本轮投单）: var/inbox_work/flag.txt
+  hs01   historical     incomplete   answer any-of []
+  hs02   historical     incomplete   answer any-of []
+  rf01   read-fact      incomplete   answer equiv-of []
+  rf02   read-fact      incomplete   answer contains 'Ctrl+P'
+==================================================================
+EXIT=0
