@@ -103,7 +103,19 @@ def drift_signals(root: str) -> Dict[str, Any]:
     ev = os.path.join(root, "config", "anchors", "evidence.jsonl")
     rows: List[Dict[str, Any]] = []
     if os.path.exists(ev):
-        rows = [json.loads(l) for l in open(ev, encoding="utf-8") if l.strip()]
+        # ★★★ R409 · **逐行容错**：一条坏行不许让整个漂移看板炸掉。
+        #   现场（2026-10-21 09:1x）：evidence.jsonl 第 107 行是半截尾巴
+        #   （`压根没跑这个函数 'word_count'", "n_failed": ...`），
+        #   `[json.loads(l) for l in ...]` 直接抛 JSONDecodeError
+        #   ⇒ dwc_anchor_drift_watch 退出码 2 ⇒ 4 个健康探针测试全红。
+        #   台账是 append-only，历史坏行删不掉也别让它阻塞读。
+        for _ln in open(ev, encoding="utf-8", errors="replace"):
+            if not _ln.strip():
+                continue
+            try:
+                rows.append(json.loads(_ln))
+            except Exception:                  # noqa: BLE001 — 坏行跳过
+                continue
     dev = [r for r in rows if r.get("split") == "dev"]
     val = [r for r in rows if r.get("split") == "val"]
     per: Dict[str, List[bool]] = {}

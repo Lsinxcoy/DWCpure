@@ -214,6 +214,142 @@ def _args_snapshot(step: Dict[str, Any], limit: int = 200) -> str:
         {"_h": d["_h"]}, ensure_ascii=False)
 
 
+#: ★★★ R407 · 问题在问**标识符**（类名/变量名/文件名/主题名）的判据。
+#:   只在这类问题上强制取证 —— 纯知识问答（"什么是闭包"）不受影响。
+_IDENT_Q_RE = re.compile(
+    r"(叫什么|叫什么名字|叫啥|哪个文件|哪一个|是哪个|哪一套|变量名|类名|"
+    r"函数名|方法名|主题名|名称是什么|名字是什么|文件名叫|"
+    r"which file|what(?:'s| is) the name)")
+
+#: 代码标识符形态（不是普通英文单词）：
+#:   ① UPPER_SNAKE（环境变量开关那种大写下划线形态）
+#:   ② CamelCase  ≥2 个驼峰：`MemoryKernel` / `OutcomePredictor`
+_UPPER_IDENT = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+_CAMEL_IDENT = re.compile(r"\b[a-zA-Z]+(?:[A-Z][a-z0-9]+)+\b")
+
+_REPO_TEXT_CACHE: Optional[str] = None
+_REPO_SKIP_DIRS = {".git", ".cache", "var", "archive", "node_modules",
+                   "__pycache__", ".venv", "venv", "build", "dist"}
+_REPO_EXTS = (".py", ".yaml", ".yml", ".json", ".toml", ".md", ".jsonl")
+
+
+def _repo_text() -> str:
+    """懒加载仓库文本索引（给"这个名字到底存不存在"用）。"""
+    global _REPO_TEXT_CACHE
+    if _REPO_TEXT_CACHE is not None:
+        return _REPO_TEXT_CACHE
+    parts = []
+    root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))))  # src/dwc/llm -> 仓库根
+    for base in ("src", "scripts", "config"):
+        for dp, dn, fn in os.walk(os.path.join(root, base)):
+            dn[:] = [d for d in dn if d not in _REPO_SKIP_DIRS]
+            for f in fn:
+                if not f.endswith(_REPO_EXTS):
+                    continue
+                try:
+                    if os.path.getsize(os.path.join(dp, f)) > 8_000_000:
+                        continue
+                    with open(os.path.join(dp, f), encoding="utf-8",
+                              errors="replace") as fh:
+                        parts.append(fh.read())
+                except OSError:
+                    continue
+    _REPO_TEXT_CACHE = "\n".join(parts)
+    return _REPO_TEXT_CACHE
+
+
+def _ident_gate(task: str, ans: str, has_ev: bool):
+    """★★★ R407 · 标识符类问题 + 零取证 ⇒ 返回打回提示（否则 None）。"""
+    if has_ev:
+        return None
+    if not _IDENT_Q_RE.search(str(task or "")):
+        return None
+    idents = _UPPER_IDENT.findall(str(ans or "")) + \
+        _CAMEL_IDENT.findall(str(ans or ""))
+    if not idents:
+        return None
+    tok = sorted(set(idents))[0]
+    return ("任务: %s\n你在**没有做任何取证**的情况下直接给出了一个标识符"
+            "（%s）—— 这是凭印象猜的，不予采纳。\n"
+            "先调用 search_code(pattern='%s')，从 === DEFINITIONS 段确认，"
+            "再 final。" % (task, "、".join(sorted(set(idents))[:3]), tok))
+
+
+def _ident_used_in_code(tok: str) -> bool:
+    """★ R407-b · 该名字是否**真的在代码里被使用**（不只是文档提过）。
+
+    只认 `"NAME"` / `'NAME'` / `NAME=` / `NAME:` 这几种形态。
+    动机：这个坑我自己踩了三次 —— 把名字写进注释/文档里，检索就能命中，
+    于是"存在性检查"永远通过（自证预言）。判据必须看**用法**。
+    """
+    pat = (r'(?:["\']%s["\']|\b%s\s*[:=])'
+           % (re.escape(tok), re.escape(tok)))
+    return re.search(pat, _repo_text()) is not None
+
+
+def _fake_ident_gate(ans: str):
+    """★★★ R407-b · 答案里的 `DWC_*` 必须**真的在代码里被使用**。
+
+    现场（rf09）：模型答了一个全仓 0 命中的开关名；真实开关是另一个。
+    只查 `DWC_` 前缀：项目自有的名字，外部概念（HTTP/JSON）不误伤。
+    """
+    for tok in sorted(set(_UPPER_IDENT.findall(str(ans or "")))):
+        if not tok.startswith("DWC_"):
+            continue
+        if not _ident_used_in_code(tok):
+            return ("你给出的 `%s` 在代码里**没有任何使用点**（src/scripts/config "
+                    "全仓检索：无引号引用、无赋值、无配置项）。\n"
+                    "改搜**问题里的中文概念词**（例如问题问「事前判别」，就 "
+                    "search_code(pattern='事前判别')），从命中行里读出真实名字；"
+                    "不要搜你猜的那个名字（会搜到你自己的猜测）。" % tok)
+    return None
+
+
+
+def _ev_excerpt(log, n: int = 2, chars: int = 700) -> str:
+    """★★★ R408-b · 把最近 n 条**成功** obs 的原文摘出来，直接贴进提示。
+
+    动机（rf12 实测）：打回提示写「请回看上面的 obs」—— 模型**根本不回看**，
+    下一轮照旧拒答。把证据原文贴进 prompt 里，它才有可能用上。
+    """
+    ok = [e for e in (log or [])
+          if isinstance(e, dict) and e.get("phase") == "obs" and e.get("ok")]
+    if not ok:
+        return ""
+    out = []
+    for e in ok[-n:]:
+        body = e.get("obs")
+        if isinstance(body, (dict, list)):
+            body = json.dumps(body, ensure_ascii=False, default=str)
+        out.append("· %s → %s" % (str(e.get("op", "")),
+                                  str(body)[:chars]))
+    return "\n".join(out)
+
+
+def _refusal_gate(task: str, ans: str, has_ev: bool, ev: str = ""):
+    """★★★ R408 · 已经拿到证据却拒答 ⇒ 打回，让它从 obs 里摘答案。
+
+    现场（rf12）：搜索命中 `scripts/dwc_theme.py:12: "deep": {`、读了文件
+    （正文写着「两套主题：deep…」）、甚至读到一个内容就是 `deep` 的文件，
+    最后仍答「未检索到任何证据」。**证据在手还拒答**，比猜错更冤。
+
+    只拦"拒答话术"，且**必须有取证**：真的搜不到（零 obs）时拒答是
+    诚实行为，不拦。
+    """
+    if not has_ev:
+        return None
+    if not re.search(r"(无法(?:确定|确证|判断)|不能确定|未(?:能)?(?:检索|找到|发现)"
+                     r"到|没有(?:找到|检索到)|无(?:法)?(?:从|在)仓库)", str(ans or "")):
+        return None
+    return ("任务: %s\n你**已经拿到了取证**（上面有成功的 obs），却仍然拒答 —— "
+            "这不可接受。\n"
+            "下面是**你已经拿到的证据原文**：\n%s\n"
+            "答案就在上面 —— 从中摘出最短的那个，直接 final。\n"
+            "只有在**所有证据都确实与问题无关**时才允许拒答，"
+            "并在答案里引用你查过的具体路径。" % (task, ev or "（无）"))
+
+
 def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
     try:  # ★ R308-② · 能力开关（关⇒拒收留痕，不静默；默认全开零行为变）
@@ -1569,6 +1705,50 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         _sess({"round": rnd, "op": op,
                "analysis": str(step.get("analysis", ""))[:200]})
         if op == "final":
+            # ★★★ R407 · **标识符类问题必须取证** ——
+            #   现场（read-fact 79%，2026-10-21 06:0x 全池）：
+            #     rf05「记忆系统内核类名叫什么」→「无法确证…**最可能是**
+            #          MemoryKernel」→ 被猜测惩罚正确拦下（0 分）
+#     rf09「事前判别的 env 开关变量名」→ 编了一个不存在的开关名
+#          （全仓 0 命中；真实开关在下面的熔断分支里）
+            #   两单的共同点：问题在问**一个标识符**（类名/变量名/文件名），
+            #   模型不取证、凭"看起来像"直接答。
+            #   R400-f 只拦"答案含文件名"，而类名/变量名没有 `.py` 后缀 ⇒ 漏掉。
+            #
+            #   规则：问题在问标识符 + 答案含代码标识符 + 零取证 ⇒ 打回。
+            #   （纯知识问答不受影响：问题不问标识符就不触发。）
+            if qa_mode and _r302_strikes < 2:
+                _ans0 = str(step.get("answer", ""))
+                _has_ev = any(isinstance(e, dict)
+                              and e.get("phase") == "obs" and e.get("ok")
+                              for e in log)
+                _why407 = _ident_gate(task, _ans0, _has_ev)
+                if _why407:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "标识符类问题零取证（凭印象猜）"})
+                    prompt = _why407
+                    continue
+                # ★ R407-b · 答案里的 `DWC_*` 变量名必须在仓库里真实存在
+                _why407b = _fake_ident_gate(_ans0)
+                if _why407b:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "答案含仓库中不存在的 DWC_* 变量名"})
+                    prompt = _why407b
+                    continue
+                # ★★★ R408 · **有证据却拒答**必须打回 ——
+                #   现场（rf12）：模型搜到 `scripts/dwc_theme.py:12: "deep": {`，
+                #   读了该文件（内容含「两套主题：deep…」），甚至还读到一个
+                #   内容就是 `deep` 的文件 —— 最后仍答「未检索到任何证据，
+                #   不做猜测」。**证据在手还拒答**，比猜错更冤。
+                _why408 = _refusal_gate(task, _ans0, _has_ev, _ev_excerpt(log))
+                if _why408:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "有取证却拒答"})
+                    prompt = _why408
+                    continue
             # ★★★ R400-f · **零取证的"文件名断言"必须打回** ——
             #   现场（cl02/cl08）：模型第 1 轮直接 final 猜了一个**不存在的文件名**，
             #   引用校验打回后它撤回并拒答。
