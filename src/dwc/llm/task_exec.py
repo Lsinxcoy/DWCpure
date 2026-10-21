@@ -288,6 +288,63 @@ def _ident_used_in_code(tok: str) -> bool:
     return re.search(pat, _repo_text()) is not None
 
 
+_REPO_FILES_CACHE: Optional[set] = None
+
+#: 任务在**问文件名**（才做存在性校验；写文件类任务会提到尚不存在的文件名）
+_FILE_Q_RE = re.compile(r"(文件名|哪个文件|什么文件|入口文件|脚本名|叫什么)")
+_FILE_TOKEN_RE = re.compile(
+    r"[\w\-./\\]+\.(?:py|md|json|jsonl|ya?ml|toml|txt|cfg|ini)")
+
+
+def _repo_files() -> set:
+    """仓库里所有文件的**小写基名**集合（懒加载，只收名字不收内容）。"""
+    global _REPO_FILES_CACHE
+    if _REPO_FILES_CACHE is not None:
+        return _REPO_FILES_CACHE
+    root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))))
+    names = set()
+    for dp, dn, fn in os.walk(root):
+        dn[:] = [d for d in dn
+                 if d not in _REPO_SKIP_DIRS and not d.startswith(".")]
+        for f in fn:
+            names.add(f.lower())
+    _REPO_FILES_CACHE = names
+    return names
+
+
+def _phantom_file_gate(task: str, ans: str):
+    """★★★ R417 · 答案里的文件名在仓库里**一个都不存在** ⇒ 打回。
+
+    现场（cl08）：问「CLI 入口路由文件叫什么」，模型跑了 find_files、读了
+    两个文件（**有取证**，所以 R400-f 不触发），最后仍答了一个
+    **仓库里根本不存在的**路由文件名 —— 真实入口是 `cli_main.py`。
+
+    R400-f 拦的是"零取证的文件名断言"；这里补的是**有取证也照样编**：
+    文件名是不是真的存在，是**可判定事实**，不该靠模型自觉。
+
+    ★ 只在"任务在问文件名"时启用：写文件类任务会合法地提到尚不存在的文件名。
+    ★ 答案里只要有一个文件是真的，就不拦（避免误伤"提到多个文件"的正常答案）。
+    """
+    if not _FILE_Q_RE.search(str(task or "")):
+        return None
+    toks = _FILE_TOKEN_RE.findall(str(ans or ""))
+    if not toks:
+        return None
+    files = _repo_files()
+    bad = []
+    for t in toks:
+        base = os.path.basename(t.replace("\\", "/")).lower()
+        if base and base not in files:
+            bad.append(t)
+    if len(bad) < len(toks):        # 至少一个真实存在 ⇒ 不拦
+        return None
+    return ("任务: %s\n你给出的文件名在仓库里**一个都不存在**：%s\n"
+            "这是凭印象编的（不是取证得到的）。请用 find_files 或 "
+            "search_code 在仓库里实际确认文件名，再 final。"
+            % (task, "、".join(sorted(set(bad))[:3])))
+
+
 def _fake_ident_gate(ans: str):
     """★★★ R407-b · 答案里的 `DWC_*` 必须**真的在代码里被使用**。
 
@@ -1736,6 +1793,17 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _sess({"round": rnd, "phase": "refcheck", "ok": False,
                            "why": "答案含仓库中不存在的 DWC_* 变量名"})
                     prompt = _why407b
+                    continue
+                # ★★★ R417 · **有取证也编文件名** ⇒ 打回 ——
+                #   现场（cl08）：跑了 find_files、读了两个文件，最后仍答
+                #   一个仓库里不存在的路由文件名（真实入口 `cli_main.py`）。
+                #   文件名是否存在是可判定事实，不该靠模型自觉。
+                _why417 = _phantom_file_gate(task, _ans0)
+                if _why417:
+                    _r302_strikes += 1
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "答案文件名在仓库中不存在（幻觉）"})
+                    prompt = _why417
                     continue
                 # ★★★ R408 · **有证据却拒答**必须打回 ——
                 #   现场（rf12）：模型搜到 `scripts/dwc_theme.py:12: "deep": {`，
