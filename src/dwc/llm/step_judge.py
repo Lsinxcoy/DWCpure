@@ -295,6 +295,28 @@ def validate_step(step: Any, *, root: Optional[str] = None,
     return None
 
 
+_BASE_IDX: dict = {}
+
+
+def _repo_basenames(base: str) -> set:
+    """★ R420 · 仓库内所有文件的**小写基名**（懒加载，按 base 缓存）。
+
+    ★ 跳过运行时目录：`var/` 里全是产物和残留，不能拿来证明引用是真的。
+    """
+    key = os.path.abspath(base)
+    if key in _BASE_IDX:
+        return _BASE_IDX[key]
+    names: set = set()
+    skip = {".git", "__pycache__", ".cache", "venv", "node_modules",
+            ".pytest_cache", "var", "build", "dist"}
+    for dp, dn, fn in os.walk(key):
+        dn[:] = [d for d in dn if d not in skip and not d.startswith(".")]
+        for f in fn:
+            names.add(f.lower())
+    _BASE_IDX[key] = names
+    return names
+
+
 def verify_final_refs(answer: str,
                       root: Optional[str] = None,
                       obs_urls: tuple = ()) -> Optional[str]:
@@ -325,6 +347,15 @@ def verify_final_refs(answer: str,
             continue
         cand = t if os.path.isabs(t) else os.path.join(base, t)
         if not os.path.exists(cand):
+            # ★★★ R420 · **裸文件名按基名全仓解析** ——
+            #   现场（analyze 41「铁律文档在哪个目录」）：`config/iron_laws.yaml`
+            #   真实存在，模型答「iron_laws.yaml」，按根目录解析判成不存在，
+            #   两次打回后任务以 answer=None 收场（**比答错更糟**）。
+            #   裸名 = 没给路径，本来就不该按根目录解释。
+            if ("/" not in t and "\\" not in t
+                    and os.path.basename(t).lower() in _repo_basenames(base)):
+                lived.append(cand)
+                continue
             return "引用路径不存在: %s" % t[:60]
         lived.append(cand)
     # ★ R303-⑥ · 4) URL（final 含 http 串 ⇒ 须在取证 obs_urls 出现过，防编 URL）

@@ -176,8 +176,18 @@ def main() -> int:
     # ★ R381 · 禁用"连续 3 单全过就提前收工"（跑全池要完整样本）
     ap.add_argument("--no-saturate", action="store_true",
                     help="不因连续 3 单全过而提前收工")
+    # ★ R421 · 只跑指定单（复跑被基础设施故障打断的那批）
+    ap.add_argument("--only", default="",
+                    help="只跑指定 id（逗号分隔），如 an09,wr01,hs01")
     args = ap.parse_args()
     tasks = [json.loads(l) for l in io.open(TASKS, encoding="utf-8")]
+    if args.only:
+        want = [x.strip() for x in args.only.split(",") if x.strip()]
+        tasks = [t for t in tasks if str(t.get("id", "")) in want]
+        if not tasks:
+            print("--only 没匹配到任何任务: %s" % args.only)
+            return 2
+        args.n = len(tasks)
     st = {"rot": 0}
     if os.path.exists(STATE):
         try:

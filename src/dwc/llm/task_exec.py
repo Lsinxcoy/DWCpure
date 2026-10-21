@@ -1882,6 +1882,21 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                               "若确实搜不到，才答「未找到」，并说明搜过什么。"
                               % (task, _ref_err[:150]))
                     continue
+            # ★★★ R419 · **顽固幻觉 ⇒ 判失败**（不许把已知为假的答案交出去）——
+            #   现场（cl08，R419 全池）：R417 打回两次，模型第三次仍答
+            #   同一个不存在的路径，额度用完后这个答案就被当成结果了。
+            #   ★ 判据：文件名存在与否是**可判定事实** —— 两次纠正仍不改，
+            #     说明是编的；宁可交 incomplete，也不交一个假文件名。
+            if (qa_mode and _gate_strikes.get("r417", 0) >= 2
+                    and _phantom_file_gate(task,
+                                           str(step.get("answer", "")))):
+                _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                       "why": "顽固幻觉：两次打回后仍给不存在的文件名"})
+                return {"task": task, "task_id": sid, "status": "incomplete",
+                        "rounds": rnd,
+                        "answer": "（未能给出有效答案：连续两次给出仓库中"
+                                  "不存在的文件名，判为幻觉，不予采信）",
+                        "artifacts": [], "actions_log": log}
             if progress:
                 progress({"ev": "final",
                           "answer": str(step.get("answer", ""))[:400]})

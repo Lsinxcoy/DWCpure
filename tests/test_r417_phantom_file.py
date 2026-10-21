@@ -72,3 +72,48 @@ def test_repo_files_index_is_real():
     files = _repo_files()
     assert "cli_main.py" in files, "索引里没有 cli_main.py —— 索引建错了"
     assert FAKE not in files, "假名不该在索引里"
+
+
+# ══════════════════ R419 · 顽固幻觉 ⇒ 判失败 ══════════════════
+
+class _Script:
+    configured = True
+
+    def __init__(self, steps):
+        import json as _j
+        self._j = _j
+        self.steps = steps
+        self.n = 0
+        self.prompts = []
+
+    def complete(self, prompt, **kw):
+        from types import SimpleNamespace
+        self.prompts.append(prompt)
+        i = min(self.n, len(self.steps) - 1)
+        self.n += 1
+        return SimpleNamespace(ok=True, error="", meta={},
+                               text=self._j.dumps(self.steps[i],
+                                                  ensure_ascii=False))
+
+    def complete_stream(self, prompt, **kw):
+        return self.complete(prompt, **kw)
+
+
+def test_stubborn_hallucination_fails_instead_of_accepting(monkeypatch):
+    """★★★ cl08 复刻：两次打回后仍编同一个文件名 ⇒ status=incomplete。
+
+    ★ 为什么不是"第三次放行"：文件名是否存在是**可判定事实**，
+      两次纠正仍不改就是编的 —— 宁可判失败，也不交一个假文件名。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
+    from dwc.llm import task_exec as T
+    bad = {"analysis": "编", "op": "final",
+           "answer": "入口路由文件是 %s。" % FAKE}
+    llm = _Script([
+        {"analysis": "读", "op": "read", "path": "scripts/dwc_theme.py"},
+        bad, bad, bad,
+    ])
+    rep = T.execute_user_task("DWC 的 CLI 入口路由文件叫什么？只答文件名。",
+                              llm=llm, task_id="T_R419_a", max_rounds=12)
+    assert rep["status"] == "incomplete", rep["status"]
+    assert "幻觉" in str(rep.get("answer")), rep.get("answer")
