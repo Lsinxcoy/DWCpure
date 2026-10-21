@@ -85,3 +85,47 @@ def test_exact_match_still_passes():
     rep = _rep((("python -c \"print('PYFILES 98')\""), "PYFILES 98"))
     ok, how = B2.verify(CHECK, "PYFILES 98", report=rep)
     assert ok is True, how
+
+
+# ══════════════════ R413-b · 解释器路径不该影响取证 ══════════════════
+
+def test_interpreter_absolute_path_matches():
+    """★★★ rv07 复刻：判据写 `python scripts/gate.py`，
+    agent 用绝对路径 `C:/.../python.exe scripts/gate.py` ⇒ 必须算取证。
+
+    现场：agent 真跑了、rc=0、输出末尾"总结: 全部通过"，
+    却因 argv[0] 是绝对路径被判 `no-agent-evidence`。
+    """
+    check = {"type": "rc_and_contains",
+             "cmd": "python scripts/gate.py", "target": "全部通过"}
+    rep = _rep((("['C:/Users/x/venv/Scripts/python.exe','scripts/gate.py']"),
+                "DWC 质量门\n总结: 全部通过\n"))
+    ok, how = B2.verify(check, "门禁已运行，全部通过", report=rep)
+    assert ok is True, how
+    assert "agent-ran" in how, how
+
+
+def test_interpreter_still_requires_the_script():
+    """★★ 反面：换了绝对路径解释器，但跑的是**别的脚本** ⇒ 仍 ✗。"""
+    check = {"type": "rc_and_contains",
+             "cmd": "python scripts/gate.py", "target": "全部通过"}
+    rep = _rep((("['C:/Users/x/venv/Scripts/python.exe','scripts/other.py']"),
+                "全部通过"))
+    ok, how = B2.verify(check, "全部通过", report=rep)
+    assert ok is False, how
+    assert "no-agent-evidence" in how, how
+
+
+def test_chinese_target_anchor_is_target_itself():
+    """★★ rv07 锚点：中文 target 后面跟 `（rc=0）` 时，
+    锚点必须取 **target 本身**，不是 `rc=0` 这种噪声。"""
+    chk = {"type": "rc_and_contains", "cmd": "x", "target": "全部通过"}
+    got = B2._answer_anchor(chk, "答：全部通过", "总结: 全部通过（rc=0）\n")
+    assert got == "全部通过", got
+
+
+def test_numeric_anchor_still_preferred():
+    """★ 旧行为保护：`PYFILES 98` 仍取数字锚点 `98`（更精确）。"""
+    chk = {"type": "rc_and_contains", "cmd": "x", "target": "PYFILES"}
+    got = B2._answer_anchor(chk, "共 98 个", "PYFILES 98\n")
+    assert got == "98", got

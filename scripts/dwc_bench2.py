@@ -181,6 +181,17 @@ def _agent_ran(cmd: str, report) -> tuple:
     def _norm(s: str) -> str:
         return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (s or "").lower())
 
+    # ★★★ R413-b · **解释器不参与匹配** ——
+    #   判据写 `python scripts/gate.py`，agent 实际用绝对路径
+    #   `C:/Users/.../venv/Scripts/python.exe scripts/gate.py`；
+    #   归一化后 needle 是 `pythonscriptsgatespy`，blob 里却是
+    #   `...pythonexescriptsgatespy` ⇒ needle 不是子串 ⇒ 误判零证据
+    #   （rv07 现场：agent 真跑了、rc=0、输出"总结: 全部通过"）。
+    #   解释器换哪个都一样，**命令本体**才是证据。
+    needle = re.sub(
+        r"^(?:[A-Za-z]:[\\/][^\s]*?python(?:\.exe)?|python[\d.]*(?:\.exe)?)\s+",
+        "", needle, flags=re.I)
+
     _needle_n = _norm(needle)
     if not _needle_n:
         return (False, "无法从命令提取特征（cmd 为空）")
@@ -229,18 +240,28 @@ def _answer_anchor(check: dict, answer: str, rerun_out: str) -> str:
     if tgt and tgt in rerun_out:
         after = rerun_out.split(tgt, 1)[1].strip()
         tok = re.split(r"\s+", after)[0] if after else ""
-        tok = tok.strip("\"'()[]{}.,;:：")
-        if len(tok) >= 2:
+        tok = tok.strip("\"'()[]{}.,;:：，。；、（）")
+        # ★★★ R413-b · 只有**纯数字**才配当"数值锚点"（rv06 的 `98`）。
+        #   rv07 的 target 是中文短语 `全部通过`，后面跟的是 `（rc=0）`
+        #   ⇒ 取出来是 `rc=0` 这种噪声 ⇒ 改成**直接用 target 本身当锚点**：
+        #   agent 的输出里必须真的出现"全部通过"，这比命令串形状更硬。
+        if tok.isdigit():
             return tok
+        return tgt
     toks = re.findall(r"[0-9A-Za-z_]{4,}", answer or "")
     return max(toks, key=len) if toks else ""
 
 
-def _agent_saw(anchor: str, report) -> bool:
+def _agent_saw(anchor: str, report, cmd: str = "") -> bool:
     """★★★ R413 · agent **自己跑出来的输出**里是否出现过答案锚点。
 
     这就是"证据等价"：不要求命令串一致，但答案必须是从它自己的执行结果
     里来的。★ 零动作 / 跑了无关命令 ⇒ 输出里没有锚点 ⇒ 仍然判失败。
+
+    ★★★ R413-c · 光有锚点还不够 —— 还得是**干这活的那条命令**产出的：
+      · 判据命令里有文件名（`scripts/gate.py`）⇒ 该次 run 的命令必须提到同一文件；
+      · 没有文件名 ⇒ 两边至少共享 2 个词元（rv08：`git`/`log`/`1`）。
+      否则 `python scripts/other.py` 只要打印"全部通过"就能冒领。
     """
     if not isinstance(report, dict) or not anchor:
         return False
@@ -250,6 +271,12 @@ def _agent_saw(anchor: str, report) -> bool:
     a = _nz(anchor)
     if not a:
         return False
+
+    _FILE_RE = r"[\w./\\-]*[\w-]\.(?:py|json|jsonl|md|txt|ya?ml)"
+    want_files = {f.replace("\\", "/").lower()
+                  for f in re.findall(_FILE_RE, cmd or "")}
+    want_toks = {t for t in re.findall(r"[a-z0-9_]{2,}", (cmd or "").lower())}
+
     for e in log:
         if not isinstance(e, dict):
             continue
@@ -258,9 +285,26 @@ def _agent_saw(anchor: str, report) -> bool:
         out_n = _nz(_obs_out(e))
         if not out_n or a not in out_n:
             continue
-        # ★ 短锚点（如 "98"）只认**聚焦输出**，防止在长列表里偶然命中
-        if len(a) >= 8 or len(out_n) <= 40:
-            return True
+        # ★ 这条 run 是不是"干这活的命令"？
+        #   ★ 仅当判据有 target（在核对某个具体输出）时才要求相关；
+        #     target 为空时锚点就是答案本身（rv08 的 40 位 SHA），
+        #     偶然产出同一个哈希的概率可以忽略。
+        blob = " ".join(str(e.get(k) or "") for k in ("cmd", "target"))
+        blob_l = blob.replace("\\", "/").lower()
+        if cmd:
+            if want_files:
+                if not any(f in blob_l for f in want_files):
+                    continue
+            else:
+                got = {t for t in re.findall(r"[a-z0-9_]{2,}", blob_l)}
+                if len(want_toks & got) < 2:
+                    continue
+        # ★ 短**数字**锚点（如 "98"）只认**聚焦输出**，防止在长列表里偶然命中；
+        #   中文短语锚点（如 "全部通过"）本来就该在整段输出里找 ——
+        #   长输出恰恰是"真的跑了门禁"的证据。
+        if a.isdigit() and len(a) < 8 and len(out_n) > 40:
+            continue
+        return True
     return False
 
 
@@ -323,7 +367,8 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
                 #   agent 自己跑出来的输出里**（rv06 的 `98`、rv08 的 SHA）。
                 #   零动作 / 无关命令 ⇒ 输出里没有锚点 ⇒ 仍然判失败。
                 anchor = _answer_anchor(check, ans, r.stdout + r.stderr)
-                if not _agent_saw(anchor, report):
+                _rel = cmd if check.get("target") else ""
+                if not _agent_saw(anchor, report, _rel):
                     return (False, "no-agent-evidence: " + why)
                 how = "agent-ran-equivalent(anchor=%r) + %s" % (anchor, how)
             else:
