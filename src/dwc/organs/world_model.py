@@ -17,6 +17,7 @@ import io
 import json
 import math
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, NamedTuple, Optional
@@ -331,8 +332,12 @@ class WorldModel:
             f.flush()
             try:
                 os.fsync(f.fileno())
-            except OSError:
-                pass
+            except OSError as _e:               # noqa: BLE001
+                # ★★★ G7 静默门（2026-10-21 gate.py 实测抓到）：
+                #   fsync 失败 = "掉电保护"没生效，原子性降级为 rename-only。
+                #   **不许 pass** —— 必须留痕，否则这种降级永远没人知道。
+                print("world_model: fsync 失败（%s）⇒ 原子性降级为 "
+                      "rename-only" % _e, file=sys.stderr)
         os.replace(tmp, self.tracked_path)
 
     # ── Z5: merge 三条件 + 发生率（Appendix D.1 逐字）─────────────

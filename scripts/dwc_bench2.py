@@ -198,6 +198,72 @@ def _agent_ran(cmd: str, report) -> tuple:
     return (False, "agent 未执行该命令（零动作或未命中 %r）" % needle[:50])
 
 
+def _nz(s) -> str:
+    """归一化：去掉所有非字母数字/中文字符，转小写（与 R397 同口径）。"""
+    return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", str(s or "").lower())
+
+
+def _obs_out(e) -> str:
+    """从留痕条目里取出**命令输出正文**（obs 可能是 dict 或 JSON 字符串）。"""
+    o = e.get("obs")
+    if isinstance(o, dict):
+        return str(o.get("out") or "")
+    if isinstance(o, str):
+        try:
+            d = json.loads(o)
+            if isinstance(d, dict):
+                return str(d.get("out") or "")
+        except Exception:                       # noqa: BLE001 — 坏行按原文
+            pass
+        return o
+    return ""
+
+
+def _answer_anchor(check: dict, answer: str, rerun_out: str) -> str:
+    """★★★ R413 · 从"判据命令的复核输出"或"最终答案"里取一个**答案锚点**。
+
+    优先用 `target` 之后的那一段（rv06：`PYFILES 98` ⇒ `98`）；
+    没有 target 时退化为答案里最长的字母数字串（rv08：40 位 SHA）。
+    """
+    tgt = str(check.get("target") or "")
+    if tgt and tgt in rerun_out:
+        after = rerun_out.split(tgt, 1)[1].strip()
+        tok = re.split(r"\s+", after)[0] if after else ""
+        tok = tok.strip("\"'()[]{}.,;:：")
+        if len(tok) >= 2:
+            return tok
+    toks = re.findall(r"[0-9A-Za-z_]{4,}", answer or "")
+    return max(toks, key=len) if toks else ""
+
+
+def _agent_saw(anchor: str, report) -> bool:
+    """★★★ R413 · agent **自己跑出来的输出**里是否出现过答案锚点。
+
+    这就是"证据等价"：不要求命令串一致，但答案必须是从它自己的执行结果
+    里来的。★ 零动作 / 跑了无关命令 ⇒ 输出里没有锚点 ⇒ 仍然判失败。
+    """
+    if not isinstance(report, dict) or not anchor:
+        return False
+    log = report.get("actions_log") or []
+    if not isinstance(log, list):
+        return False
+    a = _nz(anchor)
+    if not a:
+        return False
+    for e in log:
+        if not isinstance(e, dict):
+            continue
+        if e.get("phase") != "obs" or e.get("op") != "run" or not e.get("ok"):
+            continue
+        out_n = _nz(_obs_out(e))
+        if not out_n or a not in out_n:
+            continue
+        # ★ 短锚点（如 "98"）只认**聚焦输出**，防止在长列表里偶然命中
+        if len(a) >= 8 or len(out_n) <= 40:
+            return True
+    return False
+
+
 def verify(check: dict, answer: str, since=None, report=None) -> tuple:
     """返回 (ok: bool, how: str)。how 记录判定依据（审计）。
 
@@ -234,16 +300,7 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
         miss = [x for x in check["target"] if x not in ans]
         return (not miss, "answer all-of; miss=%r" % miss)
     if t == "rc_and_contains":
-        # ★★★ R388 · 先要 **agent 侧证据**：它必须真的执行过这条命令。
-        #   现场（2026-10-20 全池）：run-verify 10/10 = 100%，而这是假的 ——
-        #   旧实现只有下面这段"判据自己重跑"，agent 零动作也能过。
-        #   `allow_self_verify` 仅用于自测判据本身。
-        if not check.get("allow_self_verify"):
-            found, why = _agent_ran(check["cmd"], report)
-            if not found:
-                return (False, "no-agent-evidence: " + why)
-        # ★ 独立重跑（不信 agent 自述的 rc/输出）—— 现在只作**复核**，
-        #   不再单独构成通过。
+        # ★★★ R413 · **先复核，再验证据**（顺序换了：复核输出要用来取答案锚点）
         cmd = check["cmd"]
         try:
             r = subprocess.run(
@@ -255,8 +312,23 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
             return (False, "verify-rerun failed: %s" % exc)
         ok = r.returncode == 0 and (not check["target"]
                                     or check["target"] in (r.stdout + r.stderr))
-        return (ok, "agent-ran + rerun rc=%d anchor=%r"
-                % (r.returncode, check["target"][:30]))
+        how = "rerun rc=%d anchor=%r" % (r.returncode, check["target"][:30])
+        # ★★★ R388 · 还要 **agent 侧证据**：它必须真的执行过。
+        #   现场（2026-10-20 全池）：run-verify 10/10 = 100%，而这是假的 ——
+        #   旧实现只有"判据自己重跑"，agent 零动作也能过。
+        if not check.get("allow_self_verify"):
+            found, why = _agent_ran(cmd, report)
+            if not found:
+                # ★★★ R413 · 证据等价：命令串不同不算数，但**答案必须出现在
+                #   agent 自己跑出来的输出里**（rv06 的 `98`、rv08 的 SHA）。
+                #   零动作 / 无关命令 ⇒ 输出里没有锚点 ⇒ 仍然判失败。
+                anchor = _answer_anchor(check, ans, r.stdout + r.stderr)
+                if not _agent_saw(anchor, report):
+                    return (False, "no-agent-evidence: " + why)
+                how = "agent-ran-equivalent(anchor=%r) + %s" % (anchor, how)
+            else:
+                how = "agent-ran + " + how
+        return (ok, how)
     if t in ("file_contains", "file_contains_all", "file_lines"):
         p = _file_of(check["path"])
         if not os.path.exists(p):
