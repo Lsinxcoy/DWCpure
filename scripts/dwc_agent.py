@@ -390,6 +390,14 @@ def _take_inbox_locked():
             except Exception:                  # noqa: BLE001
                 continue
             tid = item.get("id") or ("T_" + str(abs(hash(ln)) % 10 ** 8))
+            # ★★★ R414 · **本进程在飞的单，绝不再取** ——
+            #   现场（2026-10-21 18:29–19:31）：任务 42 被派发 **1080 次**。
+            #   `running:` 标记原来写在 `run_user_task` 里（信号量内），
+            #   2 个槽位被长任务占满后新线程全堵在 `with _sema:`，
+            #   永远走不到写标记那步 ⇒ 这里每 3s 又取到同一单。
+            #   这道闸不依赖落盘：**线程已经在本进程里跑着**，就绝不重取。
+            if tid in globals().get("_INBOX_INFLIGHT", ()):
+                continue
             v = st.get(tid)
             if isinstance(v, str) and v.startswith("running:"):
                 # ★ R219 · 执行中标记: 15min 内不重取（异步线程在跑）;
@@ -799,6 +807,20 @@ def startup_selfcheck(pairs=None):
 def _dispatch_inbox(item: dict, use_llm: bool) -> None:
     """★ R382 · 把一单收件箱任务派给后台线程（Semaphore 限并发 2）。"""
     _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(2))
+    _inflight = globals().setdefault("_INBOX_INFLIGHT", set())
+    # ★★★ R414 · **先登记 running + 在飞集合，再起线程** ——
+    #   现场（2026-10-21 18:29–19:31）：任务 42 被派发 **1080 次**，
+    #   线程无限堆积，后续 6 单全部 timeout。
+    #   根因：`running:` 原来只写在 `run_user_task` 里（信号量**内**），
+    #   槽位被占满后新线程永远走不到那一步 ⇒ 轮询每 3s 重取同一单。
+    #   登记必须在**派发点**完成（同步、无阻塞），线程排队期间也可见。
+    _inflight.add(item["id"])
+    try:
+        _update_done(lambda s: s.__setitem__(
+            item["id"], "running:%.0f" % time.time()))
+    except Exception as exc:            # noqa: BLE001 — 登记失败不阻断派发
+        _log({"event": "inbox_mark_error", "id": item.get("id"),
+              "error": "%s: %s" % (type(exc).__name__, exc)})
 
     def _bg(it=item):
         with _sema:
@@ -807,6 +829,10 @@ def _dispatch_inbox(item: dict, use_llm: bool) -> None:
             except Exception as exc:   # noqa: BLE001 — 线程内不许炸主循环
                 _log({"event": "user_task_crashed", "id": it["id"],
                       "error": "%s: %s" % (type(exc).__name__, exc)})
+            finally:
+                # ★ R414 · 线程退出（正常/异常）必须出在飞集合，
+                #   否则这一单在本进程里永远取不回来。
+                _inflight.discard(it["id"])
 
     threading.Thread(target=_bg, daemon=True,
                      name="inbox-" + item["id"]).start()
