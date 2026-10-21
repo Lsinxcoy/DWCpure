@@ -1482,6 +1482,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     _ff_pending = [False]
     _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
+    #: ★★★ R418 · 每个闸**各自**的打回额度（闸之间不许互相吃掉）
+    _gate_strikes: dict = {}
     _r4_blanks = 0      # ★ R302补5b · R4 无 op 连空计数（≥3 诚实收敛）
     last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
@@ -1774,49 +1776,60 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             #
             #   规则：问题在问标识符 + 答案含代码标识符 + 零取证 ⇒ 打回。
             #   （纯知识问答不受影响：问题不问标识符就不触发。）
-            if qa_mode and _r302_strikes < 2:
+            #   ★★★ R418 · **每个闸独立计数** ——
+            #   现场（rf12，R418 全池第 12 单）：R408 打回一次、R417 打回一次，
+            #   共用的 `_r302_strikes` 就到 2 了 ⇒ 模型第三次拒答时**所有闸
+            #   一起失效** ⇒「有证据却拒答」被当成答案收下。
+            #   闸不该互相吃掉额度：每个闸各自 2 次，总轮次仍由 N 轮上限兜底。
+            if qa_mode:
                 _ans0 = str(step.get("answer", ""))
                 _has_ev = any(isinstance(e, dict)
                               and e.get("phase") == "obs" and e.get("ok")
                               for e in log)
-                _why407 = _ident_gate(task, _ans0, _has_ev)
-                if _why407:
-                    _r302_strikes += 1
-                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
-                           "why": "标识符类问题零取证（凭印象猜）"})
-                    prompt = _why407
-                    continue
+                if _gate_strikes.get("r407", 0) < 2:
+                    _why407 = _ident_gate(task, _ans0, _has_ev)
+                    if _why407:
+                        _gate_strikes["r407"] = _gate_strikes.get("r407", 0) + 1
+                        _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                               "why": "标识符类问题零取证（凭印象猜）"})
+                        prompt = _why407
+                        continue
                 # ★ R407-b · 答案里的 `DWC_*` 变量名必须在仓库里真实存在
-                _why407b = _fake_ident_gate(_ans0)
-                if _why407b:
-                    _r302_strikes += 1
-                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
-                           "why": "答案含仓库中不存在的 DWC_* 变量名"})
-                    prompt = _why407b
-                    continue
+                if _gate_strikes.get("r407b", 0) < 2:
+                    _why407b = _fake_ident_gate(_ans0)
+                    if _why407b:
+                        _gate_strikes["r407b"] = \
+                            _gate_strikes.get("r407b", 0) + 1
+                        _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                               "why": "答案含仓库中不存在的 DWC_* 变量名"})
+                        prompt = _why407b
+                        continue
                 # ★★★ R417 · **有取证也编文件名** ⇒ 打回 ——
                 #   现场（cl08）：跑了 find_files、读了两个文件，最后仍答
                 #   一个仓库里不存在的路由文件名（真实入口 `cli_main.py`）。
                 #   文件名是否存在是可判定事实，不该靠模型自觉。
-                _why417 = _phantom_file_gate(task, _ans0)
-                if _why417:
-                    _r302_strikes += 1
-                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
-                           "why": "答案文件名在仓库中不存在（幻觉）"})
-                    prompt = _why417
-                    continue
+                if _gate_strikes.get("r417", 0) < 2:
+                    _why417 = _phantom_file_gate(task, _ans0)
+                    if _why417:
+                        _gate_strikes["r417"] = _gate_strikes.get("r417", 0) + 1
+                        _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                               "why": "答案文件名在仓库中不存在（幻觉）"})
+                        prompt = _why417
+                        continue
                 # ★★★ R408 · **有证据却拒答**必须打回 ——
                 #   现场（rf12）：模型搜到 `scripts/dwc_theme.py:12: "deep": {`，
                 #   读了该文件（内容含「两套主题：deep…」），甚至还读到一个
                 #   内容就是 `deep` 的文件 —— 最后仍答「未检索到任何证据，
                 #   不做猜测」。**证据在手还拒答**，比猜错更冤。
-                _why408 = _refusal_gate(task, _ans0, _has_ev, _ev_excerpt(log))
-                if _why408:
-                    _r302_strikes += 1
-                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
-                           "why": "有取证却拒答"})
-                    prompt = _why408
-                    continue
+                if _gate_strikes.get("r408", 0) < 2:
+                    _why408 = _refusal_gate(task, _ans0, _has_ev,
+                                            _ev_excerpt(log))
+                    if _why408:
+                        _gate_strikes["r408"] = _gate_strikes.get("r408", 0) + 1
+                        _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                               "why": "有取证却拒答"})
+                        prompt = _why408
+                        continue
             # ★★★ R400-f · **零取证的"文件名断言"必须打回** ——
             #   现场（cl02/cl08）：模型第 1 轮直接 final 猜了一个**不存在的文件名**，
             #   引用校验打回后它撤回并拒答。
