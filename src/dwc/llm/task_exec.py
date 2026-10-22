@@ -801,7 +801,7 @@ _SEARCH_PY = (
     "skip=" + repr(_REPO_SKIP_DIRS) + "\n"
     "rx_def=re.compile(r'^\\s*(?:async\\s+)?(?:def|class)\\s+'+re.escape(pat)+r'\\b')\n"
     "rx=re.compile(re.escape(pat))\n"
-    "defs=[]; refs=[]\n"
+    "defs=[]; refs=[]; lines_hit=[]\n"
     # ★★★ R429 · 路径写错时**必须大声报错**，不能静默 0/0。
     #   现场（rf05，12:53）：模型把 path 传成**文件**（`src/dwc/organs/memory.py`）
     #   或相对路径（`organs`）⇒ `os.walk` 什么都不遍历 ⇒ 打印
@@ -822,12 +822,29 @@ _SEARCH_PY = (
     "    try: lines=open(p,encoding='utf-8',errors='replace').read().splitlines()\n"
     "    except Exception: continue\n"
     "    for i,l in enumerate(lines,1):\n"
-    "        if rx_def.match(l): defs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
-    "        elif rx.search(l): refs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
+    "        if rx_def.match(l): defs.append('%s:%d:%s'%(p,i,l.strip()[:120])); lines_hit.append(l)\n"
+    "        elif rx.search(l): refs.append('%s:%d:%s'%(p,i,l.strip()[:120])); lines_hit.append(l)\n"
     "print('=== DEFINITIONS (%d) ===' % len(defs))\n"
     "for x in defs[:20]: print(x)\n"
     "print('=== REFERENCES (%d) ===' % len(refs))\n"
     "for x in refs[:30]: print(x)\n"
+    # ★★★ R430 · **检索词过泛**时给出"更长标识符"候选。
+    #   现场（rf08）：问"记忆修订的新节点用哪个保留键链回旧节点"，模型搜
+    #   `prev` ⇒ 77 条引用、0 条定义 ⇒ 它把 `prev` 当答案（正确是 `_rev_prev`）。
+    #   0 定义 + 大量引用 = 这个词只是**更长标识符的一部分** ——
+    #   把包含它的标识符按出现次数列出来，模型就能看到 `_rev_prev`。
+    #   ★ 这不是"给答案"：候选是从**它自己搜到的行**里统计出来的，
+    #     判据、闸、评分一律不变。
+    "if not defs and lines_hit:\n"
+    "    cnt={}\n"
+    "    for l in lines_hit:\n"
+    "        for m in re.findall(r'[A-Za-z_][A-Za-z0-9_]*', l):\n"
+    "            if pat in m and m != pat: cnt[m]=cnt.get(m,0)+1\n"
+    "    top=sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[:8]\n"
+    "    if top:\n"
+    "        print('=== 候选更长标识符（含 %s，按出现次数）===' % pat)\n"
+    "        for k,v in top: print('%s  x%d' % (k,v))\n"
+    "        print('（0 条定义但有引用 —— 检索词很可能只是上面某个标识符的一部分）')\n"
 )
 
 
