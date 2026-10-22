@@ -1891,6 +1891,25 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                               "若确实搜不到，才答「未找到」，并说明搜过什么。"
                               % (task, _ref_err[:150]))
                     continue
+            # ★★★ R423 · **顽固拒答 ⇒ 判失败**（证据在手，两次纠正仍拒答）——
+            #   现场（rf12，R423 全池第 12 单）：模型 3 次读 `scripts/dwc_theme.py`，
+            #   revision 自己都写下「Theme names visible in header: deep (Deep Space)」，
+            #   R408 打回**两次**（提示里贴了证据原文），第三次仍答
+            #   「没有检索到任何 TUI 主题证据」⇒ 额度用尽后被当成答案收下。
+            #   ★ 与 R419 同构：**已知有证据还拒答**不是"完成"，是失败。
+            if qa_mode and _gate_strikes.get("r408", 0) >= 2:
+                _ans_r = str(step.get("answer", ""))
+                _has_ev_r = any(isinstance(e, dict)
+                                and e.get("phase") == "obs" and e.get("ok")
+                                for e in log)
+                if _refusal_gate(task, _ans_r, _has_ev_r, _ev_excerpt(log)):
+                    _sess({"round": rnd, "phase": "refcheck", "ok": False,
+                           "why": "顽固拒答：两次打回后仍拒答"})
+                    return {"task": task, "task_id": sid, "status": "incomplete",
+                            "rounds": rnd,
+                            "answer": "（未能给出有效答案：已取到证据，"
+                                      "但连续两次纠正后仍拒答，判为失败）",
+                            "artifacts": [], "actions_log": log}
             # ★★★ R419 · **顽固幻觉 ⇒ 判失败**（不许把已知为假的答案交出去）——
             #   现场（cl08，R419 全池）：R417 打回两次，模型第三次仍答
             #   同一个不存在的路径，额度用完后这个答案就被当成结果了。

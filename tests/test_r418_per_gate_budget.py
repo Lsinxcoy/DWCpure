@@ -94,3 +94,25 @@ def test_each_gate_still_capped():
                         llm=llm, task_id="T_R418_b", max_rounds=10)
     n_refusal = sum(1 for p in llm.prompts if "却仍然拒答" in p)
     assert n_refusal == 2, "单闸打回次数应恰好为 2（防死循环），实际 %d" % n_refusal
+
+
+# ══════════════ R423 · 顽固拒答 ⇒ 判失败 ══════════════
+
+def test_stubborn_refusal_fails_instead_of_accepting(monkeypatch):
+    """★★★ rf12 复刻：两次打回后仍拒答 ⇒ status=incomplete。
+
+    现场：模型 3 次读 dwc_theme.py，revision 自己都写下
+    「Theme names visible in header: deep (Deep Space)」，
+    最后仍答「没有检索到任何证据」。
+    """
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
+    bad = {"analysis": "拒答", "op": "final",
+           "answer": "无法确定：未检索到任何与 TUI 主题相关的证据。"}
+    llm = _Script([
+        {"analysis": "读", "op": "read", "path": "scripts/dwc_theme.py"},
+        bad, bad, bad,
+    ])
+    rep = T.execute_user_task("DWC 的 TUI 主题名（theme）叫什么？只答主题名。",
+                              llm=llm, task_id="T_R423_a", max_rounds=12)
+    assert rep["status"] == "incomplete", rep["status"]
+    assert "拒答" in str(rep.get("answer")), rep.get("answer")
