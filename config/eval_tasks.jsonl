@@ -37,7 +37,7 @@
 {"id": "an05", "kind": "analyze", "task": "config 目录下与进化调度相关的 yaml 配置文件名（replay 调度的那个）。", "check": {"type": "contains", "target": "replay.yaml"}}
 {"id": "an06", "kind": "analyze", "task": "archive 目录下知识档文件的命名前缀是什么（knowledge 开头的完整前缀）？", "check": {"type": "contains", "target": "knowledge3_"}}
 {"id": "an07", "kind": "analyze", "task": "列出 dwc 的安装脚本文件名（Windows 与 shell 两个）。", "check": {"type": "contains_all", "target": ["install.ps1", "install.sh"]}}
-{"id": "an08", "kind": "analyze", "task": "scripts 目录下与校准 bench 相关的脚本文件名是什么？", "check": {"type": "contains", "target": "calibrate_step_judge.py"}}
+{"id": "an08", "kind": "analyze", "task": "scripts 目录下，把 step_judge 规则版与 AEWM-Action-Judge-Bench 做校准的脚本文件名是什么？只答文件名。", "check": {"type": "contains", "target": "calibrate_step_judge.py"}}
 {"id": "an09", "kind": "analyze", "task": "DWC 的铁律文档（iron laws）文件在哪个目录下？只答目录名。", "check": {"type": "contains_any", "target": ["config", "docs"]}}
 {"id": "an10", "kind": "analyze", "task": "var 目录下 agent 心跳文件叫什么名？只答文件名。", "check": {"type": "contains", "target": "dwc_agent_heartbeat.json"}}
 {"id": "wr01", "kind": "write", "task": "在 var/inbox_work/ 目录写入文件 hello.txt, 内容为一行: EVAL_WRITE_OK", "check": {"type": "file_contains", "path": "var/inbox_work/hello.txt", "target": "EVAL_WRITE_OK"}}

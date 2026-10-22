@@ -524,9 +524,13 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         except (TypeError, ValueError):
             off = 0
         try:
-            # ★ R302补4 · 缺省 50 行（R247 翻页把缺省变 1 行——
-            #   T_R302Y 现场 35 行文件翻 4 轮才到第 3 行，护栏永不可达）。
-            lim = min(400, max(1, int(args.get("limit", 50) or 50)))
+            # ★★★ R424 · 缺省 **200** 行（原 50）——
+            #   现场（rf11，R423 全池）：PROGRESS.md 共 137 行，默认 50 行
+            #   要读 3 次；模型读到第 100 行就停下，答「剩余 100-137 行
+            #   未能读取」并用别处的数字猜。**50 行缺省把一次读变成三次，
+            #   模型每次都可能在中途放弃。**
+            #   仓库里绝大多数文件 < 200 行 ⇒ 一次读完，翻页只留给大文件。
+            lim = min(400, max(1, int(args.get("limit", 200) or 200)))
         except (TypeError, ValueError):
             lim = 0
         seg = lines[off:] if not lim else lines[off:off + lim]

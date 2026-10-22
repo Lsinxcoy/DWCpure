@@ -74,6 +74,35 @@ def test_read_offset_paging():
             pass
 
 
+def test_read_default_returns_whole_small_file():
+    """★★★ R424 重锚：缺省一次读完 137 行。
+
+    旧缺省 50 行 ⇒ 137 行文件要读 3 次；rf11 现场模型读到第 100 行就停下，
+    答「剩余 100-137 行未能读取」并用别处的数字猜。
+    ★ 本测试锁的是**缺省值**，不是翻页能力（翻页仍由 offset/limit 提供）。
+    """
+    import dwc.llm.task_exec as m
+    d = os.path.join(m.ROOT, "var", "__test_read424__")
+    os.makedirs(d, exist_ok=True)
+    src = os.path.join(d, "mid.txt")
+    io.open(src, "w", encoding="utf-8").write(
+        "\n".join("行%d" % i for i in range(1, 138)))
+    try:
+        o = m._do_action("read", {"op": "read",
+                                  "path": "var/__test_read424__/mid.txt"})
+        assert o["n_lines"] == 137
+        assert o["returned_lines"] == 137, (
+            "缺省应一次读完 137 行，实际只给 %d 行" % o["returned_lines"])
+        assert o["truncated"] is False
+        assert "行137" in o["content"]
+    finally:
+        try:
+            os.remove(src)
+            os.rmdir(d)
+        except OSError:
+            pass
+
+
 def test_default_max_rounds_999():
     """★★★ 轮上限 999 锁（用户: '999 6也太少了'）。"""
     import inspect
