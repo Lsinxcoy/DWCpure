@@ -5,7 +5,7 @@
 {"id": "rf05", "kind": "read-fact", "task": "DWC 的记忆系统内核类名叫什么？只答类名。", "check": {"type": "contains", "target": "MemoryKernel"}}
 {"id": "rf06", "kind": "read-fact", "task": "README 快速开始里, 常驻 agent 启动用哪个命令（含参数）？只答命令。", "check": {"type": "contains", "target": "dwc start --llm"}}
 {"id": "rf07", "kind": "read-fact", "task": "DWC 项目的 GitHub 仓库全名（owner/repo）是什么？只答 owner/repo。", "check": {"type": "contains", "target": "Lsinxcoy/divine-wisdom-core"}}
-{"id": "rf08", "kind": "read-fact", "task": "DWC 记忆修订的新节点用哪个保留键链回旧节点？只答键名。", "check": {"type": "contains", "target": "_rev_prev"}}
+{"id": "rf08", "kind": "read-fact", "task": "DWC 记忆修订的新节点用哪个保留键链回旧节点？只答键名。", "check": {"type": "first_key", "target": ["_rev_prev", "prev"]}}
 {"id": "rf09", "kind": "read-fact", "task": "DWC 事前判别的 env 开关变量名是什么（可关判别的那个）？只答变量名。", "check": {"type": "contains", "target": "DWC_STEP_JUDGE"}}
 {"id": "rf10", "kind": "read-fact", "task": "DWC 修订对（失败任务修订重试的配对）落盘到哪个文件名？只答文件名。", "check": {"type": "contains", "target": "dwc_pairs.jsonl"}}
 {"id": "rf11", "kind": "read-fact", "task": "PROGRESS 里记录的轮次上限数字（用户拍板改的那个）是多少？只答数字。", "check": {"type": "regex", "pattern": "999"}}

@@ -103,8 +103,8 @@ def test_rf01_check_accepts_decimal():
 def test_all_eval_checks_are_valid_types():
     """★★ 全池判据类型必须是 verify() 支持的（防写了不支持的 type）。"""
     supported = {"contains", "regex", "contains_any", "contains_all",
-                 "contains_equiv", "rc_and_contains", "file_contains",
-                 "file_contains_all", "file_lines"}
+                 "contains_equiv", "first_key", "rc_and_contains",
+                 "file_contains", "file_contains_all", "file_lines"}
     bad = []
     for line in open(os.path.join(ROOT, "config", "eval_tasks.jsonl"),
                      encoding="utf-8"):

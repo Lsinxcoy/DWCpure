@@ -326,6 +326,23 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
         return _hb
     if t == "contains":
         return (check["target"] in ans, "answer contains %r" % check["target"][:40])
+    if t == "first_key":
+        # ★★★ R431 · **最先出现的键**判据（"只答X"类任务专用）。
+        #   现场（rf08，17:05）：模型答
+        #     「prev（保留键 `prev`；修订实现里内部也会见到 `_rev_prev`，
+        #       但对外链回旧节点的键名就是 `prev`）」
+        #   `contains '_rev_prev'` 命中 ⇒ 判 ✓。
+        #   **答案明确是错的，判据却给了分** —— 判据不许给白送分。
+        #   规则：谁**先出现**，谁就是模型给出的答案；正确答案必须排最前。
+        #   （`prev` 是 `_rev_prev` 的子串，但后者位置更靠前时仍然判对。）
+        cands = [str(x) for x in (check.get("target") or [])]
+        best, bi = None, None
+        for c in cands:
+            i = ans.find(c)
+            if i >= 0 and (bi is None or i < bi):
+                best, bi = c, i
+        ok = bool(cands) and best == cands[0]
+        return (ok, "first-key %r (pos %s)" % (best, bi))
     if t == "regex":
         return (bool(re.search(check["pattern"], ans)),
                 "answer regex %r" % check["pattern"][:40])

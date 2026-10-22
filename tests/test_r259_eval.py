@@ -38,9 +38,13 @@ def test_taskset_no_llm_selfjudge():
       被判 ✗ —— 判据验的是"写法"不是"答案"，系统性低估通过率。
       `contains_equiv` 仍是**纯字符串匹配**（无 LLM 参与），
       与 G2 的初衷（禁 LLM 自评）不冲突，故纳入白名单。
+    ★ R431 重锚：加入 `first_key`（"只答X"类任务的最先出现判据）。
+      理由：`rf08` 的 `contains '_rev_prev'` 在模型答
+      「prev（…也会见到 `_rev_prev`，但键名就是 `prev`）」时**给了分**
+      —— 答案明确是错的。`first_key` 仍是**纯字符串比较**（无 LLM 参与）。
     """
     allowed = {"contains", "regex", "contains_any", "contains_all",
-               "contains_equiv",
+               "contains_equiv", "first_key",
                "rc_and_contains", "file_contains", "file_contains_all",
                "file_lines"}
     for l in io.open(TASKS, encoding="utf-8"):
