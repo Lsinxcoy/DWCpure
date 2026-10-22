@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""R234 · contrast 教训检索：成败对照优先（incumbent.py 同构 · 调整C）。"""
+"""R234 · contrast 教训检索：成败对照优先（候选脚本同构 · 调整C）。"""
 from __future__ import annotations
 
 import os
