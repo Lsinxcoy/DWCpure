@@ -1,0 +1,69 @@
+{
+ "name": "task_exec",
+ "stable": "v1",
+ "candidate": "v2",
+ "ts": "20261022_204921",
+ "verdict": "reject",
+ "wins": [
+  "rf08"
+ ],
+ "losses": [
+  "rf12"
+ ],
+ "pairs": [
+  {
+   "id": "rf09",
+   "stable_ok": false,
+   "cand_ok": false,
+   "stable_how": "answer contains 'DWC_STEP_JUDGE'",
+   "cand_how": "answer contains 'DWC_STEP_JUDGE'",
+   "stable_answer": "None",
+   "cand_answer": "None"
+  },
+  {
+   "id": "cl08",
+   "stable_ok": false,
+   "cand_ok": false,
+   "stable_how": "answer contains 'cli_main.py'",
+   "cand_how": "answer contains 'cli_main.py'",
+   "stable_answer": "（未能给出有效答案：连续两次给出仓库中不存在的文件名，判为幻觉，不予采信）",
+   "cand_answer": "（未能给出有效答案：连续两次给出仓库中不存在的文件名，判为幻觉，不予采信）"
+  },
+  {
+   "id": "rf08",
+   "stable_ok": false,
+   "cand_ok": true,
+   "stable_how": "first-key 'prev' (pos 0)",
+   "cand_how": "first-key '_rev_prev' (pos 0)",
+   "stable_answer": "prev",
+   "cand_answer": "_rev_prev"
+  },
+  {
+   "id": "rf12",
+   "stable_ok": true,
+   "cand_ok": false,
+   "stable_how": "answer contains 'deep'",
+   "cand_how": "answer contains 'deep'",
+   "stable_answer": "DWC 的 TUI 共有两套主题，名字是 **deep**（Deep Space，默认）和 **warm**（Retro 琥珀暖底），定义在 scripts/dwc_theme.py 的 TOKENS 表中，当前主题名由 get()/current_name() 读取 var/dwc_tui_theme 决定，非法或缺省时回退为 deep。",
+   "cand_answer": "无法给出主题名：我查到的证据都与 TUI 主题无关。具体为：(1) config/mcp.json —— 内容仅为 MCP server 配置（\"servers\": {}，注释说明空 servers 表示未接入任何外部 server），不含主题/theme 字段；(2) 在代码中检索 TUI/theme 相关符号返回 DEFINITIONS 0、REFERENCES 0，即仓库里没有任何 TUI 主题定义或引用。因此不存在可摘出的主题名，任何具体主题名都会是编造。若需据实回答，请提供主题配置所在的具体文件（例如 TUI 模块或 config 下的主题配置文件），我核实后再答。"
+  },
+  {
+   "id": "hs01",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer any-of ['探索', '导航', '世界树']",
+   "cand_how": "answer any-of ['探索', '导航', '世界树']",
+   "stable_answer": "世界模型（src/dwc/organs/world_model.py）是 DWC 的「第七器官」，承载进化循环的环节⑥——探索：决定下一轮往哪里探索。它的作用可概括为四点：\n\n1. 探索导航（核心职责）：维护一棵 WorldTree（世界树），节点（WorldNode）记录「候选 action」与「观测史」，用 candidate_nodes / select 以信息增益 information_gain(n_obs, n_pass)（二元熵 + Laplace 平滑，只吃布尔观测、不吃 confidence —— W4/2609.04128 零模型依赖）对候选排序，选出下一步该展开/探索的方向，补上了 v3 漏掉的探索端。\n\n2. 状态驱动的假设推演（对应历史关键词「状态 / 预测 / 规划」的正确含义）：树的节点带 provenance ∈ {observed, simulated} ",
+   "cand_answer": "世界模型（src/dwc/organs/world_model.py）是 DWC 的「第七器官」，承载进化循环的环节⑥——探索，即决定下一轮往哪里探索。核心作用可概括为四点：\n\n1. 探索导航：维护世界树（WorldTree，节点 WorldNode 记录候选 action / parent_id / provenance / confidence_source / n_obs / n_pass / score），补上 v3 漏掉的「探索端」；通过 legal_actions() 给出未揭示叶子（职责一：任务列表），通过 lineage_obs() 沿 root→node 路径汇总布尔观测，再用信息增益 information_gain(n_obs, n_pass)（二元熵 + Laplace 平滑，只吃布尔观测计数、不吃 confidence，W4）对候选收束排序，选出下一步展开方向。\n"
+  },
+  {
+   "id": "an09",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer any-of ['config']",
+   "cand_how": "answer any-of ['config']",
+   "stable_answer": "config",
+   "cand_answer": "config"
+  }
+ ]
+}

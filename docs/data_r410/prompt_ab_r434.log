@@ -1,0 +1,16 @@
+提示词 task_exec：stable=v1 vs candidate=v2，6 单，每单两臂
+[ 1/6] rf09  =  stable=✗  cand=✗
+[ 2/6] cl08  =  stable=✗  cand=✗
+[ 3/6] rf08  ↑  stable=✗  cand=✓
+[ 4/6] rf12  ↓  stable=✓  cand=✗
+        stable: answer contains 'deep'
+        cand  : answer contains 'deep'
+[ 5/6] hs01  =  stable=✓  cand=✓
+[ 6/6] an09  =  stable=✓  cand=✓
+已删除钉版本文件（生产回到 manifest 灰度）
+
+判定: REJECT（赢 1 / 输 1 / 共 6）
+  赢: rf08
+  输: rf12
+明细: var\prompt_ab_task_exec_v2_20261022_204921.json
+EXIT=0

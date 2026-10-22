@@ -36,6 +36,13 @@ _DWC_TEST_VAR = tempfile.mkdtemp(prefix="dwc_test_var_")
 os.environ["DWC_VAR_DIR"] = _DWC_TEST_VAR
 atexit.register(shutil.rmtree, _DWC_TEST_VAR, ignore_errors=True)
 
+# ★★★ R434 · 提示词 A/B 的「钉版本」文件是**实验态**，测试一律看不到。
+#   现场：跑 A/B 时 `var/prompt_force.json` 存在（task_exec=v2），
+#   任何读提示词的测试都被钉到候选版本 ⇒ `test_canary_hash_pinned`
+#   的 pct=0 断言拿到 v2 而变红。指到不存在的 tmp 路径即"没有钉版本"。
+os.environ["DWC_PROMPT_FORCE_FILE"] = os.path.join(_DWC_TEST_VAR,
+                                                   "prompt_force.json")
+
 
 @pytest.fixture(autouse=True)
 def _reset_process_global_state():

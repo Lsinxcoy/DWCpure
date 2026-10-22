@@ -110,7 +110,65 @@ def render_here(name: str, fields: Dict[str, Any], caller_file: str,
         return None
 
 
+#: ★★★ R434 · A/B 实验用的"钉版本"文件（`var/prompt_force.json`）。
+#: 生产默认不存在；只在跑提示词 A/B 时由 `scripts/dwc_prompt_ab.py` 写入，
+#: 跑完删除。缓存按 mtime 失效 —— 改一次文件立刻生效，不用重启 agent。
+_FORCE = {"mtime": None, "map": {}}
+
+
+def _force_path() -> str:
+    """钉版本文件路径：env 优先，否则**按本文件定位仓库根**（不依赖 cwd）。
+
+    ★ 用 cwd 会踩坑：拉活脚本的 cwd 可能是 Temp，agent 的 cwd 才是仓库根 ——
+      同一个相对路径在两个进程里指向不同文件。
+    """
+    import os as _os
+    env = (_os.environ.get("DWC_PROMPT_FORCE_FILE") or "").strip()
+    if env:
+        return env
+    try:
+        here = _os.path.dirname(_os.path.abspath(__file__))      # src/dwc/llm
+        root = _os.path.dirname(_os.path.dirname(_os.path.dirname(here)))
+        return _os.path.join(root, "var", "prompt_force.json")
+    except Exception:
+        return _os.path.join("var", "prompt_force.json")
+
+
+def _forced(name: str) -> Optional[str]:
+    """读钉版本表；没有文件/坏文件 ⇒ None（走 manifest 灰度）。
+
+    ★ 坏文件不静默：计数 + 当没钉（宁可跑灰度，不可把实验条件当生产）。
+    """
+    import json as _js
+    import os as _os
+    p = _force_path()
+    try:
+        st = _os.stat(p)
+    except OSError:
+        return None
+    if _FORCE.get("mtime") == st.st_mtime_ns:
+        return (_FORCE.get("map") or {}).get(name)
+    try:
+        raw = open(p, encoding="utf-8").read()
+        m = _js.loads(raw)
+        if not isinstance(m, dict):
+            raise ValueError("force file 必须是 {name: ver}")
+        _FORCE["map"] = {str(k): str(v) for k, v in m.items() if v}
+        _FORCE["mtime"] = st.st_mtime_ns
+    except Exception:
+        note_miss()
+        return None
+    return (_FORCE.get("map") or {}).get(name)
+
+
 def _ver(name: str, manifest: Dict[str, Any], key: str) -> Optional[str]:
+    # ★ R434 · 钉版本优先（A/B 归因需要"同题两臂"）
+    try:
+        f = _forced(name)
+        if f:
+            return f
+    except Exception:
+        note_miss()
     try:
         m = (manifest or {}).get(name, {}) or {}
     except Exception:
