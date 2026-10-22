@@ -96,3 +96,45 @@ def test_scan_is_not_vacuous():
     hits = [t for t in TARGETS if t in sample]
     assert hits, "扫描逻辑失效：合成样本没命中"
     assert any(k in sample for k in NARRATIVE)
+
+
+#: 评测题号（rf08 / cl08 / hs01 …）
+TASK_ID = re.compile(r"\b(?:rf|cl|hs|an|rv|wr)\d{2}\b")
+
+
+def _scan_ids(root):
+    bad = []
+    for d, ds, fs in os.walk(root):
+        ds[:] = [x for x in ds if x not in ("__pycache__", ".git", ".venv")]
+        for f in fs:
+            if not f.endswith(".py"):
+                continue
+            p = os.path.join(d, f)
+            for i, line in enumerate(io.open(p, encoding="utf-8",
+                                             errors="replace"), 1):
+                s = line.strip()
+                if not s.startswith("#"):
+                    continue
+                m = TASK_ID.search(s)
+                if m:
+                    bad.append("%s:%d: %s" % (os.path.relpath(p, ROOT), i,
+                                              s[:100]))
+    return bad
+
+
+def test_src_comments_have_no_eval_task_ids():
+    """★★★ src/ 注释里不许出现评测题号。
+
+    现场（rf12，池 A 18:16）：模型已经读到源文件里写着主题名，
+    随后读到注释「现场（rf12）：模型 3 次读…仍答不出来」，
+    final 就写成「仓库里没有任何 TUI 主题证据」——**自己的证据被注释推翻**。
+    题号 + 失败叙事会把模型带偏。
+    """
+    bad = _scan_ids(os.path.join(ROOT, "src"))
+    assert not bad, "注释里残留评测题号:\n" + "\n".join(bad)
+
+
+def test_scripts_comments_have_no_eval_task_ids():
+    """★★ scripts/ 同样（评测器自己也别把题号写进被搜目录）。"""
+    bad = _scan_ids(os.path.join(ROOT, "scripts"))
+    assert not bad, "注释里残留评测题号:\n" + "\n".join(bad)

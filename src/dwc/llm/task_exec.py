@@ -232,8 +232,8 @@ _REPO_SKIP_DIRS = {".git", ".cache", "var", "archive", "node_modules",
                    "__pycache__", ".venv", "venv", "build", "dist",
                    # ★★★ R427 · `docs/repos/` 是**外部仓库镜像**（README 转储，
                    #   3.4MB）。它被 search_code 索引后，别的项目的组件名会冒充
-                   #   本仓库的文件名 —— cl08 现场：镜像里写着「M11 task_router」，
-                   #   模型据此答出一个本仓库根本不存在的路由文件名。
+                   #   本仓库的文件名 —— 某 code-locate 题 现场：镜像里写着别的项目的
+                   #   组件名，模型据此答出一个本仓库根本不存在的路由文件名。
                    #   **外部仓库不是本仓库的语料。**
                    "repos"}
 _REPO_EXTS = (".py", ".yaml", ".yml", ".json", ".toml", ".md", ".jsonl")
@@ -322,7 +322,7 @@ def _repo_files() -> set:
 def _phantom_file_gate(task: str, ans: str):
     """★★★ R417 · 答案里的文件名在仓库里**一个都不存在** ⇒ 打回。
 
-    现场（cl08）：问「CLI 入口路由文件叫什么」，模型跑了 find_files、读了
+    现场（某 code-locate 题）：问「CLI 入口路由文件叫什么」，模型跑了 find_files、读了
     两个文件（**有取证**，所以 R400-f 不触发），最后仍答了一个
     **仓库里根本不存在的**路由文件名 —— 真实入口是 `cli_main.py`。
 
@@ -354,7 +354,7 @@ def _phantom_file_gate(task: str, ans: str):
 def _fake_ident_gate(ans: str):
     """★★★ R407-b · 答案里的 `DWC_*` 必须**真的在代码里被使用**。
 
-    现场（rf09）：模型答了一个全仓 0 命中的开关名；真实开关是另一个。
+    现场（某 read-fact 题）：模型答了一个全仓 0 命中的开关名；真实开关是另一个。
     只查 `DWC_` 前缀：项目自有的名字，外部概念（HTTP/JSON）不误伤。
     """
     for tok in sorted(set(_UPPER_IDENT.findall(str(ans or "")))):
@@ -373,7 +373,7 @@ def _fake_ident_gate(ans: str):
 def _ev_excerpt(log, n: int = 2, chars: int = 700) -> str:
     """★★★ R408-b · 把最近 n 条**成功** obs 的原文摘出来，直接贴进提示。
 
-    动机（rf12 实测）：打回提示写「请回看上面的 obs」—— 模型**根本不回看**，
+    动机（某 read-fact 题 实测）：打回提示写「请回看上面的 obs」—— 模型**根本不回看**，
     下一轮照旧拒答。把证据原文贴进 prompt 里，它才有可能用上。
     """
     ok = [e for e in (log or [])
@@ -393,9 +393,9 @@ def _ev_excerpt(log, n: int = 2, chars: int = 700) -> str:
 def _refusal_gate(task: str, ans: str, has_ev: bool, ev: str = ""):
     """★★★ R408 · 已经拿到证据却拒答 ⇒ 打回，让它从 obs 里摘答案。
 
-    现场（rf12）：搜索命中 `scripts/dwc_theme.py:12: "deep": {`、读了文件
-    （正文写着「两套主题：deep…」）、甚至读到一个内容就是 `deep` 的文件，
-    最后仍答「未检索到任何证据」。**证据在手还拒答**，比猜错更冤。
+    现场（某 read-fact 题）：模型搜索命中、并且读到了正文里写着答案的那个
+    文件（甚至读到一个内容就是答案的文件），最后仍答「未检索到任何证据」。
+    **证据在手还拒答**，比猜错更冤。
 
     只拦"拒答话术"，且**必须有取证**：真的搜不到（零 obs）时拒答是
     诚实行为，不拦。
@@ -531,7 +531,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             off = 0
         try:
             # ★★★ R424 · 缺省 **200** 行（原 50）——
-            #   现场（rf11，R423 全池）：PROGRESS.md 共 137 行，默认 50 行
+            #   现场（某 read-fact 题，R423 全池）：PROGRESS.md 共 137 行，默认 50 行
             #   要读 3 次；模型读到第 100 行就停下，答「剩余 100-137 行
             #   未能读取」并用别处的数字猜。**50 行缺省把一次读变成三次，
             #   模型每次都可能在中途放弃。**
@@ -594,7 +594,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         hit = [w for w in _FORBIDDEN if w in joined]
         if hit:
             raise TaskExecError("危险命令黑名单命中 %s: %s" % (hit, joined[:120]))
-        # ★★★ R400 · 拦截"自写搜索脚本" —— 现场（cl02/cl07）模型不用
+        # ★★★ R400 · 拦截"自写搜索脚本" —— 现场（某 code-locate 题/某 code-locate 题）模型不用
         #   search_code，改用 `python -c <自己写的 os.walk 脚本>`：
         #   ① 它的分类逻辑把『MemoryKernel 的定义行』归到 REFERENCES（答不出）
         #   ② 脚本自己还会抛 `TypeError: Object of type set is not JSON
@@ -676,7 +676,7 @@ def _claimed_action_without_actions(text: str, n_actions: int) -> str:
     """★★★ R383 · 零动作却声称做过动作 ⇒ 返回命中的片段（否则空串）。
 
     R380 把"非 JSON 纯文本"收下当答案，结果模型**说**它写了文件就被
-    当成完成（`wr01/wr03/wr05/wr07` 现场：文件根本没写）。
+    当成完成（`某 write 题/某 write 题/某 write 题/某 write 题` 现场：文件根本没写）。
     这是假成功 —— 降级与成功不可区分。
     """
     if n_actions > 0:
@@ -688,7 +688,7 @@ def _claimed_action_without_actions(text: str, n_actions: int) -> str:
 def _looks_like_refusal(text: str, n_actions: int) -> str:
     """★★★ R383 · 零动作且明确拒绝 ⇒ 返回命中片段（否则空串）。
 
-    现场：`an04` 答「我无法执行文件写入（没有可用的文件/终端工具）」
+    现场：`某 analyze 题` 答「我无法执行文件写入（没有可用的文件/终端工具）」
     被判 done —— 这是拒绝，不是答案。
     """
     if n_actions > 0:
@@ -790,7 +790,7 @@ _FIND_PY = (
 
 
 #: ★★★ R394 · `search_code` 用 Python 实现（不再走 grep）。
-#:   现场（2026-10-20 20:19 全池）：cl01「execute_user_task 定义在哪个文件」
+#:   现场（2026-10-20 20:19 全池）：某 code-locate 题「execute_user_task 定义在哪个文件」
 #:   第一轮 grep 成功，之后连续 3 轮 ok=False（同一词搜不到）⇒ 复读熔断。
 #:   根因：`grep -rn` 返回的是**所有引用**（几十行），定义行被淹没在
 #:   调用点里；模型读不出"哪个是定义"，只好换个词再搜。
@@ -803,7 +803,7 @@ _SEARCH_PY = (
     "rx=re.compile(re.escape(pat))\n"
     "defs=[]; refs=[]; lines_hit=[]\n"
     # ★★★ R429 · 路径写错时**必须大声报错**，不能静默 0/0。
-    #   现场（rf05，12:53）：模型把 path 传成**文件**（`src/dwc/organs/memory.py`）
+    #   现场（某 read-fact 题，12:53）：模型把 path 传成**文件**（`src/dwc/organs/memory.py`）
     #   或相对路径（`organs`）⇒ `os.walk` 什么都不遍历 ⇒ 打印
     #   `DEFINITIONS(0)/REFERENCES(0)` ⇒ 模型据此断定"仓库里没有这个符号"，
     #   最后只敢给一个"推测"而不是取证结论。
@@ -831,7 +831,7 @@ _SEARCH_PY = (
     "print('=== REFERENCES (%d) ===' % len(refs))\n"
     "for x in refs[:30]: print(x)\n"
     # ★★★ R430 · **检索词过泛**时给出"更长标识符"候选。
-    #   现场（rf08）：问"记忆修订的新节点用哪个保留键链回旧节点"，模型搜
+    #   现场（某 read-fact 题）：问"记忆修订的新节点用哪个保留键链回旧节点"，模型搜
     #   `prev` ⇒ 77 条引用、0 条定义 ⇒ 它把泛命中里的裸词当成了结果。
     #   0 定义 + 大量引用 = 这个词只是**更长标识符的一部分** ——
     #   把包含它的标识符按出现次数列出来，模型就能看到完整键。
@@ -856,7 +856,7 @@ def _search_to_python(pat: str, path: str):
     """search_code ⇒ Python 实现（定义置顶 + 限流）。
 
     ★★★ R403 · **剥掉模型误带的 `def `/`class ` 前缀**。
-    现场（cl02，03:40）：模型传 `pattern="class MemoryKernel"`，
+    现场（某 code-locate 题，03:40）：模型传 `pattern="class MemoryKernel"`，
     定义正则变成 `class class MemoryKernel` ⇒ DEFINITIONS **0 条**，
     而原文匹配到 1 行 ⇒ 全落在 REFERENCES。模型据此认为"没有定义"，
     转头答了一个不存在的文件名。
@@ -908,7 +908,7 @@ def _argv_of(cmd):
 
     现场：`run` op 严格要求 **argv 列表**（`cmd 必须是非空 argv 列表`），
     而原生工具的 `run_command(cmd: string)` 传的是字符串
-    ⇒ 所有命令都报 `ok: False`（an01 实测 `ls -la` 连挂两次）。
+    ⇒ 所有命令都报 `ok: False`（某 analyze 题 实测 `ls -la` 连挂两次）。
 
     ★ 必须用 `posix=True`：模型常传 `-E "max_round|max_rounds"` 这种
       带引号的串；`posix=False` 会**保留引号** ⇒ grep 收到
@@ -1033,8 +1033,8 @@ def _tool_calls_to_step(tool_calls: list):
 
 
 #: ★★★ R385 · 原生工具模式的硬轮数上限。
-#:   现场：rf01 在 `max_rounds=999` 下跑 **140 轮 / 278 动作 / 625 秒**
-#:   还给出空答案；同批 rf02 只要 2 轮 6.5 秒。不是慢，是死循环。
+#:   现场：某 read-fact 题 在 `max_rounds=999` 下跑 **140 轮 / 278 动作 / 625 秒**
+#:   还给出空答案；同批 某 read-fact 题 只要 2 轮 6.5 秒。不是慢，是死循环。
 #:   一个任务烧 10 分钟 ⇒ 52 单 9 小时且答案为空。
 NATIVE_TOOLS_MAX_ROUNDS = 15
 
@@ -1214,7 +1214,7 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
            # ★★★ R405 · `default=str` 必须加 —— `step` 里带 `_confirmed`
            #   （set 类型，人工授权词集合），裸 `json.dumps` 必抛
            #   `TypeError: Object of type set is not JSON serializable`。
-           #   现场（rv07）：模型执行 gate.py 被拦成噪声 → 构造重写提示时炸
+           #   现场（某 run-verify 题）：模型执行 gate.py 被拦成噪声 → 构造重写提示时炸
            #   → 模型看到"命令失败"→ 放弃 → 判 ✗。
            json.dumps({k: v for k, v in step.items()
                        if k != "analysis"}, ensure_ascii=False,
@@ -1395,7 +1395,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
     actions_log, why} — status ∈ {done, incomplete}。
     """
-    # ★★★ R385 · 原生工具模式硬上限（rf01 实测 140 轮 / 625 秒 / 空答案）。
+    # ★★★ R385 · 原生工具模式硬上限（某 read-fact 题 实测 140 轮 / 625 秒 / 空答案）。
     #   `max_rounds=999` 是给 JSON 路径的历史宽松值；原生工具会死循环。
     if _use_native_tools() and max_rounds > NATIVE_TOOLS_MAX_ROUNDS:
         max_rounds = NATIVE_TOOLS_MAX_ROUNDS
@@ -1442,17 +1442,17 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         "「文件:行号:内容」；**不要用 list_dir / ls 逐层翻目录**"
         "（现场：反复 `ls -la .` 直到复读熔断，11 轮零进展）。"
         " 找不到再放宽: 换符号名/换路径 path='.'; 找文件用 find_files。"
-        # ★★★ R400 · 现场（cl02/cl04/cl07/cl08）：模型不用 search_code，
+        # ★★★ R400 · 现场（某 code-locate 题/某 code-locate 题/某 code-locate 题/某 code-locate 题）：模型不用 search_code，
         #   改用 run_command 跑**自写的 python 搜索脚本** —— ①参数太长被截断
         #   ②自己的脚本把『MemoryKernel 的定义行』归到 REFERENCES ⇒ 答不出。
         " ★★★ **绝对不要**用 run_command 跑自写的 python/grep 搜索脚本："
         "参数太长会被截断，而且自己写的分类逻辑常把定义误判成引用。"
         "search_code 的输出里 **=== DEFINITIONS 段就是答案**。"
-        # ★ R400 · cl04 现场：DEFINITIONS(1) 已给出 effort.py，但后续一次
+        # ★ R400 · 某 code-locate 题 现场：DEFINITIONS(1) 已给出 effort.py，但后续一次
         #   工具报错后模型**撤回了正确答案**并拒答 ⇒ 证据一旦到手就别撤回。
         " 一旦 DEFINITIONS 段给出了文件，**直接用它作答**；"
         "后续工具报错不代表已有证据失效，不要因此撤回正确答案。"
-        # ★ R400-d · cl08 现场：问「CLI 入口路由文件叫什么」——没有符号名，
+        # ★ R400-d · 某 code-locate 题 现场：问「CLI 入口路由文件叫什么」——没有符号名，
         #   模型反复搜不存在的符号、find TOTAL 0，最后拒答。
         " 若问题**没有给出符号名**（如「入口/路由/配置文件叫什么」）："
         "用 find_files(pattern='cli*') 或 search_code(pattern='ArgumentParser')"
@@ -1547,7 +1547,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 prompt = ("任务: %s\n已取证 %d 次（read 成功）。不要再收集，"
                           "现在基于已有信息直接 final 作答（answer≥10 字中文）。"
                           % (task, _n_read))
-        # ★★★ R385 · 原生工具模式的死循环防护（rf01 实测 140 轮/625 秒）。
+        # ★★★ R385 · 原生工具模式的死循环防护（某 read-fact 题 实测 140 轮/625 秒）。
         #   两个出口：
         #   ① 同一 (op,target) 重复 ≥ NATIVE_TOOLS_REPEAT_LIMIT ⇒ 强制 final
         #   ② 轮数逼近上限 ⇒ 强制 final（给一次收尾机会）
@@ -1637,7 +1637,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         step = _tool_calls_to_step(_tcs) if _tcs else _extract_json(res.text)
         if step is None:
             # ★★★ R384 · 原生工具模式下，模型**不调工具却输出散文**是协议
-            #   违反（我们已把工具挂上去了）。现场：wr02 只 1 轮 0 动作，
+            #   违反（我们已把工具挂上去了）。现场：某 write 题 只 1 轮 0 动作，
             #   回"I'll check the directory structure"就被当答案。
             #   处理：先重试一次并明确要求调用工具；仍不调 ⇒ 判 incomplete。
             if _native:
@@ -1696,7 +1696,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     "actions_log": log}
         op = step.get("op")
         # ★★★ R426 · 模型把**原生工具名**当 op 用（`op='search_code'`）——
-        #   现场（cl08，11:29 复跑）：连续 3 轮 `op='search_code' 不在契约集`
+        #   现场（某 code-locate 题，11:29 复跑）：连续 3 轮 `op='search_code' 不在契约集`
         #   ⇒ 搜索动作全被丢掉 ⇒ 模型只能凭印象答 ⇒ 顽固幻觉。
         #   根因：`_TOOL_TO_OP` 只在**原生 tool_calls** 路径生效，
         #   JSON 步（模型自己写 `{"op":"search_code",...}`）没接映射。
@@ -1848,7 +1848,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             #   规则：问题在问标识符 + 答案含代码标识符 + 零取证 ⇒ 打回。
             #   （纯知识问答不受影响：问题不问标识符就不触发。）
             #   ★★★ R418 · **每个闸独立计数** ——
-            #   现场（rf12，R418 全池第 12 单）：R408 打回一次、R417 打回一次，
+            #   现场（某 read-fact 题）：模型 3 次读同一个源文件，
             #   共用的 `_r302_strikes` 就到 2 了 ⇒ 模型第三次拒答时**所有闸
             #   一起失效** ⇒「有证据却拒答」被当成答案收下。
             #   闸不该互相吃掉额度：每个闸各自 2 次，总轮次仍由 N 轮上限兜底。
@@ -1876,7 +1876,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                         prompt = _why407b
                         continue
                 # ★★★ R417 · **有取证也编文件名** ⇒ 打回 ——
-                #   现场（cl08）：跑了 find_files、读了两个文件，最后仍答
+                #   现场（某 code-locate 题）：跑了 find_files、读了两个文件，最后仍答
                 #   一个仓库里不存在的路由文件名（真实入口 `cli_main.py`）。
                 #   文件名是否存在是可判定事实，不该靠模型自觉。
                 if _gate_strikes.get("r417", 0) < 2:
@@ -1888,9 +1888,10 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                         prompt = _why417
                         continue
                 # ★★★ R408 · **有证据却拒答**必须打回 ——
-                #   现场（rf12）：模型搜到 `scripts/dwc_theme.py:12: "deep": {`，
-                #   读了该文件（内容含「两套主题：deep…」），甚至还读到一个
-                #   内容就是 `deep` 的文件 —— 最后仍答「未检索到任何证据，
+                #   现场（某 read-fact 题）：模型搜到命中行、读了该文件
+                #   （正文里就有答案），甚至还读到一个内容就是答案的文件 ——
+                #   最后仍答「未检索到任何证据，不做猜测」。
+                #   **证据在手还拒答**，比猜错更冤。
                 #   不做猜测」。**证据在手还拒答**，比猜错更冤。
                 if _gate_strikes.get("r408", 0) < 2:
                     _why408 = _refusal_gate(task, _ans0, _has_ev,
@@ -1902,7 +1903,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                         prompt = _why408
                         continue
             # ★★★ R400-f · **零取证的"文件名断言"必须打回** ——
-            #   现场（cl02/cl08）：模型第 1 轮直接 final 猜了一个**不存在的文件名**，
+            #   现场（某 code-locate 题/某 code-locate 题）：模型第 1 轮直接 final 猜了一个**不存在的文件名**，
             #   引用校验打回后它撤回并拒答。
             #   规则：答案里出现文件名 ⇒ 必须至少有一次成功取证（obs ok）。
             #   （纯知识问答不涉及文件名 ⇒ 不受影响。）
@@ -1942,7 +1943,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _r302_strikes += 1
                     _sess({"round": rnd, "phase": "refcheck", "ok": False,
                            "why": _ref_err[:150]})
-                    # ★★★ R400-e · 现场（cl02/cl08 反复）：引用被打回后模型
+                    # ★★★ R400-e · 现场（某 code-locate 题/某 code-locate 题 反复）：引用被打回后模型
                     #   **撤回答案并拒答**（"我无法确证"），而不是去取证。
                     #   提示词必须明确要求"先取证再答"，并给出具体动作。
                     prompt = ("任务: %s\n你的 final 引用不实（%s）。"
@@ -1954,8 +1955,8 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                               % (task, _ref_err[:150]))
                     continue
             # ★★★ R423 · **顽固拒答 ⇒ 判失败**（证据在手，两次纠正仍拒答）——
-            #   现场（rf12，R423 全池第 12 单）：模型 3 次读 `scripts/dwc_theme.py`，
-            #   revision 自己都写下「Theme names visible in header: deep (Deep Space)」，
+            #   现场（某 read-fact 题）：模型 3 次读同一个源文件，
+            #   revision 自己都写下了答案，
             #   R408 打回**两次**（提示里贴了证据原文），第三次仍答
             #   「没有检索到任何 TUI 主题证据」⇒ 额度用尽后被当成答案收下。
             #   ★ 与 R419 同构：**已知有证据还拒答**不是"完成"，是失败。
@@ -1973,7 +1974,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                       "但连续两次纠正后仍拒答，判为失败）",
                             "artifacts": [], "actions_log": log}
             # ★★★ R419 · **顽固幻觉 ⇒ 判失败**（不许把已知为假的答案交出去）——
-            #   现场（cl08，R419 全池）：R417 打回两次，模型第三次仍答
+            #   现场（某 code-locate 题，R419 全池）：R417 打回两次，模型第三次仍答
             #   同一个不存在的路径，额度用完后这个答案就被当成结果了。
             #   ★ 判据：文件名存在与否是**可判定事实** —— 两次纠正仍不改，
             #     说明是编的；宁可交 incomplete，也不交一个假文件名。

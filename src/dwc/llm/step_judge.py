@@ -40,7 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple
 VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "web_search", "final")
 
 #: ★★★ R386 · 只读命令白名单（qa_mode 下放行 —— 只读不等于禁用命令）。
-#:   现场：cl01「execute_user_task 定义在哪个文件？」被判 qa_mode ⇒
+#:   现场：某 code-locate 题「execute_user_task 定义在哪个文件？」被判 qa_mode ⇒
 #:   `search_code` 转成的 `run(grep ...)` 被 R5 连拦 4 轮 ⇒ 答不出。
 #:   而 grep 一行就能定位（实测 task_exec.py:914）⇒ code-locate 30%。
 #:   只收**纯读**命令；任何可能改状态的都不进这张表。
@@ -72,7 +72,7 @@ def _tgt(step: Dict[str, Any]) -> str:
 _QA_Q = ("觉得", "是否", "为什么", "是什么", "介绍", "有没有", "多少",
          "吗", "?", "？", "何为", "啥")
 #: ★★★ R412 · 执行动词。命中任一 ⇒ 不是问答，走执行路（fail-closed）。
-#   现场（2026-10-21 rv07）：「**运行**门禁脚本…报告**是否**全部通过」
+#   现场（2026-10-21 某 run-verify 题）：「**运行**门禁脚本…报告**是否**全部通过」
 #   含 `"是否"` 却没有执行动词 ⇒ 被判 qa_mode ⇒ 只读闸（`_READONLY_BREAKERS`
 #   含 `"python"`）把任务要求的 `python scripts/gate.py` 全拦成 R5_blocked
 #   ⇒ agent 只能答"无法核实"，判据判 ✗。**缺的正是 `"运行"` 这个同义词。**
@@ -146,7 +146,7 @@ def _sig_args(step: Dict[str, Any]) -> str:
 def _is_readonly_run(step: Dict[str, Any]) -> bool:
     """★★★ R386 · 该 run 是否**只读**（不改仓库/系统状态）。
 
-    现场（2026-10-20 cl01）：qa_mode 的 R301-D 硬约束只许
+    现场（2026-10-20 某 code-locate 题）：qa_mode 的 R301-D 硬约束只许
     `read`/`ask`/`web_read`，`search_code` 转成的 `run(grep ...)` 每轮都被
     R5 拦（`target: "R5_blocked"` ×4），最后答"未能确认定义文件"。
     而 grep 一行就能定位 —— **拦 grep 等于把"查证"本身禁了**。
@@ -199,7 +199,7 @@ def judge_step(step: Dict[str, Any],
         return "critical", "final 不判（论文: finish 不判）", "-"
     # ★ R301-D · qa 硬约束（final 已在上分支放行；ask 归主干 critical）。
     # ★★★ R386 · 但**只读命令**必须放行：qa 的本意是「只读、不许改状态」，
-    #   不是「不许用命令」。现场 cl01 的 `search_code`→`run(grep)` 被 R5
+    #   不是「不许用命令」。现场 某 code-locate 题 的 `search_code`→`run(grep)` 被 R5
     #   连拦 4 轮 ⇒ 答不出定义文件；而 grep 一行就能定位。
     if qa_mode and op not in ("read", "ask", "web_read"):
         if _is_readonly_run(step):

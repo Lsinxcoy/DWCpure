@@ -47,7 +47,7 @@ def _file_of(path_rel: str) -> str:
 
 
 #: ★★★ R389 · 猜测/弃权措辞（命中即**不算确证**）。
-#:   现场（2026-10-20 全池）：rf05 问"记忆系统内核类名"，agent 答
+#:   现场（2026-10-20 全池）：某 read-fact 题 问"记忆系统内核类名"，agent 答
 #:   「没有取证信息…可能是 MemoryKernel」，判据 `contains` 给了 ✓。
 #:   这不是"找到了"，是"猜对了"。
 #:   ★ 只收**明确的**猜测/弃权标记；"如果…则…"这类假设句**不收**
@@ -65,9 +65,28 @@ _GUESS_AWARE_TYPES = ("contains", "contains_any", "contains_equiv",
                       "contains_all", "regex")
 
 
+#: 引号内的片段**不是模型的断言** —— 「最不确定的分支」这种是术语
+_QUOTED_SPAN = re.compile(r"[「『“\"][^」』”\"]{0,80}[」』”\"]")
+
+
+def _strip_quoted(s: str) -> str:
+    """去掉引号包裹的片段（「」『』“”""）。
+
+    ★★★ R433 · 现场（某 historical 题）：正确答案里有这么一句 ——
+      「…选「pass-rate 最不确定的分支」先探索…」
+    其中"不确定"是信息增益的**术语**（指熵最高的分支），不是模型在犹豫。
+    R392 已经只看命中句，但命中句里恰好含这个术语 ⇒ 正确回答被判
+    `guess-credit-blocked`。**引号里的话是引用，不是断言。**
+    """
+    try:
+        return _QUOTED_SPAN.sub(" ", s or "")
+    except Exception:
+        return s or ""
+
+
 def _is_guessing(ans: str) -> str:
     """返回命中的猜测措辞（空串 = 不是猜测）。"""
-    low = (ans or "").lower()
+    low = _strip_quoted(ans).lower()
     for h in _HEDGE_PATTERNS:
         if h in low:
             return h
@@ -176,7 +195,7 @@ def _agent_ran(cmd: str, report) -> tuple:
     #   `['python','-c','import os;n=sum(...)']`，JSON 序列化后是
     #   `["python", "-c", "import os..."]` ⇒ 带引号/空格的 needle
     #   **永远匹配不到** ⇒ 3 单 run-verify 被误判 no-agent-evidence
-    #   （现场 rv06/rv07/rv08）。
+    #   （现场 某 run-verify 题/某 run-verify 题/某 run-verify 题）。
     #   修：两边都去掉所有非字母数字字符再比。
     def _norm(s: str) -> str:
         return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (s or "").lower())
@@ -186,7 +205,7 @@ def _agent_ran(cmd: str, report) -> tuple:
     #   `C:/Users/.../venv/Scripts/python.exe scripts/gate.py`；
     #   归一化后 needle 是 `pythonscriptsgatespy`，blob 里却是
     #   `...pythonexescriptsgatespy` ⇒ needle 不是子串 ⇒ 误判零证据
-    #   （rv07 现场：agent 真跑了、rc=0、输出"总结: 全部通过"）。
+    #   （某 run-verify 题 现场：agent 真跑了、rc=0、输出"总结: 全部通过"）。
     #   解释器换哪个都一样，**命令本体**才是证据。
     needle = re.sub(
         r"^(?:[A-Za-z]:[\\/][^\s]*?python(?:\.exe)?|python[\d.]*(?:\.exe)?)\s+",
@@ -241,8 +260,8 @@ def _answer_anchor(check: dict, answer: str, rerun_out: str) -> str:
         after = rerun_out.split(tgt, 1)[1].strip()
         tok = re.split(r"\s+", after)[0] if after else ""
         tok = tok.strip("\"'()[]{}.,;:：，。；、（）")
-        # ★★★ R413-b · 只有**纯数字**才配当"数值锚点"（rv06 的 `98`）。
-        #   rv07 的 target 是中文短语 `全部通过`，后面跟的是 `（rc=0）`
+        # ★★★ R413-b · 只有**纯数字**才配当"数值锚点"（某 run-verify 题 的 `98`）。
+        #   某 run-verify 题 的 target 是中文短语 `全部通过`，后面跟的是 `（rc=0）`
         #   ⇒ 取出来是 `rc=0` 这种噪声 ⇒ 改成**直接用 target 本身当锚点**：
         #   agent 的输出里必须真的出现"全部通过"，这比命令串形状更硬。
         if tok.isdigit():
@@ -287,7 +306,7 @@ def _agent_saw(anchor: str, report, cmd: str = "") -> bool:
             continue
         # ★ 这条 run 是不是"干这活的命令"？
         #   ★ 仅当判据有 target（在核对某个具体输出）时才要求相关；
-        #     target 为空时锚点就是答案本身（rv08 的 40 位 SHA），
+        #     target 为空时锚点就是答案本身（某 run-verify 题 的 40 位 SHA），
         #     偶然产出同一个哈希的概率可以忽略。
         blob = " ".join(str(e.get(k) or "") for k in ("cmd", "target"))
         blob_l = blob.replace("\\", "/").lower()
@@ -328,7 +347,7 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
         return (check["target"] in ans, "answer contains %r" % check["target"][:40])
     if t == "first_key":
         # ★★★ R431 · **最先出现的键**判据（"只答X"类任务专用）。
-        #   现场（rf08，17:05）：模型先给出一个**错的裸词**，随后又提到
+        #   现场（某 read-fact 题，17:05）：模型先给出一个**错的裸词**，随后又提到
         #   正确的完整键来否定它；`contains` 判据命中子串 ⇒ 判 ✓。
         #   **答案明确是错的，判据却给了分** —— 判据不许给白送分。
         #   规则：谁**先出现**，谁就是模型给出的答案；正确答案必须排最前。
@@ -350,7 +369,7 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
         return (bool(hits), "answer any-of %r" % hits[:3])
     if t == "contains_equiv":
         # ★★★ R381 · 等价形式判据（任一等价写法命中即通过）。
-        #   现场（2026-10-20 第 0 步实验）：`rf01` 问「PowerShell 需要
+        #   现场（2026-10-20 第 0 步实验）：`某 read-fact 题` 问「PowerShell 需要
         #   TrimStart 的字符码」，判据只认 `0xfeff`，模型答 `65279`
         #   —— **65279 就是 0xFEFF**，答对了却被判 ✗。
         #   ⇒ 判据验的是"写法"不是"答案"，把正确答案判死。
@@ -380,7 +399,7 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
             found, why = _agent_ran(cmd, report)
             if not found:
                 # ★★★ R413 · 证据等价：命令串不同不算数，但**答案必须出现在
-                #   agent 自己跑出来的输出里**（rv06 的 `98`、rv08 的 SHA）。
+                #   agent 自己跑出来的输出里**（某 run-verify 题 的 `98`、某 run-verify 题 的 SHA）。
                 #   零动作 / 无关命令 ⇒ 输出里没有锚点 ⇒ 仍然判失败。
                 anchor = _answer_anchor(check, ans, r.stdout + r.stderr)
                 _rel = cmd if check.get("target") else ""
