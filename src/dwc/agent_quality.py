@@ -557,8 +557,34 @@ def recall_sources(task: str, k: int = 3) -> List[Dict[str, Any]]:
     return [x[1] for x in scored[:k]]
 
 
+def _sources_off() -> bool:
+    """★★★ R436 · A/B 期间关掉「任务记忆」注入。
+
+    为什么必须关：`recall_sources` 按**任务文本词元重叠**召回历史发现，
+    而 A/B 的两臂用的是**同一句任务原文** ⇒ stable 臂刚写下的 findings
+    （含答案）会被 candidate 臂召回注入 —— **跨臂泄漏**，且方向恒定偏向
+    后跑的那一臂。现场：探针任务的分析里直接出现「任务记忆已明确：…是
+    task_router.py / 历史失败是因为答成了 cli_main.py」。
+
+    开关：env `DWC_SOURCES=off`，或文件 `var/sources_off`（A/B 脚本按需
+    创建/删除，无需重启 agent）。生产默认关不掉（两个都不设 = 正常注入）。
+    """
+    try:
+        if (os.environ.get("DWC_SOURCES") or "").strip().lower() == "off":
+            return True
+        here = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))          # src/dwc/agent_quality.py
+        var = (os.environ.get("DWC_VAR_DIR") or "").strip() \
+            or os.path.join(here, "var")
+        return os.path.exists(os.path.join(var, "sources_off"))
+    except Exception:
+        return False
+
+
 def sources_context(task: str, k: int = 3) -> str:
     """★ 注入用文本块: 此前任务找到的相关信源+发现（零命中零开销）。"""
+    if _sources_off():
+        return ""
     hits = recall_sources(task, k)
     if not hits:
         return ""

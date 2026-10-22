@@ -1,0 +1,488 @@
+{
+ "name": "task_exec",
+ "stable": "v1",
+ "candidate": "v2",
+ "ts": "20261023_034742",
+ "verdict": "insufficient",
+ "wave": 4,
+ "elapsed_s": 13333.3,
+ "wins": [
+  "rf08",
+  "cl08"
+ ],
+ "losses": [
+  "rf03",
+  "rf05",
+  "rf11"
+ ],
+ "pairs": [
+  {
+   "id": "rf01",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer equiv-of ['0xfeff', '0xFEFF']",
+   "cand_how": "answer equiv-of ['0xfeff', '0xFEFF', '65279']",
+   "stable_answer": "0xFEFF",
+   "cand_answer": "65279（即 0xFEFF，BOM 字符码）"
+  },
+  {
+   "id": "rf02",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'Ctrl+P'",
+   "cand_how": "answer contains 'Ctrl+P'",
+   "stable_answer": "Ctrl+P（README 两处均写明：`dwc` 全屏 TUI 命令面板快捷键为 Ctrl+P）。",
+   "cand_answer": "Ctrl+P（全屏 TUI 的命令面板快捷键；README 快速开始与能力表均标注「命令面板 Ctrl+P」）"
+  },
+  {
+   "id": "rf03",
+   "stable_ok": true,
+   "cand_ok": false,
+   "stable_how": "answer regex '^[\\\\s\\'\\\\\"（）()]*3[\\\\s\\'\\\\\"（）()]*$'",
+   "cand_how": "answer regex '^[\\\\s\\'\\\\\"（）()]*3[\\\\s\\'\\\\\"（）()]*$'",
+   "stable_answer": "3",
+   "cand_answer": "3 轮"
+  },
+  {
+   "id": "rf04",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer regex '(999)'",
+   "cand_how": "answer regex '(999)'",
+   "stable_answer": "999",
+   "cand_answer": "999"
+  },
+  {
+   "id": "rf05",
+   "stable_ok": true,
+   "cand_ok": false,
+   "stable_how": "answer contains 'MemoryKernel'",
+   "cand_how": "answer contains 'MemoryKernel'",
+   "stable_answer": "DWC 记忆系统的内核类名是 MemoryKernel（定义在 src/dwc/organs/memory.py，由 core.py 以 `self.memory = MemoryKernel(db_path)` 实例化）。",
+   "cand_answer": "DWC 记忆系统的内核类名是 MemoryCore（定义在 src/dwc/organs/ 下的记忆器官模块，如 memory.py）。"
+  },
+  {
+   "id": "rf06",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'dwc start --llm'",
+   "cand_how": "answer contains 'dwc start --llm'",
+   "stable_answer": "dwc start --llm",
+   "cand_answer": "`dwc start --llm`（位于 README「快速开始」段：常驻 agent，后台自触发循环 + watchdog 守护；「常用命令」段亦为 `dwc start --llm`，停止用 `dwc stop`）"
+  },
+  {
+   "id": "rf07",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'Lsinxcoy/divine-wisdom-core'",
+   "cand_how": "answer contains 'Lsinxcoy/divine-wisdom-core'",
+   "stable_answer": "Lsinxcoy/divine-wisdom-core",
+   "cand_answer": "Lsinxcoy/divine-wisdom-core"
+  },
+  {
+   "id": "rf08",
+   "stable_ok": false,
+   "cand_ok": true,
+   "stable_how": "first-key None (pos None)",
+   "cand_how": "first-key '_rev_prev' (pos 1)",
+   "stable_answer": "supersedes",
+   "cand_answer": "`_rev_prev`（在 src/dwc/organs/memory.py:742 处 `payload[\"_rev_prev\"] = node_id`，与旧节点的 `_revised_to` 构成双向版本链）"
+  },
+  {
+   "id": "rf09",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'DWC_STEP_JUDGE'",
+   "cand_how": "answer contains 'DWC_STEP_JUDGE'",
+   "stable_answer": "变量名是 DWC_STEP_JUDGE（设为 0 即关闭事前判别；见 src/dwc/llm/task_exec.py:2010）。",
+   "cand_answer": "DWC_STEP_JUDGE（设为 0 即关闭事前判别）"
+  },
+  {
+   "id": "rf10",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'dwc_pairs.jsonl'",
+   "cand_how": "answer contains 'dwc_pairs.jsonl'",
+   "stable_answer": "dwc_pairs.jsonl",
+   "cand_answer": "dwc_pairs.jsonl（var/dwc_pairs.jsonl）"
+  },
+  {
+   "id": "rf11",
+   "stable_ok": true,
+   "cand_ok": false,
+   "stable_how": "answer regex '999'",
+   "cand_how": "answer regex '999'",
+   "stable_answer": "999",
+   "cand_answer": "未能取证到确切数字。我已在 docs/PROGRESS.md 中检索「轮次」相关记录，仅看到「★ 轮次 R1–R274」这类轮次区间记录；全局搜索「轮次上限」「上限」等关键词均无命中（DEFINITIONS 0 / REFERENCES 0），因此无法确证用户拍板修改后的轮次上限具体数值，不能仅凭印象给出数字。若强行推测，最接近的可见数字是 274（来自「轮次 R1–R274」），但这属于轮次序号而非上限值，需人工核对 PROGRESS 原文。"
+  },
+  {
+   "id": "rf12",
+   "stable_ok": true,
+   "cand_ok": null,
+   "stable_how": "answer contains 'deep'",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "DWC 的 TUI 主题名有两套：deep 与 warm；默认当前主题为 deep（Deep Space，另可为 warm Retro 琥珀暖底）。",
+   "cand_answer": ""
+  },
+  {
+   "id": "cl01",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'task_exec.py'",
+   "stable_answer": "",
+   "cand_answer": "execute_user_task 定义在 src/dwc/llm/task_exec.py（第 1387 行，def execute_user_task(...)）。"
+  },
+  {
+   "id": "cl02",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'memory.py'",
+   "stable_answer": "",
+   "cand_answer": "MemoryKernel 定义在 memory.py（完整路径 src/dwc/organs/memory.py，第 223 行 class MemoryKernel）。"
+  },
+  {
+   "id": "cl03",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'llm'",
+   "stable_answer": "",
+   "cand_answer": "step_judge 模块位于 src/dwc/llm/ 目录（文件为 src/dwc/llm/step_judge.py），即目录名是 llm（完整相对路径 src/dwc/llm）。"
+  },
+  {
+   "id": "cl04",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'effort.py'",
+   "stable_answer": "",
+   "cand_answer": "next_effort（节流-冲刺调度）定义在 src/dwc/organs/effort.py 文件里（第 28 行 def next_effort）。"
+  },
+  {
+   "id": "cl05",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'agent_quality.py'",
+   "cand_how": "answer contains 'agent_quality.py'",
+   "stable_answer": "agent_quality.py（src/dwc/agent_quality.py）",
+   "cand_answer": "src/dwc/agent_quality.py（第 387 行定义 def revision_lessons）"
+  },
+  {
+   "id": "cl06",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'foundation'",
+   "cand_how": "answer contains 'foundation'",
+   "stable_answer": "foundation（src/dwc/foundation/updater.py）",
+   "cand_answer": "updater 模块位于 foundation 子目录（源码路径 src/dwc/foundation/updater.py）。"
+  },
+  {
+   "id": "cl07",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'revision.py'",
+   "cand_how": "answer contains 'revision.py'",
+   "stable_answer": "revision.py（定义在 src/dwc/organs/revision.py 第 32 行）",
+   "cand_answer": "revision.py（src/dwc/organs/revision.py，第32行定义 def revise_from_outcome）"
+  },
+  {
+   "id": "cl08",
+   "stable_ok": false,
+   "cand_ok": true,
+   "stable_how": "answer contains 'cli_main.py'",
+   "cand_how": "answer contains 'cli_main.py'",
+   "stable_answer": "None",
+   "cand_answer": "DWC 的 CLI 入口路由文件是 src/dwc/cli_main.py（其中九指令 + doctor 路由 → 委托 dwc_cli.py / agent_rpc 单实现）。只答文件名：cli_main.py"
+  },
+  {
+   "id": "cl09",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'task_exec.py'",
+   "cand_how": "answer contains 'task_exec.py'",
+   "stable_answer": "task_exec.py（src/dwc/llm/task_exec.py）",
+   "cand_answer": "task_exec.py（完整路径：src/dwc/llm/task_exec.py）—— 复读熔断逻辑集中在该文件：dup_sigs 滑窗（第1520行）、连续3轮同动作同结果判定与 hard-exit 收尾（第2135/2155/2178/2182行）。无独立文件承载该功能，也未搜到专门的复制熔断模块。"
+  },
+  {
+   "id": "cl10",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains 'agent_quality.py'",
+   "cand_how": "answer contains 'agent_quality.py'",
+   "stable_answer": "lessons_context（历史教训注入）定义在 src/dwc/agent_quality.py（第 457 行 def lessons_context）。",
+   "cand_answer": "lessons_context 定义在 agent_quality.py（完整路径 src/dwc/agent_quality.py，第 457 行 def lessons_context(task: str, k: int = 3) -> str）。"
+  },
+  {
+   "id": "rv01",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "stable_answer": "已运行 tests/test_r252_effort.py（命令：venv python -m pytest tests/test_r252_effort.py -q -p no:randomly），结果 rc=0，输出 `..... [100%] 5 passed in 0.71s`——5 项测试全部通过，无失败、无报错。effort 调度模块测试确认通过。",
+   "cand_answer": "已运行 tests/test_r252_effort.py，全部通过：5 passed in 0.72s（rc=0，无失败/错误）。effort 调度模块测试确认通过。"
+  },
+  {
+   "id": "rv02",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "stable_answer": "已运行事前判别测试 tests/test_r255_stepjudge.py：rc=0，13 项全部通过（13 passed in 1.77s），确认通过。",
+   "cand_answer": "已运行事前判别测试 tests/test_r255_stepjudge.py，结果：13 passed in 1.71s，rc=0，全部通过（命令：venv python -m pytest tests/test_r255_stepjudge.py -q -p no:randomly）。"
+  },
+  {
+   "id": "rv03",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "stable_answer": "已运行 tests/test_r258_revision.py，结果：10 passed in 0.51s，rc=0，修订回路测试全部通过。",
+   "cand_answer": "已运行修订回路测试 tests/test_r258_revision.py，结果通过：10 passed in 0.53s，退出码 rc=0，无失败无错误。"
+  },
+  {
+   "id": "rv04",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='passed'",
+   "stable_answer": "R247 读修复测试已运行并通过：`pytest tests/test_r247_readfix.py -q -p no:randomly` 返回 rc=0，输出「8 passed in 0.69s」，8 项测试全绿，无失败无错误。",
+   "cand_answer": "R247 读修复测试已运行通过：`tests/test_r247_readfix.py` 共 8 项测试全部通过（rc=0，8 passed in 0.65s，无失败/无错误）。命令：venv python -m pytest tests/test_r247_readfix.py -q -p no:randomly。"
+  },
+  {
+   "id": "rv05",
+   "stable_ok": false,
+   "cand_ok": false,
+   "stable_how": "no-agent-evidence: agent 未执行该命令（零动作或未命中 'tests/test_r209_inbox.py'）",
+   "cand_how": "no-agent-evidence: agent 未执行该命令（零动作或未命中 'tests/test_r209_inbox.py'）",
+   "stable_answer": "已运行 inbox 相关测试并通过。命令：venv python -m pytest tests/ -q -p no:randomly -k inbox，结果 rc=0，31 passed，2614 deselected，耗时 8.29s，无失败无用例错误。",
+   "cand_answer": "inbox 测试全部通过。命令：venv python -m pytest tests/ -q -p no:randomly -k inbox —— 结果 31 passed, 2614 deselected, rc=0, 用时 8.33s，无失败无错误。"
+  },
+  {
+   "id": "rv06",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran-equivalent(anchor='98') + rerun rc=0 anchor='PYFILES'",
+   "cand_how": "agent-ran-equivalent(anchor='98') + rerun rc=0 anchor='PYFILES'",
+   "stable_answer": "src/dwc 目录下共有 98 个 Python(.py) 文件（递归统计，命令：python -c \"import pathlib; print(len(list(pathlib.Path('src/dwc').rglob('*.py'))))\")。",
+   "cand_answer": "src/dwc 目录下 Python 文件数量为 98 个（用 `python -c \"import pathlib;print(len(list(pathlib.Path('src/dwc').rglob('*.py'))))\"` 递归统计，rc=0，输出 98）。"
+  },
+  {
+   "id": "rv07",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='全部通过'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='全部通过'",
+   "stable_answer": "门禁脚本 scripts/gate.py 运行成功（rc=0）。DWC 质量门八个门全部通过，无一违规：\n- G1 定位门 (L1) — PASS\n- G2 真值门 (L2+L7) — PASS\n- G3 活性门 (L4) — PASS\n- G4 生灭门 (L3) — PASS\n- G5 声称门 (L5) — PASS\n- G6 加减门 (L6) — PASS\n- G7 静默门 (L5 延伸) — PASS\n- G8 契约门 (L1) — PASS\n总结：全部通过。痕迹写入 archive\\gate_trace.jsonl。",
+   "cand_answer": "已运行 scripts/gate.py（venv python），rc=0，门禁**全部通过**。\n\n各门结果（files/违规数）：\n- G1 定位门 (L1)：98 文件，违规 0 ✓ PASS\n- G2 真值门 (L2+L7)：98 文件，违规 0 ✓ PASS\n- G3 活性门 (L4)：98 文件，违规 0 ✓ PASS\n- G4 生灭门 (L3)：98 文件，违规 0 ✓ PASS\n- G5 声称门 (L5)：违规 0 ✓ PASS\n- G6 加减门 (L6)：违规 0 ✓ PASS\n- G7 静默门 (L5延伸)：98 文件，违规 0 ✓ PASS\n- G8 契约门 (L1)：98 文件，违规 0 ✓ PASS\n\n脚本总结行：「全部通过」；痕迹写入 archive/gate_trace.jsonl。"
+  },
+  {
+   "id": "rv08",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor=''",
+   "cand_how": "agent-ran + rerun rc=0 anchor=''",
+   "stable_answer": "当前 git 最新提交哈希前 8 位：5a427c4c（完整哈希 5a427c4c5f8dee13bc7db037eee726987439d67a）",
+   "cand_answer": "当前 git 最新提交哈希前 8 位：5a427c4c（完整哈希 5a427c4c5f8dee13bc7db037eee726987439d67a）"
+  },
+  {
+   "id": "rv09",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "agent-ran + rerun rc=0 anchor='10 passed'",
+   "cand_how": "agent-ran + rerun rc=0 anchor='10 passed'",
+   "stable_answer": "已运行 tests/test_r258_revision.py（版本链锁），结果 10 passed，rc=0，耗时 0.48s，全部通过。",
+   "cand_answer": "已运行 tests/test_r258_revision.py（含版本链锁相关测试），结果：rc=0，输出「..........  [100%]  10 passed in 0.49s」，10 个测试全部通过，无失败/错误。"
+  },
+  {
+   "id": "rv10",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer contains '1598'",
+   "cand_how": "answer contains '1598'",
+   "stable_answer": "DWC 的 pytest 基线数字（取自 README badge）：1598 passed。同页还显示 rounds R1–R253、commits 274。",
+   "cand_answer": "README badge 中的 pytest 基线数字为：1598 passed（badge 链接 https://img.shields.io/badge/pytest-1598%20passed-brightgreen，%20 解码为空格）。用 python 正则抓取 README.md 中所有 badge 得到三条：pytest-1598 passed、rounds-R1–R253、commits-274，故 pytest 基线 = 1598 passed。"
+  },
+  {
+   "id": "an01",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer all-of; miss=[]",
+   "cand_how": "answer all-of; miss=[]",
+   "stable_answer": "src/dwc/organs 目录下的器官模块（至少三个）：\n1. memory.py\n2. actor.py\n3. judge.py\n4. evolver.py\n5. world_model.py\n\n其他还有 applier.py、candidates.py、planner.py、predictor.py、iwm.py、replay.py、router.py、ops.py、metrics.py 等。",
+   "cand_answer": "src/dwc/organs 目录下的器官模块（部分，均为 .py 文件）：\n\n1. actor.py — 执行器器官\n2. judge.py — 裁判/评估器官\n3. memory.py — 记忆器官\n4. evolver.py — 进化器官\n5. world_model.py — 世界模型器官\n6. planner.py — 规划器官\n7. predictor.py — 预测器官\n8. ops.py — 运维/操作器官\n\n（此外还有 applier.py、candidates.py、credit.py、direction.py、weakness.py、replay.py、router.py、measure.py、metrics.py、hook.py、budget.py、contract.py、dimension.py、drawback.py、effort.py、leakage.py、n"
+  },
+  {
+   "id": "an02",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer all-of; miss=[]",
+   "cand_how": "answer all-of; miss=[]",
+   "stable_answer": "tests 目录下与本轮论文落地相关的测试文件名（均已确认存在）：\n1. tests/test_r258_revision.py（R258 修订落地）\n2. tests/test_r259_eval.py（R259 评测落地）\n3. tests/test_r255_stepjudge.py（R255 步骤判分）\n4. tests/test_r252_effort.py（R252 effort 机制）\n其中 test_r258_revision.py 与 test_r259_eval.py 是最直接的 R258/R259 轮次论文落地用例。",
+   "cand_answer": "tests 目录下与本轮（R25x–R26x）论文落地相关的测试文件至少包括：\n1. tests/test_r258_revision.py\n2. tests/test_r259_eval.py\n\n同批可佐证的相关测试还有：tests/test_r252_effort.py、tests/test_r255_stepjudge.py、tests/test_r263_tools.py、tests/test_r265_retry.py、tests/test_r266_knowledge_loop.py、tests/test_r268_jlens_absorb.py、tests/test_r269_rsi_absorb.py。（来源：实际列出 tests/ 目录文件名，非凭印象）"
+  },
+  {
+   "id": "an03",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer all-of; miss=[]",
+   "cand_how": "answer all-of; miss=[]",
+   "stable_answer": "2610.18813、2610.12668、2610.06805",
+   "cand_answer": "2610.18813、2610.12668、2610.06805"
+  },
+  {
+   "id": "an04",
+   "stable_ok": true,
+   "cand_ok": null,
+   "stable_how": "answer contains '静默'",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "G7 门叫「静默门」——全称是静默降级门（不静默降级/静默失败门），要求承重路径上的异常必须大声报错或留痕，禁止静默吞掉异常、静默返回空值或静默 fallback（如 core.py、daemon.py、inheritance.py 中的「G7 不静默」注释所示）。",
+   "cand_answer": ""
+  },
+  {
+   "id": "an05",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'replay.yaml'",
+   "stable_answer": "",
+   "cand_answer": "config/replay.yaml（路径 config/replay.yaml）。该文件以 replay: 为根键，含 beta1/beta2/history_max 以及 R252 的 effort 段——交替节流-冲刺调度参数 plateau_eps=0.02、factor_up=1.15、factor_down=0.9、lo=2、hi=8，即进化/replay 调度的配置文件。"
+  },
+  {
+   "id": "an06",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'knowledge3_'",
+   "stable_answer": "",
+   "cand_answer": "archive 目录下知识档文件的命名前缀是 `knowledge3_`，即完整形式为 knowledge3_<R编号>_<主题>.json（如 knowledge3_R120_epoch_ledger.json）；另有 knowledge3_landing.json、knowledge3_manifest.json 两个同前缀的非编号文件。未发现其他前缀变体（如 knowledge1_/knowledge2_）。"
+  },
+  {
+   "id": "an07",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer all-of; miss=[]",
+   "stable_answer": "",
+   "cand_answer": "dwc 的安装脚本有两个：\n- Windows 平台：install.ps1（位于仓库根目录 E:/Divine Wisdom Core/install.ps1）\n- Shell 平台：install.sh（位于仓库根目录 E:/Divine Wisdom Core/install.sh）\n\n（另有 tests/test_r228_install.py 是相关测试文件，不是安装脚本。）"
+  },
+  {
+   "id": "an08",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer contains 'calibrate_step_judge.py'",
+   "stable_answer": "",
+   "cand_answer": "scripts/calibrate_step_judge.py"
+  },
+  {
+   "id": "an09",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "answer any-of ['config', 'docs']",
+   "cand_how": "answer any-of ['config', 'docs']",
+   "stable_answer": "DWC 的铁律文档（iron laws）位于 docs/ 目录下（如 docs/IRON_LAWS_DESIGN.md、docs/IRON_LAW_G11.md、docs/IRON_LAW_PRODUCTION.md）；铁律配置文件则在 config/iron_laws.yaml。",
+   "cand_answer": "铁律文档在 **docs** 目录下（如 docs/IRON_LAWS_DESIGN.md、docs/IRON_LAW_G11.md、docs/IRON_LAW_PRODUCTION.md；真值配置为 config/iron_laws.yaml）。"
+  },
+  {
+   "id": "an10",
+   "stable_ok": false,
+   "cand_ok": false,
+   "stable_how": "answer contains 'dwc_agent_heartbeat.json'",
+   "cand_how": "answer contains 'dwc_agent_heartbeat.json'",
+   "stable_answer": "（未能给出有效答案：连续两次给出仓库中不存在的文件名，判为幻觉，不予采信）",
+   "cand_answer": "（未能给出有效答案：连续两次给出仓库中不存在的文件名，判为幻觉，不予采信）"
+  },
+  {
+   "id": "wr01",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "file contains 'EVAL_WRITE_OK'",
+   "cand_how": "file contains 'EVAL_WRITE_OK'",
+   "stable_answer": "已在 var/inbox_work/hello.txt 写入内容 EVAL_WRITE_OK（14 字节），写入成功。",
+   "cand_answer": "已在 var/inbox_work/hello.txt 写入一行内容 EVAL_WRITE_OK（14 字节，含换行）。"
+  },
+  {
+   "id": "wr02",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "file contains 'eval'",
+   "cand_how": "file contains 'eval'",
+   "stable_answer": "已在 var/inbox_work/stats.json 写入合法 JSON：{\"purpose\": \"eval\"}，并读回核验通过。",
+   "cand_answer": "已在 var/inbox_work/stats.json 写入合法 JSON：{\"purpose\": \"eval\"}，并用 python json.load 验证通过（purpose == 'eval' 为 True）。"
+  },
+  {
+   "id": "wr03",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "file contains '-'",
+   "cand_how": "file contains '-'",
+   "stable_answer": "已在 var/inbox_work/list.md 写入三个以 - 开头的列表项。",
+   "cand_answer": "已在 var/inbox_work/list.md 写入三个以 - 开头的列表项。"
+  },
+  {
+   "id": "wr04",
+   "stable_ok": true,
+   "cand_ok": true,
+   "stable_how": "file contains '3'",
+   "cand_how": "file contains '3'",
+   "stable_answer": "已在 var/inbox_work/answer.txt 写入内容：复读熔断阈值是3",
+   "cand_answer": "已在 var/inbox_work/answer.txt 写入内容：复读熔断阈值是3（读回校验一致）。"
+  },
+  {
+   "id": "wr05",
+   "stable_ok": true,
+   "cand_ok": null,
+   "stable_how": "file all-of; miss=[]",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "已在 var/inbox_work/note.txt 写入内容 \"DWC 999\"，包含 DWC 与 999 两个词，并已读取验证。",
+   "cand_answer": ""
+  },
+  {
+   "id": "wr06",
+   "stable_ok": false,
+   "cand_ok": null,
+   "stable_how": "file contains '0xfeff'",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "已在 var/inbox_work/quote.txt 写入内容，文件字节为 efbbbf，即 UTF-8 BOM 编码的 U+FEFF（0xfeff），满足要求。",
+   "cand_answer": ""
+  },
+  {
+   "id": "wr07",
+   "stable_ok": null,
+   "cand_ok": null,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "",
+   "cand_answer": ""
+  },
+  {
+   "id": "wr08",
+   "stable_ok": null,
+   "cand_ok": null,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "",
+   "cand_answer": ""
+  },
+  {
+   "id": "hs01",
+   "stable_ok": null,
+   "cand_ok": null,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "stable_answer": "",
+   "cand_answer": ""
+  },
+  {
+   "id": "hs02",
+   "stable_ok": null,
+   "cand_ok": true,
+   "stable_how": "infra: LLM 失败[infra]: HTTP 502: Bad Gateway",
+   "cand_how": "answer any-of ['失败', '原因', '轮']",
+   "stable_answer": "",
+   "cand_answer": "查证结论：上轮确实「没执行」，证据来自 var/dwc_inbox_done.json 与 var/dwc_inbox_attempts.json。\n\n1) 卡死任务只有一个：done 里唯一处于 running 状态的是 ab_1023_034402_C_hs02，值为 running:1792698434（时间戳换算 2026-10-23 03:47:14），任务原文就是「为什么上轮没执行（历史失败任务原题）」。\n\n2) 根因：该任务被 claim（领取）后写入了 running 标记，但 attempts.json 里对 ab_1023_034402_C_hs02 完全没有记录（为 None），说明它被标记 running 后并未真正进入执行体/重试计数，执行体没有落账，done 里的状态因此停在 running 永不回写——即「领取成功但执行未发生」。\n\n3) 同类现象：inbox"
+  }
+ ]
+}

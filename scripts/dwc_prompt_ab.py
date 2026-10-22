@@ -49,6 +49,9 @@ PROMPTS = os.path.join(ROOT, "prompts")
 MANIFEST = os.path.join(PROMPTS, "manifest.json")
 TASKS = os.path.join(ROOT, "config", "eval_tasks.jsonl")
 FORCE = os.path.join(ROOT, "var", "prompt_force.json")
+#: ★ R436 · A/B 期间关掉「任务记忆」注入（跨臂泄漏：两臂同题，stable 臂
+#: 刚写的 findings 会被 candidate 臂召回）。文件存在 = 关闭，跑完删除。
+SOURCES_OFF = os.path.join(ROOT, "var", "sources_off")
 OUT_DIR = os.path.join(ROOT, "var")
 
 #: 默认 smoke 子集：覆盖六类 + 历史上最不稳定的几单
@@ -220,6 +223,9 @@ def main() -> int:
     results = {}
     t_start = time.time()
     try:
+        # ★ R436 · 关「任务记忆」注入（跨臂泄漏），跑完在 finally 里恢复
+        with io.open(SOURCES_OFF, "w", encoding="utf-8") as _fh:
+            _fh.write(time.strftime("%Y-%m-%dT%H:%M:%S"))
         for w in range(0, len(ids), wave):
             chunk = ids[w:w + wave]
             _run_wave(a.name, chunk, all_tasks, stable, "S", a.wait_min, results)
@@ -241,7 +247,11 @@ def main() -> int:
             sys.stdout.flush()
     finally:
         set_force(a.name, None)          # ★ 无论怎么退出都恢复生产
-        print("已删除钉版本文件（生产回到 manifest 灰度）")
+        try:
+            os.remove(SOURCES_OFF)       # ★ R436 · 恢复任务记忆注入
+        except OSError:
+            pass
+        print("已删除钉版本文件 + 任务记忆开关（生产回到 manifest 灰度 + 正常注入）")
 
     pairs = [{"id": tid,
               "stable_ok": results[tid]["S"][0], "cand_ok": results[tid]["C"][0],

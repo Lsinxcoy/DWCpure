@@ -1,0 +1,67 @@
+提示词 task_exec：stable=v1 vs candidate=v2，52 单，wave=4
+[ 1/52] rf01  =  stable=✓  cand=✓
+[ 2/52] rf02  =  stable=✓  cand=✓
+[ 3/52] rf03  ↓  stable=✓  cand=✗
+        stable: answer regex '^[\\s\'\\"（）()]*3[\\s\'\\"（）()]*$'
+        cand  : answer regex '^[\\s\'\\"（）()]*3[\\s\'\\"（）()]*$'
+[ 4/52] rf04  =  stable=✓  cand=✓
+[ 5/52] rf05  ↓  stable=✓  cand=✗
+        stable: answer contains 'MemoryKernel'
+        cand  : answer contains 'MemoryKernel'
+[ 6/52] rf06  =  stable=✓  cand=✓
+[ 7/52] rf07  =  stable=✓  cand=✓
+[ 8/52] rf08  ↑  stable=✗  cand=✓
+[ 9/52] rf09  =  stable=✓  cand=✓
+[10/52] rf10  =  stable=✓  cand=✓
+[11/52] rf11  ↓  stable=✓  cand=✗
+        stable: answer regex '999'
+        cand  : answer regex '999'
+[12/52] rf12  ?  stable=✓  cand=?
+[13/52] cl01  ?  stable=?  cand=✓
+[14/52] cl02  ?  stable=?  cand=✓
+[15/52] cl03  ?  stable=?  cand=✓
+[16/52] cl04  ?  stable=?  cand=✓
+[17/52] cl05  =  stable=✓  cand=✓
+[18/52] cl06  =  stable=✓  cand=✓
+[19/52] cl07  =  stable=✓  cand=✓
+[20/52] cl08  ↑  stable=✗  cand=✓
+[21/52] cl09  =  stable=✓  cand=✓
+[22/52] cl10  =  stable=✓  cand=✓
+[23/52] rv01  =  stable=✓  cand=✓
+[24/52] rv02  =  stable=✓  cand=✓
+[25/52] rv03  =  stable=✓  cand=✓
+[26/52] rv04  =  stable=✓  cand=✓
+[27/52] rv05  =  stable=✗  cand=✗
+[28/52] rv06  =  stable=✓  cand=✓
+[29/52] rv07  =  stable=✓  cand=✓
+[30/52] rv08  =  stable=✓  cand=✓
+[31/52] rv09  =  stable=✓  cand=✓
+[32/52] rv10  =  stable=✓  cand=✓
+[33/52] an01  =  stable=✓  cand=✓
+[34/52] an02  =  stable=✓  cand=✓
+[35/52] an03  =  stable=✓  cand=✓
+[36/52] an04  ?  stable=✓  cand=?
+[37/52] an05  ?  stable=?  cand=✓
+[38/52] an06  ?  stable=?  cand=✓
+[39/52] an07  ?  stable=?  cand=✓
+[40/52] an08  ?  stable=?  cand=✓
+[41/52] an09  =  stable=✓  cand=✓
+[42/52] an10  =  stable=✗  cand=✗
+[43/52] wr01  =  stable=✓  cand=✓
+[44/52] wr02  =  stable=✓  cand=✓
+[45/52] wr03  =  stable=✓  cand=✓
+[46/52] wr04  =  stable=✓  cand=✓
+[47/52] wr05  ?  stable=✓  cand=?
+[48/52] wr06  ?  stable=✗  cand=?
+[49/52] wr07  ?  stable=?  cand=?
+[50/52] wr08  ?  stable=?  cand=?
+[51/52] hs01  ?  stable=?  cand=?
+[52/52] hs02  ?  stable=?  cand=✓
+已删除钉版本文件 + 任务记忆开关（生产回到 manifest 灰度 + 正常注入）
+
+判定: INSUFFICIENT（赢 2 / 输 3 / 有效 36 / 共 52，用时 222.2 分钟）
+  基础设施故障（不计分母）: rf12, cl01, cl02, cl03, cl04, an04, an05, an06, an07, an08, wr05, wr06, wr07, wr08, hs01, hs02
+  赢: rf08, cl08
+  输: rf03, rf05, rf11
+明细: var\prompt_ab_task_exec_v2_20261023_034742.json
+EXIT=0
