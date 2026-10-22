@@ -1,0 +1,140 @@
+[投单 1/52] nb_1022_080254_01 (read-fact)
+  → ✓ (answer equiv-of ['0xfeff', '0xFEFF'])
+[投单 2/52] nb_1022_080404_02 (read-fact)
+  → ✓ (answer contains 'Ctrl+P')
+[投单 3/52] nb_1022_080544_03 (read-fact)
+  → ✓ (answer regex '^[\\s\'\\"（）()]*3[\\s\'\\"（）()]*$')
+[投单 4/52] nb_1022_080654_04 (read-fact)
+  → ✓ (answer regex '(999)')
+[投单 5/52] nb_1022_080804_05 (read-fact)
+  → ✓ (answer contains 'MemoryKernel')
+[投单 6/52] nb_1022_080944_06 (read-fact)
+  → ✓ (answer contains 'dwc start --llm')
+[投单 7/52] nb_1022_081054_07 (read-fact)
+  → ✓ (answer contains 'Lsinxcoy/divine-wisdom-core')
+[投单 8/52] nb_1022_081234_08 (read-fact)
+  → ✗ (answer contains '_rev_prev')
+  ★ 新失败类，加练一单（+1/2）
+[投单 9/53] nb_1022_081345_09 (read-fact)
+  → ✗ (answer contains 'DWC_STEP_JUDGE')
+  ★ 新失败类，加练一单（+2/2）
+[投单 10/54] nb_1022_081555_10 (read-fact)
+  → ✓ (answer contains 'dwc_pairs.jsonl')
+[投单 11/54] nb_1022_081705_11 (read-fact)
+  → ✗ (guess-credit-blocked: 命中句含猜测措辞 '无法确认'（不算确证）)
+[投单 12/54] nb_1022_081915_12 (read-fact)
+  → ✗ (answer contains 'deep')
+[投单 13/54] nb_1022_082125_13 (code-locate)
+  → ✓ (answer contains 'task_exec.py')
+[投单 14/54] nb_1022_082305_14 (code-locate)
+  → ✓ (answer contains 'memory.py')
+[投单 15/54] nb_1022_082515_15 (code-locate)
+  → ✓ (answer contains 'llm')
+[投单 16/54] nb_1022_082655_16 (code-locate)
+  → ✓ (answer contains 'effort.py')
+[投单 17/54] nb_1022_082905_17 (code-locate)
+  → ✓ (answer contains 'agent_quality.py')
+[投单 18/54] nb_1022_083045_18 (code-locate)
+  → ✓ (answer contains 'foundation')
+[投单 19/54] nb_1022_083226_19 (code-locate)
+  → ✓ (answer contains 'revision.py')
+[投单 20/54] nb_1022_083436_20 (code-locate)
+  → ✗ (answer contains 'cli_main.py')
+[投单 21/54] nb_1022_083646_21 (code-locate)
+  → ✓ (answer contains 'task_exec.py')
+[投单 22/54] nb_1022_083856_22 (code-locate)
+  → ✓ (answer contains 'agent_quality.py')
+[投单 23/54] nb_1022_084106_23 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 24/54] nb_1022_084248_24 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 25/54] nb_1022_084401_25 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 26/54] nb_1022_084442_26 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 27/54] nb_1022_084524_27 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='passed')
+[投单 28/54] nb_1022_084608_28 (run-verify)
+  → ✓ (agent-ran-equivalent(anchor='98') + rerun rc=0 anchor='PYFIL)
+[投单 29/54] nb_1022_084748_29 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='全部通过')
+[投单 30/54] nb_1022_084900_30 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='')
+[投单 31/54] nb_1022_084940_31 (run-verify)
+  → ✓ (agent-ran + rerun rc=0 anchor='10 passed')
+[投单 32/54] nb_1022_085022_32 (run-verify)
+  → ✓ (answer contains '1598')
+[投单 33/54] nb_1022_085132_33 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 34/54] nb_1022_085242_34 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 35/54] nb_1022_085422_35 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 36/54] nb_1022_085602_36 (analyze)
+  → ✓ (answer contains '静默')
+[投单 37/54] nb_1022_085743_37 (analyze)
+  → ✓ (answer contains 'replay.yaml')
+[投单 38/54] nb_1022_085953_38 (analyze)
+  → ✓ (answer contains 'knowledge3_')
+[投单 39/54] nb_1022_090133_39 (analyze)
+  → ✓ (answer all-of; miss=[])
+[投单 40/54] nb_1022_090343_40 (analyze)
+  → ✗ (answer contains 'calibrate_step_judge.py')
+[投单 41/54] nb_1022_090523_41 (analyze)
+  → ✓ (answer any-of ['config'])
+[投单 42/54] nb_1022_090703_42 (analyze)
+  → ✓ (answer contains 'dwc_agent_heartbeat.json')
+[投单 43/54] nb_1022_090913_43 (write)
+  → ✓ (file contains 'EVAL_WRITE_OK')
+[投单 44/54] nb_1022_091123_44 (write)
+  → ✓ (file contains 'eval')
+[投单 45/54] nb_1022_091233_45 (write)
+  → ✓ (file contains '-')
+[投单 46/54] nb_1022_091313_46 (write)
+  → ✓ (file contains '3')
+[投单 47/54] nb_1022_091354_47 (write)
+  → ✓ (file all-of; miss=[])
+[投单 48/54] nb_1022_091504_48 (write)
+  → ✓ (file contains '0xfeff')
+[投单 49/54] nb_1022_091614_49 (write)
+  → ✓ (file lines=2 want=2)
+[投单 50/54] nb_1022_091654_50 (write)
+  → ✓ (file contains 'EVAL_E2E_COMPLETE')
+[投单 51/54] nb_1022_091734_51 (historical)
+  → ✓ (answer any-of ['探索', '导航', '世界树'])
+[投单 52/54] nb_1022_092014_52 (historical)
+  → ✓ (answer any-of ['失败', '原因', '轮'])
+[投单 53/54] nb_1022_092124_53 (read-fact)
+  → ✓ (answer equiv-of ['0xfeff', '0xFEFF'])
+[投单 54/54] nb_1022_092234_54 (read-fact)
+  → ✓ (answer contains 'Ctrl+P')
+
+本轮: 48/54（54 单等到报告）
+
+==================================================================
+失败分类
+==================================================================
+任务类型             通过         通过率
+------------------------------------------------------------------
+read-fact        10/14      10/14 = 71%
+code-locate      9/10       9/10 = 90%
+run-verify       10/10      10/10 = 100%
+analyze          9/10       9/10 = 90%
+write            8/8        8/8 = 100%
+historical       2/2        2/2 = 100%
+
+失败归因:
+  D. 答完了但答案不对                      5
+  C. 任务未完成（模型中途放弃）                 1
+
+报告状态: {'done': 53, 'incomplete': 1}
+
+失败明细:
+  rf08   read-fact      done         answer contains '_rev_prev'
+  rf09   read-fact      incomplete   answer contains 'DWC_STEP_JUDGE'
+  rf11   read-fact      done         guess-credit-blocked: 命中句含猜测措辞 '无法确认'（不算确证）
+  rf12   read-fact      done         answer contains 'deep'
+  cl08   code-locate    done         answer contains 'cli_main.py'
+  an08   analyze        done         answer contains 'calibrate_step_judge.py'
+==================================================================
+EXIT=0
