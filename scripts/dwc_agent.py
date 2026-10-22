@@ -851,8 +851,18 @@ def startup_selfcheck(pairs=None):
 
 
 def _dispatch_inbox(item: dict, use_llm: bool) -> None:
-    """★ R382 · 把一单收件箱任务派给后台线程（Semaphore 限并发 2）。"""
-    _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(2))
+    """★ R382 · 把一单收件箱任务派给后台线程（并发槽默认 2）。
+
+    ★ R435 · 槽位宽由 `DWC_TASK_CONCURRENCY` 控制（默认 2，上限 8）。
+      A/B 场景把它和 `DWC_HTTP_CONCURRENCY` 一起调高才有意义 ——
+      **HTTP 锁宽度 1 时，槽位再多也只会有 1 个模型请求在飞**。
+    """
+    _width = 2
+    try:
+        _width = max(1, min(8, int(os.environ.get("DWC_TASK_CONCURRENCY") or 2)))
+    except ValueError:
+        _width = 2
+    _sema = globals().setdefault("_INBOX_SEMA", threading.Semaphore(_width))
     _inflight = globals().setdefault("_INBOX_INFLIGHT", set())
     # ★★★ R414 · **先登记 running + 在飞集合，再起线程** ——
     #   现场（2026-10-21 18:29–19:31）：任务 42 被派发 **1080 次**，

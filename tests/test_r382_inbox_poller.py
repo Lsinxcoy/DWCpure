@@ -169,6 +169,12 @@ def test_take_inbox_is_locked():
 
 
 def test_semaphore_still_limits_concurrency():
-    """★★ 并发上限仍为 2（防打爆 LLM；R379 串行锁在 client 层）。"""
+    """★★ 并发上限默认仍为 2（防打爆 LLM；R379 串行锁在 client 层）。
+
+    ★ R435 重锚：宽度改由 `DWC_TASK_CONCURRENCY` 控制，
+      默认值仍是 2 —— 断言"默认 2 + 可配"，不再断言写死的字面量。
+    """
     s = _src()
-    assert "threading.Semaphore(2)" in s, "并发上限被改了（应保持 2）"
+    assert "DWC_TASK_CONCURRENCY" in s, "并发上限不可配了？"
+    assert "threading.Semaphore(_width)" in s, "信号量构造被改了"
+    assert 'or 2' in s, "默认值必须仍是 2"

@@ -63,12 +63,22 @@ def _reset_lock(monkeypatch):
 
 
 def test_module_level_lock_exists():
-    """★★★ 必须存在**模块级**锁 —— 生产每单新建 LLMClient，
-    实例级锁挡不住跨实例并发。"""
+    """★★★ 必须存在**模块级**互斥 —— 生产每单新建 LLMClient，
+    实例级锁挡不住跨实例并发。
+
+    ★ R435 重锚：`_HTTP_LOCK` 由 `Lock()` 改为 `Semaphore(DWC_HTTP_CONCURRENCY)`，
+      **默认宽度 1 ⇒ 语义等价于锁**（下面用峰值并发=1 验证，不只看类型）。
+    """
     assert hasattr(C, "_HTTP_LOCK"), "缺模块级 _HTTP_LOCK"
     import threading as _t
-    assert isinstance(C._HTTP_LOCK, type(_t.Lock())), (
-        "_HTTP_LOCK 必须是 threading.Lock，实得 %r" % (type(C._HTTP_LOCK),))
+    assert isinstance(C._HTTP_LOCK, type(_t.Semaphore())), (
+        "_HTTP_LOCK 必须是 threading.Semaphore，实得 %r" % (type(C._HTTP_LOCK),))
+    assert int(getattr(C, "_HTTP_WIDTH", 0)) >= 1, "宽度必须 ≥1（0 会变成不阻塞）"
+    # 默认宽度 1：拿到一次后第二次非阻塞获取必须失败（等价于旧 Lock）
+    if int(C._HTTP_WIDTH) == 1:
+        assert C._HTTP_LOCK.acquire(blocking=False) is True, "第一次获取应成功"
+        assert C._HTTP_LOCK.acquire(blocking=False) is False, "宽度 1 却允许第二个持有者"
+        C._HTTP_LOCK.release()
 
 
 def test_concurrent_calls_do_not_overlap(monkeypatch):

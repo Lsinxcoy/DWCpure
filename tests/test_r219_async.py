@@ -55,6 +55,8 @@ def test_main_loop_is_async_structural():
     import inspect
     src = inspect.getsource(A)
     assert 'threading.Thread(target=_bg, daemon=True' in src, "接单未异步化"
-    assert "_INBOX_SEMA" in src and "Semaphore(2)" in src, "无并发上限"
+    # ★ R435 重锚：宽度可配，但默认仍是 2
+    assert "_INBOX_SEMA" in src and "threading.Semaphore(_width)" in src, "无并发上限"
+    assert "DWC_TASK_CONCURRENCY" in src and "or 2" in src, "默认并发不是 2"
     assert "user_task_async_started" in src, "无异步启动留痕"
     assert "user_task_crashed" in src, "线程异常无兜底留痕（不许静默死）"

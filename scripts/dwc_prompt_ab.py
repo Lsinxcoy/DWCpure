@@ -16,6 +16,12 @@
     提示词造成的还是时间造成的。同一道题**紧挨着**跑两臂，漂移对两臂
     近似相同，差值才归因得到提示词。
 
+★★★ R435 · 并发波次（--wave N）：
+    端点实测支持 4 路并发（12/12 合法 JSON，4.17× 加速）。一波 N 单同时
+    投递、等齐再切臂 ⇒ 每单耗时从 ~5 分钟降到 ~1.5 分钟。
+    前提：agent 必须以 `DWC_TASK_CONCURRENCY>=N`、`DWC_HTTP_CONCURRENCY>=N`
+    启动 —— **HTTP 锁宽度 1 时，槽位再多也只会有 1 个请求在飞**。
+
 ★★★ 判定为什么保守（任何一单退化就 reject）：
     单轮单题是 n=1，通过率本身有 ~7pp 的抖动。宁可漏掉一个真提升，
     也不能把一个退化版本推上生产 —— 提示词是全流量生效的。
@@ -78,10 +84,14 @@ def decide(pairs, min_tasks=10, min_wins=2):
 
     promote = 候选至少赢 min_wins 单，且**一单都没退化**。
     reject  = 有任何一单退化（保守：提示词全流量生效，不容忍回归）。
+
+    ★ 基础设施故障（任一臂为 None）**不进分母** —— 网络 502 不是候选的错。
     """
-    n = len(pairs)
-    wins = [p for p in pairs if p["cand_ok"] and not p["stable_ok"]]
-    losses = [p for p in pairs if p["stable_ok"] and not p["cand_ok"]]
+    valid = [p for p in pairs
+             if p.get("stable_ok") is not None and p.get("cand_ok") is not None]
+    n = len(valid)
+    wins = [p for p in valid if p["cand_ok"] and not p["stable_ok"]]
+    losses = [p for p in valid if p["stable_ok"] and not p["cand_ok"]]
     if n < min_tasks:
         return "insufficient", wins, losses
     if losses:
@@ -91,14 +101,47 @@ def decide(pairs, min_tasks=10, min_wins=2):
     return "keep", wins, losses
 
 
-def _run_arm(task: dict, ver, tag: str, wait_min: float):
-    """钉版本 → 投单 → 等报告 → 判据。返回 (ok, how, answer)。"""
-    tid = "ab_%s_%s_%s" % (time.strftime("%m%d_%H%M%S"), tag, task["id"])
-    since = time.time()
-    NB._inbox_push(task["task"], tid)
-    rep = NB._wait_report(tid, wait_min, since=since)
+def _report_path(tid: str) -> str:
+    return os.path.join(NB.REPORTS, "%s.json" % tid)
+
+
+def _wait_many(batch, since: float, timeout_min: float, poll: float = 10.0):
+    """等一批报告到齐（或超时）。返回 {ab_tid: report}。
+
+    ★ 与 `_wait_report` 同一条防旧报告规则：只认 mtime ≥ since 的文件。
+    """
+    deadline = time.time() + timeout_min * 60
+    got = {}
+    while time.time() < deadline:
+        for ab_tid, _ in batch:
+            if ab_tid in got:
+                continue
+            p = _report_path(ab_tid)
+            try:
+                if os.path.getmtime(p) < float(since) - 1.0:
+                    continue
+                got[ab_tid] = json.load(io.open(p, encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+        if len(got) == len(batch):
+            break
+        time.sleep(poll)
+    return got
+
+
+def _judge(task, rep, since):
+    """(ok, how, answer)。ok=None 表示**基础设施故障**（不是候选的错）。
+
+    ★★★ R435 · 现场：wave=4 跑到 21:52–21:58 连续 6 单 `HTTP 502`，
+      第一版把 `answer=None` 当成 ✗ ⇒ 判定 REJECT。这是**把网络故障
+      记在候选头上** —— 与 R422 同一条铁律：基础设施故障与模型失败必须
+      可区分，且不许计入 A/B 的分母。
+    """
     if not rep:
         return False, "no-report", ""
+    why = str(rep.get("why") or "")
+    if "[infra]" in why:
+        return None, "infra: %s" % why[:80], ""
     ans = rep.get("answer")
     try:
         ok, how = B2.verify(task.get("check") or {}, ans, since=since, report=rep)
@@ -107,13 +150,43 @@ def _run_arm(task: dict, ver, tag: str, wait_min: float):
     return bool(ok), str(how), ans
 
 
+def _run_wave(name, ids, tasks, ver, tag, wait_min, results, retry_infra=1):
+    """一波：同一版本并发投递 N 单，等齐后逐单判据，结果写进 results。
+
+    ★ 基础设施故障（[infra]）重投一次；仍失败 ⇒ 记为 None（不计分母）。
+    """
+    set_force(name, ver)
+    todo = list(ids)
+    for attempt in range(max(1, retry_infra + 1)):
+        if not todo:
+            break
+        since = time.time()
+        batch = []
+        for tid in todo:
+            ab_tid = "ab_%s_%s_%s" % (time.strftime("%m%d_%H%M%S"), tag, tid)
+            NB._inbox_push(tasks[tid]["task"], ab_tid)
+            batch.append((ab_tid, tid))
+        reps = _wait_many(batch, since, wait_min)
+        nxt = []
+        for ab_tid, tid in batch:
+            ok, how, ans = _judge(tasks[tid], reps.get(ab_tid), since)
+            results.setdefault(tid, {})[tag] = (ok, how, ans)
+            if ok is None and attempt < retry_infra:
+                nxt.append(tid)
+        todo = nxt
+    return len(todo)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", required=True)
     ap.add_argument("--candidate", required=True, help="候选版本（如 v2）")
     ap.add_argument("--ids", default=None,
                     help="逗号分隔的题号；缺省用 smoke 子集")
-    ap.add_argument("--wait-min", type=float, default=6.0)
+    ap.add_argument("--wait-min", type=float, default=6.0,
+                    help="一波最长等待（并发时每单更慢，建议 10）")
+    ap.add_argument("--wave", type=int, default=1,
+                    help="一波并发几单（需 agent 的 DWC_TASK_CONCURRENCY≥N）")
     ap.add_argument("--min-tasks", type=int, default=10)
     ap.add_argument("--min-wins", type=int, default=2)
     ap.add_argument("--promote", action="store_true",
@@ -136,49 +209,68 @@ def main() -> int:
     if not ids:
         raise SystemExit("没有可跑的题（检查 --ids）")
 
-    print("提示词 %s：stable=%s vs candidate=%s，%d 单，每单两臂"
-          % (a.name, stable, a.candidate, len(ids)))
+    wave = max(1, min(8, a.wave))
+    print("提示词 %s：stable=%s vs candidate=%s，%d 单，wave=%d"
+          % (a.name, stable, a.candidate, len(ids), wave))
     if a.dry_run:
         for i in ids:
             print("  -", i, "|", all_tasks[i]["task"][:50])
         return 0
 
-    pairs = []
+    results = {}
+    t_start = time.time()
     try:
-        for k, tid in enumerate(ids, 1):
-            t = all_tasks[tid]
-            set_force(a.name, stable)
-            s_ok, s_how, s_ans = _run_arm(t, stable, "S", a.wait_min)
-            set_force(a.name, a.candidate)
-            c_ok, c_how, c_ans = _run_arm(t, a.candidate, "C", a.wait_min)
-            mark = "=" if s_ok == c_ok else ("↑" if c_ok else "↓")
-            print("[%2d/%d] %-5s %s  stable=%s  cand=%s"
-                  % (k, len(ids), tid, mark, "✓" if s_ok else "✗",
-                     "✓" if c_ok else "✗"))
-            if mark == "↓":
-                print("        stable: %s" % s_how[:100])
-                print("        cand  : %s" % c_how[:100])
-            pairs.append({"id": tid, "stable_ok": s_ok, "cand_ok": c_ok,
-                          "stable_how": s_how, "cand_how": c_how,
-                          "stable_answer": str(s_ans)[:400],
-                          "cand_answer": str(c_ans)[:400]})
+        for w in range(0, len(ids), wave):
+            chunk = ids[w:w + wave]
+            _run_wave(a.name, chunk, all_tasks, stable, "S", a.wait_min, results)
+            _run_wave(a.name, chunk, all_tasks, a.candidate, "C", a.wait_min, results)
+            for tid in chunk:
+                s = results[tid]["S"][0]
+                c = results[tid]["C"][0]
+                if s is None or c is None:
+                    mark = "?"
+                else:
+                    mark = "=" if s == c else ("↑" if c else "↓")
+                print("[%2d/%d] %-5s %s  stable=%s  cand=%s"
+                      % (ids.index(tid) + 1, len(ids), tid, mark,
+                         "?" if s is None else ("✓" if s else "✗"),
+                         "?" if c is None else ("✓" if c else "✗")))
+                if mark == "↓":
+                    print("        stable: %s" % results[tid]["S"][1][:100])
+                    print("        cand  : %s" % results[tid]["C"][1][:100])
+            sys.stdout.flush()
     finally:
         set_force(a.name, None)          # ★ 无论怎么退出都恢复生产
         print("已删除钉版本文件（生产回到 manifest 灰度）")
+
+    pairs = [{"id": tid,
+              "stable_ok": results[tid]["S"][0], "cand_ok": results[tid]["C"][0],
+              "stable_how": results[tid]["S"][1], "cand_how": results[tid]["C"][1],
+              "stable_answer": str(results[tid]["S"][2])[:400],
+              "cand_answer": str(results[tid]["C"][2])[:400]}
+             for tid in ids]
 
     verdict, wins, losses = decide(pairs, a.min_tasks, a.min_wins)
     ts = time.strftime("%Y%m%d_%H%M%S")
     out = os.path.join(OUT_DIR, "prompt_ab_%s_%s_%s.json"
                        % (a.name, a.candidate, ts))
     payload = {"name": a.name, "stable": stable, "candidate": a.candidate,
-               "ts": ts, "verdict": verdict,
+               "ts": ts, "verdict": verdict, "wave": wave,
+               "elapsed_s": round(time.time() - t_start, 1),
                "wins": [p["id"] for p in wins],
                "losses": [p["id"] for p in losses],
                "pairs": pairs}
     with io.open(out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(payload, ensure_ascii=False, indent=1))
-    print("\n判定: %s（赢 %d / 输 %d / 共 %d）"
-          % (verdict.upper(), len(wins), len(losses), len(pairs)))
+    print("\n判定: %s（赢 %d / 输 %d / 有效 %d / 共 %d，用时 %.1f 分钟）"
+          % (verdict.upper(), len(wins), len(losses),
+             len([p for p in pairs if p["stable_ok"] is not None
+                  and p["cand_ok"] is not None]), len(pairs),
+             (time.time() - t_start) / 60.0))
+    _infra = [p["id"] for p in pairs
+              if p["stable_ok"] is None or p["cand_ok"] is None]
+    if _infra:
+        print("  基础设施故障（不计分母）:", ", ".join(_infra))
     if wins:
         print("  赢:", ", ".join(p["id"] for p in wins))
     if losses:

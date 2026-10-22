@@ -85,7 +85,25 @@ ENV_REASONING_EFFORT = "DWC_LLM_REASONING_EFFORT"
 #:     `Semaphore(2)` 允许 2 单并发（收件箱异步接单）⇒ 生产必踩。
 #:   确定性控制用代码（不是靠 prompt 求模型）：请求串行化，模型侧行为恢复。
 #:   必须**模块级**（生产每单新建 `LLMClient()`，实例锁挡不住跨实例并发）。
-_HTTP_LOCK = threading.Lock()
+#:
+#: ★★★ R435 · 换端点后重新验证（2026-10-22，当前 mcgrox + deepseek-v4.1-flash）:
+#:     串行 12 次 ⇒ 12/12 合法 JSON，33.1s
+#:     并发 4 路 12 次 ⇒ **12/12 合法 JSON**，7.9s（4.17×）
+#:   ⇒ 旧结论只对旧端点成立。宽度改由 `DWC_HTTP_CONCURRENCY` 控制，
+#:     **默认 1（保持历史行为）**；只有 A/B 这种"要速度"的场景显式调高。
+#:     上限 8：再高对端点不礼貌，且收益递减。
+def _http_width() -> int:
+    import os as _os
+    raw = (_os.environ.get("DWC_HTTP_CONCURRENCY") or "1").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 1
+    return max(1, min(8, n))
+
+
+_HTTP_WIDTH = _http_width()
+_HTTP_LOCK = threading.Semaphore(_HTTP_WIDTH)
 
 
 def _load_file_config() -> Dict[str, str]:
