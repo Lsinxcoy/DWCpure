@@ -208,6 +208,7 @@ def main() -> int:
 
     day = time.strftime("%m%d")
     n_ok = 0
+    n_infra = 0     # ★ R422 · 基础设施故障单数（不计入通过率分母）
     done = 0
     order = list(picks)   # ★ R269-③: 加练单可追加（至多 +2）
     hist: list = []
@@ -235,30 +236,56 @@ def main() -> int:
         # ★★★ R378 · 记投单时刻 —— _wait_report 只认此后写的报告
         _t_push = time.time()
         rep = _wait_report(tid, args.wait_min, since=_t_push)
+        # ★★★ R422 · **基础设施故障不算模型失败** ——
+        #   现场：2026-10-21 23:41–23:48 端点连续 502，最后 12 单
+        #   全部「零动作 + answer=None」，被当成 12 个模型失败记进通过率。
+        #   处理：带 `[infra]` 标记的失败**重投一次**（换新 tid，等 30s）；
+        #   仍失败 ⇒ 记 infra_skip，**从分母剔除**，不进 lessons/episodes。
+        _infra_retries = 0
+        while (rep and "[infra]" in str(rep.get("why", ""))
+               and _infra_retries < 1):
+            _infra_retries += 1
+            print("  ⚠ 基础设施故障，30s 后重投一次：%s"
+                  % str(rep.get("why"))[:60], flush=True)
+            time.sleep(30)
+            tid = make_tid(i)
+            _inbox_push(t["task"], tid)
+            _t_push = time.time()
+            rep = _wait_report(tid, args.wait_min, since=_t_push)
         ok = False
         how = "timeout/no-report"
+        infra_skip = False
         if rep:
-            # ★★★ R378 · 传 since ⇒ 文件类判据只认本轮写的文件
-            ok, how = B2.verify(t["check"], str(rep.get("answer", "")),
-                                since=_t_push, report=rep)
+            if "[infra]" in str(rep.get("why", "")):
+                infra_skip = True
+                n_infra += 1
+                how = "infra: %s" % str(rep.get("why"))[:50]
+            else:
+                # ★★★ R378 · 传 since ⇒ 文件类判据只认本轮写的文件
+                ok, how = B2.verify(t["check"], str(rep.get("answer", "")),
+                                    since=_t_push, report=rep)
             done += 1
         n_ok += 1 if ok else 0
         row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tid": tid,
                "task_id": t["id"], "kind": t["kind"], "ok": ok, "verify": how,
                "status": rep.get("status"), "rounds": rep.get("rounds")}
-        row["lesson"] = _promote_row({**row, "task": t["task"]})
+        if infra_skip:
+            row["infra"] = True
+        row["lesson"] = None if infra_skip else _promote_row(
+            {**row, "task": t["task"]})
         row["terminal"] = _terminal_state(ok, rep, tid=tid, task=t["task"])
-        try:  # ★ R270-⑥ · episode 链（失败不阻断主链）
-            import dwc_episodes as _EP
-            _EP.append_episode(t["id"], t["kind"], ok)
-        except Exception:                            # noqa: BLE001
-            pass
+        if not infra_skip:
+            try:  # ★ R270-⑥ · episode 链（失败不阻断主链）
+                import dwc_episodes as _EP
+                _EP.append_episode(t["id"], t["kind"], ok)
+            except Exception:                        # noqa: BLE001
+                pass
         with io.open(CURVE, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         print("  → %s (%s)" % ("✓" if ok else "✗", how[:60]), flush=True)
         rows_all.append(row)
         hist.append({"ok": ok, "verify": how})  # ★ R269-③
-        if _unseen_fail(ok, how, seen, bonus_used):
+        if (not infra_skip) and _unseen_fail(ok, how, seen, bonus_used):
             seen.add(_fail_sig(how))
             order.append(tasks[(rot + len(order)) % len(tasks)])
             bonus_used += 1
@@ -274,6 +301,10 @@ def main() -> int:
             break
         time.sleep(10)      # 单间隔（端点限流教训）
     print("\n本轮: %d/%d（%d 单等到报告）" % (n_ok, len(order), done))
+    if n_infra:
+        _den = max(1, len(order) - n_infra)
+        print("★ 基础设施故障 %d 单（已剔除，不计入通过率）：%d/%d = %.1f%%"
+              % (n_infra, n_ok, _den, 100.0 * n_ok / _den))
     _print_breakdown(rows_all)
     return 0
 

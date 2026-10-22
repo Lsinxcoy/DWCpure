@@ -17,7 +17,7 @@
   · 冻结门（人工）: var/dwc_agent_frozen 存在 ⇒ 优雅停（G3 frozen 设置方）
 
 ★ 运行: python dwc_agent.py [--interval 600] [--steps 2] [--llm]
-      [--terms-per-day 48] [--budget-day 40]
+      [--terms-per-day 96] [--budget-day 80]
       python dwc_agent.py --freeze / --unfreeze / --status
 """
 from __future__ import annotations
@@ -940,9 +940,15 @@ def main(argv) -> int:
         if "--interval" in argv else 600.0
     steps = int(argv[argv.index("--steps") + 1]) if "--steps" in argv else 2
     tpd = float(argv[argv.index("--terms-per-day") + 1]) \
-        if "--terms-per-day" in argv else 48.0
+        if "--terms-per-day" in argv else 96.0
+    # ★ R422 · 同上：48 也小于全池 52 单，先于预算触发自停。
     bpd = float(argv[argv.index("--budget-day") + 1]) \
-        if "--budget-day" in argv else 40.0
+        if "--budget-day" in argv else 80.0
+    # ★★★ R422 · 默认 40 → 80 ——
+    #   实测：全池 52 单，跑到第 40 单时 `agent_stopped: daily_limit` 自停，
+    #   剩下 12 单全部变成 timeout（日志里看着像模型全崩）。
+    #   每个 term 的 cost 是 1.0（合成计数，不是真钱），40 等于"每天 40 单"，
+    #   连一轮全池都跑不完。要收紧成本请显式传 `--budget-day 40`。
     use_llm = "--llm" in argv
     os.makedirs(VAR, exist_ok=True)
     # ★ R309-③ · 启动自检（只告警不拦；--no-selfcheck 可关）。

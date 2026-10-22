@@ -339,7 +339,8 @@ class LLMClient:
                  max_tokens: Optional[int] = None, json_mode: bool = False,
                  images: Optional[List[str]] = None,
                  tools: Optional[List[dict]] = None,
-                 tool_choice: Optional[str] = None) -> LLMResult:
+                 tool_choice: Optional[str] = None,
+                 _retry: bool = False) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
         ★★★ 为什么不用异常: 调用方最常见的写法是
@@ -398,7 +399,14 @@ class LLMClient:
             body["reasoning_effort"] = self.reasoning_effort
 
         self.n_calls += 1
-        if not hasattr(self, "_attempts"):
+        # ★★★ R422 · **每次调用重置重试计数** ——
+        #   原实现只在**成功**路径归零（见文末 n_ok 分支），失败后
+        #   `_attempts` 停在 2 ⇒ 之后每次调用 `_attempts < retries` 恒假
+        #   ⇒ **整个进程只重试第一次**。
+        #   现场：2026-10-21 23:41 端点 502，第一单烧完 2 次重试后，
+        #   后面 12 单全部零重试、零动作、直接判失败。
+        #   ★ 递归重试传 `_retry=True`，否则会无限重置。
+        if not _retry:
             self._attempts = 0
         url = self._base.rstrip("/") + "/chat/completions"
         # ★ R267 session: 单实例稳定 id — per-client 家族稳定，
@@ -436,7 +444,8 @@ class LLMClient:
                 return self.complete(prompt, system=system,
                                      max_tokens=max_tokens,
                                      json_mode=json_mode, images=images,
-                                     tools=tools, tool_choice=tool_choice)
+                                     tools=tools, tool_choice=tool_choice,
+                                     _retry=True)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="HTTP %s: %s" % (e.code, e.reason),
@@ -452,7 +461,8 @@ class LLMClient:
                 return self.complete(prompt, system=system,
                                      max_tokens=max_tokens,
                                      json_mode=json_mode, images=images,
-                                     tools=tools, tool_choice=tool_choice)
+                                     tools=tools, tool_choice=tool_choice,
+                                     _retry=True)
             self.n_fail += 1
             return LLMResult(ok=False, source="error",
                              error="%s: %s" % (type(e).__name__, e),

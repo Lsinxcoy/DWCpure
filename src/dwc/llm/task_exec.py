@@ -1575,9 +1575,18 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                    json_mode=True, images=_imgs)
         _tool_mode = "native" if _native else "json"
         if not getattr(res, "ok", False):
+            # ★★★ R422 · **基础设施故障与模型失败必须可区分** ——
+            #   端点 502/503/429 或传输超时不是模型的错；原来两者都写成
+            #   「LLM 失败: …」⇒ 跑分时把 7 分钟的端点抖动记成 12 单模型失败。
+            #   `[infra]` 标记让 bench 能重投/剔除，而不是算进通过率。
+            _meta = getattr(res, "meta", None) or {}
+            _infra = (_meta.get("http_code") in (429, 500, 502, 503, 504)
+                      or _meta.get("kind") == "transport")
             return {"task": task, "task_id": sid, "status": "incomplete",
                     "rounds": rnd,
-                    "why": "LLM 失败: %s" % getattr(res, "error", "?"),
+                    "why": "LLM 失败%s: %s"
+                           % ("[infra]" if _infra else "",
+                              getattr(res, "error", "?")),
                     "actions_log": log}
         # ★★★ R384 · 优先用**原生 tool_calls**（端点本来就会调工具，
         #   是旧代码把手拼 JSON 逼它输出散文 —— 全池 51/54 = 94% 零动作）。
