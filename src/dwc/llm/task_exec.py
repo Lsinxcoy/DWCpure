@@ -1656,6 +1656,26 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     "why": "LLM 返回空内容（既非 JSON 也非文本）",
                     "actions_log": log}
         op = step.get("op")
+        # ★★★ R426 · 模型把**原生工具名**当 op 用（`op='search_code'`）——
+        #   现场（cl08，11:29 复跑）：连续 3 轮 `op='search_code' 不在契约集`
+        #   ⇒ 搜索动作全被丢掉 ⇒ 模型只能凭印象答 ⇒ 顽固幻觉。
+        #   根因：`_TOOL_TO_OP` 只在**原生 tool_calls** 路径生效，
+        #   JSON 步（模型自己写 `{"op":"search_code",...}`）没接映射。
+        #   ★ 同一件事有两种写法，就该有同一个归一化入口。
+        if isinstance(op, str) and op in _TOOL_TO_OP:
+            _tc = [{"function": {
+                "name": op,
+                "arguments": json.dumps(
+                    {k: v for k, v in step.items()
+                     if k not in ("op", "analysis", "why")},
+                    ensure_ascii=False)}}]
+            _st2 = _tool_calls_to_step(_tc)
+            if _st2:
+                _sess({"round": rnd, "phase": "opmap",
+                       "why": "原生工具名归一: %s -> %s"
+                              % (op, _st2.get("op"))})
+                step = _st2
+                op = step.get("op")
         # ★ R223 · delegate 子代理（真子代理最小形态: 独立上下文隔离 —
         #   子探索的大量 read 输出不淹主任务; depth 限 1 层防递归爆炸）
         if op == "delegate":
