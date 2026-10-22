@@ -50,6 +50,47 @@ import sys
 import time
 import urllib.request
 
+
+def _ensure_runtime():
+    """★★★ R428 · cron 跑的是 hermes 内置 python（**没有 pyyaml**），
+    而本脚本 import dwc ⇒ dwc 依赖 yaml ⇒ 连续 19 次
+    `ModuleNotFoundError: No module named 'yaml'`，cron 一直是 error。
+
+    根因不是脚本坏了，是**跑它的解释器不是装依赖的那个**。
+    启动时自我切换到带依赖的解释器（不写死盘符/用户名）。
+    """
+    try:
+        import yaml  # noqa: F401
+        return
+    except ModuleNotFoundError:
+        pass
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _la = os.environ.get("LOCALAPPDATA", "")
+    _cands = [
+        os.path.join(_root, "hermes-agent", "venv", "Scripts", "python.exe"),
+        os.path.join(_root, "hermes-agent", "venv", "bin", "python"),
+        os.path.join(_root, "venv", "Scripts", "python.exe"),
+        os.path.join(_root, ".venv", "Scripts", "python.exe"),
+    ]
+    if _la:   # 仓库副本场景：venv 在 hermes 根下，不在仓库里
+        _cands.insert(0, os.path.join(
+            _la, "hermes", "hermes-agent", "venv", "Scripts", "python.exe"))
+    for _cand in _cands:
+        if (os.path.isfile(_cand)
+                and os.path.abspath(sys.executable) != os.path.abspath(_cand)):
+            # ★ Windows 的 os.execv **不引号化参数** —— 路径含空格
+            #   （`E:\Divine Wisdom Core`）会被拆成 `E:\Divine` ⇒ 报
+            #   `can't open file 'E:\Divine'`。subprocess 的列表形式才会
+            #   正确加引号（现场：R428 自测）。
+            import subprocess as _sp
+            raise SystemExit(_sp.call(
+                [_cand, os.path.abspath(__file__)] + sys.argv[1:]))
+    sys.stderr.write("缺少 pyyaml 且找不到带依赖的解释器\n")
+    raise SystemExit(2)
+
+
+_ensure_runtime()
+
 # ★ 以脚本位置定位仓库根（cron 副本在 hermes/scripts 下 ⇒ 用固定仓库路径）
 REPO = _dwc_root()
 sys.path.insert(0, os.path.join(REPO, "src"))

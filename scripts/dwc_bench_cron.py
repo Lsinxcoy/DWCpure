@@ -37,11 +37,54 @@ import os
 import subprocess
 import sys
 
+
+def _ensure_runtime():
+    """★★★ R428 · cron 用的是 hermes 内置 python（**没有 pyyaml**）——
+    本脚本依赖 dwc（需要 yaml）⇒ 启动时自我切换到带依赖的解释器。
+
+    现场：`DWC bench daily` / `DWC anchor drift watch` 连续 9/19 次
+    `ModuleNotFoundError: No module named 'yaml'`，两个 cron 一直是 error。
+    根因不是脚本坏了，是**跑它的解释器不是装依赖的那个**。
+
+    ★ 不写死盘符/用户名：从本文件位置上溯到 hermes 根，再找 venv。
+    """
+    try:
+        import yaml  # noqa: F401
+        return
+    except ModuleNotFoundError:
+        pass
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _la = os.environ.get("LOCALAPPDATA", "")
+    _cands = [
+        os.path.join(_root, "hermes-agent", "venv", "Scripts", "python.exe"),
+        os.path.join(_root, "hermes-agent", "venv", "bin", "python"),
+        os.path.join(_root, "venv", "Scripts", "python.exe"),
+        os.path.join(_root, ".venv", "Scripts", "python.exe"),
+    ]
+    if _la:   # 仓库副本场景：venv 在 hermes 根下，不在仓库里
+        _cands.insert(0, os.path.join(
+            _la, "hermes", "hermes-agent", "venv", "Scripts", "python.exe"))
+    for _cand in _cands:
+        if (os.path.isfile(_cand)
+                and os.path.abspath(sys.executable) != os.path.abspath(_cand)):
+            # ★ Windows 的 os.execv **不引号化参数** —— 路径含空格
+            #   （`E:\Divine Wisdom Core`）会被拆成 `E:\Divine` ⇒ 报
+            #   `can't open file 'E:\Divine'`。subprocess 的列表形式才会
+            #   正确加引号（现场：R428 自测）。
+            import subprocess as _sp
+            raise SystemExit(_sp.call(
+                [_cand, os.path.abspath(__file__)] + sys.argv[1:]))
+    sys.stderr.write("缺少 pyyaml 且找不到带依赖的解释器\n")
+    raise SystemExit(2)
+
+
+_ensure_runtime()
+
 ROOT = _dwc_root()
-PY = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), "venv", "Scripts", "python.exe")
-if not os.path.exists(PY):                     # cron 副本场景: venv 固定路径
-    PY = r"C:/Users/41228/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+# ★ R428: `_ensure_runtime()` 之后 sys.executable 就是**带依赖的解释器**
+#   （已在 venv 里就是它自己；否则已 execv 过去）—— 不用再猜路径，
+#   也就没有第二份"硬编码 venv 路径"。
+PY = sys.executable
 
 
 def main() -> int:

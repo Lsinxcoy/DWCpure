@@ -531,6 +531,49 @@ def maybe_dispatch_reading() -> dict:
         return None
 
 
+# ★★★ R428 · 任务级超时（R414 遗留的最后一环）
+#   现场：并发只有 2 个槽位（`_INBOX_SEMA`），一单 analyze 卡住就**永久**
+#   占掉一半产能，收件箱里其它单只能排队。之前只有 R398 的**心跳**
+#   （防止被误判 stale 重取），没有**上限**（跑多久都算正常）。
+#   缺省 30 分钟（全池单均 5–8 分钟，最长 analyze 历史 45 分钟 ⇒ 30 分钟
+#   会误杀长单，所以可用 DWC_TASK_TIMEOUT_S 调；设 0 = 关闭）。
+_TASK_TIMEOUT_S = float(os.environ.get("DWC_TASK_TIMEOUT_S", "2700"))
+
+
+def _run_with_deadline(fn, timeout_s: float, task_text: str):
+    """在独立线程里跑任务体，超时就**归还槽位**。
+
+    ★ Python 线程无法强杀：超时后 daemon 线程会继续跑到自然结束。
+      这在本函数里是安全的 —— 任务体只调用 LLM 并返回 rep，
+      **不写任何文件**（报告/状态落盘都在本函数外面）。
+      代价是浪费那一次调用的 token，收益是队列不被单点堵死。
+    """
+    if not timeout_s or timeout_s <= 0:
+        return fn()
+    box = {}
+
+    def _w():
+        try:
+            box["rep"] = fn()
+        except BaseException as exc:          # noqa: BLE001 — 转交主线程
+            box["exc"] = exc
+
+    th = threading.Thread(target=_w, daemon=True,
+                          name="task-body-" + str(abs(hash(task_text)) % 10 ** 6))
+    th.start()
+    th.join(timeout_s)
+    if th.is_alive():
+        _log({"event": "task_timeout", "timeout_s": timeout_s,
+              "task": str(task_text)[:120]})
+        return {"task": task_text, "status": "incomplete",
+                "why": "任务级超时（>%.0f 分钟）—— 已释放并发槽"
+                       % (timeout_s / 60.0)}
+    if "exc" in box:
+        raise box["exc"]
+    return box.get("rep") or {"task": task_text, "status": "incomplete",
+                              "why": "任务体无返回"}
+
+
 def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
     from dwc.llm.task_exec import execute_user_task
@@ -570,8 +613,11 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
             lc = lessons_context(str(item.get("task", "")))
             if lc:
                 ctx = (ctx + "\n" + lc) if ctx else lc
-            rep = execute_user_task(str(item.get("task", "")), llm=llm,
-                                    ctx=ctx, task_id=item["id"])
+            rep = _run_with_deadline(
+                lambda: execute_user_task(
+                    str(item.get("task", "")), llm=llm,
+                    ctx=ctx, task_id=item["id"]),
+                _TASK_TIMEOUT_S, str(item.get("task", "")))
     except Exception as exc:          # noqa: BLE001
         # ★ R398 · 执行抛异常也必须**停心跳**，否则标记永远是 running
         #   ⇒ 这一单既不会完成也不会被重取（比崩溃更糟）。
