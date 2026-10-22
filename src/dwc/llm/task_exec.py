@@ -229,7 +229,13 @@ _CAMEL_IDENT = re.compile(r"\b[a-zA-Z]+(?:[A-Z][a-z0-9]+)+\b")
 
 _REPO_TEXT_CACHE: Optional[str] = None
 _REPO_SKIP_DIRS = {".git", ".cache", "var", "archive", "node_modules",
-                   "__pycache__", ".venv", "venv", "build", "dist"}
+                   "__pycache__", ".venv", "venv", "build", "dist",
+                   # ★★★ R427 · `docs/repos/` 是**外部仓库镜像**（README 转储，
+                   #   3.4MB）。它被 search_code 索引后，别的项目的组件名会冒充
+                   #   本仓库的文件名 —— cl08 现场：镜像里写着「M11 task_router」，
+                   #   模型据此答出一个本仓库根本不存在的路由文件名。
+                   #   **外部仓库不是本仓库的语料。**
+                   "repos"}
 _REPO_EXTS = (".py", ".yaml", ".yml", ".json", ".toml", ".md", ".jsonl")
 
 
@@ -771,7 +777,7 @@ _TOOL_TO_OP = {
 _FIND_PY = (
     "import os,sys,fnmatch\n"
     "root=sys.argv[1]; pat=sys.argv[2]; ic=sys.argv[3]=='1'\n"
-    "skip={'.git','.cache','var','archive','node_modules','__pycache__','.venv','venv','build','dist'}\n"
+    "skip=" + repr(_REPO_SKIP_DIRS) + "\n"
     "n=0\n"
     "for d,ds,fs in os.walk(root):\n"
     "    ds[:]=[x for x in ds if x not in skip]\n"
@@ -792,7 +798,7 @@ _FIND_PY = (
 _SEARCH_PY = (
     "import os,sys,re\n"
     "pat=sys.argv[1]; root=sys.argv[2]\n"
-    "skip={'.git','.cache','var','archive','node_modules','__pycache__','.venv','venv','build','dist'}\n"
+    "skip=" + repr(_REPO_SKIP_DIRS) + "\n"
     "rx_def=re.compile(r'^\\s*(?:async\\s+)?(?:def|class)\\s+'+re.escape(pat)+r'\\b')\n"
     "rx=re.compile(re.escape(pat))\n"
     "defs=[]; refs=[]\n"
