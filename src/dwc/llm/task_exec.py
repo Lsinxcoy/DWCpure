@@ -802,16 +802,28 @@ _SEARCH_PY = (
     "rx_def=re.compile(r'^\\s*(?:async\\s+)?(?:def|class)\\s+'+re.escape(pat)+r'\\b')\n"
     "rx=re.compile(re.escape(pat))\n"
     "defs=[]; refs=[]\n"
-    "for d,ds,fs in os.walk(root):\n"
-    "    ds[:]=[x for x in ds if x not in skip]\n"
-    "    for f in fs:\n"
-    "        if not f.endswith('.py'): continue\n"
-    "        p=os.path.join(d,f)\n"
-    "        try: lines=open(p,encoding='utf-8',errors='replace').read().splitlines()\n"
-    "        except Exception: continue\n"
-    "        for i,l in enumerate(lines,1):\n"
-    "            if rx_def.match(l): defs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
-    "            elif rx.search(l): refs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
+    # ★★★ R429 · 路径写错时**必须大声报错**，不能静默 0/0。
+    #   现场（rf05，12:53）：模型把 path 传成**文件**（`src/dwc/organs/memory.py`）
+    #   或相对路径（`organs`）⇒ `os.walk` 什么都不遍历 ⇒ 打印
+    #   `DEFINITIONS(0)/REFERENCES(0)` ⇒ 模型据此断定"仓库里没有这个符号"，
+    #   最后只敢说"推测是 MemoryKernel"。
+    #   0 命中 ≠ 符号不存在；**路径错必须与符号不存在可区分**。
+    "if not os.path.exists(root):\n"
+    "    print('=== PATH NOT FOUND: %s ===' % root); print('（路径不存在 —— 这不是"
+    "“符号不存在”，请换成仓库内相对路径，如 src/dwc）'); sys.exit(3)\n"
+    "files=[]\n"
+    "if os.path.isfile(root): files=[root]\n"
+    "else:\n"
+    "    for d,ds,fs in os.walk(root):\n"
+    "        ds[:]=[x for x in ds if x not in skip]\n"
+    "        for f in fs:\n"
+    "            if f.endswith('.py'): files.append(os.path.join(d,f))\n"
+    "for p in files:\n"
+    "    try: lines=open(p,encoding='utf-8',errors='replace').read().splitlines()\n"
+    "    except Exception: continue\n"
+    "    for i,l in enumerate(lines,1):\n"
+    "        if rx_def.match(l): defs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
+    "        elif rx.search(l): refs.append('%s:%d:%s'%(p,i,l.strip()[:120]))\n"
     "print('=== DEFINITIONS (%d) ===' % len(defs))\n"
     "for x in defs[:20]: print(x)\n"
     "print('=== REFERENCES (%d) ===' % len(refs))\n"
