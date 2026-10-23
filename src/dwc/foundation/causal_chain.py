@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 因果链 Γ 的存储层 —— 三表四索引。
 
 ★★★ 这个模块为什么现在写
@@ -32,11 +31,10 @@
 """
 from __future__ import annotations
 
-import io
 import json
-import os
 import sqlite3
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -125,10 +123,10 @@ class CausalChainStore:
         # ★★ 判据 S5 的落点: trace 先落盘，chain_record 后落。
         #   若注入一个"Trace 写失败"的钩子，则 chain_record 不会被写
         #   ⇒ 崩溃后链可用 Trace 重建（§4.2 的硬前提）
-        self._trace_hook: Optional[Callable[[str, Dict[str, Any]], None]] = None
+        self._trace_hook: Callable[[str, dict[str, Any]], None] | None = None
 
     # ── S5 测试注入点 ──
-    def set_trace_hook(self, hook: Optional[Callable]) -> None:
+    def set_trace_hook(self, hook: Callable | None) -> None:
         """注入 Trace 落盘钩子。★ 生产环境留 None（无额外开销）。
 
         ★ 判据 S5 的推荐判据形式是"注入一次写失败 → 断言链未断裂"，
@@ -142,13 +140,13 @@ class CausalChainStore:
     # ══════════════════════════════════════════════
     # append（判据 S1 的写入点 / S2 的校验点 / S3 的接口之一）
     # ══════════════════════════════════════════════
-    def append(self, chain_id: str, stage: str, ref_id: Optional[str],
-               payload: Dict[str, Any],
-               upstream_id: Optional[str] = None,
-               recorded_at: Optional[str] = None,
-               quality_seq: Optional[float] = None,
-               peak_so_far: Optional[float] = None,
-               gdi_snapshot: Optional[float] = None) -> Dict[str, Any]:
+    def append(self, chain_id: str, stage: str, ref_id: str | None,
+               payload: dict[str, Any],
+               upstream_id: str | None = None,
+               recorded_at: str | None = None,
+               quality_seq: float | None = None,
+               peak_so_far: float | None = None,
+               gdi_snapshot: float | None = None) -> dict[str, Any]:
         """追加一环。
 
         ★★ 判据 S2: stage != 'decision' 时 upstream_id **必须**非空，
@@ -223,7 +221,7 @@ class CausalChainStore:
     # ══════════════════════════════════════════════
     # 查询（判据 S1 的读取点 / S4 的索引消费点）
     # ══════════════════════════════════════════════
-    def trace_back(self, chain_id: str) -> List[Dict[str, Any]]:
+    def trace_back(self, chain_id: str) -> list[dict[str, Any]]:
         """按 seq 回放整链。★ 消费 ix_rec_chain(chain_id, seq)。"""
         rows = self._conn.execute(
             "SELECT stage, ref_id, upstream_id, payload, seq, recorded_at"
@@ -236,7 +234,7 @@ class CausalChainStore:
             out.append(d)
         return out
 
-    def by_upstream(self, upstream_id: str) -> List[Dict[str, Any]]:
+    def by_upstream(self, upstream_id: str) -> list[dict[str, Any]]:
         """反查：某环的下游是谁。★ 消费 ix_rec_upstream。
 
         ★★★ 这是 ARSI 做不到的: ARSI 的 source_traces 塞在 JSON 里
@@ -247,8 +245,8 @@ class CausalChainStore:
             " WHERE upstream_id=? ORDER BY seq", (upstream_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def by_kind(self, kind: str, key: Optional[str] = None
-                ) -> List[Dict[str, Any]]:
+    def by_kind(self, kind: str, key: str | None = None
+                ) -> list[dict[str, Any]]:
         """按 kind（可选再按 key）查。★ 消费 ix_index_kind(kind, key)。"""
         if key is None:
             rows = self._conn.execute(
@@ -260,13 +258,13 @@ class CausalChainStore:
                 " WHERE kind=? AND key=?", (kind, key)).fetchall()
         return [dict(r) for r in rows]
 
-    def get(self, chain_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, chain_id: str) -> dict[str, Any] | None:
         """读链摘要。★ 判据 S1 的读取点之一。"""
         row = self._conn.execute(
             "SELECT * FROM chain WHERE chain_id=?", (chain_id,)).fetchone()
         return dict(row) if row else None
 
-    def open_chains(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def open_chains(self, limit: int | None = None) -> list[dict[str, Any]]:
         """未闭合的链。★ 消费 ix_chain_closed(closed_at)。"""
         sql = ("SELECT chain_id, turn_id, trace_id, experience_id,"
                " change_id, started_at FROM chain WHERE closed_at IS NULL")
@@ -274,7 +272,7 @@ class CausalChainStore:
             sql += " LIMIT %d" % int(limit)
         return [dict(r) for r in self._conn.execute(sql).fetchall()]
 
-    def verify_continuity(self, chain_id: str) -> Dict[str, Any]:
+    def verify_continuity(self, chain_id: str) -> dict[str, Any]:
         """链连续性自检：逐环 upstream == 上一环 ref。
 
         ★★ 这是 §4.2 重建规则能成立的前提 ——
@@ -298,8 +296,8 @@ class CausalChainStore:
     # ══════════════════════════════════════════════
     # export（判据 S6 的唯一瘦身出口）
     # ══════════════════════════════════════════════
-    def export(self, chain_id: Optional[str] = None,
-               out_path: Optional[str] = None) -> Dict[str, Any]:
+    def export(self, chain_id: str | None = None,
+               out_path: str | None = None) -> dict[str, Any]:
         """导出链（默认全部）。★ 返回 manifest（行数 + 校验和）。
 
         ★★★ 判据 S6: 瘦身**必须**走这里，不许 DELETE FROM chain_record。
@@ -327,12 +325,12 @@ class CausalChainStore:
             "checksum_sha256": hashlib.sha256(body.encode()).hexdigest(),
         }
         if out_path:
-            io.open(out_path, "w", encoding="utf-8").write(
+            open(out_path, "w", encoding="utf-8").write(
                 json.dumps({"manifest": manifest, "records": recs},
                            ensure_ascii=False, indent=1))
         return {"manifest": manifest, "records": recs}
 
-    def prune_archive(self, chain_ids: List[str]) -> int:
+    def prune_archive(self, chain_ids: list[str]) -> int:
         """删除**已导出并核对过**的链。★ 判据 S6 的执行点。
 
         ★★ 2026-10-05 自检抓到设计错误: 原参数名是 archived_checksums，
@@ -435,7 +433,7 @@ def _self_test() -> None:
         st2.append("CH3", "turn", "T", {}, upstream_id="D")
         st2.append("CH3", "trace", "TR", {"x": 1}, upstream_id="T")
         print("★ Trace 写失败时未 raise")
-    except ChainError as e:
+    except ChainError:
         v = st2.verify_continuity("CH3")
         print("S5: Trace 失败后链仍连续=%s（只有 %d 环）✓ hook 调用 %d 次"
               % (v["continuous"], v["n_records"], calls["n"]))

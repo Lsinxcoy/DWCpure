@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """meta_policy · 元进化：按观测压力调整**进化自己的旋钮**（R438 · #14）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -20,11 +19,10 @@
 """
 from __future__ import annotations
 
-import io
 import os
 import shutil
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
@@ -39,8 +37,8 @@ BOUNDS = {"auto_apply_max_per_round": (1, 3),
 COOLDOWN_S = 3 * 86400
 
 
-def propose(report: Dict[str, Any], current: Dict[str, Any],
-            last_ts: float = 0.0, now: Optional[float] = None) -> Optional[Dict]:
+def propose(report: dict[str, Any], current: dict[str, Any],
+            last_ts: float = 0.0, now: float | None = None) -> dict | None:
     """按压力出**一条**调整建议；没有压力 ⇒ None（不许为改而改）。"""
     now = time.time() if now is None else now
     if last_ts and (now - last_ts) < COOLDOWN_S:
@@ -61,7 +59,7 @@ def propose(report: Dict[str, Any], current: Dict[str, Any],
 
 
 def apply(component_key: str, new_value: int, path: str = "",
-          backup_dir: str = "") -> Dict[str, Any]:
+          backup_dir: str = "") -> dict[str, Any]:
     """按行改 yaml（保留注释）+ 备份 + 读回校验；失败自动还原。"""
     p = path or EVO_PATH
     lo, hi = BOUNDS.get(component_key, (None, None))
@@ -72,7 +70,7 @@ def apply(component_key: str, new_value: int, path: str = "",
     if not (lo <= new_value <= hi):
         raise ValueError("%s=%r 越界 [%d,%d]"
                          % (component_key, new_value, lo, hi))
-    with io.open(p, encoding="utf-8") as f:
+    with open(p, encoding="utf-8") as f:
         lines = f.read().splitlines()
     hit = None
     for i, ln in enumerate(lines):
@@ -91,7 +89,7 @@ def apply(component_key: str, new_value: int, path: str = "",
                        % time.strftime("%Y%m%d_%H%M%S"))
     shutil.copy2(p, bak)
     tmp = p + ".tmp"
-    with io.open(tmp, "w", encoding="utf-8", newline="\n") as f:
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
     os.replace(tmp, p)
     # 读回校验（配置坏了 = 没改成）

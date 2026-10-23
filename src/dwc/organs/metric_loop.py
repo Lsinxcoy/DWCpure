@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """metric_loop · Metric Loop 选优面（R177 · 2607.12790 式2 S(e) 的 DWC 组装）。
 
 DWC-AUTO（自我强化）: Metric Loop 的候选打分 = 选"哪个缺点判据树"当裁判 —
@@ -33,14 +32,20 @@ DWC-AUTO（自我强化）: Metric Loop 的候选打分 = 选"哪个缺点判据
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from dwc.organs.drawback import (ABSTAIN, CLEAN, DRAWBACK, Grader, Node,
-                                Op, VERDICTS, _eval)
-from dwc.organs.ops import DEFAULT_POOL, _count_nodes, op_root_parse_ok
+from dwc.organs.drawback import (
+    ABSTAIN,
+    CLEAN,
+    DRAWBACK,
+    Node,
+    Op,
+    _eval,
+)
+from dwc.organs.ops import DEFAULT_POOL, _count_nodes
 
 #: ★ R179: op 注册表（树求值的 ops 参数 — 池里每个具名 op）
-_POOL_OPS: Dict[str, Op] = {op.name: op for op in DEFAULT_POOL}
+_POOL_OPS: dict[str, Op] = {op.name: op for op in DEFAULT_POOL}
 
 #: ★ 论文常数（Appendix C — 有出处, 不是调参旋钮）
 W_FAIL: float = 2.0                 # recall weight for the fail class
@@ -57,10 +62,10 @@ class MetricLoopError(Exception):
 # R182 · A_train 精化（reliability-weighted 共识 — κ=10 有据）
 # ══════════════════════════════════════════════════════════
 
-def a_train_weighted(train_verdicts: List[Dict[str, str]],
-                     tree: Any, marginal: Dict[str, Optional[float]],
+def a_train_weighted(train_verdicts: list[dict[str, str]],
+                     tree: Any, marginal: dict[str, float | None],
                      *, kappa: float = 10.0,
-                     op_filter: Optional[Any] = None) -> Optional[float]:
+                     op_filter: Any | None = None) -> float | None:
     """★★★ R182 · A_train = 候选树 op 集合的 reliability-weighted 共识率。
 
     ★ 论文（2607.12790 逐字）:
@@ -110,7 +115,7 @@ def a_train_weighted(train_verdicts: List[Dict[str, str]],
 # R179 · 真数据面（judge.task_scores(dev) ⇒ 每树 grade ⇒ dev_points）
 # ══════════════════════════════════════════════════════════
 
-def _ctx_from_evidence(evi: Dict[str, Any]) -> Dict[str, Any]:
+def _ctx_from_evidence(evi: dict[str, Any]) -> dict[str, Any]:
     """★ R179: verdict evidence dict ⇒ op ctx（口径桥 — 只投影不重算）。
 
     ★ 字段映射（judge/ops 两侧字段名核实后定 — 不猜）:
@@ -131,7 +136,7 @@ def _ctx_from_evidence(evi: Dict[str, Any]) -> Dict[str, Any]:
     """
     k = evi.get("k_passed")
     n = evi.get("n_checks")
-    diff_txt: Optional[str] = None
+    diff_txt: str | None = None
     for d in (evi.get("diffs") or []):
         if isinstance(d, dict) and not d.get("ok", True):
             diff_txt = "%s(%s): %s → %s（%s）" % (
@@ -149,8 +154,8 @@ def _ctx_from_evidence(evi: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def dev_points_from_store(store: Any, *, split: str = "dev",
-                          trees: Optional[List[Node]] = None
-                          ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+                          trees: list[Node] | None = None
+                          ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """★★★ R179: judge store ⇒ dev_points（Metric Loop 的真数据面接线）。
 
     ★ 每点 = {label, tree_verdicts: {key: verdict}}:
@@ -166,12 +171,12 @@ def dev_points_from_store(store: Any, *, split: str = "dev",
         raise MetricLoopError(
             "task_scores(split=%r) 失败: %s: %s（Metric Loop 无数据面 ⇒ "
             "不选优 — 不造点）" % (split, type(exc).__name__, exc))
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     n_skip = 0
     for p in pts_in:
         try:
             evi = store.evidence(p.evidence_ref)
-        except Exception as exc:                  # noqa: BLE001 — 留痕不静默
+        except Exception:                  # noqa: BLE001 — 留痕不静默
             n_skip += 1
             continue
         label = evi.get("success")
@@ -179,7 +184,7 @@ def dev_points_from_store(store: Any, *, split: str = "dev",
             n_skip += 1
             continue
         ctx = _ctx_from_evidence(evi)
-        tv: Dict[str, str] = {}
+        tv: dict[str, str] = {}
         for t in trees:
             # ★★ R179 实测纠偏: Grader.grade 是**实例方法**（tree 绑在
             #   实例上, 且返 dict）— dev_points 要的是单值三态 ⇒ 直接用
@@ -205,7 +210,7 @@ def dev_points_from_store(store: Any, *, split: str = "dev",
 # R181 · 采纳面（选优 ⇒ 换 ③门树 + 门组回归快照 — 前置闸）
 # ══════════════════════════════════════════════════════════
 
-def regression_probe(facts_factory: Any, *, new_tree: Any) -> Dict[str, Any]:
+def regression_probe(facts_factory: Any, *, new_tree: Any) -> dict[str, Any]:
     """★★★ R181 门组回归快照: 同一组 TermFacts 在旧树/新树下的 ③门判定对比。
 
     ★ 纪律（采纳的前置闸 — 论文 fail-closed 同族）:
@@ -248,7 +253,7 @@ def regression_probe(facts_factory: Any, *, new_tree: Any) -> Dict[str, Any]:
     return out
 
 
-def adopt(new_tree: Any, facts_factory: Any) -> Dict[str, Any]:
+def adopt(new_tree: Any, facts_factory: Any) -> dict[str, Any]:
     """★★★ R181 采纳: 回归快照过 ⇒ 注入 ③门; 不过 ⇒ 拒绝 + 原因（不半吊）。"""
     rep = regression_probe(facts_factory, new_tree=new_tree)
     if not rep.get("adopt", False):
@@ -266,8 +271,8 @@ def adopt(new_tree: Any, facts_factory: Any) -> Dict[str, Any]:
 # A_dev（recall-weighted — 论文 §4 逐字）
 # ══════════════════════════════════════════════════════════
 
-def a_dev_recall(verdicts: List[str], labels: List[bool]
-                 ) -> Tuple[Optional[float], Dict[str, Any]]:
+def a_dev_recall(verdicts: list[str], labels: list[bool]
+                 ) -> tuple[float | None, dict[str, Any]]:
     """★ A_dev = (w_f·r_fail + w_p·r_pass)/(w_f+w_p)（无意见 ⇒ None）。
 
     ★ 口径（论文"so a missed drawback costs twice a false alarm"）:
@@ -296,7 +301,7 @@ def a_dev_recall(verdicts: List[str], labels: List[bool]
                        "n_fail": len(fails), "n_pass": len(passes)}
 
 
-def validity_gate(verdicts: List[str]) -> Tuple[bool, str]:
+def validity_gate(verdicts: list[str]) -> tuple[bool, str]:
     """★ validity gate: 丢"pass, fail, or abstain on everything"（原文逐字）。
 
     ★ 判据: 非 abstain 的 verdict 若**只有一种**（恒 drawbacK 或恒 clean）
@@ -315,9 +320,9 @@ def validity_gate(verdicts: List[str]) -> Tuple[bool, str]:
 # 候选族（机械变异 — 诚实降级, 见模块 docstring）
 # ══════════════════════════════════════════════════════════
 
-def mechanical_candidates() -> List[Node]:
+def mechanical_candidates() -> list[Node]:
     """★ 候选树族: [current] + 每 op 单叶 + root∧op 对（全确定性可复现）。"""
-    trees: List[Node] = [_current_tree()]
+    trees: list[Node] = [_current_tree()]
     for op in DEFAULT_POOL:
         trees.append(Node(kind="leaf", op=op.name))
         trees.append(Node(kind="and",
@@ -345,8 +350,8 @@ def _tree_key(t: Node) -> str:
 # S(e) 组装 + 选优（§4 逐字: argmax 在候选与现任之间取）
 # ══════════════════════════════════════════════════════════
 
-def loo_marginal_dev(dev_points: List[Dict[str, Any]], op_name: str,
-                     incumbent: Any) -> Optional[float]:
+def loo_marginal_dev(dev_points: list[dict[str, Any]], op_name: str,
+                     incumbent: Any) -> float | None:
     """★★★ R182 · m_o = op 的锚定 leave-one-out marginal（2607.12790 ④）。
 
     ★ 口径（论文原文 + e2e 参考实现逐字对齐）:
@@ -361,7 +366,7 @@ def loo_marginal_dev(dev_points: List[Dict[str, Any]], op_name: str,
     """
     if not dev_points:
         return None
-    from dwc.organs.drawback import Node as _N, _eval as _ev
+    from dwc.organs.drawback import _eval as _ev
     ops = _POOL_OPS
     reduced = _drop_leaf(incumbent, op_name)
     if reduced is None:
@@ -414,19 +419,18 @@ def _drop_leaf(tree: Any, op_name: str) -> Any:
     return out
 
 
-def _flatten_and(tree: Any) -> List[Any]:
-    from dwc.organs.drawback import Node as _N
+def _flatten_and(tree: Any) -> list[Any]:
     if tree.kind == "leaf":
         return [tree]
     if tree.kind != "and":
         return [tree]
-    out: List[Any] = []
+    out: list[Any] = []
     for c in tree.children:
         out.extend(_flatten_and(c))
     return out
 
 
-def reliability_weight(m_o: Optional[float], *, kappa: float = 10.0
+def reliability_weight(m_o: float | None, *, kappa: float = 10.0
                        ) -> float:
     """★★ 共识权重 1/(1+κ·max(0,m_o))（论文逐字 — 安全选择非调参旋钮）。
 
@@ -439,9 +443,9 @@ def reliability_weight(m_o: Optional[float], *, kappa: float = 10.0
     return 1.0 / (1.0 + kappa * max(0.0, float(m_o)))
 
 
-def score_candidate(*, verdicts: List[str], labels: List[bool],
-                    a_train: Optional[float], n_nodes: int
-                    ) -> Tuple[Optional[float], Dict[str, Any]]:
+def score_candidate(*, verdicts: list[str], labels: list[bool],
+                    a_train: float | None, n_nodes: int
+                    ) -> tuple[float | None, dict[str, Any]]:
     """★ S(e) = A_dev·A_train^w − λ·C（None 传播 — 不伪造任一因子）。
 
     ★ A_train None ⇒ S None（乘性因子缺席 — fail-closed: 单因子不裁决）;
@@ -458,9 +462,9 @@ def score_candidate(*, verdicts: List[str], labels: List[bool],
                "detail": dev_why}
 
 
-def select(dev_points: List[Dict[str, Any]], *, a_train: Optional[float],
-           trees: Optional[List[Node]] = None,
-           include_current: bool = True) -> Dict[str, Any]:
+def select(dev_points: list[dict[str, Any]], *, a_train: float | None,
+           trees: list[Node] | None = None,
+           include_current: bool = True) -> dict[str, Any]:
     """★★★ R177 选优: 候选族逐个体检（validity + fail-closed）⇒ argmax S。
 
     dev_points: [{label, tree_verdicts: {key: verdict}}] — 每 dev item 上
@@ -471,7 +475,7 @@ def select(dev_points: List[Dict[str, Any]], *, a_train: Optional[float],
     """
     trees = trees if trees is not None else mechanical_candidates()
     labels = [bool(p.get("label")) for p in dev_points]
-    scored: List[Dict[str, Any]] = []
+    scored: list[dict[str, Any]] = []
     for t in trees:
         key = _tree_key(t)
         if not include_current and key == _tree_key(_current_tree()):

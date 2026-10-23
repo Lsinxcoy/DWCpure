@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """coupling · 机制间压力传播的**记账面**（R196 · Z 类落地 甲类 A1）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -38,12 +37,10 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 #: ★★ 压力边（登记面 — 不是判据, 不是触发链）
 #:   (from_subsystem, to_subsystem, pressure_name)
 #:   第一版 4 条 = R196 方案 §五.1 经用户默许的出厂集（用户 2026-10-12 令"继续"）。
-COUPLING_EDGES: Tuple[Tuple[str, str, str], ...] = (
+COUPLING_EDGES: tuple[tuple[str, str, str], ...] = (
     # ★★★ R197 · 命名修正（我 R196 的边名是**事件式误导** — 实测三条边
     #   根本没有事件可接, 但有真实的**耦合形态**; 按事实重命名）:
     #   "metric 面每轮常开" ⇒ 不是"op 判定变了才触发": loop.py:972-977
@@ -63,15 +60,15 @@ COUPLING_EDGES: Tuple[Tuple[str, str, str], ...] = (
 )
 
 #: ★ DWC 的四个机制子系统（harness/organs 的已登记结构 — 不自造第五个）
-SUBSYSTEMS: Tuple[str, ...] = ("judge", "metric_loop", "direction", "evolver")
+SUBSYSTEMS: tuple[str, ...] = ("judge", "metric_loop", "direction", "evolver")
 
 #: ★ 阶段名（与论文 §2.3 taxonomy 对齐; Stage 0 = 论文之前的"互不触发"）
-_STAGE_NAMES: Tuple[str, ...] = (
+_STAGE_NAMES: tuple[str, ...] = (
     "Stage0_uncoupled", "Stage1_agent_agent",
     "Stage2_agent_environment", "Stage3_meta")
 
 
-def pressures_from(subsystem: str) -> List[Tuple[str, str]]:
+def pressures_from(subsystem: str) -> list[tuple[str, str]]:
     """子系统 ⇒ 它**向外出压力**的 (to, pressure_name) 清单。
 
     ★ 未登记子系统 ⇒ []（如实 — 不猜边; 越界的调用方自己负责）。
@@ -79,17 +76,17 @@ def pressures_from(subsystem: str) -> List[Tuple[str, str]]:
     return [(to, pn) for (frm, to, pn) in COUPLING_EDGES if frm == subsystem]
 
 
-def pressures_to(subsystem: str) -> List[Tuple[str, str]]:
+def pressures_to(subsystem: str) -> list[tuple[str, str]]:
     """子系统 ⇒ **谁向它**施压的 (from, pressure_name) 清单。"""
     return [(frm, pn) for (frm, to, pn) in COUPLING_EDGES if to == subsystem]
 
 
-def declared_pairs() -> List[Tuple[str, str]]:
+def declared_pairs() -> list[tuple[str, str]]:
     """已登记的 (from, to) 有序对（去重排序 ⇒ 输出确定, 测试可断言）。"""
     return sorted({(f, t) for (f, t, _) in COUPLING_EDGES})
 
 
-def decoupled_pairs() -> List[Tuple[str, str]]:
+def decoupled_pairs() -> list[tuple[str, str]]:
     """**尚未登记**压力的有序子系统对（如实暴露 Stage 0 的缺口）。
 
     ★ 非空是事实陈述, 不是缺陷 — 论文说 Stage 3 是"Only limited work"达到的。
@@ -100,7 +97,7 @@ def decoupled_pairs() -> List[Tuple[str, str]]:
                   if a != b and (a, b) not in decl)
 
 
-def stage_of(edges: List[Tuple[str, str, str]]) -> Tuple[int, str]:
+def stage_of(edges: list[tuple[str, str, str]]) -> tuple[int, str]:
     """给定边集 ⇒ (阶段号, 阶段名) —— **记账判定, 不是能力判定**。
 
     ★ 判据（可机复现, 全部来自边表本身, 不引入外部信号）:
@@ -125,7 +122,7 @@ def stage_of(edges: List[Tuple[str, str, str]]) -> Tuple[int, str]:
     return (1, _STAGE_NAMES[1])
 
 
-def current_stage() -> Tuple[int, str]:
+def current_stage() -> tuple[int, str]:
     """★ 出厂边表的阶段（DWC 如实自报 — R196 出厂集 ⇒ Stage 2）。"""
     return stage_of(list(COUPLING_EDGES))
 

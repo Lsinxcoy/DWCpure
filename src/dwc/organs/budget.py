@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """budget · 退火编辑预算 b_t（2609.24972 式 4 · 设计稿门⑥「归因粒度」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -19,8 +18,9 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 #: 议程默认参数（式 4 口径 — 全是可调管理参数, 不是论文报值）
 DEFAULT_B_MIN: int = 1
@@ -75,7 +75,7 @@ def schedule(t: int, T: int = DEFAULT_HORIZON, *,
 
 def check(items: Sequence[EditItem], t: int, T: int = DEFAULT_HORIZON, *,
           b_min: int = DEFAULT_B_MIN, b_max: int = DEFAULT_B_MAX
-          ) -> Dict[str, Any]:
+          ) -> dict[str, Any]:
     """★ 计数判定: 若干编辑去重后是否 ≤ b_t（议程一眼可复核）。"""
     if not isinstance(items, (list, tuple)):
         raise BudgetError("items 须序列")
@@ -92,7 +92,7 @@ def check(items: Sequence[EditItem], t: int, T: int = DEFAULT_HORIZON, *,
 
 
 def anneal_report(T: int = DEFAULT_HORIZON, *, b_min: int = DEFAULT_B_MIN,
-                  b_max: int = DEFAULT_B_MAX) -> Dict[str, Any]:
+                  b_max: int = DEFAULT_B_MAX) -> dict[str, Any]:
     """★ 全议程展开（审计面: 每 t 的 b_t — 单调不增性是结构性质）。"""
     rows = [{"t": t, "b_t": schedule(t, T, b_min=b_min, b_max=b_max)}
             for t in range(T + 1)]
@@ -108,7 +108,7 @@ def anneal_report(T: int = DEFAULT_HORIZON, *, b_min: int = DEFAULT_B_MIN,
                     "末轮 = b_min = %d ✓" % b_min}
 
 
-BUDGET_MECHANICS: Dict[str, str] = {
+BUDGET_MECHANICS: dict[str, str] = {
     "formula": "式 4: b_t = ceil(b_min + (b_max−b_min)·½(1+cos(πt/T)))",
     "anneal_direction": "t=0 最宽(b_max) → t=T 最紧(b_min=1)",
     "why": "不约束 proposer 会把很多互不相关的修改捆成一个候选 ⇒ 测得的改变难以归因到具体机制（原文理由）",

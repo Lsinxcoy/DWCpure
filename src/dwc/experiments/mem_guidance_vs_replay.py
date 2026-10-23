@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """★ 记忆注入 vs 记忆回放 —— V1 假设的第一个对照实验（EVOLUTION_CORE_V2 §十二）。
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
@@ -36,22 +35,21 @@ from __future__ import annotations
 
 import argparse
 import ast
-import io
 import json
 import os
 import re
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 if _ROOT not in sys.path:
     sys.path.insert(0, os.path.join(_ROOT, "src"))
 
-from dwc.llm import LLMClient                            # noqa: E402
-from dwc.organs.actor import Actor, execute_task         # noqa: E402
-from dwc.organs.judge import Judge                       # noqa: E402
+from dwc.llm import LLMClient
+from dwc.organs.actor import Actor, execute_task
+from dwc.organs.judge import Judge
 
 #: 系统外真值源（G2）
 TRUTH_SOURCE = {
@@ -85,7 +83,7 @@ TASKS = dict(BEHAVIOR_TASKS)
 #:   40 条 = 4 条命中（001–003 与 004 的真实签名路径）+ 36 条**干扰**
 #:   （R64 稀释效应: guidance 平铺全库 vs replay 只揭路径 —— 差异就来自干扰量）
 #:   干扰的 (c,q) **避开**两条命中路径, 否则会泄进 replay 揭示集
-SEED_HIT: List[Dict[str, str]] = [
+SEED_HIT: list[dict[str, str]] = [
     # ── 命中 · E_VALUE / wrong_magnitude（001/002/003 的路径）──
     {"scene": "累加和少算一项", "c": "E_VALUE", "q": "wrong_magnitude",
      "fix_hint": "确认求和范围是否覆盖全部项（首末项都算）"},
@@ -115,9 +113,9 @@ _DISTRACT_SCENE = ["参数没归一", "提前退出漏分支", "状态没复位"
                    "哨兵值当真值"]          # 4 个变体 ×12 组 = 48 ≥ 36, 取 36
 
 
-def _distractors() -> List[Dict[str, str]]:
+def _distractors() -> list[dict[str, str]]:
     """★ 程序生成的合成干扰（固定顺序 ⇒ 可复现）。避开命中路径。"""
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
     i = 0
     for sc in _DISTRACT_SCENE:
         for c, q in _DISTRACT_CQ:
@@ -132,7 +130,7 @@ def _distractors() -> List[Dict[str, str]]:
     return out
 
 
-SEED_MEMORY: List[Dict[str, str]] = SEED_HIT + _distractors()
+SEED_MEMORY: list[dict[str, str]] = SEED_HIT + _distractors()
 
 #: 预算上限 = 全库（R64: 两臂上限对等 = 40; 实际注入量如实报告 ——
 #: guidance 平铺 40 vs replay 按路径 1–3, 这个差**就是**被测对象）
@@ -151,7 +149,7 @@ GROWN_TASKS = ("code_fix_001", "code_fix_002",
                "code_fix_003", "code_fix_004")
 
 
-def _memory_from_verdict(tid: str, v: Any) -> Dict[str, str]:
+def _memory_from_verdict(tid: str, v: Any) -> dict[str, str]:
     """★ 从**真实判分结果**写入一条记忆（R66 写入侧的最小诚实实现）。
 
     fix_hint = 失败 diffs 的 fn/args/期望/实得 —— 全部来自 judge, 不编造。
@@ -195,7 +193,7 @@ _MISLEAD_HINTS = [
 _MISLEAD_SCENE = ["通用手法", "边界哲学", "风格准则"]   # 3 × 12 = 36
 
 
-def _realistic_distractors(exclude: set) -> List[Dict[str, str]]:
+def _realistic_distractors(exclude: set) -> list[dict[str, str]]:
     """★ 36 条**真实误导**干扰: (c,q) 避开 exclude（hard 任务真实签名）。
 
     exclude 为空（如 dev 旧路径）时退化为与 R64 相同的干扰 (c,q) 池。
@@ -225,7 +223,7 @@ def _realistic_distractors(exclude: set) -> List[Dict[str, str]]:
     #   条数是预算对等的前提, 不许因避让而变）
     pairs = [(cq[i % len(cq)], _MISLEAD_HINTS[i % len(_MISLEAD_HINTS)])
              for i in range(12)]
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
     for sc in _MISLEAD_SCENE:
         for (c, q), hint in pairs:
             out.append({"scene": "%s·%s" % (sc, c),
@@ -240,7 +238,7 @@ def hard_judge() -> Any:
     return _Judge(anchors_path=HARD_PATH)
 
 
-def hard_fns(judge: Any) -> List[str]:
+def hard_fns(judge: Any) -> list[str]:
     """hard 任务的**函数名**集合（沙箱白名单的键是 fn 不是 task id）。"""
     fns = set()
     for tid, rec in judge.anchors.items():
@@ -252,7 +250,7 @@ def hard_fns(judge: Any) -> List[str]:
     return sorted(fns)
 
 
-def hard_sources(judge: Any) -> Dict[str, str]:
+def hard_sources(judge: Any) -> dict[str, str]:
     """hard 任务的 buggy 实现（锚点 rec 自带字段, judge 校验只认 kind/checks）。"""
     return {tid: rec["buggy"] for tid, rec in judge.anchors.items()
             if not tid.startswith("_") and isinstance(rec, dict)}
@@ -290,17 +288,17 @@ ARMS = ("none", "guidance", "replay", "skills_only")
 # replay 树（prefix-only 揭示 —— 论文 §2.3: 未揭示的保持未知）
 # ══════════════════════════════════════════════════════════
 
-def make_tree(items: List[Dict[str, str]]) -> Dict[str, Any]:
+def make_tree(items: list[dict[str, str]]) -> dict[str, Any]:
     """根 → c（终止原因）→ q（因果角色）→ 叶（经验条目）。"""
-    root: Dict[str, Any] = {"c_branches": {}}
+    root: dict[str, Any] = {"c_branches": {}}
     for it in items:
         root["c_branches"].setdefault(it["c"], {}).setdefault(
             it["q"], []).append(it)
     return root
 
 
-def reveal_path(tree: Dict[str, Any], c: str, q: str,
-                budget: int = MEMO_BUDGET) -> Tuple[List[Dict[str, str]], str]:
+def reveal_path(tree: dict[str, Any], c: str, q: str,
+                budget: int = MEMO_BUDGET) -> tuple[list[dict[str, str]], str]:
     """★ prefix-only: 沿 (c,q) 路径揭示; 旁支**只报存在, 不泄内容**。
 
     返回 (揭示的条目, 结构摘要)。预算上限内截断。
@@ -322,7 +320,7 @@ def reveal_path(tree: Dict[str, Any], c: str, q: str,
 # prompt 构造（同一骨架, 只有记忆块不同）
 # ══════════════════════════════════════════════════════════
 
-def _memory_block_guidance(items: List[Dict[str, str]]) -> str:
+def _memory_block_guidance(items: list[dict[str, str]]) -> str:
     lines = ["过往经验（历史教训, 直接参考）:"]
     for it in items[:MEMO_BUDGET]:
         lines.append("- [%s/%s] %s → %s"
@@ -330,7 +328,7 @@ def _memory_block_guidance(items: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _memory_block_replay(items: List[Dict[str, str]], summary: str) -> str:
+def _memory_block_replay(items: list[dict[str, str]], summary: str) -> str:
     if not items:
         return ("过往经验回放树: %s\n⇒ 本轮无已揭示经验（只有结构事实）。"
                 % summary)
@@ -341,7 +339,7 @@ def _memory_block_replay(items: List[Dict[str, str]], summary: str) -> str:
     return "\n".join(lines)
 
 
-def _memory_block_skills(items: List[Dict[str, str]]) -> str:
+def _memory_block_skills(items: list[dict[str, str]]) -> str:
     lines = ["过往技能（只含期望行为, 无失败细节）:"]
     for it in items[:MEMO_BUDGET]:
         lines.append("- [%s] %s → %s"
@@ -351,10 +349,10 @@ def _memory_block_skills(items: List[Dict[str, str]]) -> str:
 
 def build_prompt(arm: str, task_id: str, material: str,
                  fn_hint: str = "",
-                 memo_items: Optional[List[Dict[str, str]]] = None,
+                 memo_items: list[dict[str, str]] | None = None,
                  replay_summary: str = "",
                  material_kind: str = "code",
-                 feedback: Optional[str] = None) -> str:
+                 feedback: str | None = None) -> str:
     """同一 prompt 骨架 —— 三臂只差记忆块（对照的干净性）。
 
     material_kind="code":  修 bug（material = buggy 源码）
@@ -389,11 +387,11 @@ def build_prompt(arm: str, task_id: str, material: str,
     return body
 
 
-def extract_code(text: str) -> Optional[str]:
+def extract_code(text: str) -> str | None:
     """从 LLM 回复抽代码; ast 可解析才返回（否则 None —— 不猜）。"""
     if not text:
         return None
-    blocks = re.findall(r"```(?:python)?\s*\n(.*?)```", text, re.S)
+    blocks = re.findall(r"```(?:python)?\s*\n(.*?)```", text, re.DOTALL)
     cand = blocks[0] if blocks else text
     i = cand.find("def ")
     if i >= 0:
@@ -411,9 +409,9 @@ def extract_code(text: str) -> Optional[str]:
 # ══════════════════════════════════════════════════════════
 
 def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
-                   tasks: Optional[Dict[str, str]] = None,
-                   qa: Optional[bool] = None,
-                   dataset: str = "dev") -> Dict[str, Any]:
+                   tasks: dict[str, str] | None = None,
+                   qa: bool | None = None,
+                   dataset: str = "dev") -> dict[str, Any]:
     """R66 · 三臂对照。dataset="dev"/"hard"/"grown"。
 
     ★ 两阶段: ①全基线拿臂中立签名（前提: 每条基线须 fail）→ ②建树 → ③臂循环。
@@ -440,10 +438,10 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
         judge, actor = Judge(), Actor()
         ctx = _NullCtx()
     actor = Actor()
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     started = time.time()
 
-    specs: List[Tuple[str, str, str]] = [
+    specs: list[tuple[str, str, str]] = [
         (tid, "code", buggy) for tid, buggy in behav.items()]
     if include_qa:
         specs += [(tid, "qa",
@@ -451,7 +449,7 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                   for tid in QA_TASKS]
 
     # ── R66 grown · 写入阶段: hard 5 题真实失败 ⇒ 记忆库（判分产物, 非合成）──
-    grown_memory: List[Dict[str, str]] = []
+    grown_memory: list[dict[str, str]] = []
     if dataset == "grown":
         hj = hard_judge()
         with _HardSandbox(hard_fns(hj)):
@@ -474,7 +472,7 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
 
     with ctx:
         # ── 阶段① 全基线（臂中立签名; hard 还要给干扰避让用）──
-        sig_map: Dict[str, Optional[Tuple[str, str]]] = {}
+        sig_map: dict[str, tuple[str, str] | None] = {}
         for tid, kind, material in specs:
             if kind == "code":
                 base_obs = execute_task(
@@ -513,13 +511,13 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                         # ★ skills_only 与 guidance **同批 seed 条目** — 首版落
                         #   else 致 memo_items=[] ⇒ 臂降级为 none（memo_n=[0] 且
                         #   pass 与 none 完全一致 = 自检铁证; 测试锁此回归）
-                        memo_items: List[Dict[str, str]] = seed[:MEMO_BUDGET]
+                        memo_items: list[dict[str, str]] = seed[:MEMO_BUDGET]
                         summary = ""
                     elif arm == "replay":
                         memo_items, summary = reveal_path(tree, c, q)
                     else:
                         memo_items, summary = [], ""
-                    feedback: Optional[str] = None
+                    feedback: str | None = None
                     for rnd in range(1, rounds + 1):
                         rec = {"task": tid, "arm": arm, "rep": rep,
                                "round": rnd, "kind": kind,
@@ -533,7 +531,8 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                                               feedback=feedback)
                         _sys_code = "只输出可运行的修复代码或直接答案。"
                         try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
-                            from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                            from dwc.llm.prompt_ota import note_miss as _ota_miss
+                            from dwc.llm.prompt_ota import ota_system as _ota
                             _sys_code = _ota("sys_code", _sys_code, __file__)
                         except Exception:
                             _ota_miss()
@@ -585,7 +584,7 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                                         % (str(output)[:300], ", ".join(miss)))
 
     # ── 汇总（trial = (task, rep); pass_rate = 曾 pass 的 trial 占比）──
-    summary: Dict[str, Any] = {}
+    summary: dict[str, Any] = {}
     for arm in ARMS:
         rows = [r for r in records if r["arm"] == arm]
         trials = {(r["task"], r["rep"]) for r in rows}
@@ -626,7 +625,7 @@ class _NullCtx:
 
 
 
-def _verdict(summary: Dict[str, Any]) -> Dict[str, Any]:
+def _verdict(summary: dict[str, Any]) -> dict[str, Any]:
     """只给**方向**（样本小, 不给"证明"）—— 两个问题分开答。"""
     def rate(a):
         return summary[a]["pass_rate"]
@@ -634,7 +633,7 @@ def _verdict(summary: Dict[str, Any]) -> Dict[str, Any]:
     def n(a):
         return summary[a]["n_calls"]
 
-    out: Dict[str, Any] = {"v1_memory_useful": None,
+    out: dict[str, Any] = {"v1_memory_useful": None,
                            "paper_direction_replay_gt_guidance": None,
                            "note": "样本小(任务×repeat), 只报方向; "
                                    "论文 §3.7 自己也无方差"}
@@ -656,7 +655,7 @@ def _verdict(summary: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _print_report(result: Dict[str, Any]) -> None:
+def _print_report(result: dict[str, Any]) -> None:
     print("\n" + "=" * 64)
     print("★ 记忆注入 vs 记忆回放（guidance vs replay）· 三臂对照"
           " · dataset=%s · %d轮早停"
@@ -688,7 +687,7 @@ def _print_report(result: Dict[str, Any]) -> None:
                                               e["error"][:70]))
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="memory guidance vs replay 实验")
     ap.add_argument("--repeat", type=int, default=1,
                     help="每 trial 重复次数（R64 建议 1, 靠 rounds 拿样本）")
@@ -713,7 +712,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     _print_report(result)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     result["at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    with io.open(args.out, "w", encoding="utf-8") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
     print("\n原始记录: %s" % os.path.relpath(args.out, _ROOT))
     return 0

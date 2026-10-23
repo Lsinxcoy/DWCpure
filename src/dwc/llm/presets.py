@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R267b · 便捷厂商路由预设（用户建议：像 Hermes/OpenClaw 一样，选厂商→填 key→选模型）。
 
 ★ 设计 (G1/DWC-AUTO): **只声明事实** (base_url/可选模型/单测门)，不 wheat- tickets。
@@ -7,12 +6,11 @@
 ★ 这是可扩展注册表: 提供了 ProviderPreset 哨兵，后续用户可 config/presets.yaml 覆盖 (未实现 — R73: 无设计不发明)。
 """
 from __future__ import annotations
-from typing import Dict, List, Optional
 
 DEFAULT_TIMEOUT = "60"
 
 # (name) -> base_url, common models, needs_session_header, sends_custom_ua
-PRESETS: Dict[str, dict] = {
+PRESETS: dict[str, dict] = {
     # ★ OpenCode Go (chat/completions only; responses/messages models excluded by design)
     "opencode-go": {
         "base_url": "https://opencode.ai/inference/go/v1",
@@ -75,18 +73,18 @@ PRESETS: Dict[str, dict] = {
 }
 
 
-def list_presets() -> List[str]:
+def list_presets() -> list[str]:
     return sorted(PRESETS.keys())
 
 
-def get_preset(name: str) -> Optional[dict]:
+def get_preset(name: str) -> dict | None:
     return PRESETS.get(name.strip().lower())
 
 
-def preset_choices() -> List[str]:
+def preset_choices() -> list[str]:
     return [f"{n}  {p['base_url']}" for n, p in sorted(PRESETS.items())]
 
 
-def preset_model_choices(name: str) -> List[str]:
+def preset_model_choices(name: str) -> list[str]:
     p = get_preset(name)
     return list(p["models"]) if p else []

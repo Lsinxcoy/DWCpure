@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC evolver —— 变异器（器官 4/7）。★ 让分数能掉下来的那个器官。
 
 ★★★ 这个器官为什么现在最要紧
@@ -51,8 +50,12 @@ TRUTH_SOURCE = {
 #:     vocabulary.py 一处, 本文件改为**引用同一对象**（不是复制值 —
 #:     测试锁 `is` 同一性, 防"看起来收口了其实两套值"）。
 #:   ★ 值一字不动（转抄）— 收口是位置手术, 不是语义手术（R193 计划 §四）。
-from dwc.foundation.vocabulary import (COMPONENT_VOCAB, K_META,  # noqa: F401
-                                       K_META_READONLY, STRUCTURAL)
+from dwc.foundation.vocabulary import (  # noqa: F401
+    COMPONENT_VOCAB,
+    K_META,
+    K_META_READONLY,
+    STRUCTURAL,
+)
 
 # ═══════════════════════════════════════════════════════════
 # ★★★★ R37 · 𝒦_meta（系统层 5 项）—— 实现 docs/COMPONENT_VOCABULARY §二
@@ -82,7 +85,7 @@ from dwc.foundation.vocabulary import (COMPONENT_VOCAB, K_META,  # noqa: F401
 
 #: ★ 逐项真值表: component → target_layer
 #:   ★ 每一项都注了**依据哪一条处置**（可复核，不是我拍的）
-LAYER_BY_ITEM: Dict[str, str] = {
+LAYER_BY_ITEM: dict[str, str] = {
     # ── 𝒦 9 项（§四① 原样，未动）──
     **{c: "assets" for c in COMPONENT_VOCAB},
     # ── 𝒦_meta 5 项（按 §三 的逐项处置）──
@@ -97,7 +100,7 @@ LAYER_BY_ITEM: Dict[str, str] = {
 }
 
 #: ★ K2 真值表的**反向索引**（layer → components）
-LAYER_BY_GROUP: Dict[str, frozenset] = {
+LAYER_BY_GROUP: dict[str, frozenset] = {
     "assets": frozenset(k for k, v in LAYER_BY_ITEM.items()
                         if v == "assets"),
     "architecture": frozenset(k for k, v in LAYER_BY_ITEM.items()
@@ -194,7 +197,7 @@ OBJECT_TO_COMPONENT = {
 }
 
 
-def k1_coverage() -> Dict[str, Any]:
+def k1_coverage() -> dict[str, Any]:
     """★★ K1 —— 21 个对象是否**逐个**映射到 𝒦 ∪ 𝒦_meta。
 
     ★ 依据: §五 K1「21 个对象名必须各自出现在两张表之一」
@@ -295,8 +298,8 @@ LIQUIDITY_FIELDS = ("t_i", "ℓ_i", "h_i", "d_i", "ΔS_i", "ΔC_i", "a_i")
 #   ② 修的时候又把 `os.path.join` 写成 `os.join`（丢了 `.path` ⇒
 #      `os` 模块**没有** join 属性）⇒ AttributeError
 #   ⇒ ⇒★ 教训: 改 import 时**照抄原样**，别顺手改路径写法
-import os as _os4path  # noqa: E402
-import glob as _glob4wired  # noqa: E402
+import glob as _glob4wired
+import os as _os4path
 
 #: ★ 归档落点（式10 的持久化位置 —— 与 RULES 分开: 那是规则, 这是历史）
 #: ★★★ R44 修: 我 R42 写成 dirname×2 ⇒ 算出 `src/dwc/config/anchors/`
@@ -311,9 +314,9 @@ LIQUIDITY_PATH = _os4path.path.join(
     "config", "anchors", "liquidity.jsonl")
 
 
-def record_edit(liquidity: List[Dict[str, Any]], round_no: int, component: str,
+def record_edit(liquidity: list[dict[str, Any]], round_no: int, component: str,
                 hypothesis: str, diff: str, delta_s: float, delta_c: float,
-                is_winner: bool, path: str = None) -> Dict[str, Any]:
+                is_winner: bool, path: str = None) -> dict[str, Any]:
     """★★ 记一条式10 的编辑记录 (t_i, ℓ_i, h_i, d_i, ΔS_i, ΔC_i, a_i)。
 
     ★ 三条硬要求:
@@ -361,7 +364,7 @@ def record_edit(liquidity: List[Dict[str, Any]], round_no: int, component: str,
         d = os.path.dirname(path)
         if d and not os.path.isdir(d):
             os.makedirs(d, exist_ok=True)
-        with io.open(path, "a", encoding="utf-8") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return rec
 
@@ -395,7 +398,7 @@ def gain(liq, component: str, now_round: int, window: int) -> float:
     return float("-inf") if best is None else float(best)
 
 
-def liquidity_summary(liq, now_round: int, window: int) -> Dict[str, Any]:
+def liquidity_summary(liq, now_round: int, window: int) -> dict[str, Any]:
     """式11 的三个派生量（一次算齐, 供 ℬ_t/𝒯_t/ν_t 共用）。"""
     T = touched_from_liquidity(liq)
     return {
@@ -435,7 +438,7 @@ def liquidity_summary(liq, now_round: int, window: int) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════
 
 
-def select_winner(evaluated) -> Dict[str, Any]:
+def select_winner(evaluated) -> dict[str, Any]:
     """★★ 多候选竞争 —— 选赢家（式13 line 8-15 的排序步）。
 
     ★ 参数: `evaluated` = [(candidate, score, passed_gate: bool), …]
@@ -462,7 +465,7 @@ def select_winner(evaluated) -> Dict[str, Any]:
             raise ValueError(
                 "★ 第 %d 个候选缺字段（需 (candidate, score, passed_gate)）"
                 % i)
-        cand, score, ok = row[0], row[1], row[2]
+        _cand, score, ok = row[0], row[1], row[2]
         if score is None or not isinstance(score, (int, float)):
             raise ValueError(
                 "★ 第 %d 个候选的 score=%r 不是实测数 —— "
@@ -506,7 +509,7 @@ def select_winner(evaluated) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════
 
 
-def liquidity_find(liq, **criteria) -> List[Dict[str, Any]]:
+def liquidity_find(liq, **criteria) -> list[dict[str, Any]]:
     """按**字段精确匹配**查 ℒ_t 记录（消费验证用）。
 
     ★ 参数: `criteria` = 字段名→期望值, 如 `d_i=..., t_i=1`
@@ -759,7 +762,7 @@ def natural_rise(scores, srcs=None) -> dict:
     return out
 
 
-def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
+def stall_signal(score_history, window: int, delta: float) -> dict[str, Any]:
     """★★ σ_t —— 搜索是否停滞（伪码 line 6 · 论文式13 的第一项）。
 
     ★ 参数:
@@ -798,7 +801,7 @@ def stall_signal(score_history, window: int, delta: float) -> Dict[str, Any]:
 
 
 def exploration_signal(score_history, window, delta, accepted_rules,
-                       draft: Any = None, liquidity=None) -> Dict[str, Any]:
+                       draft: Any = None, liquidity=None) -> dict[str, Any]:
     """★★★ ℰ_t 三元 = (σ_t, 𝒰_t, m_draft)（伪码 line 9）。
 
     ★ 语义（论文原文）: **仅在停滞时**才把预算的一部分**保留给**
@@ -839,13 +842,13 @@ def exploration_signal(score_history, window, delta, accepted_rules,
             "why_inactive": why_inactive}
 
 
-def prune_blockers() -> List[str]:
+def prune_blockers() -> list[str]:
     """★★★★ ℬ_t 的启用前提清单（**没满足就不许启用**）。
 
     ★ 依据: R40 实测的两个 blocker（见模块注释）
     ⇒ 返回空 = 可以启用；非空 = 每一条都是**硬阻塞**
     """
-    out: List[str] = []
+    out: list[str] = []
     # ① ★ R42 更新: ℒ_t **已实现**（`record_edit` 式10 七元）
     #   ⇒ blocker 从「不存在」变成「**没接线**」: 没有任何调用点在记它
     #   ⇒ ⇒★ 这是准确的降级 —— 有数据结构 ≠ 有数据
@@ -857,7 +860,7 @@ def prune_blockers() -> List[str]:
                     __file__))), "**", "*.py"), recursive=True):
             if os.path.abspath(_fp) == os.path.abspath(__file__):
                 continue
-            if "record_edit(" in io.open(
+            if "record_edit(" in open(
                     _fp, encoding="utf-8", errors="replace").read():
                 wired = True
                 break
@@ -879,7 +882,7 @@ def prune_blockers() -> List[str]:
 
 def prune_targets(accepted_rules, gains_by_component=None,
                   enabled: bool = False,
-                  liquidity=None) -> Dict[str, Any]:
+                  liquidity=None) -> dict[str, Any]:
     """★★★ ℬ_t = {ℓ ∈ 𝒯_t ∩ 𝒦_editable : g_t(ℓ) ≤ 0}（式14 + K5 交集）。
 
     ★ 三条硬要求（R40）:
@@ -934,7 +937,7 @@ def prune_targets(accepted_rules, gains_by_component=None,
             "gains": {c: gains_by_component.get(c) for c in sorted(pool)}}
 
 
-def novelty_score(touched_components, accepted_rules) -> Dict[str, int]:
+def novelty_score(touched_components, accepted_rules) -> dict[str, int]:
     """★★★ ν_t —— 候选触到的、**从未被采纳过**的结构组件数（式16）。
 
     ★ 参数:
@@ -950,7 +953,7 @@ def novelty_score(touched_components, accepted_rules) -> Dict[str, int]:
     if not touched:
         return {"nu": 0, "new": [], "n_t": {}}
     # N_t(ℓ): 采纳记录里 component 的出现次数
-    n_t: Dict[str, int] = {}
+    n_t: dict[str, int] = {}
     for r in (accepted_rules or []):
         c = str((r or {}).get("component") or "")
         if c:
@@ -962,7 +965,7 @@ def novelty_score(touched_components, accepted_rules) -> Dict[str, int]:
             "n_t": {c: n_t.get(c, 0) for c in sorted(touched)}}
 
 
-def check_component(component: str) -> List[str]:
+def check_component(component: str) -> list[str]:
     """★ R37 · component 合法性的**唯一入口**（两表都认）。
 
     ★★★ 为什么要有这个包装（而不是各处 `in COMPONENT_VOCAB`）:
@@ -981,7 +984,7 @@ def check_component(component: str) -> List[str]:
     return []
 
 
-def check_pairing(component: str, target_layer: str) -> List[str]:
+def check_pairing(component: str, target_layer: str) -> list[str]:
     """★★★ 判据 K2 · component_type 与 target_layer 必须一致。
 
     ★ 依据 §四①: 「两个字段必须一致: component_type ∈ 𝒦 ⇒ target_layer
@@ -994,7 +997,7 @@ def check_pairing(component: str, target_layer: str) -> List[str]:
 
     ★ 返回问题列表（[] = 通过）—— 与 `check_entry` 同口径
     """
-    problems: List[str] = []
+    problems: list[str] = []
     try:
         want = layer_of(component)
     except ValueError as e:
@@ -1017,14 +1020,12 @@ PROPOSAL_STATES = ("draft", "gated", "rejected", "adopted",
                    "adopted_not_implemented")
 
 import hashlib
-import io
 import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-
+from dataclasses import dataclass
+from typing import Any
 
 # ═══════════════════════════════════════════════════════════
 # ★★★★ R37 · 种子迁移: 给**旧条目**补 target_layer
@@ -1036,9 +1037,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 #: ★★★ R37 · G7 抓到我在这写过 `except: pass`（同族第 N 次）
 #:   ⇒⇒ 修法不是"加日志"，而是**先判词表再推**（消除异常路径）
 #:     —— 比吞异常干净: 没有异常就没有静默
-MIGRATE_SKIPPED: List[str] = []
+MIGRATE_SKIPPED: list[str] = []
 
-def _migrate_target_layer(table: Dict[str, Dict[str, Any]]) -> int:
+def _migrate_target_layer(table: dict[str, dict[str, Any]]) -> int:
     n = 0
     for k, v in table.items():
         if v.get("target_layer"):
@@ -1080,7 +1081,7 @@ class Proposal:
     """
     proposal_id: str
     #: ★ 由哪个失败签名驱动（可归因的锚点）
-    failure_signature: Dict[str, str]
+    failure_signature: dict[str, str]
     #: ★ 改什么（必须属 COMPONENT_VOCAB）
     component: str
     #: ★ 改哪里（唯一一处）
@@ -1098,27 +1099,27 @@ class Proposal:
     #:   训练与推理共用同一动作空间；propose 时显式声明。
     operator: str = "improve"
     is_structural: bool = False
-    dimension: Optional[str] = None
+    dimension: str | None = None
     #: ★ R78 批3-D（裁决②: 加）· 进化方向标注 —— 与 direction.EvolutionDirection
     #:   三成员语义表对齐（FORWARD/LATERAL/REVERSE）; None=未标注（合法 ——
     #:   多数提议不声明方向）。构造时经 ensure_direction 精确校验（非 None ⇒
     #:   拒 None 变体/大小写/未知值）。
     #:   ★ 诚实边界: **填值方（方向选择策略）无设计明文**（R73 裁定"无设计
     #:   不发明选择器"）—— 本字段先就位形态+校验, 选择策略落地时消费。
-    direction: Optional[str] = None
+    direction: str | None = None
     #: ★ M1（设计稿③ §⑥ 路径乙 · 用户拍板"都做"）· 多改提案的归因计划:
     #:   带**合法** plan 的多处变更 = 放行（成员/预算/τ/同键不相交声明齐）;
     #:   无 plan 的多处变更 = 原 raise 照旧（路径甲单点零破坏）。
     #:   plan 缺字段/成员重复/τ 无校准注记 ⇒ 构造期 raise（与单点同款严厉）。
-    attribution_plan: Optional[Dict[str, Any]] = None
+    attribution_plan: dict[str, Any] | None = None
     #: ★ R295-Task2 · LLM 写的完整可执行函数代码（code_repair 写码真执行；
     #:   None=没出码——trial 走老报数路，不废起草）。
-    code: Optional[str] = None
+    code: str | None = None
 
     state: str = "draft"
-    gate_verdict: Optional[Dict[str, Any]] = None
+    gate_verdict: dict[str, Any] | None = None
     #: ★ 判分结果（由 judge 填，不由 evolver 填）
-    verdict: Optional[Dict[str, Any]] = None
+    verdict: dict[str, Any] | None = None
     created_at: float = 0.0
 
     def __post_init__(self):
@@ -1277,7 +1278,7 @@ class Proposal:
                                    self.failure_signature, sort_keys=True))
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = dict(self.__dict__)
         d["key"] = self.key()
         return d
@@ -1344,7 +1345,7 @@ class Mutator:
         ★★★ 合并而非替换: 种子（代码）与学到的（落盘）必须并存
         """
         try:
-            with io.open(cls.LEARNED_PATH, encoding="utf-8") as f:
+            with open(cls.LEARNED_PATH, encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, ValueError):
             return 0
@@ -1356,7 +1357,7 @@ class Mutator:
         return n
 
     @classmethod
-    def persist_learned(cls) -> Dict[str, Any]:
+    def persist_learned(cls) -> dict[str, Any]:
         """★★★ 把 RULES 里**非种子**的条目写盘（固化后的持久化）。
 
         ★ 只写「学到的」⇒ 种子不进 json（否则代码与 json **双源**）
@@ -1378,7 +1379,7 @@ class Mutator:
             "_content_hash": Mutator._state_hash(learned),
             "learned": learned,
         }
-        with io.open(cls.LEARNED_PATH, "w", encoding="utf-8") as f:
+        with open(cls.LEARNED_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=1)
         return {"path": cls.LEARNED_PATH, "n_written": len(learned),
                 "n_seed": len(cls.SEED_KEYS),
@@ -1394,18 +1395,18 @@ class Mutator:
             _r = cls.RULES.get(key)
             if isinstance(_r, dict):
                 _r["carried"] = int(_r.get("carried", 0) or 0) + 1
-        except (TypeError, ValueError):    # noqa: BLE001 — 计数不断主路
+        except (TypeError, ValueError):
             pass
 
     # ★ C1 · ARCHIVE 中间态（多版本并存；RULES 仍单条目）。
-    ARCHIVE: Dict[str, list] = {}
+    ARCHIVE: dict[str, list] = {}
     # ★ R346 · Raven Gene Bank：quality-diversity，cell=(edit_cat, pathology) → elite。
-    GENE_BANK: Dict[str, Any] = {}
+    GENE_BANK: dict[str, Any] = {}
     # ★ R350 · DWC-internal skill system（不依赖 Hermes）。
-    SKILLS: "Dict[str, Dict[str, Any]]" = {}
+    SKILLS: dict[str, dict[str, Any]] = {}
 
     @staticmethod
-    def cell_of(entry: Dict[str, Any]) -> str:
+    def cell_of(entry: dict[str, Any]) -> str:
         _ec = (entry or {}).get("target_layer") or "runtime"
         _task = (entry or {}).get("task") or (entry or {}).get(
             "failure_signature", {}).get("task", "")
@@ -1413,7 +1414,7 @@ class Mutator:
         return "%s|%s" % (_ec, _path)
 
     @staticmethod
-    def gene_bank_update(cell: str, entry: Dict[str, Any]) -> None:
+    def gene_bank_update(cell: str, entry: dict[str, Any]) -> None:
         try:
             _cur = Mutator.GENE_BANK.get(cell)
             _score = (entry or {}).get("in_score")
@@ -1432,7 +1433,7 @@ class Mutator:
             pass
 
     @staticmethod
-    def select_donor(task: str, gene_bank=None) -> Optional[Dict[str, Any]]:
+    def select_donor(task: str, gene_bank=None) -> dict[str, Any] | None:
         """★ R351 · Evo² crossover: 从 donor library 选 strategy。"""
         try:
             _gb = gene_bank if gene_bank is not None else Mutator.GENE_BANK
@@ -1452,7 +1453,7 @@ class Mutator:
 
     @staticmethod
     def skill_register(name: str, description: str = "", content: str = "",
-                       trigger: str = "") -> Dict[str, Any]:
+                       trigger: str = "") -> dict[str, Any]:
         try:
             _cur = Mutator.SKILLS.get(name)
             _ver = 1 if _cur is None else int(_cur.get("version", 0)) + 1
@@ -1484,7 +1485,7 @@ class Mutator:
             return {"registered": False, "name": name}
 
     @staticmethod
-    def skill_select(task: str) -> Optional[Dict[str, Any]]:
+    def skill_select(task: str) -> dict[str, Any] | None:
         try:
             _fam = str(task).split("_")[0] if task else ""
             _best = None
@@ -1497,8 +1498,8 @@ class Mutator:
             return None
 
     @staticmethod
-    def skill_evolve_from_sig(sig: Dict[str, Any], patch: str = "",
-                             rationale: str = "") -> Dict[str, Any]:
+    def skill_evolve_from_sig(sig: dict[str, Any], patch: str = "",
+                             rationale: str = "") -> dict[str, Any]:
         try:
             _task = (sig or {}).get("task", "")
             _name = "skill_%s" % (_task or "unknown")
@@ -1542,7 +1543,7 @@ class Mutator:
         "config", "anchors", "archive.json")
 
     @classmethod
-    def bootstrap_state(cls) -> Dict[str, int]:
+    def bootstrap_state(cls) -> dict[str, int]:
         """★ R333 · 启动接线：把落盘 learned + archive 合并进内存。"""
         return {"learned_loaded": cls.load_learned(),
                 "archive_loaded": cls.load_archive()}
@@ -1561,7 +1562,7 @@ class Mutator:
         ★ 文件不存在 ⇒ 0（没 archive 过是常态）；合并而非替换。
         """
         try:
-            with io.open(cls.ARCHIVE_PATH, encoding="utf-8") as f:
+            with open(cls.ARCHIVE_PATH, encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, ValueError):
             return 0
@@ -1573,7 +1574,7 @@ class Mutator:
         return n
 
     @classmethod
-    def persist_archive(cls) -> Dict[str, Any]:
+    def persist_archive(cls) -> dict[str, Any]:
         """★ 把 ARCHIVE 全量写盘（archive ≠ adopt，落盘供后搜）。
 
         ★ 返回 {path, n_written}。
@@ -1582,7 +1583,7 @@ class Mutator:
         payload = {"_version": "R333",
                    "_content_hash": Mutator._state_hash(cls.ARCHIVE),
                    "archive": cls.ARCHIVE}
-        with io.open(cls.ARCHIVE_PATH, "w", encoding="utf-8") as f:
+        with open(cls.ARCHIVE_PATH, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=1)
         return {"path": cls.ARCHIVE_PATH,
                 "n_written": sum(len(v) for v in cls.ARCHIVE.values()),
@@ -1590,7 +1591,7 @@ class Mutator:
                 "content_hash": Mutator._state_hash(cls.ARCHIVE)}
 
     @classmethod
-    def select_parent(cls, key: str, strategy: str = "latest") -> Optional[Dict[str, Any]]:
+    def select_parent(cls, key: str, strategy: str = "latest") -> dict[str, Any] | None:
         """★ N3 · parent 选择器（多版本 archive ⇒ 选一）。
 
         ★ strategy:
@@ -1612,7 +1613,7 @@ class Mutator:
         return dict(_lst[-1])
 
     @staticmethod
-    def ushape_weight(entry: Dict[str, Any], eps: float = 0.05) -> float:
+    def ushape_weight(entry: dict[str, Any], eps: float = 0.05) -> float:
         """★ R353 · Evo² U-shaped: w(h)=ε+|V̂-1/2|。"""
         _v = (entry or {}).get("in_score")
         if _v is None:
@@ -1623,7 +1624,7 @@ class Mutator:
             return float(eps)
 
     @classmethod
-    def promote_archived(cls, key: str, strategy: str = "latest") -> Dict[str, Any]:
+    def promote_archived(cls, key: str, strategy: str = "latest") -> dict[str, Any]:
         """★ N3 · 把选中的 archive parent 推进 RULES（adopt 路）。
 
         ★ 选 parent ⇒ 写 RULES（幂等：已存在 ⇒ already_landed）；
@@ -1644,7 +1645,7 @@ class Mutator:
 
     # ★ C1 · 候选进 archive（只保留，不进 RULES —— adopt 另行显式）。
     @classmethod
-    def archive_candidate(cls, key: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    def archive_candidate(cls, key: str, entry: dict[str, Any]) -> dict[str, Any]:
         _lst = cls.ARCHIVE.setdefault(key, [])
         _lst.append(entry)
         # ★ R346 · Raven Gene Bank：archive 时按 cell 更新 elite（quality-diversity）。
@@ -1662,7 +1663,7 @@ class Mutator:
     #   决策 —— R32 落盘点明确）；诚实边界：种子 withdraw 进程内有效，
     #   重启复活（种子在代码里，彻底删须改代码）。
     @classmethod
-    def withdraw(cls, key: str, reason: str = "") -> Dict[str, Any]:
+    def withdraw(cls, key: str, reason: str = "") -> dict[str, Any]:
         _entry = cls.RULES.pop(key, None)
         if _entry is None:
             # ★ C1 · RULES 无 ⇒ 撤 archive（整 key 全撤；版本选择另轮）。
@@ -1678,7 +1679,7 @@ class Mutator:
                          "种子重启复活")}
 
     @staticmethod
-    def key_for(sig: Dict[str, str]) -> str:
+    def key_for(sig: dict[str, str]) -> str:
         """★ 由失败签名构造**查询键** (c:q:fn) —— 与 propose 同口径。
 
         ★★ 这个函数存在的理由: 固化方若自己拼键，
@@ -1693,7 +1694,7 @@ class Mutator:
         return "%s:%s:%s" % (sig["c"], sig["q"], sig["fn"])
 
     @classmethod
-    def dev_targets(cls, anchors: Optional[Dict[str, Any]] = None
+    def dev_targets(cls, anchors: dict[str, Any] | None = None
                     ) -> set:
         """★ 真源集 = dev 任务 id ∪ dev behavior 函数名（target 的合法落点）。
 
@@ -1707,10 +1708,10 @@ class Mutator:
         if anchors is None:
             cached = getattr(cls, "_dev_targets_cache", None)
             if cached is None:
-                import io as _io
                 import json as _json
+
                 from dwc.organs.judge import TRUTH_SOURCE
-                data = _json.loads(_io.open(TRUTH_SOURCE[0][1],
+                data = _json.loads(open(TRUTH_SOURCE[0][1],
                                             encoding="utf-8").read())
                 anchors = data
             else:
@@ -1724,9 +1725,9 @@ class Mutator:
         return out
 
     @classmethod
-    def check_entry(cls, key: str, entry: Dict[str, Any],
-                    dev_targets: Optional[set] = None
-                    ) -> List[str]:
+    def check_entry(cls, key: str, entry: dict[str, Any],
+                    dev_targets: set | None = None
+                    ) -> list[str]:
         """★ 固化前的字段校验（**数据完整性**，不是判分）。
 
         ★ 返回缺失字段列表；空 = 合格
@@ -1762,7 +1763,7 @@ class Mutator:
             missing.append("key 必须是 c:q:fn 三段")
         return missing
 
-    RULES: Dict[str, Dict[str, Any]] = {
+    RULES: dict[str, dict[str, Any]] = {
         # ★ 示例规则：sum_first_n 少算一个（off-by-one）
         "E_VALUE:wrong_magnitude:sum_first_n": {
             "component": "control_flow",
@@ -1970,7 +1971,7 @@ class Mutator:
 
     @classmethod
     def entry_from_candidate(cls, cand: Any, rationale: str = ""
-                             ) -> Dict[str, Any]:
+                             ) -> dict[str, Any]:
         """★★★ R35 · 把**候选**组装成可固化的规则条目（7 字段）。
 
         ★★★ 职责为什么在这里（不在 applier）:
@@ -2044,7 +2045,7 @@ class Mutator:
             }
         return entry
 
-    def propose(self, sig: Dict[str, str]) -> Optional[Proposal]:
+    def propose(self, sig: dict[str, str]) -> Proposal | None:
         """★ 给一条失败签名 ⇒ 一个提案（无规则则 None）。
 
         ★★ 关键: 返回 None 是**合法**结果（该机制我们不会改）
@@ -2083,13 +2084,13 @@ class Mutator:
                         target_layer=(rule.get("target_layer")
                                       or layer_of(rule["component"])))
 
-    def known_signatures(self) -> List[str]:
+    def known_signatures(self) -> list[str]:
         """★ 声明过的失败签名（可审计：我们只修这些）。"""
         return sorted(self.RULES)
 
-    def propose_lateral(self, sig: Dict[str, str],
-                         prefer_components: Optional[tuple] = None
-                         ) -> Optional[Proposal]:
+    def propose_lateral(self, sig: dict[str, str],
+                         prefer_components: tuple | None = None
+                         ) -> Proposal | None:
         """★★★ R173 · LATERAL 泛化提案（同 (c,q) 不同 fn 的近亲修法）。
 
         ★ 依据: direction.py 的 R73 边界注释**自己点名的第一落点** —
@@ -2175,9 +2176,9 @@ class LLMMutator:
         self.last_reason: str = ""
         #: ★ R290-P2 · 方向尝试史（实例级内存 —— credit 同款进程语义；
         #:   每轮 new LLMMutator ⇒ 每轮三方向额度，max_clusters=3 刚好）
-        self._direction_history: List[Any] = []
+        self._direction_history: list[Any] = []
 
-    def _prompt(self, sigs: List[Dict[str, Any]],
+    def _prompt(self, sigs: list[dict[str, Any]],
                 context: str = "", want_code: bool = False,
                 learned_hint: str = "") -> str:
         s0 = dict(sigs[0])
@@ -2204,8 +2205,8 @@ class LLMMutator:
                            "禁 open/exec/eval、禁 while —— 沙箱真跑它判分，跑不通=白起草）。"),
         }
         try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
-            from dwc.llm.prompt_ota import render_here as _render
             from dwc.llm.prompt_ota import note_miss as _ota_miss
+            from dwc.llm.prompt_ota import render_here as _render
             _t = _render("drafter", _f, __file__)
             if _t:
                 return _t
@@ -2244,7 +2245,7 @@ class LLMMutator:
                 "禁 open/exec/eval、禁 while —— 沙箱真跑它判分，跑不通=白起草）。")
         return "\n".join(lines)
 
-    def _extract(self, text: str) -> Optional[Dict[str, Any]]:
+    def _extract(self, text: str) -> dict[str, Any] | None:
         # ★ 多候选取末尾真 JSON（R277b-4 同款纪律：推理前言在前，真答案在后）。
         # ★ 用真解析器倒序试（raw_decode）：前言杂散括号/引号再多也不怕，
         #   能 parse 成 dict 的才算 —— 数括号是旁门左道，已废。
@@ -2259,14 +2260,14 @@ class LLMMutator:
                 return obj
         return None
 
-    def propose_from_cluster(self, sigs: List[Dict[str, Any]],
+    def propose_from_cluster(self, sigs: list[dict[str, Any]],
                                  context: str = "",
                                  max_attempts: int = 3,
                                  want_code: bool = False,
                                  learned_hint: str = "",
                                  operator: str = "improve",
                                  component: str = "",
-                                 ) -> Optional["Proposal"]:
+                                 ) -> Proposal | None:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
             return None
@@ -2280,13 +2281,12 @@ class LLMMutator:
         # ★ R290-P2 · 起草前选方向（○-3 摘牌：next_action 生产调用点）。
         #   三方向耗尽 ⇒ DirectionError 上抛（run_round 已隔离：单簇留痕
         #   不掀轮）。方向不进 prompt（prompt 方向化是 P4+，零语义发明）。
-        from dwc.organs.direction import (DirectionAttempt, DirectionError,
-                                          next_action)
+        from dwc.organs.direction import DirectionAttempt, next_action
         _dec = next_action(self._direction_history, round_no=0,
                            task_id=str(s0.get("task", "")))
         prompt = self._prompt(sigs, context, want_code=want_code,
                               learned_hint=learned_hint)
-        reasons: List[str] = []
+        reasons: list[str] = []
         for _ in range(max(1, max_attempts)):
             text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
             if not isinstance(text, str):
@@ -2369,7 +2369,7 @@ class ProposalGate:
     FORBIDDEN_TARGETS = ("judge", "dev.json", "test_sealed", "iron_laws",
                          "gate.py", "truth", "golden", "anchors")
 
-    def check(self, p: Proposal) -> Dict[str, Any]:
+    def check(self, p: Proposal) -> dict[str, Any]:
         """★ 检一个提案，返回门报告（不 raise —— 门是报告器）。"""
         v = []
 
@@ -2430,13 +2430,13 @@ class Evolver:
       · 不一次改多处（约束 4）
     """
 
-    def __init__(self, mutator: Optional[Mutator] = None,
-                 gate: Optional[ProposalGate] = None,
-                 registry: Optional[Any] = None):
+    def __init__(self, mutator: Mutator | None = None,
+                 gate: ProposalGate | None = None,
+                 registry: Any | None = None):
         self.mutator = mutator or Mutator()
         self.gate = gate or ProposalGate()
-        self.proposals: List[Proposal] = []
-        self._seen: Set[str] = set()
+        self.proposals: list[Proposal] = []
+        self._seen: set[str] = set()
         #: ★ R162 · 共享契约注册表（层② contract 门的输入; None=未注入
         #   ⇒ contract 落 pending 族, 不误判提案坏）
         #: ★ R167: 未注入时**出厂装 builtin**（budget_window 值域契约 —
@@ -2454,16 +2454,16 @@ class Evolver:
     # ══════════════════════════════════════════════
     # 诊断 → 提案
     # ══════════════════════════════════════════════
-    def propose_lateral(self, sig: Dict[str, str],
-                         prefer_components: Optional[tuple] = None
-                         ) -> Optional[Proposal]:
+    def propose_lateral(self, sig: dict[str, str],
+                         prefer_components: tuple | None = None
+                         ) -> Proposal | None:
         """★★ R173: LATERAL 泛化委派（Loop 侧入口 — 实现在 Mutator, 与
         propose/diagnose 同一委派模式: 器官对器官, 策略在 Mutator）。"""
         return self.mutator.propose_lateral(sig,
                                             prefer_components=prefer_components)
 
-    def diagnose(self, signatures: List[Dict[str, str]]
-                 ) -> Dict[str, Any]:
+    def diagnose(self, signatures: list[dict[str, str]]
+                 ) -> dict[str, Any]:
         """★ 诊断：失败签名 → 去重后的提案清单。
 
         ★★ 约束 4 的另一面: 同一 (c,q,m) 精确一致才算一簇
@@ -2472,11 +2472,11 @@ class Evolver:
             verifier 结果（如 timeout）却需要不同的干预"
             ⇒⇒ ★★ 所以**只有三元组全同**才合并，绝不按 c 单独合并
         """
-        out: List[Proposal] = []
-        unmapped: List[Dict[str, str]] = []
-        clusters: Dict[str, int] = {}
+        out: list[Proposal] = []
+        unmapped: list[dict[str, str]] = []
+        clusters: dict[str, int] = {}
 
-        def _cluster(sig_in: Dict[str, str],
+        def _cluster(sig_in: dict[str, str],
                      m: str) -> None:
             """★ 聚类计数 —— 键是**补全后**的 (c,q,m)。"""
             k = "%s:%s:%s" % (sig_in.get("c"), sig_in.get("q"), m)
@@ -2517,7 +2517,7 @@ class Evolver:
     # ══════════════════════════════════════════════
     # 门（约束 1）
     # ══════════════════════════════════════════════
-    def gate_all(self, proposals: List[Proposal]) -> Dict[str, Any]:
+    def gate_all(self, proposals: list[Proposal]) -> dict[str, Any]:
         """★★ 两层门串接（R162 · 静态 ProposalGate → 运行时六门链）。
 
         ★ 层① 静态门 ProposalGate.check（构造期可判: target/词表/维度/
@@ -2609,7 +2609,7 @@ class Evolver:
         return out
 
     def _land_adopted(self, p: Proposal,
-                      admission_round: Optional[str] = None) -> Dict[str, Any]:
+                      admission_round: str | None = None) -> dict[str, Any]:
         """★ R287-C · 第五态下游落地（幂等）。
 
         ★ 前置：p.state 必须是 adopted_not_implemented（adopt() 判过的），
@@ -2667,7 +2667,7 @@ class Evolver:
                 "persist": _persist, "backup": _bak}
 
     @staticmethod
-    def _backup_rules() -> Optional[str]:
+    def _backup_rules() -> str | None:
         """★ R438 · 落地后备份 rules.json（回滚与审计的物证）。
 
         ★ 为什么"落地后"才备份：备份要包含刚落的那一条，否则回滚到
@@ -2722,17 +2722,17 @@ class Evolver:
         return _r
 
 
-    def _accept_core(p: Proposal, baseline: Dict[str, Any],
-               current: Dict[str, Any], eps: float = 0.0,
+    def _accept_core(p: Proposal, baseline: dict[str, Any],
+               current: dict[str, Any], eps: float = 0.0,
                mode: str = "report",
                lam: float = 0.0,
-               delta: Optional[float] = None,
+               delta: float | None = None,
                gamma: float = 0.0,
-               m: Optional[int] = None,
+               m: int | None = None,
                k_comparisons: int = 1,
                delta_conf: float = 0.05,
-               improver_gain: Optional[bool] = None,
-               ) -> Dict[str, Any]:
+               improver_gain: bool | None = None,
+               ) -> dict[str, Any]:
         """★ 判定一个候选该不该采纳（固定门 𝒢_fixed）。
 
         ★★★★ R27 实测修正: 原签名收「in_score / held_out_score」两个数，
@@ -2811,7 +2811,7 @@ class Evolver:
                     _hb = _math.sqrt(2.0 * _math.log(
                         k_comparisons / delta_conf) / m)
             except (ValueError, TypeError, ZeroDivisionError):
-                _hb = None    # noqa: BLE001 — 算不出记 None，不断判分
+                _hb = None
             return {"m": m, "KT": (k_comparisons
                                    if k_comparisons is not None else None),
                     "T": _T(), "delta": delta_conf, "hoeffding": _hb}
@@ -2941,8 +2941,8 @@ class Evolver:
     # ══════════════════════════════════════════════
     # 报告
     # ══════════════════════════════════════════════
-    def stats(self) -> Dict[str, Any]:
-        by_state: Dict[str, int] = {}
+    def stats(self) -> dict[str, Any]:
+        by_state: dict[str, int] = {}
         for p in self.proposals:
             by_state[p.state] = by_state.get(p.state, 0) + 1
         return {"n_proposals": len(self.proposals),
@@ -3034,7 +3034,7 @@ if __name__ == "__main__":
     except EvolverError as e:
         print("  ✓ raise: %s" % str(e)[:60])
 
-def rollback_rule(key: str, rules_path: str, backup_root: str) -> Dict[str, Any]:
+def rollback_rule(key: str, rules_path: str, backup_root: str) -> dict[str, Any]:
     """★ R297-Task3 · 回滚单键（整键替换，不 merge）。
 
     从 backup_root/latest 指针→anchors/rules.json 快照取该键值，
@@ -3067,7 +3067,8 @@ def rollback_rule(key: str, rules_path: str, backup_root: str) -> Dict[str, Any]
 # ★★★ R355–R360 · MASS absorption (Multi-Agent Self-Supervision)
 # ═══════════════════════════════════════════════════════════
 
-from dataclasses import dataclass, field as _field
+from dataclasses import dataclass
+from dataclasses import field as _field
 
 
 @dataclass
@@ -3078,12 +3079,12 @@ class WorkflowGraph:
     routing: {from: [to,...]} 信息路由
     contracts: {agent_id: schema} 输出契约
     """
-    agents: List[Dict[str, Any]] = _field(default_factory=list)
-    routing: Dict[str, Any] = _field(default_factory=dict)
-    contracts: Dict[str, Any] = _field(default_factory=dict)
+    agents: list[dict[str, Any]] = _field(default_factory=list)
+    routing: dict[str, Any] = _field(default_factory=dict)
+    contracts: dict[str, Any] = _field(default_factory=dict)
 
-    def validate(self) -> List[str]:
-        errs: List[str] = []
+    def validate(self) -> list[str]:
+        errs: list[str] = []
         if not self.agents:
             errs.append("workflow has no agents")
         seen = set()
@@ -3120,7 +3121,7 @@ class WorkflowGraph:
 # ★ 把 MASS 相关能力挂到 Mutator，便于 gate/测试统一入口
 class _MassMixin:
     @staticmethod
-    def workflow_graph(agents=None, routing=None, contracts=None) -> "WorkflowGraph":
+    def workflow_graph(agents=None, routing=None, contracts=None) -> WorkflowGraph:
         return WorkflowGraph(agents=list(agents or []), routing=dict(routing or {}),
                             contracts=dict(contracts or {}))
 
@@ -3156,16 +3157,16 @@ class _MassMixin:
         return "tie"
 
     @staticmethod
-    def rank_workflows(workflows) -> List[Dict[str, Any]]:
+    def rank_workflows(workflows) -> list[dict[str, Any]]:
         ws = list(workflows or [])
         return sorted(ws, key=lambda w: _MassMixin.workflow_preference(w, {}) == "a",
                      reverse=True)
 
     @staticmethod
-    def guardrails_ok(execution) -> Dict[str, Any]:
+    def guardrails_ok(execution) -> dict[str, Any]:
         """★ R357 · structural guardrails (MASS)."""
         ex = execution or {}
-        reasons: List[str] = []
+        reasons: list[str] = []
         worker_calls = int(ex.get("worker_calls", 0) or 0)
         coverage = float(ex.get("deliverable_coverage", 0.0) or 0.0)
         loop = bool(ex.get("loop_detected", False))
@@ -3180,7 +3181,7 @@ class _MassMixin:
         return {"ok": len(reasons) == 0, "reasons": reasons}
 
     @staticmethod
-    def distill_trace(trace) -> Dict[str, Any]:
+    def distill_trace(trace) -> dict[str, Any]:
         """★ R358 · trace distillation (MASS outer loop → skill bank)."""
         t = trace or {}
         name = str(t.get("task") or t.get("name") or "distilled_workflow")
@@ -3263,19 +3264,19 @@ class ResearchStateGraph:
     records: [{H, P_parent, P_result, X (outcome), E (evidence), needs}]
     edges: hypothesis-program 关联与 parent/reuse 关系
     """
-    records: List[Dict[str, Any]] = _field(default_factory=list)
-    edges: List[Dict[str, Any]] = _field(default_factory=list)
-    frontiers_H: List[str] = _field(default_factory=list)
-    frontiers_P: List[str] = _field(default_factory=list)
+    records: list[dict[str, Any]] = _field(default_factory=list)
+    edges: list[dict[str, Any]] = _field(default_factory=list)
+    frontiers_H: list[str] = _field(default_factory=list)
+    frontiers_P: list[str] = _field(default_factory=list)
 
-    def add_record(self, rec: Dict[str, Any]) -> None:
+    def add_record(self, rec: dict[str, Any]) -> None:
         self.records.append(dict(rec or {}))
         h = (rec or {}).get("hypothesis")
         p = (rec or {}).get("program")
         if h and p:
             self.edges.append({"type": "hypothesis_program", "h": h, "p": p})
 
-    def assemble(self) -> Dict[str, Any]:
+    def assemble(self) -> dict[str, Any]:
         return {
             "hypotheses": [r.get("hypothesis") for r in self.records if r.get("hypothesis")],
             "programs": [r.get("program") for r in self.records if r.get("program")],
@@ -3284,7 +3285,7 @@ class ResearchStateGraph:
             "n_records": len(self.records),
         }
 
-    def transfer(self, target: str) -> Dict[str, Any]:
+    def transfer(self, target: str) -> dict[str, Any]:
         """★ R368 · 跨任务状态迁移。"""
         return {"target": target, "records": [dict(r) for r in self.records],
                 "edges": [dict(e) for e in self.edges]}
@@ -3312,11 +3313,11 @@ class _SwarmMixin:
         return "P"
 
     @staticmethod
-    def research_state_graph() -> "ResearchStateGraph":
+    def research_state_graph() -> ResearchStateGraph:
         return ResearchStateGraph()
 
     @staticmethod
-    def rebase(hypothesis, base_program, state=None) -> Dict[str, Any]:
+    def rebase(hypothesis, base_program, state=None) -> dict[str, Any]:
         """★ R363 · Rebase：保留 hypothesis，换 base 实现。"""
         st = state if isinstance(state, dict) else {}
         return {
@@ -3329,17 +3330,16 @@ class _SwarmMixin:
         }
 
     @staticmethod
-    def crossover(parent, donors, instance_utilities=None) -> Dict[str, Any]:
+    def crossover(parent, donors, instance_utilities=None) -> dict[str, Any]:
         """★ R364 · Per-instance crossover（Eq.5）。"""
         iu = instance_utilities or {}
         # 选 donor：per-instance 最大优势
         selected = []
         for d in (donors or []):
             adv = 0.0
-            for k, v in (iu.items() if isinstance(iu, dict) else []):
+            for _k, v in (iu.items() if isinstance(iu, dict) else []):
                 try:
-                    if float(v) > adv:
-                        adv = float(v)
+                    adv = max(adv, float(v))
                 except (TypeError, ValueError):
                     # audit: bad utility -> 0
                     pass
@@ -3378,7 +3378,7 @@ class _SwarmMixin:
         return _SwarmMixin.hp_ucb(*a, **k)
 
     @staticmethod
-    def audit_credit(execution, code_audit=None, scientific_audit=None) -> Dict[str, Any]:
+    def audit_credit(execution, code_audit=None, scientific_audit=None) -> dict[str, Any]:
         """★ R366 · 审计门控 hypothesis credit。"""
         ex = execution or {}
         ca = code_audit or {}
@@ -3393,10 +3393,10 @@ class _SwarmMixin:
                 "flagged": flagged}
 
     @staticmethod
-    def emit_requests(outcome) -> List[str]:
+    def emit_requests(outcome) -> list[str]:
         """★ R367 · 请求发射（deepen/broaden）。"""
         o = outcome or {}
-        reqs: List[str] = []
+        reqs: list[str] = []
         status = str(o.get("status") or o.get("result") or "")
         gains = o.get("per_instance_gains")
         if status in ("failure", "failed", "error"):
@@ -3413,7 +3413,7 @@ class _SwarmMixin:
         return reqs
 
     @staticmethod
-    def transfer_state(graph, target: str) -> Dict[str, Any]:
+    def transfer_state(graph, target: str) -> dict[str, Any]:
         """★ R368 · 跨任务状态迁移。"""
         if isinstance(graph, ResearchStateGraph):
             return graph.transfer(target)

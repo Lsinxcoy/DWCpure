@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """loop · 真 round_fn 生产形态（R165 — daemon 驱动的单轮闭环）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -26,27 +25,26 @@
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from dwc.harness.pipeline import run_round
+from dwc.harness.splitfeed import feed_pair
 from dwc.organs.actor import Actor, execute_task
 from dwc.organs.applier import Applier
+from dwc.organs.direction import (
+    DirectionAttempt,
+    DirectionDecision,
+    DirectionError,
+    ensure_direction,
+    reverse_candidates,
+)
+from dwc.organs.direction import next_action as dir_next_action
 from dwc.organs.evolver import Evolver
 from dwc.organs.judge import Judge
-from dwc.harness.pipeline import run_round
-from dwc.organs.direction import (DirectionAttempt,
-                                DirectionError,
-                                DirectionDecision,
-                                ensure_direction,
-                                next_action as dir_next_action,
-                                reverse_candidates)
-from dwc.organs.replay import (no_worse_than_current, select_policy,
-                               shortlist_candidates)
-from dwc.harness.splitfeed import feed_pair
-from dwc.harness.candidate_bridge import BridgeError
+from dwc.organs.replay import no_worse_than_current, select_policy, shortlist_candidates
 
 
 class LoopError(Exception):
@@ -56,13 +54,13 @@ class LoopError(Exception):
 class Loop:
     """★ 常驻单轮闭环（Daemon.round_fn 的生产实现）。"""
 
-    def __init__(self, *, anchors_dir: Optional[str] = None,
-                 registry: Optional[Any] = None,
+    def __init__(self, *, anchors_dir: str | None = None,
+                 registry: Any | None = None,
                  use_llm: bool = False,
                  planner_live: bool = False,
                  max_tasks_per_round: int = 8,
                  impl_floor: str = "broken",
-                 impl_source: Optional[str] = None):
+                 impl_source: str | None = None):
         """impl_floor: "broken"(R170 默认 — 初值错误) | "golden"(旧行为).
         impl_source: 开局实现文件（缺省 anchors_dir/broken_dev.json）."""
         self.registry = registry
@@ -101,24 +99,24 @@ class Loop:
         #   本表 ⇒ 下轮 judge 评的是**修过的**实现 ⇒ 分数变化 = agent 真干活
         #   （对比: 此前 execute_task(implementation=None) 走 REFERENCE,
         #     task 恒过 ⇒ 闭环空转 — R171 实测 12 轮 n_landed=0 的根因）
-        self.impl_store: Dict[str, str] = {}
+        self.impl_store: dict[str, str] = {}
         self.impl_floor = str(impl_floor or "golden")
         #: ★ R172: EL 调度状态（与 core.DWC 同款 — 双池共用机制不分裂）
         self.el = None
         self._el_last = None
         self._el_token = -1
-        self._el_last_task: Optional[str] = None    # ★ R172: p̂ 归因环境
-        self._last_consolidation: Optional[Dict] = None  # ★ R173 固化痕迹
-        self._last_replay_pick: Optional[Dict] = None    # ★ R174 replay 选择痕迹
-        self._last_a_train: Optional[float] = None       # ★ R176 A_train 痕迹
+        self._el_last_task: str | None = None    # ★ R172: p̂ 归因环境
+        self._last_consolidation: dict | None = None  # ★ R173 固化痕迹
+        self._last_replay_pick: dict | None = None    # ★ R174 replay 选择痕迹
+        self._last_a_train: float | None = None       # ★ R176 A_train 痕迹
         self._last_a_train_why: str = ""                 # ★ R176 缺席原因
-        self._last_metric_pick: Optional[Dict] = None     # ★ R180 Metric Loop 选优痕迹
+        self._last_metric_pick: dict | None = None     # ★ R180 Metric Loop 选优痕迹
         self._metric_loop_why: str = ""                  # ★ R180 缺席/异常原因
-        self._last_adopt: Optional[Dict] = None          # ★ R183 adopt 痕迹
+        self._last_adopt: dict | None = None          # ★ R183 adopt 痕迹
         self._adopt_why: str = ""                        # ★ R183 不采纳原因
         self._load_impl_floor(impl_source)
 
-    def _load_impl_floor(self, impl_source: Optional[str]) -> None:
+    def _load_impl_floor(self, impl_source: str | None) -> None:
         """★ R170 开局实现面（agent 的"手"的初始位置）。
 
         · floor="broken" ⇒ 读 broken_dev.json 的 broken_impl（初值错误 —
@@ -133,12 +131,12 @@ class Loop:
             raise LoopError("impl_floor=broken 但开局实现文件缺: %s"
                             % path)
         try:
-            raw = json.load(io.open(path, encoding="utf-8"))
+            raw = json.load(open(path, encoding="utf-8"))
         except Exception as exc:                  # noqa: BLE001 — 留痕不静默
             raise LoopError("开局实现文件读不了: %s: %s"
                             % (path, exc))
         n = 0
-        self.rules_known: Dict[str, bool] = {}
+        self.rules_known: dict[str, bool] = {}
         for tid, rec in raw.items():
             if tid.startswith("_") or not isinstance(rec, dict):
                 continue
@@ -156,17 +154,17 @@ class Loop:
         #   daemon/监控可查; 初始全 not_instrumented 而不是 None）
         from dwc.organs.metrics import four_metrics
         self.last_metrics = four_metrics()
-        self._last_ledger_entries: List[Any] = []
+        self._last_ledger_entries: list[Any] = []
         # ★★★ R188 · DirectionController 在途状态（跨调用点传链:
         #   _run_one_task 内一次取方向 → 候选 → 判停滞 → 换向; 每任务
         #   每轮一条链, round 入口清空（串行生产, 无并发问题）
         #   dict[task_id] = List[DirectionAttempt]
-        self._dir_attempts: Dict[str, List[DirectionAttempt]] = {}
+        self._dir_attempts: dict[str, list[DirectionAttempt]] = {}
         #: R188 决策痕迹（读窗口 — 监控/测试可查; 每 _run_one_task 出口更新）
-        self._last_dir_decision: Optional[DirectionDecision] = None
+        self._last_dir_decision: DirectionDecision | None = None
 
     # ── 真 round_fn（Daemon 契约: (round_no, daemon) -> dict|None）──
-    def round(self, round_no: int, daemon: Any = None) -> Dict[str, Any]:
+    def round(self, round_no: int, daemon: Any = None) -> dict[str, Any]:
         tasks = self._dev_tasks()
         if not tasks:
             raise LoopError("dev split 无锚点任务 ⇒ 无任务面可转")
@@ -186,8 +184,8 @@ class Loop:
         self._dir_attempts = {}
         sel = [self._pick_task(tasks)]
         n_landed = 0
-        verdicts: List[str] = []
-        score_vals: List[float] = []
+        verdicts: list[str] = []
+        score_vals: list[float] = []
         for tid in sel:
             # ★ R170 修: _run_one_task 透传 round_no（此前 L240 run_round
             #   引用外层 round_no ⇒ NameError — daemon 真跑首轮必炸的
@@ -213,8 +211,8 @@ class Loop:
         # ★ R168 四量采集（每轮出口 — 素材: RoundLog 台账 + 本轮 ledger 账;
         #   本轮的提案数从 _last_n_candidates 取（_run_one_task 出口的
         #   真实 gate_all 输入数 — 不另造统计面））
-        from dwc.organs.metrics import metrics_from_round
         from dwc.daemon import RoundLog
+        from dwc.organs.metrics import metrics_from_round
         self.last_metrics = metrics_from_round(
             RoundLog(round_no=round_no, started_at=0.0,
                      n_candidates=getattr(self, "_last_n_candidates", 0),
@@ -250,7 +248,7 @@ class Loop:
                 _os.path.dirname(_os.path.abspath(__file__)))))
         return _os.path.join(root, "archive", "direction_ledger.jsonl")
 
-    def _broken_impl_for_fn(self, rec: Dict[str, Any]) -> Optional[str]:
+    def _broken_impl_for_fn(self, rec: dict[str, Any]) -> str | None:
         """R189-B · train behavior 面的实现回退面（broken_dev 同 fn 初值）。
 
         ★ 原则: train 观测必须是 **agent 产出**。impl_store 未载该 tid 时
@@ -259,6 +257,7 @@ class Loop:
         """
         try:
             import json as _json
+
             from dwc.organs.judge import TRUTH_SOURCE as _TS
             # TRUTH_SOURCE[0][1] = dev.json 的路径 ⇒ 取它的目录找 broken_dev
             _dev_path = (_TS[0][1] if _TS and isinstance(_TS[0], tuple)
@@ -269,7 +268,7 @@ class Loop:
                                    "broken_dev.json")
             if not os.path.exists(bd_path):
                 return None
-            with io.open(bd_path, encoding="utf-8") as _fh:
+            with open(bd_path, encoding="utf-8") as _fh:
                 bd = _json.load(_fh)
             want = {(c or {}).get("fn")
                     for c in (rec.get("checks") or []) if isinstance(c, dict)}
@@ -283,9 +282,9 @@ class Loop:
         except Exception:                      # noqa: BLE001 — 观察面自吞
             return None
 
-    def _dir_pick_candidates(self, tid: str, sig: Dict[str, str],
-                             round_no: int, score: Optional[float],
-                             sigs: Optional[List[Dict[str, str]]] = None) -> list:
+    def _dir_pick_candidates(self, tid: str, sig: dict[str, str],
+                             round_no: int, score: float | None,
+                             sigs: list[dict[str, str]] | None = None) -> list:
         """FORWARD 空 ⇒ 沿 fallback 序换向生成候选（R188 R1/R2/R3）。
 
         ★ 三条规则的在此的形态:
@@ -352,9 +351,9 @@ class Loop:
         self._last_skip = ("三方向均已试且无候选（task=%r — R3 旁路）" % tid)
         return []
 
-    def _dir_generate(self, direction, sig: Dict[str, str],
-                      sigs: Optional[List[Dict[str, str]]] = None,
-                      prefer_components: Optional[tuple] = None) -> list:
+    def _dir_generate(self, direction, sig: dict[str, str],
+                      sigs: list[dict[str, str]] | None = None,
+                      prefer_components: tuple | None = None) -> list:
         """R188 · 按方向调 evolver 对应入口（表驱动, 防 if-elif 漂移）。
 
         ★ FORWARD  = diagnose 的签名命中（本 fn 的专有修法）
@@ -398,7 +397,7 @@ class Loop:
             self._last_skip = "diagnose 失败: %s" % exc
             return []
 
-    def _dir_rules_index(self) -> Dict[str, Dict]:
+    def _dir_rules_index(self) -> dict[str, dict]:
         """RULES 表引用（REVERSE 判据的输入 — 不复制, 取真源）。"""
         ev = self.evolver
         for attr in ("RULES", "_RULES", "rules"):
@@ -445,12 +444,11 @@ class Loop:
         """★ R276-③ · 本轮 ledger 账落盘（append-only jsonl；异常留痕）。"""
         try:
             rows = list(self._last_ledger_entries or [])
-            with io.open(self._var_path("credit_ledger.jsonl"), "a",
+            with open(self._var_path("credit_ledger.jsonl"), "a",
                          encoding="utf-8") as fh:
-                for e in rows:
-                    fh.write(json.dumps(
+                fh.writelines(json.dumps(
                         {"round": round_no, "task": tid, "entry": e},
-                        ensure_ascii=False, default=str) + "\n")
+                        ensure_ascii=False, default=str) + "\n" for e in rows)
             return len(rows)
         except Exception as exc:                     # noqa: BLE001
             sys.stderr.write("credit 落盘跳过: %s\n" % exc)
@@ -474,7 +472,7 @@ class Loop:
                                          for a in attempts]}
             path = self._dir_archive_path()
             _os.makedirs(_os.path.dirname(path), exist_ok=True)
-            with io.open(path, "a", encoding="utf-8") as fh:
+            with open(path, "a", encoding="utf-8") as fh:
                 fh.write(_json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception as exc:        # F3: 写失败**留痕**（审计轨迹不许
             # 静默丢 —— G7 同族; 不炸主链: 观察面失败不拦进化决策）
@@ -483,9 +481,8 @@ class Loop:
                                            str(exc)[:120]))
 
     def _run_one_task(self, tid: str, round_no: int = 0
-                      ) -> Dict[str, Any]:
-        from dwc.harness.landing import LandingError
-        from dwc.organs.actor import Actor as _A     # noqa: F401
+                      ) -> dict[str, Any]:
+        from dwc.organs.actor import Actor as _A  # noqa: F401
         self._last_n_candidates = 0
         self._last_blocked = []
         self._last_skip = None
@@ -725,7 +722,7 @@ class Loop:
                 "score": score, "landed": landed}
 
     def _trial_keyword(self, tid: str, answer: str
-                       ) -> Optional[Dict[str, Any]]:
+                       ) -> dict[str, Any] | None:
         """★ R171: keyword_match 试跑（答案文本 ⇒ judge 按 kw 逐条判）。"""
         try:
             o = execute_task(self.actor, self.judge, tid,
@@ -740,7 +737,7 @@ class Loop:
                 "score": 1.0 if v.success else 0.0, "impl": answer}
 
     def _trial_run(self, tid: str, proposal: Any
-                   ) -> Optional[Dict[str, Any]]:
+                   ) -> dict[str, Any] | None:
         """★★★ R170: 提案试跑（post-state 复判 — 门⑤的真 ΔS 证据源）。
 
         ★ 合成口径: proposal.patch 是 RULES 给的**函数体片段**
@@ -793,7 +790,7 @@ class Loop:
         return {"success": v.success, "pass_rate": pr,
                 "score": 1.0 if v.success else 0.0, "impl": src}
 
-    def _applied_patch_for(self, tid: str, res: Any) -> Optional[str]:
+    def _applied_patch_for(self, tid: str, res: Any) -> str | None:
         """★ R170: 本轮落地提案的 patch（用于写回 impl_store）。
 
         ★ 优先级: ①res.landing 的 new_value（applier 落盘的读回值 —
@@ -816,7 +813,7 @@ class Loop:
             self._last_skip = "patch 写回取失败（store 不动）: %s" % exc
         return None
 
-    def _train_outputs_consensus(self) -> Optional[float]:
+    def _train_outputs_consensus(self) -> float | None:
         """★★★ R184 · A_train 的**真论文口径**（2607.12790 逐字）。
 
         "A_train(e) = e 与 opining pool ops 在**无标注 train 输出**上的
@@ -837,10 +834,14 @@ class Loop:
             return None
         try:
             from dwc.organs.actor import execute_task as _et
-            from dwc.organs.drawback import Node as _N, _eval as _ev
-            from dwc.organs.metric_loop import (_POOL_OPS, _current_tree,
-                                                a_train_weighted,
-                                                loo_marginal_dev)
+            from dwc.organs.drawback import Node as _N
+            from dwc.organs.drawback import _eval as _ev
+            from dwc.organs.metric_loop import (
+                _current_tree,
+                a_train_weighted,
+                loo_marginal_dev,
+            )
+
             # ★★★ R189-B · 无标签面用 **TRAIN_POOL**（= DEFAULT_POOL +
             #   exec_ok + evidence_rich — 判据键不依赖 label; 门③仍用
             #   DEFAULT_POOL 不动）⇒ 修 R184 的恒 1.0 口径洞（旧盘 6 op
@@ -849,8 +850,8 @@ class Loop:
             from dwc.organs.ops import TRAIN_POOL as _TP
             _ops_map = {op.name: op for op in _TP}
             names = sorted(_ops_map)
-            tv: List[Dict[str, str]] = []
-            pts_like: List[Dict[str, Any]] = []
+            tv: list[dict[str, str]] = []
+            pts_like: list[dict[str, Any]] = []
             for tid in sorted(self.judge.train_anchors):
                 if tid.startswith("_"):
                     continue
@@ -938,8 +939,8 @@ class Loop:
                                       % (type(exc).__name__, exc))
             return None
 
-    def _a_train_weighted(self, pts: List[Dict[str, Any]]
-                          ) -> Optional[float]:
+    def _a_train_weighted(self, pts: list[dict[str, Any]]
+                          ) -> float | None:
         """★★★ R183 · A_train（κ=10 加权 — R182 的 Loop 侧适配）。
 
         ★ train verdicts = 每个 dev 点 ctx 上**逐 op** 三态判定（与
@@ -953,10 +954,14 @@ class Loop:
         if not pts:
             return None
         try:
-            from dwc.organs.drawback import Node as _N, _eval as _ev
-            from dwc.organs.metric_loop import (_POOL_OPS, _current_tree,
-                                                a_train_weighted,
-                                                loo_marginal_dev)
+            from dwc.organs.drawback import Node as _N
+            from dwc.organs.drawback import _eval as _ev
+            from dwc.organs.metric_loop import (
+                _POOL_OPS,
+                _current_tree,
+                a_train_weighted,
+                loo_marginal_dev,
+            )
             names = sorted(_POOL_OPS)
             tv = [{n: _ev(_N(kind="leaf", op=n), _POOL_OPS, None, None,
                           (p.get("ctx") or {})) for n in names} for p in pts]
@@ -969,7 +974,7 @@ class Loop:
                                       % (type(exc).__name__, exc))
             return None
 
-    def _facts_from_dev_surface(self) -> List[Any]:
+    def _facts_from_dev_surface(self) -> list[Any]:
         """★★★ R183 · dev 真判据点 ⇒ 门组回归用的事实组（TermFacts 投影）。
 
         ★ 为什么这样做（深度思考记录 — 不造数据）: R172 EL 单任务每轮
@@ -984,7 +989,7 @@ class Loop:
         ★ evidence 不可解析 ⇒ 跳过并留痕（不猜那点）。
         """
         from dwc.harness.gates import TermFacts
-        out: List[Any] = []
+        out: list[Any] = []
         try:
             pts = self.judge.task_scores(split="dev")
         except Exception as exc:                  # noqa: BLE001 — 留痕不静默
@@ -1014,7 +1019,7 @@ class Loop:
                                  parsed_ok=ctx.get("parsed_ok")))
         return out
 
-    def _try_adopt_metric_tree(self) -> Dict[str, Any]:
+    def _try_adopt_metric_tree(self) -> dict[str, Any]:
         """★★★ R183 · Metric Loop 自进化闭环: select ⇒ 门组回归 ⇒ adopt 注入。
 
         ★ 触发纪律（不震荡）: picked ≠ 现任 **且** S 差 > noise_band(0.01,
@@ -1024,8 +1029,12 @@ class Loop:
         ★ adopt 结果落 self._last_adopt（daemon/e2e 可读）; 任何异常 ⇒
           留痕 + 当前树保持（不半吊 — G7 纪律）。
         """
-        from dwc.organs.metric_loop import (_current_tree, _tree_key,
-                                            adopt, mechanical_candidates)
+        from dwc.organs.metric_loop import (
+            _current_tree,
+            _tree_key,
+            adopt,
+            mechanical_candidates,
+        )
         self._last_adopt = None
         mp = self._last_metric_pick
         if not mp or not mp.get("picked_key"):
@@ -1057,7 +1066,7 @@ class Loop:
         return res
 
     # ── 跨轮分数序列（judge 落盘路径同源 — 不另立账本）──
-    def _metric_loop_tick(self) -> Dict[str, Any]:
+    def _metric_loop_tick(self) -> dict[str, Any]:
         """★★★ R180 · Metric Loop 点火（接 R177 引擎 + R179 数据面 — 只读选+留痕）。
 
         ★ 边界（精准手术 — 本轮不换判据）: 本方法跑 select 拿选优结果,
@@ -1069,8 +1078,7 @@ class Loop:
           — 观察面不阻断主链; 引擎侧 fail-closed 已在 metric_loop 内）
         """
         try:
-            from dwc.organs.metric_loop import (dev_points_from_store,
-                                                select)
+            from dwc.organs.metric_loop import dev_points_from_store, select
             # ★ Judge 自身委派 store 的 task_scores/evidence（judge.py
             #   L979/L981）⇒ duck-typing 直接传 self.judge（R180 实测纠偏:
             #   首版写 hasattr(judge,"store") 分支 — 多余, Judge 面就够）
@@ -1111,7 +1119,7 @@ class Loop:
             return {"picked_key": None, "why": self._metric_loop_why}
 
     def _a_train(self, component: str, target: str
-                 ) -> Tuple[Optional[float], Dict[str, Any]]:
+                 ) -> tuple[float | None, dict[str, Any]]:
         """★★★ R176 · A_train（2607.12790 式2 的 op 池共识一致度 — DWC 版）。
 
         ★ 论文语义: A_train(e) = e 与"opining pool ops 在**无标注 train
@@ -1138,29 +1146,29 @@ class Loop:
                             "n_same_component": len(hits),
                             "component": component}
 
-    def _learned_attempts(self) -> List[Tuple[str, str, bool]]:
+    def _learned_attempts(self) -> list[tuple[str, str, bool]]:
         """★ train 集 = rules.json learned 条目（cross-process — R173 落盘面）。
 
         ★ clean 口径: 该键能被门收下过（进 rules.json = 过三闸 = clean）;
           ℒ_t 里 adopted=False 的记账（landed 后被拒/回滚）是**有标签**
           负面 ⇒ 不进 train（train 只装"无 gold 判定标签的" attempt）。
         """
-        out: List[Tuple[str, str, bool]] = []
+        out: list[tuple[str, str, bool]] = []
         try:
             from dwc.organs.evolver import Mutator
             if os.path.exists(Mutator.LEARNED_PATH):
-                d = json.load(io.open(Mutator.LEARNED_PATH, encoding="utf-8"))
-                for k, v in (d.get("learned") or {}).items():
+                d = json.load(open(Mutator.LEARNED_PATH, encoding="utf-8"))
+                for _k, v in (d.get("learned") or {}).items():
                     out.append((str(v.get("component", "")),
                                 str(v.get("target", "")), True))
-        except (OSError, ValueError, KeyError) as exc:   # noqa: BLE001 留痕
+        except (OSError, ValueError, KeyError) as exc:
             self._last_a_train_why = "train 读取失败: %s" % exc
             return []
         return out
 
-    def _consolidate_rule(self, tid: str, sig: Dict[str, str],
-                          proposal: Any, trial: Optional[Dict],
-                          res: Any) -> Optional[Dict[str, Any]]:
+    def _consolidate_rule(self, tid: str, sig: dict[str, str],
+                          proposal: Any, trial: dict | None,
+                          res: Any) -> dict[str, Any] | None:
         """★★★ R173 · 固化面（landed ⇒ RULES; 三闸 + 只收非种子）。
 
         ★ 入口条件: landed（真落地过）— 没落地不许固化（不假装学会）。
@@ -1177,13 +1185,12 @@ class Loop:
         """
         try:
             from dwc.organs.evolver import Mutator
-            from dwc.harness.landing import LandingError
             key = Mutator.key_for(sig)
             if key in Mutator.SEED_KEYS:
                 self._last_consolidation = {"key": key, "outcome": "seed_noop"}
                 return self._last_consolidation
-            rec = (self.judge.anchors.get(tid) or
-                   (getattr(self.judge, "sealed", None) or {}).get(tid) or {})
+            _rec = (self.judge.anchors.get(tid) or
+                    (getattr(self.judge, "sealed", None) or {}).get(tid) or {})
             entry = {
                 "component": proposal.component,
                 "dimension": proposal.dimension or "D1",
@@ -1221,7 +1228,7 @@ class Loop:
                                                             exc)}
             return self._last_consolidation
 
-    def _pick_task(self, tasks: List[str]) -> str:
+    def _pick_task(self, tasks: list[str]) -> str:
         """★★★ R172: δ_θ 排序 + EL 状态机的任务采样（core._el_pick 同源）。
 
         ★ 节律（与 core 同款）: judge 判分点数没变 ⇒ **不重复推进** EL
@@ -1264,7 +1271,7 @@ class Loop:
         self._el_last_task = picked       # ★ 下一轮 p̂ 的归因环境
         return picked
 
-    def _last_history_score(self) -> Optional[float]:
+    def _last_history_score(self) -> float | None:
         """★ R170: score_history 末条 score（score_star 的对照锚）。
 
         ★ 空文件/坏行 ⇒ None（不造 0.0 基准 — 首轮的 score_star 缺席是
@@ -1275,7 +1282,7 @@ class Loop:
             return None
         try:
             last = None
-            for line in io.open(path, encoding="utf-8"):
+            for line in open(path, encoding="utf-8"):
                 line = line.strip()
                 if not line:
                     continue
@@ -1290,8 +1297,8 @@ class Loop:
         except OSError:
             return None
 
-    def _append_history(self, round_no: int, tasks: List[str],
-                        score: Optional[float], landed: int) -> None:
+    def _append_history(self, round_no: int, tasks: list[str],
+                        score: float | None, landed: int) -> None:
         path = os.path.join(self.anchors_dir, "score_history.jsonl")
         # ★ schema 与 e2e **同款**（{round, score, src}）—— R165 实测教训:
         #   首版我写 {round, tasks, score, landed} ⇒ e2e 的 natural_rise
@@ -1304,7 +1311,7 @@ class Loop:
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    def _dev_tasks(self) -> List[str]:
+    def _dev_tasks(self) -> list[str]:
         return sorted(k for k in self.judge.anchors
                       if not k.startswith("_"))
 
@@ -1369,7 +1376,7 @@ class _MemoryTarget:
     """
 
     def __init__(self):
-        self._box: Dict[str, Any] = {"v": "loop_init"}
+        self._box: dict[str, Any] = {"v": "loop_init"}
         from dwc.organs.applier import Target
         self._t = Target(getter=lambda: self._box.get("v"),
                          setter=lambda x: self._box.__setitem__("v", x),
@@ -1386,7 +1393,7 @@ def build_round_fn(**kw: Any):
     return loop.round
 
 
-LOOP_MECHANICS: Dict[str, str] = {
+LOOP_MECHANICS: dict[str, str] = {
     "no_new_judgement": "单轮闭环全复用既有器官（execute_task/judge/evolver/gate_all/pipeline）— 零新判定",
     "llm_free_default": "use_llm=False 默认（LLM 提案路径由 e2e step9 覆盖; 循环的确定性面先稳）",
     "task_selection": "round_no % len(dev_tasks) 机械轮转 — 真选择器无设计不发明（R73 同族 backlog）",

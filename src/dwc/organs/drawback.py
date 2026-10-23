@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """drawback · 原子缺点检测器 + 表达式树（2607.12790 §2 · V2 门③「不认证正确」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -19,14 +18,15 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 #: op 三值输出（原文 §2.1: ⟨drawback, clean, abstain⟩ — 值枚举, 不添第四态）
-VERDICTS: Tuple[str, ...] = ("drawback", "clean", "abstain")
+VERDICTS: tuple[str, ...] = ("drawback", "clean", "abstain")
 
 #: 表达式树节点类型（式 1 六种形态 — 值枚举）
-NODE_KINDS: Tuple[str, ...] = ("leaf", "or", "and", "not", "k_of_v",
+NODE_KINDS: tuple[str, ...] = ("leaf", "or", "and", "not", "k_of_v",
                                "weighted")
 
 #: 求值面三值（与 op 三值对齐; 组合语义由 _eval 定义）
@@ -46,7 +46,7 @@ class Op:
     """
 
     name: str
-    fn: Callable[[Any, Any, Dict[str, Any]], str]
+    fn: Callable[[Any, Any, dict[str, Any]], str]
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -54,7 +54,7 @@ class Op:
         if not callable(self.fn):
             raise DrawbackError("Op.fn 须 callable (task, y, ctx) -> verdict")
 
-    def run(self, task: Any, y: Any, ctx: Dict[str, Any]) -> str:
+    def run(self, task: Any, y: Any, ctx: dict[str, Any]) -> str:
         v = self.fn(task, y, ctx)
         if v not in VERDICTS:
             raise DrawbackError(
@@ -77,11 +77,11 @@ class Node:
     """
 
     kind: str
-    op: Optional[str] = None                       # leaf 用
-    children: Tuple["Node", ...] = ()              # 组合节点用
-    k: Optional[int] = None                        # k_of_v 用
-    weights: Optional[Tuple[float, ...]] = None    # weighted 用
-    theta: Optional[float] = None                  # weighted 用
+    op: str | None = None                       # leaf 用
+    children: tuple[Node, ...] = ()              # 组合节点用
+    k: int | None = None                        # k_of_v 用
+    weights: tuple[float, ...] | None = None    # weighted 用
+    theta: float | None = None                  # weighted 用
 
     def __post_init__(self) -> None:
         if self.kind not in NODE_KINDS:
@@ -118,8 +118,8 @@ class Node:
                     "weighted 的 θ 须 ∈ (0, Σw=%.3f], 实 %r" % (tw, self.theta))
 
 
-def _eval(n: Node, ops: Dict[str, Op], task: Any, y: Any,
-          ctx: Dict[str, Any]) -> str:
+def _eval(n: Node, ops: dict[str, Op], task: Any, y: Any,
+          ctx: dict[str, Any]) -> str:
     """表达式树求值（三值 — abstain 排除由组合规则处理）。"""
     if n.kind == "leaf":
         return ops[n.op].run(task, y, ctx)     # KeyError 显式 — 未注册 op
@@ -158,8 +158,8 @@ class Grader:
     """
 
     def __init__(self) -> None:
-        self.ops: Dict[str, Op] = {}
-        self.tree: Optional[Node] = None
+        self.ops: dict[str, Op] = {}
+        self.tree: Node | None = None
 
     def register_op(self, op: Op) -> None:
         if op.name in self.ops:
@@ -173,7 +173,7 @@ class Grader:
         self.tree = root
 
     def grade(self, task: Any, y: Any,
-              ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+              ctx: dict[str, Any] | None = None) -> dict[str, Any]:
         if self.tree is None:
             return {"verdict": "no_tree", "ok": False,
                     "note": "未设检测树 ⇒ 无法判（显式缺席, 不默认 clean）"}
@@ -186,7 +186,7 @@ class Grader:
                           "全 abstain ⇒ 没查≠干净 ⇒ 不过门"))}
 
 
-DRAWBACK_MECHANICS: Dict[str, str] = {
+DRAWBACK_MECHANICS: dict[str, str] = {
     "verdicts": "op 三值: drawback/clean/abstain（§2.1 — 不添第四态）",
     "tree": "式 1: leaf/or/and/not/k_of_v/weighted（abstain 子节点被排除）",
     "not_correctness": "clean 只=没找到已知缺点, 不是认证正确（bootstrap 就靠这个不对称）",

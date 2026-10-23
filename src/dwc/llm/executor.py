@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """LLM 执行体（LLM executor）—— R126 · 把「执行环境默认化」落成 src 件。
 
 起源: R124 scripts/transfer_llm_arm.py 的 llm_executor（实验臂）。
@@ -31,7 +30,7 @@ import ast
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.organs.actor import Receipt
 
@@ -41,7 +40,7 @@ ANCHOR_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))))), "config", "anchors")
 
 
-def load_anchors(path: Optional[str] = None) -> Dict[str, Any]:
+def load_anchors(path: str | None = None) -> dict[str, Any]:
     """读 dev anchors（judge 同源 — 不复制判据）。"""
     p = path or os.path.join(ANCHOR_DIR, "dev.json")
     with open(p, encoding="utf-8") as f:
@@ -56,11 +55,11 @@ def coerce(x: Any) -> Any:
         return x
 
 
-def obs_skeleton(anchors: Dict[str, Any], tid: str
-                 ) -> Dict[str, List[List[Any]]]:
+def obs_skeleton(anchors: dict[str, Any], tid: str
+                 ) -> dict[str, list[list[Any]]]:
     """任务 fn→[[args, None]] 骨架（None=待执行体填, 不当预填 0）。"""
     g = anchors.get(tid) or {}
-    obs: Dict[str, List[List[Any]]] = {}
+    obs: dict[str, list[list[Any]]] = {}
     for c in g.get("checks", []):
         if "fn" not in c:
             continue
@@ -68,8 +67,8 @@ def obs_skeleton(anchors: Dict[str, Any], tid: str
     return obs
 
 
-def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
-                       ) -> Optional[Dict[str, List[List[Any]]]]:
+def parse_llm_observed(raw: str, skeleton: dict[str, list[list[Any]]]
+                       ) -> dict[str, list[list[Any]]] | None:
     r"""从 LLM 回复抽 observed（对 skeleton 的 fn 找 JSON/字面块）— 不猜。
 
     只接受能解析成 {fn: [[a, v], ...]} 的形态; 其它 ⇒ None。
@@ -82,8 +81,8 @@ def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
         return None
     text = re.sub(r"```(?:json)?", "", raw.strip())
     cands = [m.group(0) for m in re.finditer(r"\{[^{}]*\}", text)]
-    cands.append(re.search(r"\{.*\}", text, re.S).group(0)
-                 if re.search(r"\{.*\}", text, re.S) else "")
+    cands.append(re.search(r"\{.*\}", text, re.DOTALL).group(0)
+                 if re.search(r"\{.*\}", text, re.DOTALL) else "")
     for blob in reversed(cands):  # ★ 真答案通常在末尾 ⇒ 倒序优先
         if not blob:
             continue
@@ -96,7 +95,7 @@ def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
                 continue
         if not isinstance(parsed, dict):
             continue
-        out: Dict[str, List[List[Any]]] = {}
+        out: dict[str, list[list[Any]]] = {}
         for fn, pairs in parsed.items():
             if (isinstance(pairs, list) and pairs
                     and all(isinstance(x, list) and len(x) == 2
@@ -119,7 +118,7 @@ def memory_text(memory: Any) -> str:
                      for r in rows)
 
 
-def build_observed_prompt(tid: str, skel: Dict[str, Any],
+def build_observed_prompt(tid: str, skel: dict[str, Any],
                             mt: str) -> str:
     """★ R277b-5 · 观测 prompt 单一构造点（禁 null 回声——推理模型
     会把 skeleton 原样抄回，None 不换值 ⇒ observed 残疾 ⇒ m 残疾）。
@@ -143,8 +142,8 @@ class LLMExecutorFactory:
       恒等/空转问题（README 陷阱 #4「挂载≠活着」）的实测工具。
     """
 
-    def __init__(self, llm: Any, anchors: Optional[Dict] = None,
-                 tasks: Optional[List[str]] = None):
+    def __init__(self, llm: Any, anchors: dict | None = None,
+                 tasks: list[str] | None = None):
         self.llm = llm
         self.anchors = anchors if anchors is not None else load_anchors()
         self.tasks = set(tasks) if tasks is not None else None
@@ -156,10 +155,10 @@ class LLMExecutorFactory:
             return False
         return self.tasks is None or tid in self.tasks
 
-    def make(self, memory: Any = None) -> "callable":
+    def make(self, memory: Any = None) -> callable:
         """产出 executor 闭包（memory 每次调用时取其当前文本）。"""
 
-        def _exec(task: Dict[str, Any]) -> Receipt:
+        def _exec(task: dict[str, Any]) -> Receipt:
             tid = str(task.get("task_id", ""))
             if not self._enabled(tid):
                 # ★ R277b-10 · 非 behavior 不执行 —— 显式码（空包含糊，
@@ -173,7 +172,8 @@ class LLMExecutorFactory:
             try:
                 _sys_json = "只输出 JSON, 不解释。"
                 try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
-                    from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                    from dwc.llm.prompt_ota import note_miss as _ota_miss
+                    from dwc.llm.prompt_ota import ota_system as _ota
                     _sys_json = _ota("sys_json", _sys_json, __file__)
                 except Exception:
                     _ota_miss()

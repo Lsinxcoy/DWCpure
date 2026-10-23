@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """exploration · 停滞激活的探索编排（ℰ_t = (σ_t, 𝒰_t, m_draft) · 伪码 line 9）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -22,8 +21,9 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 #: 探索预算标签（候选环内流转用 — 与 evolver.ℰ_t 的 draft 位语义对齐）
 TAG_EXPLORE = "explore"
@@ -39,16 +39,16 @@ class ExplorationPlan:
     """一轮探索编排结果（哪些候选走探索预算 / 走利用 — 带依据）。"""
 
     active: bool
-    explore_components: Tuple[str, ...]
+    explore_components: tuple[str, ...]
     explore_budget: int
-    notes: Tuple[str, ...] = ()
-    sigma: Optional[Dict[str, Any]] = None
+    notes: tuple[str, ...] = ()
+    sigma: dict[str, Any] | None = None
 
     def tag(self, component: str) -> str:
         """★ 单个候选的打标（explore / exploit — 组件 ∈ 𝒰_t 才 explore）。"""
         return TAG_EXPLORE if component in self.explore_components else TAG_EXPLOIT
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"active": self.active,
                 "explore_components": list(self.explore_components),
                 "explore_budget": self.explore_budget,
@@ -57,8 +57,8 @@ class ExplorationPlan:
 
 
 def plan(score_history: Sequence[float], window: int, delta: float, *,
-         accepted_rules: Optional[Dict[str, Any]] = None,
-         liquidity: Optional[List[Dict[str, Any]]] = None,
+         accepted_rules: dict[str, Any] | None = None,
+         liquidity: list[dict[str, Any]] | None = None,
          reserve_fraction: float = 0.5) -> ExplorationPlan:
     """★ 编排: σ_t/𝒰_t/m_draft → 本轮探索预算（不重算 — 全问 evolver）。
 
@@ -95,13 +95,13 @@ def plan(score_history: Sequence[float], window: int, delta: float, *,
 
 
 def tag_candidates(cands: Sequence[Any], plan_: ExplorationPlan
-                   ) -> List[Tuple[str, str]]:
+                   ) -> list[tuple[str, str]]:
     """★ 批量打标（(component, tag) — 顺序保序, 可复核）。"""
     return [(getattr(c, "component", ""), plan_.tag(
         getattr(c, "component", ""))) for c in cands]
 
 
-EXPLORATION_MECHANICS: Dict[str, str] = {
+EXPLORATION_MECHANICS: dict[str, str] = {
     "trigger": "σ_t == 1 ∧ 𝒰_t ≠ ∅ ∧ draft 在位（伪码 line 9 — 三元素全齐才激活）",
     "reserve": "停滞时保留 b_t 的 reserve_fraction 给未探索组件（管理参数 — 论文不给值, 0<f<1 显式拒绝全探索=放弃利用）",
     "sigma_source": "evolver.stall_signal（Ŝ_t − Ŝ_{t−w} ≤ δ; 历史不足 ⇒ sigma 无效且不当激活 — G7 同族）",

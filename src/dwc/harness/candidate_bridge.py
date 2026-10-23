@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """candidate_bridge · Candidate → 门组输入适配（V2 §5.4 候选环的入口面）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -20,8 +19,8 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 from .gates import TermFacts, run_gates
 
@@ -48,17 +47,17 @@ def _hunk_of(cand: Any) -> str:
     return patch[:80] + "…"
 
 
-def to_facts(cands: Sequence[Any], *, vocabulary: Tuple[str, ...] = (),
-             pass_rate: Optional[float] = None,
-             noise_band: Optional[float] = None,
-             delta_s: Optional[float] = None,
-             delta_c: Optional[float] = None,
-             score_star: Optional[float] = None,
-             nu_str: Optional[float] = None,
-             domain_guard_ok: Optional[bool] = None,
-             split_verdict: Optional[Dict[str, Any]] = None,
-             baseline: Optional[Dict[str, float]] = None,
-             current: Optional[Dict[str, float]] = None) -> TermFacts:
+def to_facts(cands: Sequence[Any], *, vocabulary: tuple[str, ...] = (),
+             pass_rate: float | None = None,
+             noise_band: float | None = None,
+             delta_s: float | None = None,
+             delta_c: float | None = None,
+             score_star: float | None = None,
+             nu_str: float | None = None,
+             domain_guard_ok: bool | None = None,
+             split_verdict: dict[str, Any] | None = None,
+             baseline: dict[str, float] | None = None,
+             current: dict[str, float] | None = None) -> TermFacts:
     """★ Candidate[] → TermFacts（门组输入 — 投影, 不重算）。"""
     from dwc.organs.budget import EditItem
 
@@ -66,8 +65,8 @@ def to_facts(cands: Sequence[Any], *, vocabulary: Tuple[str, ...] = (),
         raise BridgeError("cands 须序列")
     if not cands:
         raise BridgeError("空候选列表 ⇒ 无可投影对象（没候选≠干净, 同上）")
-    edits: List[EditItem] = []
-    diffs: List[str] = []
+    edits: list[EditItem] = []
+    diffs: list[str] = []
     for c in cands:
         comp = getattr(c, "component", None)
         if not comp:
@@ -88,8 +87,8 @@ def to_facts(cands: Sequence[Any], *, vocabulary: Tuple[str, ...] = (),
 
 
 def run_candidate_gates(cands: Sequence[Any], *,
-                        vocabulary: Tuple[str, ...] = (),
-                        **kw: Any) -> Dict[str, Any]:
+                        vocabulary: tuple[str, ...] = (),
+                        **kw: Any) -> dict[str, Any]:
     """★ 一步: Candidate[] → 门组链（①③⑤⑥ 可判; ④ 候给 split_verdict 才判）。"""
     facts = to_facts(cands, vocabulary=vocabulary, **kw)
     out = run_gates(facts)
@@ -103,7 +102,7 @@ def run_candidate_gates(cands: Sequence[Any], *,
     return out
 
 
-BRIDGE_MECHANICS: Dict[str, str] = {
+BRIDGE_MECHANICS: dict[str, str] = {
     "source": "Candidate[patch+component+grounding]（candidates.py — 早已 live）",
     "edits_derivation": "EditItem(component, hunk) — hunk 优先 grounding diff id; 缺 ⇒ patch 前 80 字符哨兵（显式降级）",
     "diff_text": "各 patch 逐字拼接（不改写原始文本 — G2 投影）",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """direction · 进化三方向 FORWARD/LATERAL/REVERSE（器官⑥ 探索 · Prometheus-Y）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -31,9 +30,9 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Sequence, Tuple
 
 
 class EvolutionDirection(str, Enum):
@@ -50,7 +49,7 @@ class EvolutionDirection(str, Enum):
 
 
 #: 语义表 —— 与枚举**同处存放**（两处漂移就违反"名字与实现对齐"）
-SEMANTICS: Dict[EvolutionDirection, str] = {
+SEMANTICS: dict[EvolutionDirection, str] = {
     EvolutionDirection.FORWARD: "前进 (在现有基础上改进)",
     EvolutionDirection.LATERAL: "横向 (换一个方向试)",
     EvolutionDirection.REVERSE: "后退 (回退到更简单的方案)",
@@ -90,7 +89,7 @@ SEMANTICS: Dict[EvolutionDirection, str] = {
 # ════════════════════════════════════════════════════════════════════
 #: ★★★ R191 · REVERSE 辨析的**机器可读**形态（语义声明, 不是第二份语义 —
 #:   与 SEMANTICS 同存同源: 只回答"REVERSE 允许动什么/禁止动什么"）。
-REVERSE_SCOPE: Dict[str, object] = {
+REVERSE_SCOPE: dict[str, object] = {
     #: 允许动的一侧（提案侧 — 能力的退一步, 2603.25111 的 f_d 形状）
     "allowed": ("target", "patch", "proposal"),
     #: 禁止动的一侧（判据侧 — G2/门⑥账本/split 三条纪律）
@@ -170,8 +169,8 @@ class DirectionAttempt:
       n_candidates — 该方向真生成的候选数（0 = unfixable_now）
     """
     direction: EvolutionDirection
-    score_gain: Optional[float] = None
-    verdict: Optional[str] = None
+    score_gain: float | None = None
+    verdict: str | None = None
     #: -1 = 未填（**不是** 0）—— 0 是"真跑了但一个候选都没出",
     #: 语义不同必须分开（实测: 首版默认 0 让"未填"被误判形态③,
     #: 首试直接判停滞 ⇒ fallback 链错乱 — R188 smoke 抓到）
@@ -208,11 +207,11 @@ class DirectionDecision:
     """next_action 的输出（空间面的最小单位 — A×B 收敛的汇合点）。"""
     direction: EvolutionDirection
     reason: str
-    order: Tuple[EvolutionDirection, ...] = ()
+    order: tuple[EvolutionDirection, ...] = ()
     n_tried: int = 0
 
 
-def fallback_order(round_no: int, task_id: str = "") ->         Tuple[EvolutionDirection, ...]:
+def fallback_order(round_no: int, task_id: str = "") ->         tuple[EvolutionDirection, ...]:
     """R2 · 三方向的尝试**全序**（04128 "randomly order" 的 DWC 实例化）。
 
     ★ 不用真随机: 以 sha256(f"{round_no}|{task_id}") 派生确定性全序 ——
@@ -306,8 +305,8 @@ def next_action(state: Sequence[DirectionAttempt],
         " tried=%r" % ([a.direction.value for a in state],))
 
 
-def reverse_candidates(rules_index: Optional[Dict[str, Dict]] = None,
-                       component: str = "") -> List[str]:
+def reverse_candidates(rules_index: dict[str, dict] | None = None,
+                       component: str = "") -> list[str]:
     """R3 的 REVERSE 半边 · **表驱动**候选键（不是候选本身 — 候选由
     evolver 产, 本函数只回答"回退方向可试哪些 target"）。
 

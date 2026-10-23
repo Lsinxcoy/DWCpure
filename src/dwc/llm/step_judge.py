@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """step_judge · 决策效果判别（规则版）+ State Revision 轻量校验 — 2609.28416（R255）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -34,7 +33,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
 VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "web_search", "final")
@@ -63,7 +62,7 @@ class JudgeError(ValueError):
     """判别/校验违规必须大声报错（G7 静默门同族）。"""
 
 
-def _tgt(step: Dict[str, Any]) -> str:
+def _tgt(step: dict[str, Any]) -> str:
     return str(step.get("path") or step.get("cmd") or step.get("task")
                or step.get("reason") or "")
 
@@ -89,7 +88,7 @@ def is_qa_task(task: str) -> bool:
     return any(q in t for q in _QA_Q) and not any(x in t for x in _QA_X)
 
 
-def _args_of(e: Any) -> Dict[str, Any]:
+def _args_of(e: Any) -> dict[str, Any]:
     """★★★ R400 · 容错读取留痕参数。
 
     现场：留痕里的 `args` 曾被 `json.dumps(...)[:160]` 从中间切断，
@@ -111,7 +110,7 @@ def _args_of(e: Any) -> Dict[str, Any]:
     return {}
 
 
-def _sig_args(step: Dict[str, Any]) -> str:
+def _sig_args(step: dict[str, Any]) -> str:
     """★ R301-A · 去重签名（含 args 指纹）：同 target 不同参数≠重复。
 
     ★ 翻页（同 path 不同 offset/limit）必须放行——R247 修了翻页，
@@ -143,7 +142,7 @@ def _sig_args(step: Dict[str, Any]) -> str:
     return "%s|%s|%s" % (op, tgt[:160], extra)
 
 
-def _is_readonly_run(step: Dict[str, Any]) -> bool:
+def _is_readonly_run(step: dict[str, Any]) -> bool:
     """★★★ R386 · 该 run 是否**只读**（不改仓库/系统状态）。
 
     现场（2026-10-20 某 code-locate 题）：qa_mode 的 R301-D 硬约束只许
@@ -167,8 +166,7 @@ def _is_readonly_run(step: Dict[str, Any]) -> bool:
     if not isinstance(cmd, list) or not cmd:
         return False
     head = str(cmd[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
-    if head.endswith(".exe"):
-        head = head[:-4]
+    head = head.removesuffix(".exe")
     if head not in READONLY_CMDS:
         return False
     joined = " ".join(str(x) for x in cmd).lower()
@@ -179,9 +177,9 @@ def _is_readonly_run(step: Dict[str, Any]) -> bool:
     return True
 
 
-def judge_step(step: Dict[str, Any],
-               recent_obs: List[Dict[str, Any]],
-               qa_mode: bool = False) -> Tuple[str, str, str]:
+def judge_step(step: dict[str, Any],
+               recent_obs: list[dict[str, Any]],
+               qa_mode: bool = False) -> tuple[str, str, str]:
     """★ 事前判别（§2.2 — 动作执行前; 只用历史与提案, 不看本轮结果）。
 
     recent_obs: 历史轮的 phase:obs 行（含 op/target/ok/obs）——
@@ -253,9 +251,9 @@ def judge_step(step: Dict[str, Any],
     return "exploratory", "常规探索步", "-"
 
 
-def validate_step(step: Any, *, root: Optional[str] = None,
+def validate_step(step: Any, *, root: str | None = None,
                   allow_final: bool = True,
-                  qa_mode: bool = False) -> Optional[str]:
+                  qa_mode: bool = False) -> str | None:
     """★ 修订动作校验（revision.py validate_code 纪律 — 过不了就 fallback）。
 
     返回 None=合法, 否则错误串。
@@ -309,7 +307,7 @@ def _repo_basenames(base: str) -> set:
     names: set = set()
     skip = {".git", "__pycache__", ".cache", "venv", "node_modules",
             ".pytest_cache", "var", "build", "dist"}
-    for dp, dn, fn in os.walk(key):
+    for _dp, dn, fn in os.walk(key):
         dn[:] = [d for d in dn if d not in skip and not d.startswith(".")]
         for f in fn:
             names.add(f.lower())
@@ -318,8 +316,8 @@ def _repo_basenames(base: str) -> set:
 
 
 def verify_final_refs(answer: str,
-                      root: Optional[str] = None,
-                      obs_urls: tuple = ()) -> Optional[str]:
+                      root: str | None = None,
+                      obs_urls: tuple = ()) -> str | None:
     """★ R302 · qa final 引用校验（ALCE 本地版：路径+行号+引文三验）。
 
     只验有引用的句子（纯观点放行，不强制引用）；URL 跳过；
@@ -337,7 +335,7 @@ def verify_final_refs(answer: str,
         r"|(?<![\w/])[\w\-.]*[A-Za-z][\w\-.]*"
         r"\.(?:py|md|json|yaml|yml|txt|jsonl)(?![\w])",
         answer)
-    lived: List[str] = []
+    lived: list[str] = []
     for t in pats:
         t = t.strip()
         # ★ \w 含汉字（"见 <路径>"整体命中）⇒ 从首个 ASCII 路径字符切起
@@ -392,7 +390,7 @@ def verify_final_refs(answer: str,
     return None
 
 
-def step_signature(step: Dict[str, Any]) -> str:
+def step_signature(step: dict[str, Any]) -> str:
     """修订签名（revision.py signature 纪律 — 连续同签名 ⇒ fallback）。"""
     core = json.dumps({k: v for k, v in step.items() if k != "analysis"},
                       sort_keys=True, ensure_ascii=False)

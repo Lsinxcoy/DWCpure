@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC · LLM 接入层（R34 新增）。
 
 定位声明 · **DWC-AUTO**（自我强化）—— 详见 client.py 顶部。

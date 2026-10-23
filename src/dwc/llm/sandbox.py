@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R295-Task1 · 沙箱：LLM 代码→真跑出 observed（code_repair 写码真执行）。
 
 ★★★ 定位（DWC-AUTO）：自我强化执行通道 —— code_repair 试跑的真执行器。
@@ -12,7 +11,7 @@ from __future__ import annotations
 
 import ast
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class SandboxError(Exception):
@@ -26,7 +25,7 @@ _MAX_ITER = 1_000_000
 _MAX_LITERAL = 1_000_000
 
 
-def _eval_literal(node: Optional[ast.AST], limit: int):
+def _eval_literal(node: ast.AST | None, limit: int):
     """安全评估字面量表达式 ⇒ (value, is_big)。
 
     - 节点是可评估的字面量结构（数值常量 ± 算术，无 Name/调用）⇒ 返回
@@ -87,16 +86,16 @@ _BANNED_CALLS = frozenset({"open", "exec", "eval", "compile", "input",
 class _Guard(ast.NodeVisitor):
     """★ AST 门卫：恶意节点⇒SandboxError。"""
 
-    def visit_Import(self, node):  # noqa: N802
+    def visit_Import(self, node):
         raise SandboxError("禁 import（沙箱禁网禁文件）")
 
-    def visit_ImportFrom(self, node):  # noqa: N802
+    def visit_ImportFrom(self, node):
         raise SandboxError("禁 from-import（沙箱禁网禁文件）")
 
-    def visit_While(self, node):  # noqa: N802
+    def visit_While(self, node):
         raise SandboxError("禁 while（无限循环 AST 层拒）")
 
-    def visit_For(self, node):  # noqa: N802
+    def visit_For(self, node):
         """★ R审计-P1 · for 循环资源守卫：iter 必须是受限 range。"""
         it = node.iter
         if not (isinstance(it, ast.Call)
@@ -110,14 +109,14 @@ class _Guard(ast.NodeVisitor):
             raise SandboxError("range 上限超过 %d（for 资源守卫）" % _MAX_ITER)
         self.generic_visit(node)
 
-    def visit_Assign(self, node):  # noqa: N802
+    def visit_Assign(self, node):
         """★ R审计-P1 · 赋值超限常量 ⇒ 拒（堵 `x=10**9; [0]*x` 数据流洞）。"""
         _, big = _eval_literal(node.value, _MAX_LITERAL)
         if big:
             raise SandboxError("赋值超大字面量（资源守卫）")
         self.generic_visit(node)
 
-    def visit_BinOp(self, node):  # noqa: N802
+    def visit_BinOp(self, node):
         """★ R审计-P1 · 乘法/幂尺度守卫：大常量参与 ⇒ 拒（防 [0]*10**9）。
 
         规则：任一侧**字面量求值超限** ⇒ 拒；含变量（如 x*x）⇒ 放行
@@ -130,12 +129,12 @@ class _Guard(ast.NodeVisitor):
                 raise SandboxError("乘法/幂含超大字面量（资源守卫）")
         self.generic_visit(node)
 
-    def visit_Attribute(self, node):  # noqa: N802
+    def visit_Attribute(self, node):
         if node.attr.startswith("__"):
             raise SandboxError("禁双下划线属性（逃逸口不开）")
         self.generic_visit(node)
 
-    def visit_Call(self, node):  # noqa: N802
+    def visit_Call(self, node):
         f = node.func
         name = f.id if isinstance(f, ast.Name) else getattr(f, "attr", "")
         if name in _BANNED_CALLS:
@@ -167,8 +166,8 @@ _SAFE_BUILTINS = {
 }
 
 
-def _run(code: str, skel: Dict[str, List[List[Any]]],
-          out: Dict[str, Any]) -> None:
+def _run(code: str, skel: dict[str, list[list[Any]]],
+          out: dict[str, Any]) -> None:
     """★ 线程内真跑（超时靠外层 join）。"""
     try:
         tree = ast.parse(code)
@@ -180,13 +179,13 @@ def _run(code: str, skel: Dict[str, List[List[Any]]],
     except SandboxError as e:
         out["sandbox_error"] = str(e)
         return
-    env: Dict[str, Any] = {"__builtins__": dict(_SAFE_BUILTINS)}
+    env: dict[str, Any] = {"__builtins__": dict(_SAFE_BUILTINS)}
     try:
         exec(compile(tree, "<llm_code>", "exec"), env)  # noqa: S102
     except Exception as e:                              # noqa: BLE001
         out["error"] = "执行错：%r" % (e,)
         return
-    obs: Dict[str, List[List[Any]]] = {}
+    obs: dict[str, list[list[Any]]] = {}
     for fn, pairs in skel.items():
         if fn not in env or not callable(env[fn]):
             return  # ★ 缺函数⇒整体 None（调用方判未评价）
@@ -198,13 +197,13 @@ def _run(code: str, skel: Dict[str, List[List[Any]]],
     out["observed"] = obs
 
 
-def run_code_observed(code: str, skel: Dict[str, List[List[Any]]],
-                      timeout: float = 5.0) -> Optional[Dict[str, Any]]:
+def run_code_observed(code: str, skel: dict[str, list[list[Any]]],
+                      timeout: float = 5.0) -> dict[str, Any] | None:
     """LLM 代码→沙箱真跑→observed（与 judge.evaluate 同形态）。
 
     恶意⇒抛 SandboxError；缺函数/跑挂/超时⇒None（trial 侧判未评价）。
     """
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     t = threading.Thread(target=_run, args=(code, skel, out), daemon=True)
     t.start()
     t.join(timeout)

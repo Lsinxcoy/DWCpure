@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 编排层（harness）· 定位声明（DWC-MEM · 记忆底座）
 
 ★ 三入口（ERROR_AND_TERM §六 的 T1 判据要求 run_term 完整）

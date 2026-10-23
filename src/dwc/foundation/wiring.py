@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """接线层 —— 把因果链 Γ 的事件喂给六层活性模型。
 
 ★★★ 这个模块为什么存在（R16 的诚实边界①）
@@ -41,12 +40,15 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.foundation.activity import (
-    ActivityState, EventKind, Layer, LayerError, MechanismRegistry,
+    ActivityState,
+    EventKind,
+    Layer,
+    MechanismRegistry,
 )
-from dwc.foundation.causal_chain import ChainError, CausalChainStore
+from dwc.foundation.causal_chain import CausalChainStore
 
 # ══════════════════════════════════════════════════════════
 # 五环 → 六层的映射（★ 表驱动，不是 if 链）
@@ -63,7 +65,7 @@ from dwc.foundation.causal_chain import ChainError, CausalChainStore
 #:     而 experience 环是"我学到了什么"，不是"下游看到了什么"。
 #:     ⇒ 正确做法: PRODUCED_EFFECT 只能由**显式的 effect 事件**点亮，
 #:       不由五环自动点亮（见 record(..., effect_observed=True)）
-STAGE_TO_LAYERS: Dict[str, tuple] = {
+STAGE_TO_LAYERS: dict[str, tuple] = {
     "decision":   (Layer.PRESENT,),
     "turn":       (Layer.REGISTERED,),
     "trace":      (Layer.CALLED,),          # succeeded 另由回执决定
@@ -93,11 +95,11 @@ class ActivityWiring:
       那样活性就会与链脱节，变成第二个真值源。
     """
 
-    def __init__(self, store: Optional[CausalChainStore] = None):
+    def __init__(self, store: CausalChainStore | None = None):
         self.store = store or CausalChainStore()
         self.registry = MechanismRegistry()
         # ★ 机制名 → chain_id 的映射（一个机制可能跨多条链）
-        self._mechanism_chains: Dict[str, List[str]] = {}
+        self._mechanism_chains: dict[str, list[str]] = {}
         self._known: set = set()
 
     # ══════════════════════════════════════════════
@@ -121,12 +123,12 @@ class ActivityWiring:
     # 记录一环（同时更新链与活性）
     # ══════════════════════════════════════════════
     def record(self, mechanism: str, chain_id: str, stage: str,
-               ref_id: Optional[str] = None,
-               payload: Optional[Dict[str, Any]] = None,
-               upstream_id: Optional[str] = None,
-               recorded_at: Optional[str] = None,
+               ref_id: str | None = None,
+               payload: dict[str, Any] | None = None,
+               upstream_id: str | None = None,
+               recorded_at: str | None = None,
                not_called: bool = False,
-               effect_observed: bool = False) -> Dict[str, Any]:
+               effect_observed: bool = False) -> dict[str, Any]:
         """记录一环：写链 + 点亮活性层。
 
         ★★ not_called=True 表示"本应调用但未调用"（负事件）:
@@ -190,17 +192,17 @@ class ActivityWiring:
     def state(self, mechanism: str) -> ActivityState:
         return self.registry.get(mechanism)
 
-    def chains_of(self, mechanism: str) -> List[str]:
+    def chains_of(self, mechanism: str) -> list[str]:
         """某机制出现在哪些链里。★ 用于"这机制到底有没有被用"的追查。"""
         return list(self._mechanism_chains.get(mechanism, []))
 
-    def dead(self) -> List[str]:
+    def dead(self) -> list[str]:
         return self.registry.dead()
 
-    def stale(self) -> List[str]:
+    def stale(self) -> list[str]:
         return self.registry.stale()
 
-    def snapshot(self) -> List[Dict[str, Any]]:
+    def snapshot(self) -> list[dict[str, Any]]:
         """全量活性快照 + 链对照。★ 供 TermReport（M6 要求可事后审计）。"""
         out = []
         for st in self.registry.all_states():
@@ -209,11 +211,11 @@ class ActivityWiring:
             out.append(row)
         return out
 
-    def verify(self, chain_id: str) -> Dict[str, Any]:
+    def verify(self, chain_id: str) -> dict[str, Any]:
         """核对链连续性（转发到存储层）。"""
         return self.store.verify_continuity(chain_id)
 
-    def export(self, chain_id: Optional[str] = None):
+    def export(self, chain_id: str | None = None):
         return self.store.export(chain_id)
 
 
@@ -233,7 +235,7 @@ _LAYER_TO_EVENT = {
 }
 
 
-def _has_matching_receipt(payload: Dict[str, Any]) -> bool:
+def _has_matching_receipt(payload: dict[str, Any]) -> bool:
     """trace 的 payload 里是否有**匹配的外部回执**。
 
     ★★★ 这就是六层里 "succeeded ← 外部回执匹配" 的判据形式:

@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """能力注册表：读 config/capabilities.yaml，开关查询。纯规则零 LLM。
 
 定位: DWC-AUTO（自我强化 · 能力治理：有名＋开关＋可审计）。
 语义：未知名/坏文件⇒默认启用（fail-open，老路零变）；永不抛错。
 """
-from typing import Any, Dict
+from typing import Any
 
-_TABLE: Dict[str, Any] = {}
+_TABLE: dict[str, Any] = {}
 _LOADED = [""]
 
 
@@ -30,7 +29,7 @@ def _default_path() -> str:
     return ""
 
 
-def load_table(path: str = "") -> Dict[str, Any]:
+def load_table(path: str = "") -> dict[str, Any]:
     """读 yaml 返 caps 表；失败返 {}。永不抛错。"""
     try:
         import os as _os
@@ -100,6 +99,7 @@ def cap_limit(name: str, key: str, default, path: str = ""):
     if name == "delegate":
         try:
             import os as _os
+
             from dwc.organs import evo_targets as _ET
             if _os.path.isfile(_ET.path_of("subagent")):
                 _ov = _ET.read("subagent")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R228 · 路径真源（发布级: 新机器可装 — 不再写死 E:/ 与用户名）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— 路径发现的单一实现。
@@ -15,7 +14,6 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 #: 仓库根的判定标志（必须同时存在 — 单标志会被子目录误认）
 _FLAGS = ("config", "src")
@@ -25,7 +23,7 @@ class DwcRootError(Exception):
     pass
 
 
-def find_root(start: Optional[str] = None) -> str:
+def find_root(start: str | None = None) -> str:
     """★ 仓库根发现（唯一实现 — src 与 scripts 都用它）。"""
     env = os.environ.get("DWC_ROOT", "").strip()
     if env:
@@ -45,7 +43,7 @@ def find_root(start: Optional[str] = None) -> str:
         cur = parent
 
 
-def hermes_config_path() -> Optional[str]:
+def hermes_config_path() -> str | None:
     """Hermes 配置（飞书通知用 — LOCALAPPDATA 从 env, 不写死用户名）。"""
     base = os.environ.get("LOCALAPPDATA", "")
     if not base:

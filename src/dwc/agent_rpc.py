@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R210 · DWC agent 指令核心 + HTTP RPC（独立 agent 的独立交互面）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— agent 的对外指令协议面。
@@ -23,9 +22,10 @@ import json
 import os
 import secrets
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 #: ★ 测试/多实例隔离: DWC_VAR_DIR 环境变量覆盖 var 根（subprocess 测试与
 #:   生产 agent 的台账/db/pid 全隔离 — 间歇竞态根治, 2026-10-12 全量复现）
@@ -51,11 +51,11 @@ def _read_json(p: str, default):
         return default
 
 
-def _done_state() -> Dict[str, str]:
+def _done_state() -> dict[str, str]:
     return _read_json(INBOX_DONE, {})
 
 
-def _log_tail(n: int) -> List[Dict[str, Any]]:
+def _log_tail(n: int) -> list[dict[str, Any]]:
     if not os.path.exists(LOG):
         return []
     lines = [x for x in open(LOG, encoding="utf-8").read().splitlines()
@@ -70,7 +70,7 @@ def _log_tail(n: int) -> List[Dict[str, Any]]:
 
 
 # ── 指令实现（单实现 — CLI 与 RPC 共用）────────────────────
-def cmd_status() -> Dict[str, Any]:
+def cmd_status() -> dict[str, Any]:
     st = _done_state()
     inbox_ids = []
     if os.path.exists(INBOX):
@@ -93,8 +93,8 @@ def cmd_status() -> Dict[str, Any]:
             "db_bytes": os.path.getsize(DB) if os.path.exists(DB) else 0}
 
 
-def cmd_submit(task: str, ctx: Optional[str] = None,
-               id: Optional[str] = None) -> Dict[str, Any]:
+def cmd_submit(task: str, ctx: str | None = None,
+               id: str | None = None) -> dict[str, Any]:
     if not task or not str(task).strip():
         return {"ok": False, "error": "task 不能为空"}
     tid = id or ("T_" + time.strftime("%m%d_%H%M%S"))
@@ -111,7 +111,7 @@ def cmd_submit(task: str, ctx: Optional[str] = None,
             "note": "agent 下轮优先消费; 报告在 var/dwc_reports/%s.json" % tid}
 
 
-def cmd_query(id: str) -> Dict[str, Any]:
+def cmd_query(id: str) -> dict[str, Any]:
     st = _done_state()
     rep = _read_json(os.path.join(REPORTS, id + ".json"), None)
     if rep is not None:
@@ -136,7 +136,7 @@ def _id_in_inbox(id: str) -> bool:
     return False
 
 
-def cmd_list(kind: str = "all") -> Dict[str, Any]:
+def cmd_list(kind: str = "all") -> dict[str, Any]:
     st = _done_state()
     items = []
     if os.path.exists(INBOX):
@@ -164,7 +164,7 @@ def cmd_list(kind: str = "all") -> Dict[str, Any]:
     return {"n": len(uniq), "items": uniq[:50]}
 
 
-def cmd_cancel(id: str) -> Dict[str, Any]:
+def cmd_cancel(id: str) -> dict[str, Any]:
     st = _done_state()
     if st.get(id):
         return {"ok": False, "error": "已在终态 %s, 不可撤" % st[id]}
@@ -176,7 +176,7 @@ def cmd_cancel(id: str) -> Dict[str, Any]:
     return {"ok": True, "id": id, "state": "cancelled"}
 
 
-def cmd_freeze() -> Dict[str, Any]:
+def cmd_freeze() -> dict[str, Any]:
     os.makedirs(VAR, exist_ok=True)
     with open(FROZEN, "w", encoding="utf-8") as fh:
         fh.write(time.strftime("%c"))
@@ -184,7 +184,7 @@ def cmd_freeze() -> Dict[str, Any]:
             "note": "agent 下轮优雅停, 守夜人不拉活"}
 
 
-def cmd_unfreeze() -> Dict[str, Any]:
+def cmd_unfreeze() -> dict[str, Any]:
     if os.path.exists(FROZEN):
         os.remove(FROZEN)
     return {"ok": True, "frozen": False,
@@ -196,7 +196,9 @@ def send_feishu(text: str) -> bool:
     单实现防漂移; 失败返 False 不抛 — 调用方留痕）。值读 config 不回显。"""
     try:
         import urllib.request
+
         import yaml
+
         from dwc.foundation.paths import hermes_config_path
         cfg_path = hermes_config_path() or os.path.join(
             os.environ.get("LOCALAPPDATA", "~"), "hermes", "config.yaml")
@@ -232,7 +234,7 @@ def send_feishu(text: str) -> bool:
 ASK_ANSWERS = os.path.join(VAR, "dwc_ask_answers.jsonl")
 
 
-def cmd_ask_answer(word: str, approve: bool) -> Dict[str, Any]:
+def cmd_ask_answer(word: str, approve: bool) -> dict[str, Any]:
     """★ R225 · 审批答复入口（用户经飞书→Hermes→RPC 落这里; 执行侧轮询）。"""
     if not word:
         return {"ok": False, "error": "word 不能为空（ask 类操作词）"}
@@ -246,11 +248,11 @@ def cmd_ask_answer(word: str, approve: bool) -> Dict[str, Any]:
             "note": "执行侧下轮询到即生效（≤15min 等待窗）"}
 
 
-def cmd_history(n: int = 20) -> Dict[str, Any]:
+def cmd_history(n: int = 20) -> dict[str, Any]:
     return {"n": n, "tail": _log_tail(int(n))}
 
 
-def cmd_doctor() -> Dict[str, Any]:
+def cmd_doctor() -> dict[str, Any]:
     checks = {}
     # ── R230 · 环境段（发布级: 新机器先看这里 — python/venv/依赖/校验器）──
     import sys
@@ -260,7 +262,8 @@ def cmd_doctor() -> Dict[str, Any]:
     checks["venv"] = ("ok" if getattr(sys, "prefix", "") != getattr(
         sys, "base_prefix", "") else "SYSTEM_PYTHON（建议 venv — install.ps1 会建）")
     try:
-        import yaml, psutil                      # noqa: F401 — 依赖存在性
+        import psutil
+        import yaml  # noqa: F401 — 依赖存在性
         checks["deps"] = "ok (yaml+psutil)"
     except ImportError as exc:
         checks["deps"] = "MISSING: %s（pip install -r requirements.txt）" % exc
@@ -346,7 +349,7 @@ def serve(port: int = RPC_PORT):
         def log_message(self, *a):             # 静默访问日志（G7 族）
             pass
 
-        def do_POST(self):                      # noqa: N802
+        def do_POST(self):
             if self.path != "/rpc":
                 self._reply(404, {"ok": False, "error": "not /rpc"})
                 return

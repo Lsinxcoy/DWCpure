@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """splitfeed · held_out 数据面 — 从 judge 真判产出 split 两份判分口径。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -26,8 +25,9 @@
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: 我们的 split 组合（裁决 A — 见 docstring; 值枚举, 不增第三组除非设计改）
 HELD_IN_SPLIT = "dev"
@@ -46,12 +46,12 @@ class SplitFeedError(Exception):
 class SplitScores:
     """两份判分口径（evolver.accept 的直接输入 — 字段名与它对齐）。"""
 
-    in_score: Optional[float]
-    held_out_score: Optional[float]
-    in_detail: Dict[str, Any] = field(default_factory=dict)
-    held_out_detail: Dict[str, Any] = field(default_factory=dict)
+    in_score: float | None
+    held_out_score: float | None
+    in_detail: dict[str, Any] = field(default_factory=dict)
+    held_out_detail: dict[str, Any] = field(default_factory=dict)
 
-    def as_accept_pair(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def as_accept_pair(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """★ 转 accept(baseline, current) 的一份（in_score/held_out_score）。"""
         return ({"in_score": self.in_score,
                  "held_out_score": self.held_out_score},
@@ -59,7 +59,7 @@ class SplitScores:
                  "held_out_score": self.held_out_score})
 
 
-def _tasks_of(judge: Any, split: str) -> List[str]:
+def _tasks_of(judge: Any, split: str) -> list[str]:
     """★ split 的任务清单（R160 核实: judge.anchors / judge.sealed 是真实属性）:
       · dev  ⇒ judge.anchors（Judge.__init__ L585 加载）
       · test ⇒ judge.sealed（L606: 文件存在即加载, 缺 ⇒ None ⇒ 空表）
@@ -72,7 +72,7 @@ def _tasks_of(judge: Any, split: str) -> List[str]:
 
 
 def _aggregate(judge: Any, split: str, tasks: Sequence[str],
-               run_impl: Callable[[str], Any]) -> Dict[str, Any]:
+               run_impl: Callable[[str], Any]) -> dict[str, Any]:
     """★ 单 split 聚合（逐 task: 跑实现 → judge.evaluate → 收 Verdict）。"""
     from dwc.organs.judge import overall_score
 
@@ -103,7 +103,7 @@ def _aggregate(judge: Any, split: str, tasks: Sequence[str],
 def feed(judge: Any, run_impl: Callable[[str], Any], *,
          held_in_split: str = HELD_IN_SPLIT,
          held_out_split: str = HELD_OUT_SPLIT,
-         tasks: Optional[Sequence[str]] = None) -> SplitScores:
+         tasks: Sequence[str] | None = None) -> SplitScores:
     """★ 一份候选实现 ⇒ held-in/held-out 两份判分（accept 的弹药）。
 
     ★ run_impl(task_id) → observation：由调用方给（它持"改哪个实现"的
@@ -124,7 +124,7 @@ def feed(judge: Any, run_impl: Callable[[str], Any], *,
         raise SplitFeedError("held_in split=%r 无锚点任务 ⇒ 无 in 口径"
                              % (held_in_split,))
     in_d = _aggregate(judge, held_in_split, in_tasks, run_impl)
-    ho_d: Dict[str, Any]
+    ho_d: dict[str, Any]
     if not ho_tasks:
         ho_d = {"score": None, "note": "held_out split=%r 无锚点 ⇒ ho 缺席"
                                       "（不拼 dev 副本 — 那让回归检测虚设）"
@@ -138,8 +138,8 @@ def feed(judge: Any, run_impl: Callable[[str], Any], *,
 
 def feed_pair(judge: Any, base_impl: Callable[[str], Any],
               cand_impl: Callable[[str], Any], *,
-              tasks: Optional[Sequence[str]] = None, **kw: Any
-              ) -> Tuple[Dict[str, float], Dict[str, float]]:
+              tasks: Sequence[str] | None = None, **kw: Any
+              ) -> tuple[dict[str, float], dict[str, float]]:
     """★★ baseline/current 两份 ⇒ accept(baseline, current) 的**一对**。
 
     ★ 这才是 R159 split 门缺的最后一环: accept 要两份判定口径, 本函数
@@ -158,7 +158,7 @@ def feed_pair(judge: Any, base_impl: Callable[[str], Any],
     return (base, cur)
 
 
-SPLITFEED_MECHANICS: Dict[str, str] = {
+SPLITFEED_MECHANICS: dict[str, str] = {
     "split_combo": "held_in=dev(10 条) · held_out=test_sealed(9 条) — 两真实 split 互不相交",
     "why_not_split_dev": "设计稿未规定 dev 内切法; 取全集组合（A 案）: ①论文只要两组不重叠 ②dev 再切样本太小 k/n 无统计意义 ③实现最小",
     "test_lock": "test_sealed 只准候选评估读（no part of metric evolution reads it）— proposer/规则学习不许读",

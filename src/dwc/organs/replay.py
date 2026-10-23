@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """replay · 回放仿真器（器官⑥ search/ 第四件 · 2609.14858 §2.2–2.7「Dreaming」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -35,9 +34,8 @@
 """
 from __future__ import annotations
 
-import math
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Set, Tuple, Optional
 
 
 class ReplayError(Exception):
@@ -62,7 +60,7 @@ class ReplaySimulator:
         self.tree = tree
 
     # ── §2.3 决策接口 ─────────────────────────────────────
-    def eligible(self, observed: Iterable[str]) -> Set[str]:
+    def eligible(self, observed: Iterable[str]) -> set[str]:
         """A(𝒯) = {r} ∪ {观测树的叶子}（§2.3 逐字）。
 
         ★ "leaves determined from the **currently observed** tree" ——
@@ -100,7 +98,7 @@ class ReplaySimulator:
 
     # ── §2.5 replay 转移（确定性, 只揭示不生成）────────────
     def step(self, observed: Iterable[str],
-             batch: Iterable[str], W: int = 10 ** 9) -> Set[str]:
+             batch: Iterable[str], W: int = 10 ** 9) -> set[str]:
         """T^{m,k+1} = T^{m,k} ∪ ⋃ Child(v; 𝒯, T^{m,k})（§2.5 逐字）。
 
         ★ Child(v) = v 在 𝒯 中**记录且未被观测**的子节点 —— 只揭示,
@@ -130,7 +128,7 @@ class ReplaySimulator:
             new |= set(cand)
         return new
 
-    def _check_observed(self, obs: Set[str]) -> None:
+    def _check_observed(self, obs: set[str]) -> None:
         unknown = [v for v in obs if v not in self.tree.nodes]
         if unknown:
             raise ReplayError(
@@ -162,8 +160,8 @@ def replay_score(*, max_score: float, n_revealed: int, n_rounds: int,
             + beta2 * (n_revealed / float(max(1, n_rounds))))
 
 
-def select_policy(v_by_version: Dict[str, float], *, current: str
-                  ) -> Tuple[str, float]:
+def select_policy(v_by_version: dict[str, float], *, current: str
+                  ) -> tuple[str, float]:
     """π* = argmax_m V^m, 候选集**必含 current**（§2.7 不回退保证的前提）。
 
     ★ 返回 (m*, V(m*)) —— 由 argmax 数学事实: V(m*) ≥ V(current)。
@@ -186,7 +184,7 @@ def select_policy(v_by_version: Dict[str, float], *, current: str
     return m_star, v_by_version[m_star]
 
 
-def no_worse_than_current(v_by_version: Dict[str, float], *, current: str
+def no_worse_than_current(v_by_version: dict[str, float], *, current: str
                           ) -> bool:
     """★ 把 §2.7 的不等式写成可断言的谓词: V(m*) ≥ V(current)。"""
     _, best = select_policy(v_by_version, current=current)
@@ -198,8 +196,8 @@ def no_worse_than_current(v_by_version: Dict[str, float], *, current: str
 #        「最终选择只用从未参与搜索的 D_val」）
 # ════════════════════════════════════════════════════════════
 
-def shortlist_candidates(v_search: Dict[str, float], *, current: str,
-                         k: int = 2) -> List[str]:
+def shortlist_candidates(v_search: dict[str, float], *, current: str,
+                         k: int = 2) -> list[str]:
     """★ 第②步: 搜索信号 top-K **∪ {current}** — current 必进名单。
 
     为什么强制并入 current: §2.7 不回退保证的支点是「候选集必含
@@ -219,9 +217,9 @@ def shortlist_candidates(v_search: Dict[str, float], *, current: str,
     return top if current in top else top + [current]
 
 
-def select_with_val_fallback(v_val: Dict[str, float],
-                             v_search: Dict[str, float], *,
-                             current: str) -> Dict[str, object]:
+def select_with_val_fallback(v_val: dict[str, float],
+                             v_search: dict[str, float], *,
+                             current: str) -> dict[str, object]:
     """★ 第③④步: 终评 argmax v_val + 平票/不可比分回落 v_search。
 
     稿⑥§⑤ 字面: 「argmax v_val（只用从未参与搜索的信号）; 平键 ⇒ 字典序
@@ -296,7 +294,7 @@ class PolicySpec:
         return base
 
     @classmethod
-    def from_mapping(cls, m: Dict[str, object]) -> "PolicySpec":
+    def from_mapping(cls, m: dict[str, object]) -> PolicySpec:
         """★ 构造校验: 锁值键/未知键 raise（R85 稿② — 修订域硬边界）。"""
         _LOCKED = {"tau", "b", "beta1", "beta2", "delta", "delta_theta",
                    "history_max", "n_envs", "seed"}
@@ -318,22 +316,22 @@ class DreamReport:
     ★ monotone_no_worse = §2.7 谓词结果（M=1 时平凡成立, 显式记录不冒充改进）。
     """
     n_worlds: int
-    v_by_version: Dict[str, float]     # {"π0": V^0}（M=1, 设计稿裁决②）
+    v_by_version: dict[str, float]     # {"π0": V^0}（M=1, 设计稿裁决②）
     m_star: str                        # argmax 结果（M=1 ⇒ 恒 "π0"）
     v_star: float
-    betas: Tuple[float, float]         # (β₁, β₂) 本次实际用值（config 读入）
-    per_world: List[Tuple[str, float, int, int]]
+    betas: tuple[float, float]         # (β₁, β₂) 本次实际用值（config 读入）
+    per_world: list[tuple[str, float, int, int]]
     monotone_no_worse: bool
     k2_max: int
     why: str
-    policy_variants: Tuple[PolicySpec, ...] = ()   # R86: 参评参数集（M>1 可审计）
+    policy_variants: tuple[PolicySpec, ...] = ()   # R86: 参评参数集（M>1 可审计）
     #: ★ R102 · B 甲案: 本轮回放的段序（"treeid:seg_root|..." 跨树拼接, 可审计）
-    segments: Tuple[str, ...] = ()
+    segments: tuple[str, ...] = ()
     #: ★ R102 探针②原料: {pid: pick 轨迹}（w=0 vs w=1 轨迹必须不同 — R90 靶）
-    picks: Optional[Dict[str, Tuple[str, ...]]] = None
+    picks: dict[str, tuple[str, ...]] | None = None
     #: ★ R252 · §5.2 effort 调度: (本轮回放前预算, 回放后经 gain 调整的下轮预算,
     #:   本轮 gain); None = 非 adaptive（旧行为）或首轮无先例
-    effort: Optional[Tuple[int, int, Optional[float]]] = None
+    effort: tuple[int, int, float | None] | None = None
 
 
 # ══════════════════════════════════════════════════════════

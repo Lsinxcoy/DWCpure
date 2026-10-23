@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R304-B · 机制留痕统一（DWC-MEM · 记忆底座）。
 
 sec_review/monitor/kanban 三处留痕统一 {"mech","event","ok","ts"}，
@@ -9,10 +8,10 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def emit(entry: Any, path: Optional[str] = None) -> Optional[str]:
+def emit(entry: Any, path: str | None = None) -> str | None:
     """合法才写：dict 且含 mech/event/ok(bool)。返回所写行（None=未写）。"""
     try:
         if not isinstance(entry, dict):
@@ -31,9 +30,9 @@ def emit(entry: Any, path: Optional[str] = None) -> Optional[str]:
         return None
 
 
-def read_mech_events(path: str) -> List[Dict[str, Any]]:
+def read_mech_events(path: str) -> list[dict[str, Any]]:
     """读回含 mech 键的行；坏行跳过。"""
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     try:
         with open(path, encoding="utf-8") as fh:
             for ln in fh.read().splitlines():

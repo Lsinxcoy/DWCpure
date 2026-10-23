@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """credit · 证据感知信用分配 ℒ_t（2609.24972 §3.3 正则器(2) · V2 L244）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -22,11 +21,12 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 #: 台账字段（原文 ℒ_t 七元组 — 值枚举, 顺序即契约）
-LEDGER_FIELDS: Tuple[str, ...] = ("t", "edit", "layer", "hunk", "dimension",
+LEDGER_FIELDS: tuple[str, ...] = ("t", "edit", "layer", "hunk", "dimension",
                                   "delta_s", "delta_c", "adopted")
 
 #: a_i 枚举（原文二元 — 不给 0.5/None 的"待定"混入加权计算)
@@ -34,7 +34,7 @@ A_WINNER = 1
 A_LOST = 0
 
 #: 认可的 a_i 字面来源（调用方给的原因串 — 留痕, 不是枚举约束）
-A_CAUSES: Tuple[str, ...] = ("winner", "admissible_but_lost", "rejected_gate",
+A_CAUSES: tuple[str, ...] = ("winner", "admissible_but_lost", "rejected_gate",
                              "blocked_gate")
 
 
@@ -70,7 +70,7 @@ class CreditEntry:
                 "a_i 须 ∈ {0,1}（winner=1; admissible_but_lost=0 —"
                 " 不许 0.5/None 的\"待定\"混入加权计算）, 实 %r" % (self.adopted,))
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"t": self.t, "edit": self.edit, "layer": self.layer,
                 "hunk": self.hunk, "dimension": self.dimension,
                 "delta_s": self.delta_s, "delta_c": self.delta_c,
@@ -81,7 +81,7 @@ class CreditLedger:
     """★ 证据感知信用台账（append-only — 只增不改/不删）。"""
 
     def __init__(self) -> None:
-        self._entries: List[CreditEntry] = []
+        self._entries: list[CreditEntry] = []
         self._flushed = 0          # ★ R289 · 已落盘笔数（只追加新增的游标）
 
     def record(self, e: CreditEntry) -> None:
@@ -92,7 +92,7 @@ class CreditLedger:
         self._entries.append(e)
 
     def record_round(self, t: int,
-                     entries: Sequence[Dict[str, Any]]) -> List[CreditEntry]:
+                     entries: Sequence[dict[str, Any]]) -> list[CreditEntry]:
         """★ 批量录一轮（每笔独立校验 — 一笔坏不拖垮整轮, 但坏的显式炸）。"""
         out = []
         for raw in entries:
@@ -104,7 +104,7 @@ class CreditLedger:
             out.append(e)
         return out
 
-    def entries(self) -> List[CreditEntry]:
+    def entries(self) -> list[CreditEntry]:
         return list(self._entries)               # 副本 — 外部无法改内部
 
     def flush(self, path: str) -> int:
@@ -116,11 +116,9 @@ class CreditLedger:
         new = self._entries[self._flushed:]
         if not new:
             return 0
-        import io
         import json as _json
-        with io.open(path, "a", encoding="utf-8") as f:
-            for e in new:
-                f.write(_json.dumps(e.as_dict(), ensure_ascii=False) + "\n")
+        with open(path, "a", encoding="utf-8") as f:
+            f.writelines(_json.dumps(e.as_dict(), ensure_ascii=False) + "\n" for e in new)
         self._flushed = len(self._entries)
         return len(new)
 
@@ -130,13 +128,12 @@ class CreditLedger:
         坏行 ⇒ 大声炸（账坏了不停就是销毁证据 —— 宁可停）。
         载回的笔视为已落盘（游标同步 —— 不翻倍追加）。
         """
-        import io
         import json as _json
         import os as _os
         if not _os.path.exists(path):
             return 0
         n = 0
-        with io.open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for i, line in enumerate(f):
                 line = line.strip()
                 if not line:
@@ -164,12 +161,12 @@ class CreditLedger:
         self._flushed = len(self._entries)
         return n
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """★ 聚合面: 按维度/层的 a_i 加权与输赢计数（归因体检）。"""
         n = len(self._entries)
         if n == 0:
             return {"n": 0, "note": "空台账 — 缺席≠0（没记≠没发生, 只是没测）"}
-        by: Dict[str, Dict[str, Any]] = {}
+        by: dict[str, dict[str, Any]] = {}
         for e in self._entries:
             for key_name, key in (("dimension", e.dimension), ("layer", e.layer)):
                 slot = by.setdefault(key_name, {}).setdefault(
@@ -197,7 +194,7 @@ def adopted_flag(is_winner: bool, cause: str = "winner") -> int:
     return A_WINNER if is_winner else A_LOST
 
 
-CREDIT_MECHANICS: Dict[str, str] = {
+CREDIT_MECHANICS: dict[str, str] = {
     "ledger_fields": "ℒ_t 七元组: (t_i, ℓ_i, h_i, d_i, ΔS_i, ΔC_i, a_i)",
     "a_i_rule": "a_i=1 ⟺ 携带编辑 i 的候选成为该轮赢家; a_i=0 = admissible but lost（过全门但输给更高分 — 原文显式要记）",
     "binary_only": "a_i 只 0/1 — 不许 0.5/None 待定混入加权（归因可算性优先）",

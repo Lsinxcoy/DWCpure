@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """el_sched · EL 调度器（器官⑥ 探索 · 2609.04128 式 2）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -31,7 +30,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 #: 论文取值（2609.04128 式 2 后: "We use B=8 and τ=6/8"）——
 #: 有出处的常量, 不是"没想过"的默认（NOISE_DELTA=0.15 同款; 锁值测试防漂移）
@@ -56,7 +54,7 @@ class ELDecision:
     status: str
     generation: int          # 当前代 g
     index: int               # 当代第 k 个环境（1-based, 对齐公式的 k）
-    pass_rate: Optional[float]   # p̂; insufficient 时 None（不装 0）
+    pass_rate: float | None   # p̂; insufficient 时 None（不装 0）
 
 
 class ELScheduler:
@@ -83,7 +81,7 @@ class ELScheduler:
         self.tau = float(tau)
         self.generation = generation
         self.index = index
-        self._window: List[int] = []
+        self._window: list[int] = []
 
     # ── 观测注入（滑动窗口, 只收布尔）──────────────────────
     def record(self, success: bool) -> None:
@@ -101,7 +99,7 @@ class ELScheduler:
         return len(self._window)
 
     @property
-    def pass_rate(self) -> Optional[float]:
+    def pass_rate(self) -> float | None:
         """p̂ = (1/B)Σr —— 窗口未满 B ⇒ **None**（判不了, 不是 0.0）。"""
         if len(self._window) < self.B:
             return None
@@ -122,7 +120,7 @@ class ELScheduler:
             self._window = []                    # 序列口的推进清窗
         return d
 
-    def decide_from_rate(self, pass_rate: Optional[float],
+    def decide_from_rate(self, pass_rate: float | None,
                          n_envs: int) -> ELDecision:
         """式 2 三段核心（**速率口**: 调用方直接给已算好的 p̂）。
 

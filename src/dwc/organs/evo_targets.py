@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """evo_targets · 进化产物注册表（R438）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -25,7 +24,7 @@ import json
 import os
 import shutil
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
@@ -40,7 +39,7 @@ def _p(rel: str) -> str:
 #:   consumer 谁读它（必须真实存在，见模块头纪律 4）
 #:   schema   key → (类型, 下界, 上界)；下界/上界为 None 表示不限
 #:   defaults 缺文件时的默认值（**必须与消费者的硬编码默认一致**）
-SPECS: Dict[str, Dict[str, Any]] = {
+SPECS: dict[str, dict[str, Any]] = {
     "context_mgmt": {
         "path": "config/context_policy.json",
         "consumer": "dwc.llm.task_exec（read 默认行数 / search 默认条数）",
@@ -83,7 +82,7 @@ class TargetError(Exception):
     """产物读写/校验错误（**大声**，不静默降级）。"""
 
 
-def spec_of(component: str) -> Dict[str, Any]:
+def spec_of(component: str) -> dict[str, Any]:
     s = SPECS.get(component)
     if s is None:
         raise TargetError("组件 %r 没有登记产物（可编辑≠有落地面）"
@@ -95,7 +94,7 @@ def path_of(component: str) -> str:
     return _p(spec_of(component)["path"])
 
 
-def read(component: str) -> Dict[str, Any]:
+def read(component: str) -> dict[str, Any]:
     """读产物；文件不存在 ⇒ 返回 defaults 副本（不写盘）。"""
     s = spec_of(component)
     out = dict(s["defaults"])
@@ -113,10 +112,10 @@ def read(component: str) -> Dict[str, Any]:
     return out
 
 
-def validate(component: str, patch: Dict[str, Any]) -> List[str]:
+def validate(component: str, patch: dict[str, Any]) -> list[str]:
     """白名单 + 类型 + 上下界。返回错误列表（空 = 合格）。"""
     s = spec_of(component)
-    errs: List[str] = []
+    errs: list[str] = []
     if not isinstance(patch, dict):
         return ["patch 必须是 dict，实为 %r" % (type(patch).__name__,)]
     for k, v in patch.items():
@@ -147,8 +146,8 @@ def validate(component: str, patch: Dict[str, Any]) -> List[str]:
     return errs
 
 
-def apply(component: str, patch: Dict[str, Any],
-          backup_dir: str = "") -> Dict[str, Any]:
+def apply(component: str, patch: dict[str, Any],
+          backup_dir: str = "") -> dict[str, Any]:
     """合并 + 校验 + 备份 + 原子写 + 读回。
 
     ★ 读回失败 ⇒ TargetError（写了但读不回 = 没写成）。
@@ -179,7 +178,7 @@ def apply(component: str, patch: Dict[str, Any],
             "before": before, "after": after, "backup": bak}
 
 
-def rollback(component: str, backup_path: str) -> Dict[str, Any]:
+def rollback(component: str, backup_path: str) -> dict[str, Any]:
     """用备份整份还原（备份缺失 ⇒ 大声）。"""
     p = path_of(component)
     if not backup_path or not os.path.isfile(backup_path):
@@ -189,7 +188,7 @@ def rollback(component: str, backup_path: str) -> Dict[str, Any]:
             "path": p, "restored_from": backup_path}
 
 
-def smoke(component: str) -> Dict[str, Any]:
+def smoke(component: str) -> dict[str, Any]:
     """消费者冒烟：产物里的值能不能被消费者读到。
 
     ★ 这不是"效果验证"，只是"接线验证" —— 别把它当试验通过。

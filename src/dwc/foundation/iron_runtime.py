@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R204 · 铁律运行时执行面 —— GateSnapshot.laws_block 的真实来源。
 
 定位声明（G1 定位门）: **DWC-AUTO（自我强化）** —— 铁律守卫的是自我强化
@@ -33,9 +32,8 @@
 """
 from __future__ import annotations
 
-import io
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -49,7 +47,7 @@ TRUTH_SOURCE = [("iron_laws", os.path.join(
 IRON_YAML = TRUTH_SOURCE[0][1]
 
 #: ★ 数据面无设置方的律 —— 逐条 why 全部为 2026-10-12 R204 src 全仓 grep 实测
-_NOT_INSTRUMENTED: Dict[str, str] = {
+_NOT_INSTRUMENTED: dict[str, str] = {
     "G2": "层阈值结构不存在 —— dials/drift/difficulty 均为单层 config（无 i<j 层级可单调）",
     # G3 已升级真判（R217）: frozen 设置方 = R208 var/dwc_agent_frozen + agent freeze 门 + RPC freeze 指令
     "G4": "memory_consolidate 不存在 —— memory.py grep 'consolidat' 零命中",
@@ -61,7 +59,7 @@ _NOT_INSTRUMENTED: Dict[str, str] = {
 }
 
 #: ★ 本轮无对象（na）—— trigger 的对象在 term 周期内不存在（非数据面问题）
-_NA: Dict[str, str] = {
+_NA: dict[str, str] = {
     "G1": "trigger=pre_apply —— run_term 盘点无候选落地动作"
           "（设计/执行分离的判据点在落地时刻, applier 不在 term 周期）",
 }
@@ -71,9 +69,9 @@ _NA: Dict[str, str] = {
 _REQUIRED_STAGES = ("decision", "turn", "trace", "experience", "change")
 
 
-def _load_cfg(path: str = IRON_YAML) -> Dict[str, Any]:
+def _load_cfg(path: str = IRON_YAML) -> dict[str, Any]:
     """配置面加载（形态校验 — 没校验的 yaml 只是文本, core 同款纪律）。"""
-    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    obj = yaml.safe_load(open(path, encoding="utf-8").read())
     if not isinstance(obj, dict) or "version" not in obj:
         raise ValueError("iron_laws.yaml 缺 version")
     laws = obj.get("laws")
@@ -109,7 +107,7 @@ _EPOCH_LEDGER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 def _sha8(path: str) -> str:
     import hashlib
     try:
-        return hashlib.sha256(io.open(path, "rb").read()).hexdigest()[:8]
+        return hashlib.sha256(open(path, "rb").read()).hexdigest()[:8]
     except OSError:
         return ""
 
@@ -134,7 +132,7 @@ def _last_truth_sha8() -> str:
             if g <= best_gen:
                 continue
             try:
-                o = _j.loads(io.open(os.path.join(d, f), encoding="utf-8")
+                o = _j.loads(open(os.path.join(d, f), encoding="utf-8")
                              .read())
                 sha = str(o.get("inheritance", {})
                           .get("evaluation_config", {})
@@ -149,7 +147,7 @@ def _last_truth_sha8() -> str:
 
 
 def evaluate_for_term(rep: Any, *, certification_limit_present: bool,
-                      path: str = IRON_YAML) -> Dict[str, Any]:
+                      path: str = IRON_YAML) -> dict[str, Any]:
     """★ run_term 盘点点的铁律评估 —— 真判/na/not_instrumented 三态+。
 
     返回 IronReport:
@@ -159,11 +157,11 @@ def evaluate_for_term(rep: Any, *, certification_limit_present: bool,
       not_instrumented  : 数据面无设置方（逐条 why —— 可审计的缺席）
     """
     cfg = _load_cfg(path)
-    block: List[str] = []
-    warn: List[str] = []
-    checked: List[Dict[str, Any]] = []
-    na: List[Dict[str, str]] = []
-    not_instr: List[Dict[str, str]] = []
+    block: list[str] = []
+    warn: list[str] = []
+    checked: list[dict[str, Any]] = []
+    na: list[dict[str, str]] = []
+    not_instr: list[dict[str, str]] = []
     stages = {x.get("stage") for x in (getattr(rep, "stages", None) or [])}
     for law in cfg["laws"]:
         lid = str(law.get("id"))

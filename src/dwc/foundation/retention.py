@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R233 · 递归保留协议（RSI-Anything §2.5 的 DWC 落地 — 论文最核心机制）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— 哪个 exec×pred 版本对被保留来指导下一轮。
@@ -25,11 +24,10 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.foundation.paths import find_root
 
@@ -52,14 +50,14 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def component_delta(arm_new: Dict[str, Any], arm_old: Dict[str, Any]) -> Dict[str, float]:
+def component_delta(arm_new: dict[str, Any], arm_old: dict[str, Any]) -> dict[str, float]:
     """① 组件检查: 同臂口径的 pass 率差与成本比。"""
     return {"delta_pass": float(arm_new["pass_rate"]) - float(arm_old["pass_rate"]),
             "cost_ratio": (float(arm_new["cost"]) / float(arm_old["cost"])
                            if float(arm_old["cost"]) > 0 else float("inf"))}
 
 
-def pair_check(arms: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def pair_check(arms: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """② 配对检查（四臂 A/B/C/D — 键名对齐 rsi.py combinations 语义）。
 
     ★ 配对不兼容判据: Δ_exec = D−B < 0（换了预测器后, 新执行器反而更差）
@@ -77,9 +75,9 @@ def pair_check(arms: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             "pair_ok": not (d_exec < 0 and d_pred >= 0)}
 
 
-def decide(arms: Dict[str, Dict[str, Any]],
+def decide(arms: dict[str, dict[str, Any]],
            gain_min: float = PROMOTION_GAIN,
-           cost_max: float = PROMOTION_COST_MAX) -> Dict[str, Any]:
+           cost_max: float = PROMOTION_COST_MAX) -> dict[str, Any]:
     """③ 双判据晋升（全协议入口 — 输出即审计档）。"""
     pair = pair_check(arms)
     a, d = arms["old_old"], arms["new_new"]
@@ -102,8 +100,8 @@ def decide(arms: Dict[str, Dict[str, Any]],
 
 # ── test 冻结程序锁 ─────────────────────────────────────────────
 def freeze_versions(cand_id: str, exec_ref: str, pred_version: str,
-                    dev_arms: Dict[str, Dict[str, Any]],
-                    decision: Dict[str, Any]) -> str:
+                    dev_arms: dict[str, dict[str, Any]],
+                    decision: dict[str, Any]) -> str:
     """★ 版本先冻结 — manifest 落盘后 test 才许开（rsi.py:57 同款）。"""
     os.makedirs(RETENTION_DIR, exist_ok=True)
     body = {"cand_id": cand_id, "exec_ref": exec_ref,
@@ -111,30 +109,30 @@ def freeze_versions(cand_id: str, exec_ref: str, pred_version: str,
             "decision": decision, "test_not_opened_yet": True,
             "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     path = os.path.join(RETENTION_DIR, cand_id + ".frozen.json")
-    with io.open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         json.dump(body, fh, ensure_ascii=False, indent=1)
     return path
 
 
-def evaluate_test(cand_id: str) -> Dict[str, Any]:
+def evaluate_test(cand_id: str) -> dict[str, Any]:
     """★ 程序锁: manifest 在位且 test_not_opened_yet 才放行 test 评估;
     评估完回填（不靠自觉 — 锁在代码路径上）。"""
     path = os.path.join(RETENTION_DIR, cand_id + ".frozen.json")
     if not os.path.exists(path):
         raise RetentionError("无冻结 manifest — test 不许开（先 freeze_versions）")
-    doc = json.load(io.open(path, encoding="utf-8"))
+    doc = json.load(open(path, encoding="utf-8"))
     if not doc.get("test_not_opened_yet"):
         raise RetentionError("test 已开过 — 一次冻结一次开（防反复调参）")
     doc["test_not_opened_yet"] = False
     doc["test_opened_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    with io.open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         json.dump(doc, fh, ensure_ascii=False, indent=1)
     return doc
 
 
-def record(outcome: Dict[str, Any]) -> None:
+def record(outcome: dict[str, Any]) -> None:
     """决策留痕（append-only — 晋升与拒绝都记, 拒绝带完整四臂）。"""
     os.makedirs(os.path.dirname(RETENTION_LOG), exist_ok=True)
     row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **outcome}
-    with io.open(RETENTION_LOG, "a", encoding="utf-8") as fh:
+    with open(RETENTION_LOG, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R303-② monitor-mode（对标 Hermes cron monitor-mode 轻量版）。
 
 纯规则、零 LLM。常驻每轮调用：三条件同时满足才跳过本轮 LLM，
@@ -11,12 +10,12 @@ R304-C · 计数校准：record()/calibrate() 记每轮 skip/ran，
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 MAX_SKIPS = 2
 
 
-def monitor_skip(*, has_new_input: bool, last_done_ok: bool, skips: int) -> Optional[str]:
+def monitor_skip(*, has_new_input: bool, last_done_ok: bool, skips: int) -> str | None:
     """返回 None=执行；返回串=跳过原因。永不抛错（坏输入一律执行）。"""
     try:
         if has_new_input:
@@ -46,7 +45,7 @@ def record(outcome: str, path: str) -> None:
             ...
 
 
-def calibrate(path: str) -> Dict[str, Any]:
+def calibrate(path: str) -> dict[str, Any]:
     """读计数给建议：skip_rate≥0.9→3；≤0.3→1；否则 2。n=0 默认 2。永不抛错。"""
     try:
         import json

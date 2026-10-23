@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """router · 七桶路由（2609.14857 ModularRSI Appendix B Table 8 · EVOLUTION_CORE_V2 §3.2）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -19,11 +18,12 @@
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: Table 8 原文七桶（2609.14857 Appendix B — 值枚举, 不自创桶）
-BUCKETS: Tuple[str, ...] = (
+BUCKETS: tuple[str, ...] = (
     "all_pass_efficient",   # 全过且成本低于 BudgetGate 上限
     "all_pass_wasteful",    # 全过但成本超上限（省成本也是改进面）
     "mixed",                # 有过有败（正常改进面）
@@ -34,11 +34,11 @@ BUCKETS: Tuple[str, ...] = (
 )
 
 #: 弃权是一等输出（Table 8 Listing 2: is_culprit=false / fixable_now=false）
-ACTIONS: Tuple[str, ...] = ("propose", "recovery_hint", "abstain",
+ACTIONS: tuple[str, ...] = ("propose", "recovery_hint", "abstain",
                             "no_evolution", "no_diagnosis")
 
 #: 桶 ⇒ 路由动作（Table 8 原文处理策略 — 不许改语义）
-ROUTE: Dict[str, str] = {
+ROUTE: dict[str, str] = {
     "all_pass_efficient": "no_evolution",     # 无改进面可提
     "all_pass_wasteful": "propose",           # 成本面改进（省浪费）
     "mixed": "propose",                        # 失败侧提改动
@@ -48,7 +48,7 @@ ROUTE: Dict[str, str] = {
     "infra_only": "no_diagnosis",              # 不进诊断（论文原文禁令）
 }
 #: 进化资格（哪些桶的候选允许进 evolver — infra_only 明确除外）
-EVOLVABLE: Tuple[str, ...] = tuple(
+EVOLVABLE: tuple[str, ...] = tuple(
     b for b in BUCKETS if ROUTE[b] in ("propose", "recovery_hint"))
 
 
@@ -69,8 +69,8 @@ class TermObservation:
     n_pass: int = 0
     n_fail: int = 0
     infra_fail: int = 0
-    cost: Optional[float] = None
-    budget_ceiling: Optional[float] = None
+    cost: float | None = None
+    budget_ceiling: float | None = None
     repeat_signature_count: int = 0   # 同失败签名重复次数（stuck 判据）
     stuck_threshold: int = 3          # Table 8 语义: 重复 N 次仍失败
     reachable: bool = True            # 当前权限/工具/上下文下可成功?
@@ -93,7 +93,7 @@ class TermObservation:
         # ∧ cost>ceiling — 构造期只做值域校验, 不预判桶）
 
 
-def route(obs: TermObservation) -> Dict[str, Any]:
+def route(obs: TermObservation) -> dict[str, Any]:
     """★ 七桶路由（Table 8 原文语义 — 顺序判定, 先 infra 后 reach）。
 
     判定链（顺序即优先级, 与论文"infra_only 不进诊断"的排他性一致）:
@@ -168,6 +168,6 @@ def _note(bucket: str, obs: TermObservation) -> str:
     return "混合观测 ⇒ 走失败侧提改动"
 
 
-def batch(observations: Sequence[TermObservation]) -> List[Dict[str, Any]]:
+def batch(observations: Sequence[TermObservation]) -> list[dict[str, Any]]:
     """批量路由（保持顺序 — 调用方按 term 序列喂, 不改写次序）。"""
     return [route(o) for o in observations]

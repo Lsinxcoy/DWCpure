@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """calibration · ECE 期望校准误差度量（R140 · 深水待办最后一项）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -28,8 +27,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: 分桶口径（默认 10 等宽 [0,1] — ECE 文献标准口径）
 CALIBRATION_BINS: int = 10
@@ -72,7 +72,7 @@ class CalibrationPoint:
 def expected_calibration_error(points: Sequence[CalibrationPoint], *,
                                n_bins: int = CALIBRATION_BINS,
                                min_bin_count: int = MIN_BIN_COUNT
-                               ) -> Dict[str, Any]:
+                               ) -> dict[str, Any]:
     """★ ECE = Σ (n_b/N)|acc(b)−conf(b)|（经典定义, 见模块头口径）。
 
     ★ 缺席≠0（X2 纪律）: 空桶跳过不计项; 少于 min_bin_count 的桶
@@ -93,13 +93,13 @@ def expected_calibration_error(points: Sequence[CalibrationPoint], *,
         raise CalibrationError("空序列 ⇒ ECE 不可计算（没数据≠校准好）")
 
     n_total = len(pts)
-    bins: List[List[CalibrationPoint]] = [[] for _ in range(n_bins)]
+    bins: list[list[CalibrationPoint]] = [[] for _ in range(n_bins)]
     for p in pts:
         # 边界语义: conf=1.0 归最末桶（等宽右闭）
         idx = min(int(p.conf * n_bins), n_bins - 1)
         bins[idx].append(p)
 
-    buckets: List[Dict[str, Any]] = []
+    buckets: list[dict[str, Any]] = []
     ece = 0.0
     used = 0
     for b in bins:
@@ -125,8 +125,8 @@ def expected_calibration_error(points: Sequence[CalibrationPoint], *,
                      % (used, n_bins))}
 
 
-def from_trust_history(trust_series: Sequence[Tuple[float, bool]]
-                       ) -> List[CalibrationPoint]:
+def from_trust_history(trust_series: Sequence[tuple[float, bool]]
+                       ) -> list[CalibrationPoint]:
     """★ iwm 两臂历史的投影入口: (trust, improved) 序列 ⇒ 校准点。
 
     TRUTH_SOURCE 落点: trust/improved 都来自调用方（iwm.record_round
@@ -136,14 +136,14 @@ def from_trust_history(trust_series: Sequence[Tuple[float, bool]]
       **不静默 bool() 转换**: int 1/0 混入会被 Point 的契约拒绝 ⇒ 显式
       失败而非悄悄当真）。
     """
-    out: List[CalibrationPoint] = []
+    out: list[CalibrationPoint] = []
     for t, imp in trust_series:
         out.append(CalibrationPoint(conf=float(t), outcome=imp))
     return out
 
 
-def overconfidence_penalty(ece_result: Dict[str, Any], *,
-                           threshold: float = 0.1) -> Dict[str, Any]:
+def overconfidence_penalty(ece_result: dict[str, Any], *,
+                           threshold: float = 0.1) -> dict[str, Any]:
     """★ iwm 自陈"ECE 过置信惩罚未做"的落地件 — 对 degrade 决策的**输入
     侧补一个校准维度**（不改 Advice 四字段契约, 不进 governor_advice
     签名 — 调用方自愿消费）。
@@ -167,7 +167,7 @@ def overconfidence_penalty(ece_result: Dict[str, Any], *,
              % (ece, threshold))}
 
 
-CALIBRATION: Dict[str, str] = {
+CALIBRATION: dict[str, str] = {
     "ece_definition": "ECE=Σ(n_b/N)|acc−conf| 经典定义（分桶加权差）",
     "bins_default": "10 等宽（文献标准口径, 无量纲 — 非新超参语义）",
     "penalty_threshold": "0.1 = 管理口径（文献 0.05/0.1 区间保守端, 非论文报值）",

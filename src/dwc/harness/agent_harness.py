@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """agent_harness · 可进化的 agent 外壳（Phase B3 · 2026-10-19）
 
 DWC-AUTO 定位声明（器官 · 判据 G1 定位门）
@@ -27,11 +26,11 @@ DWC-AUTO 定位声明（器官 · 判据 G1 定位门）
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from dwc.organs.hook import HOOKS, HookRegistry
-
 
 # ══════════════════════════════════════════════════════════════════
 # 1. Policy —— 可进化的策略面（Phase D 会把它移到 organs 下的 policy 模块）
@@ -53,7 +52,7 @@ class Policy:
     max_tokens: int = 2000
     system: str = "You are a software engineer. Output valid JSON only. No explanation."
 
-    def mutate(self, field: str, value: Any) -> "Policy":
+    def mutate(self, field: str, value: Any) -> Policy:
         if field not in self.__dataclass_fields__:
             raise KeyError("Policy 无字段 %r（可变异面 = %s）"
                            % (field, "/".join(self.__dataclass_fields__)))
@@ -73,13 +72,13 @@ class HarnessDeps:
     """
 
     call_llm: Callable[[str, str, int], str]
-    list_files: Callable[[], List[str]]
-    read_file: Callable[[str, int], Optional[str]]
-    apply_edit: Callable[[str, str, str], Tuple[Optional[str], str]]
+    list_files: Callable[[], list[str]]
+    read_file: Callable[[str, int], str | None]
+    apply_edit: Callable[[str, str, str], tuple[str | None, str]]
     write_file: Callable[[str, str], None]
-    check_syntax: Callable[[str], Tuple[bool, str]]
-    run_tests: Callable[[], Dict[str, Any]]
-    verify: Callable[[str, str, str], Tuple[str, str]]
+    check_syntax: Callable[[str], tuple[bool, str]]
+    run_tests: Callable[[], dict[str, Any]]
+    verify: Callable[[str, str, str], tuple[str, str]]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -90,13 +89,13 @@ class HarnessDeps:
 class HarnessResult:
     success: bool
     rounds: int
-    hooks_fired: List[str] = field(default_factory=list)
-    last_action: Optional[Dict[str, Any]] = None
-    last_tool_result: Optional[Dict[str, Any]] = None
+    hooks_fired: list[str] = field(default_factory=list)
+    last_action: dict[str, Any] | None = None
+    last_tool_result: dict[str, Any] | None = None
     previous_error: str = ""
-    history: List[Dict[str, Any]] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "rounds": self.rounds,
@@ -123,28 +122,28 @@ class AgentHarness:
       fire 时传 `writes=None`，任何处理器想写都会被立即抛异常。
     """
 
-    def __init__(self, deps: HarnessDeps, registry: Optional[HookRegistry] = None,
-                 policy: Optional[Policy] = None):
+    def __init__(self, deps: HarnessDeps, registry: HookRegistry | None = None,
+                 policy: Policy | None = None):
         self.deps = deps
         self.reg = registry or HookRegistry()
         self.policy = policy or Policy()
-        self.fired: List[str] = []
+        self.fired: list[str] = []
 
     # ── 内部: 一次 fire（记录 + 契约）──────────────────────────
-    def _fire(self, hook: str, state: Dict[str, Any],
-              writes: Optional[List[str]] = None) -> List[Any]:
+    def _fire(self, hook: str, state: dict[str, Any],
+              writes: list[str] | None = None) -> list[Any]:
         self.fired.append(hook)
         return self.reg.fire(hook, state, writes=writes)
 
     # ── 主入口 ────────────────────────────────────────────────
     def solve(self, problem_statement: str,
-              f2p_tests: Optional[List[str]] = None) -> HarnessResult:
+              f2p_tests: list[str] | None = None) -> HarnessResult:
         """求解一个 instance。
 
         ★ 不做"是否成功"的判断——只读 `run_tests` 回调的 all_passed。
         """
         pol = self.policy
-        state: Dict[str, Any] = {
+        state: dict[str, Any] = {
             "problem_statement": problem_statement,
             "f2p_tests": list(f2p_tests or []),
             "policy": pol,
@@ -228,7 +227,7 @@ class AgentHarness:
         return result
 
     # ── 动作执行 ──────────────────────────────────────────────
-    def _execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute(self, state: dict[str, Any]) -> dict[str, Any]:
         """应用编辑 → 语法检查 → 跑测试 → 独立验证。
 
         ★ 任一步失败都回滚文件，并把原因写进 state["previous_error"]。
@@ -239,7 +238,7 @@ class AgentHarness:
         old = action.get("old_string", "")
         new = action.get("new_string", "")
 
-        out: Dict[str, Any] = {
+        out: dict[str, Any] = {
             "file": path, "applied": False, "syntax_ok": False,
             "f2p": {}, "verdict": "", "findings": "", "ok": False,
         }
@@ -304,4 +303,4 @@ class AgentHarness:
                 % (path, path, old[:400], new[:400]))
 
 
-__all__ = ["HOOKS", "Policy", "HarnessDeps", "HarnessResult", "AgentHarness"]
+__all__ = ["HOOKS", "AgentHarness", "HarnessDeps", "HarnessResult", "Policy"]

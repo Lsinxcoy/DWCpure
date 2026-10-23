@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """landing · 采纳后自动落地（R163 — accept 判 adopted ⇒ applier 真落地）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -26,7 +25,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 #: 可落地的 state（闸①白名单 — 与 evolver.PROPOSAL_STATES 对齐）
 _LANDABLE = ("gated", "adopted_not_implemented")
@@ -48,12 +47,12 @@ class LandingRecord:
     target_layer: str
     method: str                     # "land_rule" | "commit"
     readback_ok: bool
-    evidence_ref: Optional[str] = None
+    evidence_ref: str | None = None
     state_before: str = ""
     state_after: str = ""
-    detail: Dict[str, Any] = field(default_factory=dict)
+    detail: dict[str, Any] = field(default_factory=dict)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"proposal_id": self.proposal_id,
                 "target_layer": self.target_layer, "method": self.method,
                 "readback_ok": self.readback_ok,
@@ -90,11 +89,11 @@ def _check_gates(p: Any) -> str:
     return st
 
 
-def land(p: Any, applier: Any, evidence: Dict[str, Any], *,
-         target: Optional[Any] = None,
-         rule_key: Optional[str] = None,
-         rule_entry: Optional[Dict[str, Any]] = None,
-         check_fn: Optional[Any] = None) -> LandingRecord:
+def land(p: Any, applier: Any, evidence: dict[str, Any], *,
+         target: Any | None = None,
+         rule_key: str | None = None,
+         rule_entry: dict[str, Any] | None = None,
+         check_fn: Any | None = None) -> LandingRecord:
     """★ 落一个提案（四道闸 + 分派 + state 迁移到 adopted）。
 
     ★ target: applier.Target（可写面 — 调用方构造, 持 getter/setter/flush）;
@@ -111,7 +110,7 @@ def land(p: Any, applier: Any, evidence: Dict[str, Any], *,
         raise LandingError("target 缺 ⇒ 无可写面（不猜落到哪）")
 
     layer = str(getattr(p, "target_layer", "") or "")
-    detail: Dict[str, Any] = {}
+    detail: dict[str, Any] = {}
     if layer in _RULE_LAYERS and rule_key and rule_entry is not None:
         # 规则面: land_rule（schema/evidence/读回三闸 — applier 内建）
         res = applier.land_rule(target, rule_key, rule_entry, evidence,
@@ -146,8 +145,8 @@ def land(p: Any, applier: Any, evidence: Dict[str, Any], *,
         state_before=st_before, state_after="adopted", detail=detail)
 
 
-def land_batch(items: List[Tuple[Any, Dict[str, Any]]], applier: Any, **kw: Any
-               ) -> List[LandingRecord]:
+def land_batch(items: list[tuple[Any, dict[str, Any]]], applier: Any, **kw: Any
+               ) -> list[LandingRecord]:
     """★ 批量（单条失败 raise — 不跳过错的那条: 黑箱跳过比炸严重）。"""
     out = []
     for p, ev in items:
@@ -155,7 +154,7 @@ def land_batch(items: List[Tuple[Any, Dict[str, Any]]], applier: Any, **kw: Any
     return out
 
 
-LANDING_MECHANICS: Dict[str, str] = {
+LANDING_MECHANICS: dict[str, str] = {
     "four_gates": "①state 白名单 ②双报告在 ③按层分派 ④读回校验（缺一不可）",
     "state_terminal": "落成 ⇒ adopted（第五态反面 — 不造第六态）; 落地失败保持 gated（判决与落地分离）",
     "no_regression": "落地失败**不**退化 rejected — 门过了就是过了, 落地单记 record",

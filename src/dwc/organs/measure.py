@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """measure · 四量度量（2609.11873 · EVOLUTION_CORE_V2 §3.3「写了≠用了」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -27,11 +26,11 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 #: 四量 id（2609.11873 §原文顺序 — 值枚举, 不自创量）
-QUANTITIES: Tuple[str, ...] = ("update_quality", "activation",
+QUANTITIES: tuple[str, ...] = ("update_quality", "activation",
                                "faithful_use", "downstream_benefit")
 
 #: 未埋点标记（显式 — 调用方不得把缺席读成 0）
@@ -64,7 +63,7 @@ class UpdateQuality:
             raise MeasureError(
                 "空判定（pass=fail=0）⇒ 无质量事实（未判≠0 分 — R14）")
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         den = self.n_pass + self.n_fail
         return {"instrumented": True,
                 "quality": self.n_pass / den if den else None,
@@ -98,7 +97,7 @@ class Activation:
             raise MeasureError("n_retrieved(%d) > n_items(%d) — 口径越界"
                                % (self.n_retrieved, self.n_items))
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"instrumented": True,
                 "activation": self.n_retrieved / self.n_items,
                 "n_items": self.n_items, "n_retrieved": self.n_retrieved}
@@ -129,7 +128,7 @@ class FaithfulUse:
             raise MeasureError("n_faithful(%d) > 分母(%d) — 口径越界"
                                % (self.n_faithful, self.n_retrieved_used))
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"instrumented": True,
                 "faithful": self.n_faithful / self.n_retrieved_used,
                 "n_retrieved_used": self.n_retrieved_used,
@@ -146,8 +145,8 @@ class DownstreamBenefit:
       "没测"就分不开了）。
     """
 
-    quality_used: Optional[float] = None
-    quality_unused: Optional[float] = None
+    quality_used: float | None = None
+    quality_unused: float | None = None
 
     def __post_init__(self) -> None:
         for v in (self.quality_used, self.quality_unused):
@@ -157,7 +156,7 @@ class DownstreamBenefit:
                 raise MeasureError("quality_* 须为 None 或 [0,1], 实 %r"
                                    % (v,))
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         if self.quality_used is None or self.quality_unused is None:
             return {"instrumented": False, "status": NOT_INSTRUMENTED,
                     "note": "缺单侧质量 ⇒ 不算差（缺席≠0: 不拿 0 顶替"
@@ -168,11 +167,11 @@ class DownstreamBenefit:
                 "quality_unused": self.quality_unused}
 
 
-def measure(update: Optional[UpdateQuality] = None,
-            activation: Optional[Activation] = None,
-            faithful: Optional[FaithfulUse] = None,
-            downstream: Optional[DownstreamBenefit] = None
-            ) -> Dict[str, Any]:
+def measure(update: UpdateQuality | None = None,
+            activation: Activation | None = None,
+            faithful: FaithfulUse | None = None,
+            downstream: DownstreamBenefit | None = None
+            ) -> dict[str, Any]:
     """★ 四量汇总（2609.11873 §口径 — 缺的量显式 not_instrumented）。
 
     ★ 返回 health: 四量中**已埋**数量（0..4）+ 逐量明细。
@@ -180,12 +179,12 @@ def measure(update: Optional[UpdateQuality] = None,
     """
     # ★ 按位校验（位置即口径 — 把 Activation 喂给 update 位要显式拒绝,
     #   否则"谁是哪个量"靠调用方自觉 = 静默错配）
-    parts: List[Tuple[str, Optional[Any], type]] = [
+    parts: list[tuple[str, Any | None, type]] = [
         ("update_quality", update, UpdateQuality),
         ("activation", activation, Activation),
         ("faithful_use", faithful, FaithfulUse),
         ("downstream_benefit", downstream, DownstreamBenefit)]
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     instrumented = 0
     for name, obj, cls in parts:
         if obj is None:
@@ -210,7 +209,7 @@ def measure(update: Optional[UpdateQuality] = None,
             "quantities_order": list(QUANTITIES)}
 
 
-MEASURE: Dict[str, str] = {
+MEASURE: dict[str, str] = {
     "four_quantities": "2609.11873: update quality / activation / faithful use / downstream benefit",
     "disease": "只测① ⇒ 98.8% 未访问无人发现（母巢实证）",
     "noshow": "缺埋点 ⇒ not_instrumented（缺席≠0 — 不编 0.0 冒充测过）",

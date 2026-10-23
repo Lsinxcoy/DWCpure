@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """dw_version —— TS2 的版本真源（git 真实状态, 不是自报字符串）。
 
 ★★ 为什么需要它（R71 实测）:
@@ -14,15 +13,13 @@
 """
 from __future__ import annotations
 
-import io
 import os
-from typing import Optional
 
 #: 无 git 时的显式标记（不装 sha, 不编版本号）
 NO_GIT = "nogit"
 
 
-def _find_root(start: Optional[str] = None) -> Optional[str]:
+def _find_root(start: str | None = None) -> str | None:
     """从本文件所在目录逐级向上找含 .git 的目录。"""
     d = os.path.dirname(os.path.abspath(__file__)) if start is None else start
     while True:
@@ -34,7 +31,7 @@ def _find_root(start: Optional[str] = None) -> Optional[str]:
         d = parent
 
 
-def dw_version(repo_root: Optional[str] = None) -> str:
+def dw_version(repo_root: str | None = None) -> str:
     """当前仓库的版本 = HEAD commit sha（40 位或短 sha; 无 git ⇒ nogit）。"""
     root = repo_root if repo_root is not None else _find_root()
     if root is None:
@@ -42,7 +39,7 @@ def dw_version(repo_root: Optional[str] = None) -> str:
     head = os.path.join(root, ".git", "HEAD")
     if not os.path.exists(head):
         return NO_GIT
-    txt = io.open(head, encoding="utf-8").read().strip()
+    txt = open(head, encoding="utf-8").read().strip()
     if not txt.startswith("ref:"):
         # detached HEAD: HEAD 直接就是 sha
         return txt[:40] or NO_GIT
@@ -50,13 +47,13 @@ def dw_version(repo_root: Optional[str] = None) -> str:
     # loose ref: .git/refs/heads/master
     p = os.path.join(root, ".git", *ref.split("/"))
     if os.path.exists(p):
-        sha = io.open(p, encoding="utf-8").read().strip()
+        sha = open(p, encoding="utf-8").read().strip()
         if sha:
             return sha[:40]
     # packed-refs: `<sha> <ref>` 逐行找
     pr = os.path.join(root, ".git", "packed-refs")
     if os.path.exists(pr):
-        for line in io.open(pr, encoding="utf-8"):
+        for line in open(pr, encoding="utf-8"):
             line = line.strip()
             if not line or line.startswith("#") or line.startswith("^"):
                 continue

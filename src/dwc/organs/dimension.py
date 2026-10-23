@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """dimension · 九维分类 + 三维声明校验（2606.14249 HarnessX §3.3 · V2 §4.2）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -17,11 +16,12 @@
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 #: 九维（HarnessX §3.3 原文 — 与 ARSI c1-c9 同构, DEDUP_AUDIT 已实测）
-DIMENSIONS: Tuple[str, ...] = (
+DIMENSIONS: tuple[str, ...] = (
     ("D1", "model_selection", "模型选择"),
     ("D2", "context_assembly", "上下文组装"),
     ("D3", "memory_management", "记忆管理"),
@@ -34,7 +34,7 @@ DIMENSIONS: Tuple[str, ...] = (
 )
 
 #: 维度 id 集合（值枚举 — 未知维度显式拒绝, 不猜）
-DIMENSION_IDS: Tuple[str, ...] = tuple(d[0] for d in DIMENSIONS)
+DIMENSION_IDS: tuple[str, ...] = tuple(d[0] for d in DIMENSIONS)
 
 
 class DimensionError(Exception):
@@ -67,7 +67,7 @@ class ModuleDeclaration:
         if not self.singleton_group:
             raise DimensionError("singleton_group 须非空（互斥语义载体）")
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         label = dict((d[0], d[2]) for d in DIMENSIONS)[self.dimension]
         return {"module": self.module, "dimension": self.dimension,
                 "dimension_label": label,
@@ -84,7 +84,7 @@ def declares_valid_hook(decl: ModuleDeclaration, valid_hooks: Iterable[str]
     return decl.hook in set(valid_hooks)
 
 
-def find_conflicts(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
+def find_conflicts(decls: Iterable[ModuleDeclaration]) -> dict[str, Any]:
     """★★ 属性冲突检测（把语义查重降成机械判定）。
 
     三类冲突（逐条有论文依据）:
@@ -95,11 +95,11 @@ def find_conflicts(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
       ③ 单独同 group 不同 dimension ⇒ 不算冲突（组是跨维复用面 — 如
          "记忆底座"组被 D3 与 D1 都消费是设计允许, 论文只禁同组同钩子点）
     """
-    items: List[ModuleDeclaration] = list(decls)
-    conflicts: List[Dict[str, Any]] = []
+    items: list[ModuleDeclaration] = list(decls)
+    conflicts: list[dict[str, Any]] = []
 
     # ① 同名重复
-    seen_mod: Dict[str, int] = {}
+    seen_mod: dict[str, int] = {}
     for d in items:
         seen_mod[d.module] = seen_mod.get(d.module, 0) + 1
     for m, c in seen_mod.items():
@@ -109,7 +109,7 @@ def find_conflicts(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
                               "note": "同名模块重复声明（注册表主键冲突）"})
 
     # ② 同位同组（dimension ∧ hook ∧ group 三元全同才是抢位）
-    triples: Dict[Tuple[str, str, str], List[str]] = {}
+    triples: dict[tuple[str, str, str], list[str]] = {}
     for d in items:
         k = (d.dimension, d.hook, d.singleton_group)
         triples.setdefault(k, []).append(d.module)
@@ -122,7 +122,7 @@ def find_conflicts(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
                         "冲突形态: 属性可判, 不需语义理解）"})
 
     # ③ 宽松面（跨维复用组）— 记录但**不算冲突**（论文不禁 — 防误伤）
-    group_dims: Dict[str, set] = {}
+    group_dims: dict[str, set] = {}
     for d in items:
         group_dims.setdefault(d.singleton_group, set()).add(d.dimension)
     cross_dim_reuse = {g: sorted(ds) for g, ds in group_dims.items()
@@ -136,9 +136,9 @@ def find_conflicts(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
                      " — 论文只禁同组同 hook 点抢位）")}
 
 
-def dimension_index(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
+def dimension_index(decls: Iterable[ModuleDeclaration]) -> dict[str, Any]:
     """九维索引（每个维度下挂了哪些模块 — 覆盖/空缺一目了然）。"""
-    idx: Dict[str, List[str]] = {d: [] for d in DIMENSION_IDS}
+    idx: dict[str, list[str]] = {d: [] for d in DIMENSION_IDS}
     for d in decls:
         idx[d.dimension].append(d.module)
     return {"index": idx,
@@ -147,7 +147,7 @@ def dimension_index(decls: Iterable[ModuleDeclaration]) -> Dict[str, Any]:
             "labels": {d[0]: d[2] for d in DIMENSIONS}}
 
 
-DIMENSION_MECHANICS: Dict[str, str] = {
+DIMENSION_MECHANICS: dict[str, str] = {
     "nine_dims": "HarnessX §3.3 D1-D9（与 ARSI c1-c9 同构 — DEDUP_AUDIT 实测）",
     "triple_declare": "V2 §4.2: 每模块声明 (dimension, hook, singleton_group)",
     "conflict_kinds": "重名 / 同位同组抢位（跨维复用组不算冲突）",

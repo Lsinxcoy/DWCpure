@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 器官包 · 定位声明（DWC-MEM · 记忆底座）
 
 ★ 器官之间只经接口，不出现 organ_B._private_attr（判据 P1）。

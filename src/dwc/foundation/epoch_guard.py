@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """★ EvaluatorEpochGuard —— R113 · E1 约束半（设计稿④ §⑤ epoch/checkpoint 合同）。
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
@@ -14,7 +13,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 __all__ = ["EpochViolation", "EvaluatorEpochGuard"]
 
@@ -42,7 +41,7 @@ class EvaluatorEpochGuard:
         self.epoch_id = epoch_id
         self.judge_fingerprint = judge_fingerprint
         #: 换代轨迹（点界记录 — G7: 换代不许无痕）
-        self.transitions: List[Dict[str, Any]] = []
+        self.transitions: list[dict[str, Any]] = []
 
     def check(self, current_fingerprint: str) -> None:
         """★ 段内合同: 当前评估器指纹 ≠ 本 epoch 锁 ⇒ 违约 raise。"""
@@ -75,7 +74,7 @@ class EvaluatorEpochGuard:
         self.judge_fingerprint = new_fingerprint
         return self.epoch_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"epoch_id": self.epoch_id,
                 "judge_fingerprint": self.judge_fingerprint,
                 "n_transitions": len(self.transitions),

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """vocabulary · 词表单一真源（R193 债 X4 — 收口, 不是新造）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -25,22 +24,20 @@
 
 from __future__ import annotations
 
-from typing import Dict, FrozenSet, Tuple
-
 #: ★★ 𝒦 · 组件层词表 9 项（RRSI 2609.24972 式 12 逐字 — 值一字不动）
 #:   转抄自 evolver.py 原 frozenset 字面量（R193 收口, 未增删改）
-COMPONENT_VOCAB: FrozenSet[str] = frozenset({
+COMPONENT_VOCAB: frozenset[str] = frozenset({
     "prompt", "control_flow", "config", "output_plumbing",
     "context_mgmt", "client_tool", "skill", "memory", "subagent",
 })
 
 #: ★★ 结构型组件（式 15: 取新颖度奖励 ν_str — 转抄值不变）
-STRUCTURAL: FrozenSet[str] = frozenset(
+STRUCTURAL: frozenset[str] = frozenset(
     {"client_tool", "skill", "memory", "subagent"})
 
 #: ★★★ 𝒦_meta · 系统层 5 项（每项 editable 明标 — K4: 必填无默认）
 #:   转抄自 evolver.py 原 dict 字面量（R193 收口, 未增删改）
-K_META: Dict[str, bool] = {
+K_META: dict[str, bool] = {
     # name → editable（**K4: 必填无默认** —— 每项都要明写）
     "code": True,           # §3.1 可编辑，但 ν_t=0（不给新颖度奖励）
     "architecture": True,   # §3.2 可编辑，但**须人工批准**（G3 人类主权）
@@ -50,7 +47,7 @@ K_META: Dict[str, bool] = {
 }
 
 #: ★★ K3 · 两项必须 editable: False（机械可查 — "在表里但禁止" ≠ "不在表里"）
-K_META_READONLY: Tuple[str, ...] = ("evaluator", "external_source")
+K_META_READONLY: tuple[str, ...] = ("evaluator", "external_source")
 
 
 def is_component(name: str) -> bool:
@@ -62,7 +59,7 @@ def is_component(name: str) -> bool:
       这里又造了一个判据来源, 被 test_a1 当场逮住 ⇒ 改为 import 真源,
       函数内 import 避开 foundation→organs 的循环依赖）。
     """
-    from dwc.organs.evolver import check_component     # A1 唯一入口
+    from dwc.organs.evolver import check_component  # A1 唯一入口
     return not check_component(name)                   # 空 list = 合法
 
 

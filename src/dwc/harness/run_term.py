@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC · run_term —— 编排层（harness）。★★ 第一个能把所有东西串起来的入口。
 
 ★★★ 这个模块为什么是当前最要紧的一件
@@ -35,23 +34,23 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
-from dwc.foundation.wiring import ActivityWiring
-from dwc.foundation.causal_chain import CausalChainStore
 from dwc.foundation import dial_config
-from dwc.organs.memory import MemoryKernel, MemoryKind
-from dwc.organs.judge import Judge
-from dwc.organs.world_model import WorldModel
-from dwc.organs.iwm import IwmOrgan, Observations
+from dwc.foundation.causal_chain import CausalChainStore
+from dwc.foundation.wiring import ActivityWiring
 from dwc.organs.el_sched import ELScheduler
+from dwc.organs.iwm import IwmOrgan, Observations
+from dwc.organs.judge import Judge
+from dwc.organs.memory import MemoryKernel, MemoryKind
+from dwc.organs.world_model import WorldModel
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -96,7 +95,7 @@ TRUTH_SOURCE = {
 # ══════════════════════════════════════════════════════════
 
 
-def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int:
+def _append_verdict_log(db_path: str, task: str, verdict: dict[str, Any]) -> int:
     """★ R277 · term verdict 落盘可观测（append-only jsonl）。
 
     每行: {ts, task, pass_rate, n_fail, false_tasks[]}。
@@ -133,7 +132,7 @@ def _append_verdict_log(db_path: str, task: str, verdict: Dict[str, Any]) -> int
     #   同纪律）。否则 dirname("")="" ⇒ 相对 cwd 写飞（P4 实锤根 eval/）。
     if not os.path.exists(os.path.dirname(lp)):
         os.makedirs(os.path.dirname(lp))
-    with io.open(lp, "a", encoding="utf-8") as fh:
+    with open(lp, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     return len(false_tasks)
 
@@ -155,7 +154,7 @@ def _feed_predictor(details, db_path: str, task: str,
         return 0
     if op_factory is None:
         from dwc.organs.predictor import OutcomePredictor as _OP
-        op_factory = lambda p: _OP(log_path=p)  # noqa: E731
+        op_factory = lambda p: _OP(log_path=p)
     op = op_factory(os.path.join(_dir, "dwc_predictor.jsonl"))
     n = 0
     for d in ds:
@@ -220,10 +219,10 @@ class CostLedger:
     rejected_cost: float = 0.0          # ★ 被拒候选的成本（单列，可审计）
     #: ★ R99 · T 序列: 已结 term 的账（SEA-Eval「每已验证增益成本」的原料 —
     #:   每条带 (round, task) 标记; 首次 reset 无账不记, 不造假空账）
-    history: List[Dict[str, Any]] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
     #: 当前 open 账的标记（reset 结账时消费的是**上一** term 的标记）
-    _open_round: Optional[str] = None
-    _open_task: Optional[str] = None
+    _open_round: str | None = None
+    _open_task: str | None = None
 
     def spend(self, amount: float) -> None:
         self.term_cost += amount
@@ -235,8 +234,8 @@ class CostLedger:
         self.term_cost += amount
         self.cumulative_cost += amount
 
-    def reset_term(self, round_id: Optional[str] = None,
-                   task_id: Optional[str] = None) -> None:
+    def reset_term(self, round_id: str | None = None,
+                   task_id: str | None = None) -> None:
         """term 级 reset。★ cumulative 刻意不动。
 
         ★ R99 · T 序列: reset 前若**上一 term 有账** ⇒ 先结进 history
@@ -253,7 +252,7 @@ class CostLedger:
         self._open_round = round_id
         self._open_task = task_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"term_cost": self.term_cost,
                 "cumulative_cost": self.cumulative_cost,
                 "rejected_cost": self.rejected_cost,
@@ -278,13 +277,13 @@ class Quintet:
     ⇒ 原则不变: 不许用占位值填满 — 但也不许把**已实现**的说成没有
       （声称 vs 实测 — 实测为准）。
     """
-    pi: Optional[str] = None      # 进化策略（evolver）— 已实现, 见 build_quintet
-    V: Optional[str] = None       # 验证器（judge）— 已实现, 见 build_quintet
-    m: Optional[str] = None       # 改进器（modifier）
-    U: Optional[str] = None       # 改动评估器 — evolver.select_winner 已实现
-    rho: Optional[str] = None     # 评价基准 ρ（config/dials.yaml）
+    pi: str | None = None      # 进化策略（evolver）— 已实现, 见 build_quintet
+    V: str | None = None       # 验证器（judge）— 已实现, 见 build_quintet
+    m: str | None = None       # 改进器（modifier）
+    U: str | None = None       # 改动评估器 — evolver.select_winner 已实现
+    rho: str | None = None     # 评价基准 ρ（config/dials.yaml）
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         # ★ R141: unimplemented（字段 None）+ partial（值含"未接"字样）
         #   双列表 — "已实现未接线"≠"未实现"（声称 vs 实测的盘点纪律）
         return {"pi": self.pi, "V": self.V, "m": self.m,
@@ -311,33 +310,33 @@ class TermReport:
     chain_id: str
     started_at: float
     #: ★ decision 环的 ref_id（各环 upstream 都指它）
-    decision_ref: Optional[str] = None
+    decision_ref: str | None = None
     #: ★★ T3 的证据: term 自己写了哪些记忆 ⇒ 用于区分
     #:   「外部改动」（该终止）与「term 自己的写入」（正常）
-    self_written: List[str] = field(default_factory=list)
-    closed_at: Optional[float] = None
+    self_written: list[str] = field(default_factory=list)
+    closed_at: float | None = None
     n_steps: int = 0
     #: before 快照
     dw_version_before: str = ""
-    memory_before: Dict[str, Any] = field(default_factory=dict)
-    cost_before: Dict[str, Any] = field(default_factory=dict)
+    memory_before: dict[str, Any] = field(default_factory=dict)
+    cost_before: dict[str, Any] = field(default_factory=dict)
     #: after 快照
-    dw_version_after: Optional[str] = None
-    memory_after: Dict[str, Any] = field(default_factory=dict)
-    cost_after: Dict[str, Any] = field(default_factory=dict)
+    dw_version_after: str | None = None
+    memory_after: dict[str, Any] = field(default_factory=dict)
+    cost_after: dict[str, Any] = field(default_factory=dict)
     #: 环节⑦
-    quintet: Optional[Dict[str, Any]] = None
+    quintet: dict[str, Any] | None = None
     #: ★ R143 · 七桶路由结果（2609.14857 Table 8; judge 未注入时
     #:   {"routed": False, "why": ...} — 不猜桶）
-    router: Dict[str, Any] = field(default_factory=dict)
+    router: dict[str, Any] = field(default_factory=dict)
     #: ★ R144 · 四量度量（2609.11873; 缺埋点量显式 not_instrumented）
-    measure4: Dict[str, Any] = field(default_factory=dict)
+    measure4: dict[str, Any] = field(default_factory=dict)
     #: ★ R152 · 门组链（V2 §5.4 六门三态; verdict=blocked ⇒ 不许落地）
-    gate_chain: Dict[str, Any] = field(default_factory=dict)
+    gate_chain: dict[str, Any] = field(default_factory=dict)
     #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
-    judgement: Optional[Dict[str, Any]] = None
+    judgement: dict[str, Any] | None = None
     #: ★ judge 给的通过率（None = 未评价或未判）
-    score_delta: Optional[float] = None
+    score_delta: float | None = None
     #: ★ Phase 1.2 · 是否为自造观测（executor 未注入 ⇒ 合成, 不代表真实能力）
     synthetic: bool = False
     #: ★ R276b · 本轮回灌 EXPERIENCE 的失败签名条数（判分→记忆的生产回灌）
@@ -345,35 +344,35 @@ class TermReport:
     evo_n_fail: int = 0  # ★ R277 · 本轮 verdict False 数（-1=落盘失败）
     #: ★ R370 · B2 · 失败签名喂给 evolver 的结果
     #:   （灰度关时 {"enabled": False, "why": ...} —— 关也是可审计状态）
-    evo_feed: Dict[str, Any] = field(default_factory=dict)
-    dials: Dict[str, Any] = field(default_factory=dict)
+    evo_feed: dict[str, Any] = field(default_factory=dict)
+    dials: dict[str, Any] = field(default_factory=dict)
     #: 五环各环节的记录（判据 T1 要求都在）
-    stages: List[Dict[str, Any]] = field(default_factory=list)
+    stages: list[dict[str, Any]] = field(default_factory=list)
     #: 下一轮任务源（★ 不是"结算报告"）
-    next_task_source: Optional[Dict[str, Any]] = None
+    next_task_source: dict[str, Any] | None = None
     #: R61 · 环节⑤ 防漂移观测（iwm.drift 的输出; 未注入 iwm 时为 None）
-    drift: Optional[Dict[str, Any]] = None
+    drift: dict[str, Any] | None = None
     #: ★ F1 · iwm 守卫发出口（governor_advice 的产出; 未注入 iwm 时为 None）
-    iwm_advice: Optional[Dict[str, Any]] = None
+    iwm_advice: dict[str, Any] | None = None
     #: ★ R204 · 铁律执行面报告（iron_runtime.evaluate_for_term 的四态产出）
-    iron_report: Optional[Dict[str, Any]] = None
+    iron_report: dict[str, Any] | None = None
     #: ★ R204 · G11 report_must_quote 的摘录字段（空 = 配置缺席 ⇒ block[G11]）
     certification_limit: str = ""
     #: 六层活性快照（★ 第一次让六层有系统内真实数据）
-    activity: List[Dict[str, Any]] = field(default_factory=list)
+    activity: list[dict[str, Any]] = field(default_factory=list)
     #: term 为什么结束（四个终止条件之一 + 实测依据）
-    stop_reason: Optional[str] = None
-    stop_evidence: Dict[str, Any] = field(default_factory=dict)
+    stop_reason: str | None = None
+    stop_evidence: dict[str, Any] = field(default_factory=dict)
     valid: bool = True
-    invalid_reason: Optional[str] = None
+    invalid_reason: str | None = None
 
-    def missing_stages(self) -> List[str]:
+    def missing_stages(self) -> list[str]:
         """★ 判据 T1: 五环缺任一 ⇒ term 不完整。"""
         from dwc.foundation.causal_chain import STAGES
         got = {s["stage"] for s in self.stages}
         return [s for s in STAGES if s not in got]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items()}
 
 
@@ -391,14 +390,14 @@ class TermRunner:
     """
 
     def __init__(self, db_path: str = ":memory:",
-                 store: Optional[CausalChainStore] = None,
-                 memory: Optional[MemoryKernel] = None,
+                 store: CausalChainStore | None = None,
+                 memory: MemoryKernel | None = None,
                  budget: float = 10.0,
-                 judge: Optional["Judge"] = None,
-                 world_model: Optional[WorldModel] = None,
-                 iwm: Optional[IwmOrgan] = None,
-                 el_scheduler: Optional[ELScheduler] = None,
-                 executor: Optional[Any] = None):
+                 judge: Judge | None = None,
+                 world_model: WorldModel | None = None,
+                 iwm: IwmOrgan | None = None,
+                 el_scheduler: ELScheduler | None = None,
+                 executor: Any | None = None):
         self.store = store or CausalChainStore(db_path)
         self.db_path = db_path  # ★ R277 · verdict 落盘锚点（库旁 eval/）
         self.memory = memory or MemoryKernel(db_path)
@@ -422,7 +421,7 @@ class TermRunner:
                 self.credit_path = _os289.path.join(
                     _vardir, "credit_ledger.jsonl")
                 self.credit_ledger.load(self.credit_path)
-            except Exception as excIssues:    # noqa: BLE001 — 坏账大声留痕
+            except Exception as excIssues:
                 sys.stderr.write("credit载回失败（停前留痕）: %r\n" % (excIssues,))
                 raise
         # ★★★ 必须先登记机制才能记事件（present 层是入口守卫，
@@ -478,7 +477,7 @@ class TermRunner:
     # ══════════════════════════════════════════════
     # 六步（判据 T1）
     # ══════════════════════════════════════════════
-    def _build_state(self, rep: "TermReport", task: str, *,
+    def _build_state(self, rep: TermReport, task: str, *,
                      split: str = "dev"):
         """★ F1 · 生产 State 构造（governor_advice 的输入面 · §六不变量）。
 
@@ -491,10 +490,14 @@ class TermRunner:
           · pre_enactment 预测层显式缺席（core._decide 同款）⇒
             gate1_verdict="degrade_to_heuristic"
         """
-        from dwc.foundation.state import (State, AssetVersions,
-                                          ArchitectureVersions,
-                                          GateSnapshot, ExecutionContext)
-        from dwc.organs.evolver import NOISE_DELTA   # R58 锁值 0.15
+        from dwc.foundation.state import (
+            ArchitectureVersions,
+            AssetVersions,
+            ExecutionContext,
+            GateSnapshot,
+            State,
+        )
+        from dwc.organs.evolver import NOISE_DELTA  # R58 锁值 0.15
         v = rep.judgement or {}
         dr = rep.drift or {}
         pass_rate = v.get("pass_rate")
@@ -540,8 +543,8 @@ class TermRunner:
                                split=split))
 
     def run_term(self, task: str, n_steps: int = 3,
-                 chain_id: Optional[str] = None,
-                 on_step: Optional[Callable[[int], None]] = None
+                 chain_id: str | None = None,
+                 on_step: Callable[[int], None] | None = None
                  ) -> TermReport:
         """跑完一个 term。
 
@@ -577,7 +580,7 @@ class TermRunner:
         # ★★ 判据 T2 的落地形态: 循环里每步之后问一次"进化事件达成了吗"
         #   ⇒ 而不是跑完 n_steps 再问（那样 n_steps 就成了终止条件）
         stop = None
-        evidence: Dict[str, Any] = {}
+        evidence: dict[str, Any] = {}
         rep.n_steps = 0
         for i in range(n_steps):
             if on_step:
@@ -686,7 +689,9 @@ class TermRunner:
         #           ② 评估 — 真判/na/not_instrumented 四态 → rep.iron_report
         #   ⇒ block/warn 随后喂 _build_state 的 laws_block/laws_warn
         from dwc.foundation.iron_runtime import (
-            get_certification_limit, evaluate_for_term)
+            evaluate_for_term,
+            get_certification_limit,
+        )
         rep.certification_limit = get_certification_limit()
         rep.iron_report = evaluate_for_term(
             rep, certification_limit_present=bool(rep.certification_limit))
@@ -723,7 +728,7 @@ class TermRunner:
         #   ★★ judge 未注入 ⇒ 无法判分 ⇒ router 显式降级（不是猜桶）:
         #      "no_judge ⇒ 无已判事实可分桶"（若硬塞 n_pass=0/n_fail=0
         #      会落 infra_only — 那是**误分类**! 0 事实 ≠ infra 失败）
-        router_info: Dict[str, Any] = {"routed": False}
+        router_info: dict[str, Any] = {"routed": False}
         if self.judge is not None and rep.judgement is not None:
             v = rep.judgement
             try:
@@ -750,7 +755,7 @@ class TermRunner:
         #   ★ ① 可算: verdict 三数 ⇒ UpdateQuality（not_evaluated 不进分母）
         #   ★ ②③④ **未埋点**（recall_search R22 不记 access; 无执行痕迹面）
         #     ⇒ 显式 not_instrumented（不编 0.0 — 缺席≠0）
-        measure_info: Dict[str, Any] = {"instrumented_count": 0}
+        measure_info: dict[str, Any] = {"instrumented_count": 0}
         try:
             from dwc.organs.measure import UpdateQuality, measure
             uq = (UpdateQuality(
@@ -819,9 +824,9 @@ class TermRunner:
     # 内部
     # ══════════════════════════════════════════════
     def _record(self, cid: str, stage: str, ref: str,
-                payload: Dict[str, Any], upstream: Optional[str],
+                payload: dict[str, Any], upstream: str | None,
                 mechanism: str = MECHANISM,
-                rep: Optional[TermReport] = None) -> Dict[str, Any]:
+                rep: TermReport | None = None) -> dict[str, Any]:
         """写一环并点亮六层（★ 经 wiring，不直接碰 sqlite）。
 
         ★★ R23 修正: 原实现只把 stage 加进 _stages_seen，
@@ -1044,7 +1049,7 @@ class TermRunner:
                          else (1.0 if _ok else 0.0)),
                         bool(_ok))
 
-    def _backfill_failures(self, verdict: Dict[str, Any]) -> int:
+    def _backfill_failures(self, verdict: dict[str, Any]) -> int:
         """★ R276b · 判分→EXPERIENCE 生产回灌（开回灌的总开关在此方法）。
 
         口径与 Loop._remember_failure 一致：success is False 才记
@@ -1070,7 +1075,7 @@ class TermRunner:
             sys.stderr.write("回灌跳过: %s\n" % exc)
         return n
 
-    def _build_observations(self, rep: TermReport) -> Dict[str, Dict]:
+    def _build_observations(self, rep: TermReport) -> dict[str, dict]:
         """★ 造一批观测（judge 的输入契约）。
 
         ★★★ R126: 注入 executor 时走**真执行通道**（LLM 真臂 or 任何
@@ -1082,7 +1087,7 @@ class TermRunner:
         """
         # ── R126 · 真执行路径（executor 注入才启用）──
         if self.executor is not None:
-            out: Dict[str, Dict] = {}
+            out: dict[str, dict] = {}
             for tid, rec in self.judge.anchors.items():
                 if tid.startswith("_"):
                     continue
@@ -1117,7 +1122,7 @@ class TermRunner:
                 break
         return out
 
-    def _next_task_source(self, cid: str, rep: TermReport) -> Dict[str, Any]:
+    def _next_task_source(self, cid: str, rep: TermReport) -> dict[str, Any]:
         """★ 生成下一轮任务源（依据 §9 缺口 bz，不是结算报告）。
 
         ★★ 依据: "Measurement thereby becomes the trigger of the next
@@ -1126,7 +1131,7 @@ class TermRunner:
         """
         dead = self.wiring.dead()
         held = rep.memory_after.get("used_ratio", 0.0)
-        tasks: List[Dict[str, Any]] = []
+        tasks: list[dict[str, Any]] = []
         if dead:
             tasks.append({"kind": "wire_dead_mechanism",
                           "target": dead,
@@ -1137,7 +1142,7 @@ class TermRunner:
                           "why": "D7：召回覆盖不足一半，记忆无法证明被使用"})
         # ── R60 · 环节⑥ 探索: 世界树的未揭示叶子 = 下一轮任务 ──
         # ★ 显式读取（不是事件订阅 —— 与 S3/C2「无隐式驱动」一致）
-        wta: List[Dict[str, Any]] = []
+        wta: list[dict[str, Any]] = []
         if self.world_model is not None:
             for act in self.world_model.legal_actions():
                 item = {"kind": "world_tree_action",
@@ -1163,7 +1168,7 @@ class TermRunner:
             #   IG 全等（无观测/无 WM）⇒ 第一键无区分 ⇒ 稳定排序=原序
             #   （退化现状，真保底 —— 不需要另写分支）。
             #   W4：information_gain 只吃 n_obs/n_pass，不读 confidence。
-            _igmap: Dict[str, float] = {}
+            _igmap: dict[str, float] = {}
             _wm = self.world_model
             if _wm is not None:
                 try:
@@ -1214,7 +1219,7 @@ class TermRunner:
         # ★★ **叠加式**: 原 tasks 原样保留（含本列表）, 只加 el_selected 顶字段
         #   —— 提案批1 的零破坏接法; 没注入 EL 或无世界树候选 ⇒ 字段不出现
         #   （"没采样过"不假装采样过 — 与 judge=None 同纪律）
-        el_picked: Optional[Dict[str, Any]] = None
+        el_picked: dict[str, Any] | None = None
         if self.el_scheduler is not None and wta:
             n = len(wta)
             if self.el_scheduler.index > n:

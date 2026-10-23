@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """adoption · 链裁决 → Proposal 采纳（R152 六门链 × evolver 第五态的桥）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -21,8 +20,9 @@
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: 链 verdict → Proposal state 的映射（只映射到 evolver 既有状态）
 CHAIN_PASS_STATE = "gated"
@@ -31,11 +31,11 @@ CHAIN_BLOCK_STATE = "rejected"
 #: ★ 可接受的链 verdict（R161 补全: gates.py 的**四种**终态 — 我 R154
 #   只收三种, 漏了"全 applicable 门 passed 且无 na"的 all_applicable_passed;
 #   R161 测试一跑就炸 ⇒ 判定集合以 gates.py 为唯一真源, 这里必须收齐）
-CHAIN_VERDICTS: Tuple[str, ...] = ("applicable_passed_with_na",
+CHAIN_VERDICTS: tuple[str, ...] = ("applicable_passed_with_na",
                                    "all_applicable_passed", "blocked", "error")
 
 #: ★ 通过族（非 blocked/error — 迁移到 gated 的充要条件）
-CHAIN_PASS_VERDICTS: Tuple[str, ...] = ("applicable_passed_with_na",
+CHAIN_PASS_VERDICTS: tuple[str, ...] = ("applicable_passed_with_na",
                                         "all_applicable_passed")
 
 
@@ -55,13 +55,13 @@ class AdoptionRecord:
 
     proposal_id: str
     chain_verdict: str
-    blocked: Tuple[str, ...]
-    not_applicable: Tuple[str, ...]
+    blocked: tuple[str, ...]
+    not_applicable: tuple[str, ...]
     n_gates: int
     state_before: str
     state_after: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"proposal_id": self.proposal_id,
                 "chain_verdict": self.chain_verdict,
                 "blocked": list(self.blocked),
@@ -71,7 +71,7 @@ class AdoptionRecord:
                 "state_after": self.state_after}
 
 
-def apply_chain(p: Any, chain: Dict[str, Any]) -> AdoptionRecord:
+def apply_chain(p: Any, chain: dict[str, Any]) -> AdoptionRecord:
     """★ 把门组链裁决应用到 Proposal（状态迁移 + 裁决留痕）。
 
     ★★ 顺序（迁移即契约）:
@@ -108,8 +108,8 @@ def apply_chain(p: Any, chain: Dict[str, Any]) -> AdoptionRecord:
         state_after=after)
 
 
-def apply_chain_batch(proposals: Sequence[Any], chains: Sequence[Dict[str, Any]]
-                      ) -> List[AdoptionRecord]:
+def apply_chain_batch(proposals: Sequence[Any], chains: Sequence[dict[str, Any]]
+                      ) -> list[AdoptionRecord]:
     """★ 批量（长度须一致 — 错位配对比报错更危险, 显式拒）。"""
     if len(proposals) != len(chains):
         raise AdoptionError(
@@ -119,7 +119,7 @@ def apply_chain_batch(proposals: Sequence[Any], chains: Sequence[Dict[str, Any]]
     return [apply_chain(p, c) for p, c in zip(proposals, chains)]
 
 
-ADOPTION_MECHANICS: Dict[str, str] = {
+ADOPTION_MECHANICS: dict[str, str] = {
     "state_machine": "chain verdict → gated / rejected（evolver 五态内 — 不造新状态）",
     "two_layer_gates": "ProposalGate 静态五判据(构造期) + 门组链运行时六门(需候选) — 两层互补, 顺序不可换",
     "blocked_rejects": "链 verdict=blocked ⇒ rejected（不进入判分 — 链都没过 ΔS 归因会被污染）",

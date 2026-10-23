@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 """失败 obs 错误码（R310-④ · 抄 Capy {error:{code,message}}）。
 
 定位: DWC-AUTO（自我强化 · 可观测）。只增 code 字段，message 原样。
 """
-from typing import Dict
 
 #: 码 → 说明（聚合查询只认码，不解析中文串）。
-CODES: Dict[str, str] = {
+CODES: dict[str, str] = {
     "CAP_DISABLED": "能力被 capabilities.yaml 关闭",
     "DELEGATE_TIMEOUT": "子代理超 timeout_s 熔断",
     "DELEGATE_DEPTH": "子代理内再 delegate（深度上限）",
@@ -20,7 +18,7 @@ CODES: Dict[str, str] = {
 }
 
 
-def err(code: str, message: str) -> Dict[str, str]:
+def err(code: str, message: str) -> dict[str, str]:
     """组失败 obs：ok＋code＋error。永不抛错。"""
     try:
         c = code if code in CODES else "UNKNOWN_OP"

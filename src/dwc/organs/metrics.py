@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """metrics · 四量采集器（R168 — measure.py 的"喂数方", 不是第二实现）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -27,11 +26,16 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 from dwc.organs.measure import (
-    NOT_INSTRUMENTED, Activation, DownstreamBenefit, FaithfulUse,
-    UpdateQuality, measure)
+    Activation,
+    DownstreamBenefit,
+    FaithfulUse,
+    UpdateQuality,
+    measure,
+)
 
 
 class MetricsError(Exception):
@@ -42,8 +46,8 @@ class MetricsError(Exception):
 # 三个采集器（每个: 素材元组 ⇒ measure 数据类 or None）
 # ══════════════════════════════════════════════════════════
 
-def collect_activation(n_proposals: Optional[int],
-                       n_gated: Optional[int]) -> Optional[Activation]:
+def collect_activation(n_proposals: int | None,
+                       n_gated: int | None) -> Activation | None:
     """② 候选过门率（分母=生成数, 分子=过门数 — 检索命中同构量）。
 
     ★ 任一 None 或分母 0 ⇒ None（→ not_instrumented;  Denominator 0 不是
@@ -58,8 +62,8 @@ def collect_activation(n_proposals: Optional[int],
                                                           n_proposals))
 
 
-def collect_faithful(n_gated: Optional[int],
-                     n_landed: Optional[int]) -> Optional[FaithfulUse]:
+def collect_faithful(n_gated: int | None,
+                     n_landed: int | None) -> FaithfulUse | None:
     """③ 落地执行率（过门⇒照做 — R163 landed=state adopted）。"""
     if n_gated is None or n_landed is None or n_gated <= 0:
         return None
@@ -67,8 +71,8 @@ def collect_faithful(n_gated: Optional[int],
                        n_faithful=min(n_landed, n_gated))
 
 
-def collect_downstream(entries: Optional[Sequence[Any]]
-                       ) -> Optional[DownstreamBenefit]:
+def collect_downstream(entries: Sequence[Any] | None
+                       ) -> DownstreamBenefit | None:
     """④ ℒ_t 账本 ΔS 组间差（adopted=1 组均值 − adopted=0 组均值）。
 
     ★ 单侧无条目 ⇒ None（不拿 0 顶替 — measure 的缺侧纪律前置同义）。
@@ -93,12 +97,12 @@ def _mean(xs: Sequence[float]) -> float:
     return sum(xs) / len(xs)
 
 
-def four_metrics(n_proposals: Optional[int] = None,
-                 n_gated: Optional[int] = None,
-                 n_landed: Optional[int] = None,
-                 ledger_entries: Optional[Sequence[Any]] = None,
-                 update: Optional[UpdateQuality] = None
-                 ) -> Dict[str, Any]:
+def four_metrics(n_proposals: int | None = None,
+                 n_gated: int | None = None,
+                 n_landed: int | None = None,
+                 ledger_entries: Sequence[Any] | None = None,
+                 update: UpdateQuality | None = None
+                 ) -> dict[str, Any]:
     """★★★ 一次成筐（Loop/RoundLog/ledger ⇒ measure.measure 汇总形状）。"""
     act = collect_activation(n_proposals, n_gated)
     fai = collect_faithful(n_gated, n_landed)
@@ -108,9 +112,9 @@ def four_metrics(n_proposals: Optional[int] = None,
 
 
 def metrics_from_round(round_log: Any,
-                       ledger_entries: Optional[Sequence[Any]] = None,
-                       n_proposals: Optional[int] = None
-                       ) -> Dict[str, Any]:
+                       ledger_entries: Sequence[Any] | None = None,
+                       n_proposals: int | None = None
+                       ) -> dict[str, Any]:
     """★ RoundLog（R164 daemon 台账）⇒ 四量（Loop 每轮出口的采集位）。
 
     ★ round_log 字段（R164 真形状）: n_candidates / chain_verdict / landed /
@@ -129,7 +133,7 @@ def metrics_from_round(round_log: Any,
                         ledger_entries=ledger_entries)
 
 
-METRICS_MECHANICS: Dict[str, str] = {
+METRICS_MECHANICS: dict[str, str] = {
     "collector_not_second_impl": "本模块只采集+投影; 四量口径/三值/raise 全在 measure.py（R171 已落）— 防 R144 第二实现漂移",
     "activation_source": "evolver 候选过门率 n_gated/n_proposals（母巢『98.8% 未访问』的 DWC 同构: 提了没人要）",
     "faithful_source": "落地执行率 n_landed/n_gated（R163 state=adopted）",
@@ -139,7 +143,7 @@ METRICS_MECHANICS: Dict[str, str] = {
 }
 
 
-def summarize(fm: Dict[str, Any]) -> str:
+def summarize(fm: dict[str, Any]) -> str:
     """★ 一行可读摘要（监控/日志面 — 未埋点显式 na, 不当数字）。
 
     ★ R168 实测修: measure.measure 返 {"quantities": {...}, ...} 嵌套
@@ -148,7 +152,7 @@ def summarize(fm: Dict[str, Any]) -> str:
     """
     q = fm.get("quantities", {})
 
-    def _f(sec: Dict[str, Any], key: str, label: str) -> str:
+    def _f(sec: dict[str, Any], key: str, label: str) -> str:
         if sec.get("instrumented"):
             return "%s=%.3f" % (label, sec.get(key, 0.0))
         return "%s=na" % label

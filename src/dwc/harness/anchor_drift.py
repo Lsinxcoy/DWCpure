@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """anchor_drift · 锚点漂移的**观察面**（R198 · Stage 2 的真身, 但**不自动换代**）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -36,13 +35,13 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 #: ★ epoch 账本（jsonl 追加; 每次换代一行 — 换代由人执行, 本模块只读它）
 EPOCH_LEDGER = "anchor_epochs.jsonl"
 
 #: ★ 建议触发条件（**列出来给人看, 不自动执行** — 阈值是建议不是判据）
-SUGGESTION_RULES: Dict[str, str] = {
+SUGGESTION_RULES: dict[str, str] = {
     "dev_saturated": "dev_pass_rate ≥ 0.95 且连续 ≥2 轮 ⇒ 学穿了, 该加新任务",
     "val_degraded": "val_pass_rate 比 dev_pass_rate 低 ≥0.2 ⇒ 泛化面在退化",
     "rung_monotone": "verifier_rung 全是 1 ⇒ 锚点难度结构单一, 该补高 rung",
@@ -55,12 +54,12 @@ def epoch_of(root: str) -> int:
     return int(rows[-1]["epoch"]) if rows else 1
 
 
-def read_epochs(root: str) -> List[Dict[str, Any]]:
+def read_epochs(root: str) -> list[dict[str, Any]]:
     """回读 epoch 账本（坏行 raise — G7; 无文件 ⇒ [] 一等输出）。"""
     p = os.path.join(root, "archive", EPOCH_LEDGER)
     if not os.path.exists(p):
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     with open(p, encoding="utf-8") as fh:
         for ln, line in enumerate(fh, 1):
             if not line.strip():
@@ -68,12 +67,12 @@ def read_epochs(root: str) -> List[Dict[str, Any]]:
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError as exc:
-                raise ValueError("%s 第 %d 行坏 ⇒ 拒绝猜: %s" % (p, ln, exc))
+                raise ValueError("%s 第 %d 行坏 ⇒ 拒绝猜: %s" % (p, ln, exc)) from None
     return out
 
 
 def record_epoch(root: str, *, new_epoch: int, by: str,
-                 why: str, added_tasks: List[str]) -> Dict[str, Any]:
+                 why: str, added_tasks: list[str]) -> dict[str, Any]:
     """登记一次换代（**人执行换代后调本函数记账** — 本函数不碰 anchor 文件）。
 
     ★ 单调性检查（守门人 2606.14249）: new_epoch 必须 > 当前 epoch
@@ -98,10 +97,10 @@ def record_epoch(root: str, *, new_epoch: int, by: str,
     return rec
 
 
-def drift_signals(root: str) -> Dict[str, Any]:
+def drift_signals(root: str) -> dict[str, Any]:
     """★ 漂移信号（**只读既有产物** — evidence.jsonl + dev.json）。"""
     ev = os.path.join(root, "config", "anchors", "evidence.jsonl")
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     if os.path.exists(ev):
         # ★★★ R409 · **逐行容错**：一条坏行不许让整个漂移看板炸掉。
         #   现场（2026-10-21 09:1x）：evidence.jsonl 第 107 行是半截尾巴
@@ -118,7 +117,7 @@ def drift_signals(root: str) -> Dict[str, Any]:
                 continue
     dev = [r for r in rows if r.get("split") == "dev"]
     val = [r for r in rows if r.get("split") == "val"]
-    per: Dict[str, List[bool]] = {}
+    per: dict[str, list[bool]] = {}
     for r in dev:
         per.setdefault(str(r.get("task_id")), []).append(bool(r.get("success")))
     per_task = {k: (sum(v) / len(v)) for k, v in sorted(per.items())}
@@ -138,13 +137,13 @@ def drift_signals(root: str) -> Dict[str, Any]:
     }
 
 
-def _rung_mix(root: str) -> Dict[str, int]:
+def _rung_mix(root: str) -> dict[str, int]:
     """dev.json 的 verifier_rung 分布（锚点难度结构 — 全 1 = 单一）。"""
     p = os.path.join(root, "config", "anchors", "dev.json")
     if not os.path.exists(p):
         return {}
     d = json.load(open(p, encoding="utf-8"))
-    out: Dict[str, int] = {}
+    out: dict[str, int] = {}
     for k, v in d.items():
         if k.startswith("_") or not isinstance(v, dict):
             continue
@@ -153,15 +152,15 @@ def _rung_mix(root: str) -> Dict[str, int]:
     return dict(sorted(out.items()))
 
 
-def _suggestions(dev_rate: Optional[float], val_rate: Optional[float],
-                 per_task: Dict[str, float], rung_mix: Dict[str, int]
-                 ) -> List[str]:
+def _suggestions(dev_rate: float | None, val_rate: float | None,
+                 per_task: dict[str, float], rung_mix: dict[str, int]
+                 ) -> list[str]:
     """满足触发条件的建议键（**给人看的清单 — 不执行任何动作**）。
 
     ★★ 自洽纪律: `SUGGESTION_RULES` 里登记的键**必须**在本函数有对应实现
       — 登记不执行的键 = 幻影规则（tests 锁 len(建议键) 覆盖）。
     """
-    out: List[str] = []
+    out: list[str] = []
     if dev_rate is not None and dev_rate >= 0.95:
         out.append("dev_saturated")
     if per_task and all(v >= 0.95 for v in per_task.values()):

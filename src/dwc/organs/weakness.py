@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """weakness · 残差难度 δ_θ（器官⑥ 探索 · 2609.04128 §2.1）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -33,8 +32,9 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Sequence, Any
+from typing import Any
 
 from dwc.foundation.dial_config import load_difficulty
 
@@ -98,7 +98,7 @@ REPAIR_LAYER_BY_SOURCE = {
 REPAIR_LAYER_UNKNOWN = "unmapped"
 
 
-def repair_layer(c: Optional[str], source: Optional[str]) -> str:
+def repair_layer(c: str | None, source: str | None) -> str:
     """失败事件 → 该在哪一层修（AIPC 三级修复层的 DWC 映射 · R99）。
 
     ★ source 显式必填语义: 只有知道 c 出自哪个产生点才归层
@@ -115,7 +115,7 @@ def repair_layer(c: Optional[str], source: Optional[str]) -> str:
     return REPAIR_LAYER_BY_SOURCE.get(str(source), REPAIR_LAYER_UNKNOWN)
 
 
-def z_id_from_signature(sig: Optional[Mapping[str, str]]) -> str:
+def z_id_from_signature(sig: Mapping[str, str] | None) -> str:
     """失败签名 (c,q) → z_id（★ z 的操作化 — R72 裁决, 见模块头）。
 
     ★ R137: sig=None ⇒ __unsigned_fail__（公开 API 与 _z_of 的口径
@@ -136,7 +136,7 @@ def _z_of(ev: Mapping) -> str:
 
 
 def z_history_from_scores(points, evidence_lookup
-                          ) -> Dict[str, List[str]]:
+                          ) -> dict[str, list[str]]:
     """C3' 分数点序列 → DifficultyEstimator 的 history（★ 生产喂入链）。
 
     ★★★ z 操作化的裁决（R72 —— 销 R69「z 无统一操作化」边界）:
@@ -158,7 +158,7 @@ def z_history_from_scores(points, evidence_lookup
       evidence_lookup: callable(ref) → evidence dict（judge.store.evidence）
         ⇒ 用 callable 注入而非 import judge（器官间只经接口, 判据 P1）
     """
-    hist: Dict[str, List[str]] = {}
+    hist: dict[str, list[str]] = {}
     for p in points:
         hist.setdefault(p.group_id, []).append(_z_of(
             evidence_lookup(p.evidence_ref)))
@@ -166,7 +166,7 @@ def z_history_from_scores(points, evidence_lookup
 
 
 def task_delta_map(points, evidence_lookup
-                   ) -> Dict[str, float]:
+                   ) -> dict[str, float]:
     """★ 任务级 δ（R77 批2-C · C1 落点 = 任务源排序偏置, **不动 select**）。
 
     任务 δ = 该任务**历史失败签名**在组内的最大 δ —— 罕见失败缠身的任务
@@ -181,9 +181,9 @@ def task_delta_map(points, evidence_lookup
       get 默认会把"没数据"和"零难度"混掉; 也不是 NaN —— 排序要全序）。
     ★ 返回**有分数点的全部 task_id**（无失败的也在表里=0.0, 可审计）。
     """
-    hist: Dict[str, List[str]] = {}
-    task_z: Dict[str, set] = {}
-    task_group: Dict[str, str] = {}
+    hist: dict[str, list[str]] = {}
+    task_z: dict[str, set] = {}
+    task_group: dict[str, str] = {}
     for p in points:
         ev = evidence_lookup(p.evidence_ref)
         z = _z_of(ev)
@@ -192,7 +192,7 @@ def task_delta_map(points, evidence_lookup
         if z != Z_PASS:
             task_z.setdefault(p.task_id, set()).add(z)
     est = DifficultyEstimator(hist)     # 全组一个实例（delta_group 按 g 取）
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for tid, g in task_group.items():
         zs = task_z.get(tid)
         if not zs:
@@ -203,7 +203,7 @@ def task_delta_map(points, evidence_lookup
 
 
 def task_success_stats(points, evidence_lookup
-                       ) -> Dict[str, Dict[str, Any]]:
+                       ) -> dict[str, dict[str, Any]]:
     """★ R103 · 成功侧归纳的聚合原料（Trace2Skill A+ 对称物 — 10 篇横搜缺口）。
 
     ★ 为什么存在: ingest 不变量②**只要求失败**带签名 ⇒ 成功痕迹进了记忆却
@@ -220,7 +220,7 @@ def task_success_stats(points, evidence_lookup
     ★ 无观测任务不入表（与 task_delta_map「无失败也入表 0.0」不同 —
       成功侧的『入表』语义是『有观测』, 没观测就不装）。
     """
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for p in points:
         ev = evidence_lookup(p.evidence_ref)
         succ = ev.get("success") if isinstance(ev, dict) else None
@@ -257,13 +257,13 @@ class DifficultyEstimator:
     """
 
     def __init__(self, history: Mapping[str, Sequence[str]],
-                 config_path: Optional[str] = None):
+                 config_path: str | None = None):
         cfg_all = (load_difficulty(config_path) if config_path
                    else load_difficulty())
         self.cfg = cfg_all["difficulty"]
         self.semantics: str = self.cfg["semantics"]   # X1 已在加载器校验
         #: 组 → z 序列（复制一层, 防调用方事后改列表污染估计）
-        self._hist: Dict[str, List[str]] = {
+        self._hist: dict[str, list[str]] = {
             g: list(zs) for g, zs in history.items()}
         #: X4 报告字段的一致来源（门报告的 delta_semantics 从这里取）
         self.report_field = self.cfg["report_field"]
@@ -308,7 +308,7 @@ class DifficultyEstimator:
             total += d.delta
         return total
 
-    def weak_ranking(self, group_id: str) -> List[Dict[str, object]]:
+    def weak_ranking(self, group_id: str) -> list[dict[str, object]]:
         """★ 组内 z 的稀有度排序（降序）—— 落点就是「只可作排序偏置」:
         不给阈值, 只给顺序（ARCHITECTURE L1105 的用法约束）。
         """

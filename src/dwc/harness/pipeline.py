@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """pipeline · 候选环五面合流（bridge → gates → adoption → credit）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -25,12 +24,13 @@
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from .adoption import AdoptionRecord, apply_chain
 from .candidate_bridge import to_facts
-from .gates import TermFacts, run_gates
+from .gates import run_gates
 
 
 class PipelineError(Exception):
@@ -41,14 +41,14 @@ class PipelineError(Exception):
 class RoundResult:
     """一轮候选环的完整轨迹（进台账/审计面用 — 不是只给 verdict）。"""
 
-    chain: Dict[str, Any]
-    adoption: Optional[AdoptionRecord]
-    credit_entries: List[Dict[str, Any]]
-    components: List[str]
-    landing: Optional[Dict[str, Any]] = None     # ★ R163 land 留痕
-    notes: List[str] = field(default_factory=list)
+    chain: dict[str, Any]
+    adoption: AdoptionRecord | None
+    credit_entries: list[dict[str, Any]]
+    components: list[str]
+    landing: dict[str, Any] | None = None     # ★ R163 land 留痕
+    notes: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"chain_verdict": self.chain.get("verdict"),
                 "blocked": self.chain.get("blocked", []),
                 "not_applicable": self.chain.get("not_applicable", []),
@@ -62,22 +62,22 @@ class RoundResult:
 
 
 def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
-              ledger: Any, vocabulary: Tuple[str, ...] = (),
-              pass_rate: Optional[float] = None,
-              score_star: Optional[float] = None,
-              delta_s: Optional[float] = None,
-              delta_c: Optional[float] = None,
-              noise_band: Optional[float] = None,
-              domain_guard_ok: Optional[bool] = None,
-              delta_s_by_edit: Optional[Dict[str, float]] = None,
-              delta_c_by_edit: Optional[Dict[str, float]] = None,
-              nu_str: Optional[float] = None,
-              split_verdict: Optional[Dict[str, Any]] = None,
-              baseline: Optional[Dict[str, float]] = None,
-              current: Optional[Dict[str, float]] = None,
-              applier: Optional[Any] = None,
-              target: Optional[Any] = None,
-              evidence: Optional[Dict[str, Any]] = None) -> RoundResult:
+              ledger: Any, vocabulary: tuple[str, ...] = (),
+              pass_rate: float | None = None,
+              score_star: float | None = None,
+              delta_s: float | None = None,
+              delta_c: float | None = None,
+              noise_band: float | None = None,
+              domain_guard_ok: bool | None = None,
+              delta_s_by_edit: dict[str, float] | None = None,
+              delta_c_by_edit: dict[str, float] | None = None,
+              nu_str: float | None = None,
+              split_verdict: dict[str, Any] | None = None,
+              baseline: dict[str, float] | None = None,
+              current: dict[str, float] | None = None,
+              applier: Any | None = None,
+              target: Any | None = None,
+              evidence: dict[str, Any] | None = None) -> RoundResult:
     """★ 一次候选环（六面合流 — R163 加落地面; 编排, 不新增判定）。
 
     ★ 顺序: bridge → gates → adoption → credit（chain blocked 时 credit
@@ -103,8 +103,8 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
     # ③ 采纳迁移（blocked ⇒ rejected — 不进判分, R154）
     adoption = apply_chain(proposal, chain)
 
-    notes: List[str] = []
-    credit_entries: List[Dict[str, Any]] = []
+    notes: list[str] = []
+    credit_entries: list[dict[str, Any]] = []
     if chain.get("verdict") == "blocked":
         notes.append("链 blocked ⇒ 不记 ℒ_t（没赢家可记 — 没通过不是\"赢\"）")
         return RoundResult(chain=chain, adoption=adoption,
@@ -143,7 +143,7 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
         credit_entries.append(entry.as_dict())
 
     # ⑤ 落地（R163 · applier/target/evidence 三件齐才落 — 缺 ⇒ 留痕不落）
-    landing: Optional[Dict[str, Any]] = None
+    landing: dict[str, Any] | None = None
     if applier is None or target is None or evidence is None:
         notes.append("applier/target/evidence 未齐 ⇒ 本轮不落地（state 保持"
                      " gated/adopted_not_implemented — 缺落地三件≠可落）")
@@ -164,7 +164,7 @@ def run_round(cands: Sequence[Any], *, t: int, proposal: Any,
                        landing=landing, notes=notes)
 
 
-PIPELINE_MECHANICS: Dict[str, str] = {
+PIPELINE_MECHANICS: dict[str, str] = {
     "order": "bridge.to_facts → gates.run_gates → adoption.apply_chain → credit.record（编排, 不新增判定）",
     "blocked_short_circuit": "链 blocked ⇒ credit 不记（没赢家可记 — 没通过≠赢）; adoption 仍迁 rejected",
     "winner_only": "只记赢家 a_i=1 + lost_not_recorded=True 显式标注（DWC 无对手方面 ⇒ 陪跑面缺席≠没有陪跑）",

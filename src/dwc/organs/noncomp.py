@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """noncomp · 非补偿门三步（2609.24972 §3.3 原文 · V2 门⑤「顺序不可换」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -17,8 +16,9 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
 #: 门的判定结论（显式三值 — None/缺输入⊥ 与 reject 分开）
 PASS = "pass"
@@ -46,9 +46,9 @@ class GateInput:
     delta_s: float
     delta_c: float
     nu_str: float = 0.0
-    noise_band: Optional[float] = None
-    domain_guard_ok: Optional[bool] = None
-    floor_weights: Optional[Dict[str, float]] = None   # 2b 整形权重
+    noise_band: float | None = None
+    domain_guard_ok: bool | None = None
+    floor_weights: dict[str, float] | None = None   # 2b 整形权重
 
     def __post_init__(self) -> None:
         for n in ("score", "score_star", "delta_s", "delta_c", "nu_str"):
@@ -63,7 +63,7 @@ class GateInput:
                 "domain_guard_ok 须 bool 或 None（None=未提供 ⇒ 步骤③ blocked）")
 
 
-def _weights(inp: GateInput) -> Tuple[float, float, float]:
+def _weights(inp: GateInput) -> tuple[float, float, float]:
     """2b 整形权重（缺省等权 — 调用方可覆盖; 权重须非负且不全 0）。"""
     d = inp.floor_weights or {}
     ws = float(d.get("ws", 1.0))
@@ -77,12 +77,12 @@ def _weights(inp: GateInput) -> Tuple[float, float, float]:
     return ws, wc, wn
 
 
-def evaluate(inp: GateInput) -> Dict[str, Any]:
+def evaluate(inp: GateInput) -> dict[str, Any]:
     """★ 非补偿三步（顺序不可换 — 任一步失败即 reject, 后续不跑）。"""
     if not isinstance(inp, GateInput):
         raise NonCompError("evaluate 要 GateInput, 实 %r"
                            % (type(inp).__name__,))
-    steps: List[Dict[str, Any]] = []
+    steps: list[dict[str, Any]] = []
 
     # ① 噪声地板 Ŝ ≥ S* − δ（δ 缺 ⇒ blocked — 不许硬设 0）
     if inp.noise_band is None:
@@ -138,16 +138,16 @@ def evaluate(inp: GateInput) -> Dict[str, Any]:
             "order": list(NONCOMP_ORDER)}
 
 
-def batch(inputs: Sequence[GateInput]) -> List[Dict[str, Any]]:
+def batch(inputs: Sequence[GateInput]) -> list[dict[str, Any]]:
     """批量（保序 — 评估按候选序进）。"""
     return [evaluate(i) for i in inputs]
 
 
 #: 三步顺序（原文 §3.3 — 值枚举, 顺序即契约）
-NONCOMP_ORDER: Tuple[str, ...] = ("noise_floor", "cost_or_shaped",
+NONCOMP_ORDER: tuple[str, ...] = ("noise_floor", "cost_or_shaped",
                                   "domain_guards")
 
-NONCOMP_MECHANICS: Dict[str, str] = {
+NONCOMP_MECHANICS: dict[str, str] = {
     "order": "噪声地板 → 成本规则(2a)/整形(2b) → 领域守卫（顺序不可换）",
     "non_compensatory": "每步独立否决 — 别的步骤好不能补偿某步失败（与 seesaw 加权门根本差别）",
     "blocked_not_pass": "δ 缺/守卫缺 ⇒ blocked（不硬设默认值 ⇒ 静默放行禁）",

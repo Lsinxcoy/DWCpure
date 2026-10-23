@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R270-④ · 程序模板库（v10 workflow_memory 两层设计 DWC 版）。
 DWC-MEM(记忆底座)-程序性记忆：跨任务可复用的步骤模板。
 
@@ -8,13 +7,13 @@ DWC-MEM(记忆底座)-程序性记忆：跨任务可复用的步骤模板。
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
 import time
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 VAR = os.path.join(ROOT, "var")
 WORKFLOWS = os.path.join(VAR, "dwc_workflows.jsonl")
@@ -24,7 +23,7 @@ def _load(path: str = WORKFLOWS) -> list:
     if not os.path.exists(path):
         return []
     out = []
-    for ln in io.open(path, encoding="utf-8").read().splitlines():
+    for ln in open(path, encoding="utf-8").read().splitlines():
         if ln.strip():
             try:
                 out.append(json.loads(ln))
@@ -36,9 +35,8 @@ def _load(path: str = WORKFLOWS) -> list:
 def _save(path: str, rows: list) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
-    with io.open(tmp, "w", encoding="utf-8") as fh:
-        for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
     os.replace(tmp, path)
 
 

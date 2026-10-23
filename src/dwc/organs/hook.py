@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """hook · 八 hook + 互斥类（2606.14249 Table 1 · EVOLUTION_CORE_V2 §4.3「抢位冲突」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -22,11 +21,12 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import Any
 
 #: 八 hook（Table 1 原文顺序 — 值枚举, 不自创 hook）
-HOOKS: Tuple[str, ...] = ("task_start", "step_start", "before_model",
+HOOKS: tuple[str, ...] = ("task_start", "step_start", "before_model",
                           "after_model", "before_tool", "after_tool",
                           "step_end", "task_end")
 
@@ -34,14 +34,14 @@ HOOKS: Tuple[str, ...] = ("task_start", "step_start", "before_model",
 _READ_ONLY_PAPER = frozenset({"step_end", "task_end"})
 
 #: order 三档（PRE/NORMAL/POST — 链内执行次序, 越界即拒）
-ORDERS: Tuple[str, ...] = ("PRE", "NORMAL", "POST")
+ORDERS: tuple[str, ...] = ("PRE", "NORMAL", "POST")
 
 
 class HookViolation(Exception):
     """契约违规（读只读 hook / 互斥类重复 / order 越界 / 未知 hook 名）。"""
 
     @classmethod
-    def paper_error(cls) -> "HookViolation":
+    def paper_error(cls) -> HookViolation:
         return cls("read_only hook 被处理器改状态 — 原文要求立即抛, "
                    "不用日志（V2 采 Table 1『违规即抛』）")
 
@@ -60,8 +60,8 @@ class ProcessorSpec:
     hook: str
     order: str = "NORMAL"
     singleton_group: str = ""
-    after: Tuple[str, ...] = ()
-    call: Optional[Callable[[Dict[str, Any]], Any]] = None
+    after: tuple[str, ...] = ()
+    call: Callable[[dict[str, Any]], Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -95,9 +95,9 @@ class HookRegistry:
     """
 
     def __init__(self) -> None:
-        self._by_hook: Dict[str, List[ProcessorSpec]] = {h: [] for h in HOOKS}
-        self._names: Dict[str, ProcessorSpec] = {}
-        self._groups: Dict[str, str] = {}      # group -> processor name
+        self._by_hook: dict[str, list[ProcessorSpec]] = {h: [] for h in HOOKS}
+        self._names: dict[str, ProcessorSpec] = {}
+        self._groups: dict[str, str] = {}      # group -> processor name
         #: run loop 侧的活动状态键集合（只读 hook 调用时不许写这些键）
         self._state_keys: set = set()
 
@@ -129,8 +129,8 @@ class HookRegistry:
         """声明活动状态键（只读 hook 将对这些键的写操作判违规）。"""
         self._state_keys |= set(keys)
 
-    def fire(self, hook: str, state: Dict[str, Any],
-             writes: Optional[Iterable[str]] = None) -> List[Any]:
+    def fire(self, hook: str, state: dict[str, Any],
+             writes: Iterable[str] | None = None) -> list[Any]:
         """★ 触发一个 hook 的全部处理器（按 order 分组 PRE→NORMAL→POST）。
 
         ★★ 契约校验（原文"run loop 在每次调用后校验"的落地形态）:
@@ -146,7 +146,7 @@ class HookRegistry:
             w = list(writes)
             if w:
                 raise HookViolation.paper_error()
-        results: List[Any] = []
+        results: list[Any] = []
         for od in ORDERS:
             for spec in sorted((s for s in self._by_hook[hook]
                                 if s.order == od),
@@ -158,26 +158,26 @@ class HookRegistry:
         return results
 
     # ── 查询（run loop/审计面用） ──────────────────────────
-    def processors(self, hook: Optional[str] = None
-                   ) -> List[ProcessorSpec]:
+    def processors(self, hook: str | None = None
+                   ) -> list[ProcessorSpec]:
         if hook is not None:
             if hook not in HOOKS:
                 raise HookViolation("processors 未知 hook: %r" % (hook,))
             return list(self._by_hook[hook])
         return list(self._names.values())
 
-    def groups(self) -> Dict[str, str]:
+    def groups(self) -> dict[str, str]:
         """组 ⇒ 处理器名（互斥面快照 — 审计"谁占了哪个位"）。"""
         return dict(self._groups)
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {"hooks": list(HOOKS), "read_only": sorted(_READ_ONLY_PAPER),
                 "n_registered": len(self._names),
                 "n_groups": len(self._groups),
                 "per_hook": {h: len(self._by_hook[h]) for h in HOOKS}}
 
 
-HOOK_MECHANICS: Dict[str, str] = {
+HOOK_MECHANICS: dict[str, str] = {
     "singleton": "Table 1: 每组至多一个处理器（_singleton_group 语义）",
     "read_only": "step_end/task_end 上违规写 ⇒ 立即抛（V2 采原文异常派）",
     "orders": "PRE/NORMAL/POST 三段内按名稳定序（保证可复现触发序列）",

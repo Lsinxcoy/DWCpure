@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """attestation · 声称 vs 实测双账（R196 · Z 类落地 乙类 B3）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -29,7 +28,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 #: ★ 声称行 schema 版本
 ATTESTATION_SCHEMA_VERSION = 1
@@ -83,7 +82,7 @@ def attest(archive_path: str, claim_id: str, evidence_ref: str,
 
 
 def unattested(archive_path: str,
-               round_gen: Optional[int] = None) -> List[Dict[str, Any]]:
+               round_gen: int | None = None) -> list[dict[str, Any]]:
     """声称了但没挂实测的（**观察面 — 不抛不拦**）。
 
     ★ gen=None ⇒ 全部轮次; gen=给定 ⇒ 只该轮。
@@ -92,7 +91,7 @@ def unattested(archive_path: str,
     ★ 文件不存在 ⇒ []（从未声称 = 无未挂, 合法一等输出）。
     """
     rows = _read(archive_path)
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for r in rows:
         if r.get("kind") != "claim" or r.get("attested"):
             continue
@@ -103,19 +102,18 @@ def unattested(archive_path: str,
     return out
 
 
-def _read(path: str) -> List[Dict[str, Any]]:
+def _read(path: str) -> list[dict[str, Any]]:
     if not os.path.exists(path):
         return []
     with open(path, encoding="utf-8") as fh:
         return [json.loads(l) for l in fh if l.strip()]
 
 
-def _write(path: str, rows: List[Dict[str, Any]]) -> None:
+def _write(path: str, rows: list[dict[str, Any]]) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
-        for r in rows:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
         fh.flush()
         os.fsync(fh.fileno())
     os.replace(tmp, path)          # 原子替换 ⇒ 半截写入不致坏账

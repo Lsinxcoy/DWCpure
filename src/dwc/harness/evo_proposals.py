@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC-AUTO · 进化提案落盘（B3）
 
 定位声明（DWC-AUTO · 进化系统）
@@ -33,11 +32,11 @@
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import time
-from typing import Any, Dict, Iterable, List, Optional, Set
+from collections.abc import Iterable
+from typing import Any
 
 from dwc.foundation.paths import find_root
 
@@ -61,7 +60,7 @@ def read_error_last() -> str:
     return _READ_ERRORS["last"]
 
 
-def append_records(path: str, records: Iterable[Dict[str, Any]]) -> int:
+def append_records(path: str, records: Iterable[dict[str, Any]]) -> int:
     """append-only 写盘，返回写入行数。
 
     ★ 目录不存在就建（var/ 常被清空）；写失败 raise —— 静默丢提案
@@ -73,18 +72,17 @@ def append_records(path: str, records: Iterable[Dict[str, Any]]) -> int:
     d = os.path.dirname(os.path.abspath(path))
     if d and not os.path.isdir(d):
         os.makedirs(d)
-    with io.open(path, "a", encoding="utf-8") as fh:
-        for r in rows:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
     return len(rows)
 
 
-def read_records(path: str) -> List[Dict[str, Any]]:
+def read_records(path: str) -> list[dict[str, Any]]:
     """读全量记录；坏行跳过并计数（不 raise —— 一行坏不该废掉整份账）。"""
     if not os.path.exists(path):
         return []
-    out: List[Dict[str, Any]] = []
-    with io.open(path, "r", encoding="utf-8") as fh:
+    out: list[dict[str, Any]] = []
+    with open(path, "r", encoding="utf-8") as fh:
         for i, line in enumerate(fh, 1):
             line = line.strip()
             if not line:
@@ -101,8 +99,8 @@ def read_records(path: str) -> List[Dict[str, Any]]:
     return out
 
 
-def consumed_keys(records: List[Dict[str, Any]]) -> Set[str]:
-    keys: Set[str] = set()
+def consumed_keys(records: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
     for r in records:
         if r.get("kind") == "consumed":
             for k in (r.get("keys") or []):
@@ -111,7 +109,7 @@ def consumed_keys(records: List[Dict[str, Any]]) -> Set[str]:
 
 
 def pending_unmapped(path: str,
-                     exclude: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+                     exclude: set[str] | None = None) -> list[dict[str, Any]]:
     """未映射签名中**尚未被消费**的那些（保持出现顺序，**不按 key 去重**）。
 
     ★ 不去重的理由：同 key 出现多次 = 该簇的频次，`run_round` 的
@@ -122,7 +120,7 @@ def pending_unmapped(path: str,
     done = consumed_keys(recs)
     if exclude:
         done |= {str(k) for k in exclude}
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for r in recs:
         if r.get("kind") != "unmapped":
             continue
@@ -140,13 +138,13 @@ def pending_unmapped(path: str,
     return out
 
 
-def group_by_key(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def group_by_key(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """把 pending_unmapped 的条目聚成 `run_round` 认的簇形态。
 
     返回 `[{"key": k, "sigs": [sig, ...]}, ...]`，顺序 = 首次出现顺序。
     """
-    groups: Dict[str, List[Dict[str, Any]]] = {}
-    order: List[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
+    order: list[str] = []
     for it in items or []:
         k = str(it.get("key") or "")
         sig = it.get("sig")
@@ -168,8 +166,8 @@ def mark_consumed(path: str, keys: Iterable[str]) -> int:
                                   "keys": ks}])
 
 
-def proposal_record(rep_meta: Dict[str, Any], sig: Dict[str, Any],
-                    proposal: Any) -> Dict[str, Any]:
+def proposal_record(rep_meta: dict[str, Any], sig: dict[str, Any],
+                    proposal: Any) -> dict[str, Any]:
     """把 Proposal 对象转成可落盘记录（只取可审计字段，不搬私有态）。"""
     def _g(name, default=""):
         v = getattr(proposal, name, default)
@@ -194,8 +192,8 @@ def proposal_record(rep_meta: Dict[str, Any], sig: Dict[str, Any],
     }
 
 
-def unmapped_record(rep_meta: Dict[str, Any],
-                    sig: Dict[str, Any]) -> Dict[str, Any]:
+def unmapped_record(rep_meta: dict[str, Any],
+                    sig: dict[str, Any]) -> dict[str, Any]:
     return {
         "kind": "unmapped",
         "ts": time.time(),

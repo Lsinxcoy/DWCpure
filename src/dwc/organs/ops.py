@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """ops · drawback 门③ 的原子检测器池 + 固定 root（R166 — 补 op 池缺口）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -25,10 +24,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from dwc.organs.drawback import (
-    VERDICTS, DrawbackError, Grader, Node, Op)
+from dwc.organs.drawback import Grader, Node, Op
 
 #: 三值枚举（与 R149 同源 — 不复制字面量, import 防漂移）
 DRAWBACK = "drawback"
@@ -172,14 +170,14 @@ def op_evidence_rich():
 
 
 #: 池的出厂清单（root 单独装 — 它永远在 conjunction 首位）
-DEFAULT_POOL: Tuple[Op, ...] = (
+DEFAULT_POOL: tuple[Op, ...] = (
     op_root_parse_ok(), op_judge_verdict(), op_nonempty_diff(),
     op_component_known(), op_golden_leak(), op_pass_rate_weak(),
 )
 
 #: ★ R189-B · 无标签面池（train split 专用 — 门③仍用 DEFAULT_POOL）
 #: TRAIN_POOL = DEFAULT_POOL + 2 个无标签 op（判据键不依赖 label）
-TRAIN_POOL: Tuple[Op, ...] = DEFAULT_POOL + (op_exec_ok(),
+TRAIN_POOL: tuple[Op, ...] = DEFAULT_POOL + (op_exec_ok(),
                                             op_evidence_rich())
 
 #: R189-B 证据含量阈值（工程常量 — 论文未给数字, 如实标注）
@@ -190,20 +188,20 @@ EVIDENCE_MIN_CHARS: int = 4
 class PoolReport:
     """一次池评估的报告（逐 op 三值 + 汇总 — 全留痕, 不静默）。"""
 
-    per_op: Dict[str, str] = field(default_factory=dict)
-    tree_verdict: Optional[str] = None
-    root_verdict: Optional[str] = None
+    per_op: dict[str, str] = field(default_factory=dict)
+    tree_verdict: str | None = None
+    root_verdict: str | None = None
     n_nodes: int = 0
-    notes: List[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"per_op": self.per_op, "tree_verdict": self.tree_verdict,
                 "root_verdict": self.root_verdict, "n_nodes": self.n_nodes,
                 "notes": self.notes}
 
 
-def build_grader(extra_ops: Optional[Tuple[Op, ...]] = None,
-                 *, root_first: bool = True) -> Tuple[Grader, Node]:
+def build_grader(extra_ops: tuple[Op, ...] | None = None,
+                 *, root_first: bool = True) -> tuple[Grader, Node]:
     """★ 装一个带 root 的 Grader（出厂配置 — 链上直接可用）。
 
     ★ 树 = 固定 root ⋀ 全池（论文: "the final verdict being the fixed
@@ -228,7 +226,7 @@ def build_grader(extra_ops: Optional[Tuple[Op, ...]] = None,
     return (g, tree)
 
 
-def evaluate_pool(g: Grader, ctx: Dict[str, Any],
+def evaluate_pool(g: Grader, ctx: dict[str, Any],
                   task: Any = None, y: Any = None) -> PoolReport:
     """★ 跑整池（逐 op 单跑 + 树汇总 — 两路都记, 可对账）。"""
     rep = PoolReport()
@@ -250,9 +248,9 @@ def _count_nodes(n: Node) -> int:
     return 1 + sum(_count_nodes(c) for c in n.children)
 
 
-def ctx_from_facts(facts: Any) -> Dict[str, Any]:
+def ctx_from_facts(facts: Any) -> dict[str, Any]:
     """★ TermFacts ⇒ op ctx（口径桥 — 投影不从 facts 重算, 只搬字段）。"""
-    ctx: Dict[str, Any] = {}
+    ctx: dict[str, Any] = {}
     pr = getattr(facts, "pass_rate", None)
     ctx["judge_success"] = (None if pr is None
                             else bool(pr >= 1.0))
@@ -271,7 +269,7 @@ def ctx_from_facts(facts: Any) -> Dict[str, Any]:
     return ctx
 
 
-POOL_MECHANICS: Dict[str, str] = {
+POOL_MECHANICS: dict[str, str] = {
     "cost_layers": "static(结构)/execution(真跑, 结果经 ctx 注入)/judge(LLM 结论经 ctx 注入) — 本模块都不自持执行, 只投影",
     "fixed_root": "root_parse_ok 恒在 conjunction 首位（构造保证, 非约定）— 原文『validates basic structure + caches parsed artifact』",
     "no_second_judge": "op 只读 ctx 里已算结论（judge/leakage/bridge 的）— 不重算（R152 口径桥同纪律）",

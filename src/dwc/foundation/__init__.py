@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC foundation · 定位声明（DWC-MEM · 记忆底座）
 
 ★ 本包目前只有 capability_groups 一项。

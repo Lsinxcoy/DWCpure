@@ -6,9 +6,9 @@
 """
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-_CACHE: Dict[str, Optional[str]] = {}
+_CACHE: dict[str, str | None] = {}
 _OTA_MISS = [0]  # ★ G7 · OTA 降级计数（可观测，不静默）
 
 
@@ -28,8 +28,8 @@ def miss_count() -> int:
         return -1
 
 
-def render(name: str, fields: Dict[str, Any], *, root=None, manifest=None,
-           key: str = "", remote: str = "") -> Optional[str]:
+def render(name: str, fields: dict[str, Any], *, root=None, manifest=None,
+           key: str = "", remote: str = "") -> str | None:
     """模板渲染：@@field@@ 占位直换。缺模板/缺字段⇒None（调用方走老路）。
     永不抛错；降级一律 note_miss 计数。"""
     import re as _re
@@ -54,7 +54,7 @@ def render(name: str, fields: Dict[str, Any], *, root=None, manifest=None,
 
 
 def fetch_remote(base_url: str, name: str, ver: str,
-                 timeout: float = 3.0) -> Optional[str]:
+                 timeout: float = 3.0) -> str | None:
     """从远端 prompts 源取基线（如本地 bootstrap 服务）。
     任何失败⇒None（调用方走本地文件/内嵌老路）。永不抛错。"""
     import re as _re
@@ -87,8 +87,8 @@ def fetch_remote(base_url: str, name: str, ver: str,
         return None
 
 
-def render_here(name: str, fields: Dict[str, Any], caller_file: str,
-                key: str = "", remote: str = "") -> Optional[str]:
+def render_here(name: str, fields: dict[str, Any], caller_file: str,
+                key: str = "", remote: str = "") -> str | None:
     """一站式渲染：找根＋读 manifest＋render。全失败返 None。永不抛错。"""
     try:
         import json as _js
@@ -134,7 +134,7 @@ def _force_path() -> str:
         return _os.path.join("var", "prompt_force.json")
 
 
-def _forced(name: str) -> Optional[str]:
+def _forced(name: str) -> str | None:
     """读钉版本表；没有文件/坏文件 ⇒ None（走 manifest 灰度）。
 
     ★ 坏文件不静默：计数 + 当没钉（宁可跑灰度，不可把实验条件当生产）。
@@ -161,7 +161,7 @@ def _forced(name: str) -> Optional[str]:
     return (_FORCE.get("map") or {}).get(name)
 
 
-def _ver(name: str, manifest: Dict[str, Any], key: str) -> Optional[str]:
+def _ver(name: str, manifest: dict[str, Any], key: str) -> str | None:
     # ★ R434 · 钉版本优先（A/B 归因需要"同题两臂"）
     try:
         f = _forced(name)
@@ -185,7 +185,7 @@ def _ver(name: str, manifest: Dict[str, Any], key: str) -> Optional[str]:
 
 
 def get_prompt(name: str, *, root=None, manifest=None, key: str = "",
-               append: str = "", remote: str = "") -> Optional[str]:
+               append: str = "", remote: str = "") -> str | None:
     try:
         if not name or root is None:
             return None

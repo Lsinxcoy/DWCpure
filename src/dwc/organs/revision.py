@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """revision · 记忆后向修订触发器（ReHarness 2610.12668 §3.2 — R258）。
 
 ★★★ 定位（G1）: **DWC-MEM** —— 记忆管线的反馈回写; 非评分（G2）。
@@ -24,14 +23,14 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from dwc.organs.memory import MemoryKind, MemoryKernel
+from dwc.organs.memory import MemoryKernel, MemoryKind
 
 
 def revise_from_outcome(memory: MemoryKernel, llm: Any, *,
                         task: str, status: str,
-                        fail_why: str = "") -> Dict[str, Any]:
+                        fail_why: str = "") -> dict[str, Any]:
     """★ 任务结局 → 修订该任务检索用过的 SKILL 条目（memory 轨）。
 
     diagnostic gate: status 不在 {done, failed} ⇒ 跳过（噪声不修）。

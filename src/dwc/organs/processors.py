@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """processors · agent harness 的五个策略处理器（Phase B3 · 2026-10-19）
 
 DWC-AUTO 定位声明（器官 · 判据 G1 定位门）
@@ -24,12 +23,12 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.organs.hook import ProcessorSpec
 
 # ── 解析失败留痕（G7：降级兜底必须可审计）──────────────────────
-_PARSE_MISS: Dict[str, Any] = {"n": 0, "last": ""}
+_PARSE_MISS: dict[str, Any] = {"n": 0, "last": ""}
 
 
 def note_parse_miss(why: str) -> None:
@@ -49,8 +48,8 @@ def parse_miss_last() -> str:
 # 1. FileSelector · step_start
 # ══════════════════════════════════════════════════════════════════
 
-def _keywords(problem_statement: str, f2p_tests: List[str]) -> List[str]:
-    kws: List[str] = []
+def _keywords(problem_statement: str, f2p_tests: list[str]) -> list[str]:
+    kws: list[str] = []
     for t in f2p_tests or []:
         head = t.split("::")[0]
         stem = os.path.basename(head).replace(".py", "").replace("test_", "")
@@ -61,7 +60,7 @@ def _keywords(problem_statement: str, f2p_tests: List[str]) -> List[str]:
         if len(w) > 3:
             kws.append(w)
     seen: set = set()
-    out: List[str] = []
+    out: list[str] = []
     for k in kws:
         if k and k not in seen:
             seen.add(k)
@@ -69,8 +68,8 @@ def _keywords(problem_statement: str, f2p_tests: List[str]) -> List[str]:
     return out
 
 
-def select_by_keyword(problem_statement: str, files: List[str],
-                      f2p_tests: List[str], limit: int = 3) -> List[str]:
+def select_by_keyword(problem_statement: str, files: list[str],
+                      f2p_tests: list[str], limit: int = 3) -> list[str]:
     """三级匹配：basename 精确 → basename 包含 → 全路径包含。"""
     kws = _keywords(problem_statement, f2p_tests)
 
@@ -95,14 +94,14 @@ def file_selector(mode: str = "keyword", limit: int = 3) -> ProcessorSpec:
       keyword    —— 关键词三级匹配（零 LLM 成本）
       llm_select —— 让 LLM 从文件列表里挑（多一次调用）
     """
-    def call(state: Dict[str, Any]) -> List[str]:
+    def call(state: dict[str, Any]) -> list[str]:
         deps = state["deps"]
         pol = state["policy"]
         files = list(deps.list_files())
         ps = state.get("problem_statement", "")
         f2p = state.get("f2p_tests", [])
 
-        chosen: List[str] = []
+        chosen: list[str] = []
         if mode == "llm_select" and files:
             prompt = ("Issue:\n" + ps[:1200] +
                       "\n\nAvailable source files:\n" + ", ".join(files[:60]) +
@@ -119,7 +118,7 @@ def file_selector(mode: str = "keyword", limit: int = 3) -> ProcessorSpec:
             chosen = select_by_keyword(ps, files, f2p, limit)
 
         state["target_files"] = chosen
-        contents: Dict[str, str] = {}
+        contents: dict[str, str] = {}
         for f in chosen[:1]:
             c = deps.read_file(f, pol.context_chars)
             if c:
@@ -151,7 +150,7 @@ _INSTRUCTION = (
 def prompt_builder(include_f2p: bool = True,
                    include_files: bool = True) -> ProcessorSpec:
     """before_model: 把 issue + 源码 + 上一轮错误组装成 prompt。"""
-    def call(state: Dict[str, Any]) -> str:
+    def call(state: dict[str, Any]) -> str:
         parts = ["Issue:\n" + state.get("problem_statement", "")[:1500]]
         if include_f2p and state.get("f2p_tests"):
             parts.append("\nF2P tests (will verify the fix):\n"
@@ -175,10 +174,10 @@ def prompt_builder(include_f2p: bool = True,
 # 3. OutputParser · after_model
 # ══════════════════════════════════════════════════════════════════
 
-_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
+_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
-def parse_json_tolerant(text: str) -> Optional[dict]:
+def parse_json_tolerant(text: str) -> dict | None:
     """容忍 ```json 围栏 / 前后废话的 JSON 提取。
 
     ★ 失败必须留痕（G7）——不静默 return None。
@@ -212,7 +211,7 @@ def output_parser(mode: str = "json") -> ProcessorSpec:
       json —— 三键对象 {file, old_string, new_string}（当前唯一实现）
       （codeact / diff / whole_file 在 Phase F 接入，本阶段显式拒绝）
     """
-    def call(state: Dict[str, Any]) -> Optional[dict]:
+    def call(state: dict[str, Any]) -> dict | None:
         raw = state.get("raw_response", "")
         if mode != "json":
             state["action"] = None
@@ -242,7 +241,7 @@ def output_parser(mode: str = "json") -> ProcessorSpec:
 
 def action_guard() -> ProcessorSpec:
     """before_tool: 应用前的最小结构校验（不判语义对错）。"""
-    def call(state: Dict[str, Any]) -> bool:
+    def call(state: dict[str, Any]) -> bool:
         a = state.get("action") or {}
         bad = (not a.get("file")
                or not a.get("old_string")
@@ -268,7 +267,7 @@ def error_feeder(mode: str = "full") -> ProcessorSpec:
       truncated       —— 截 300 字（省 token）
       assertion_only  —— 只留断言/异常行（聚焦）
     """
-    def call(state: Dict[str, Any]) -> str:
+    def call(state: dict[str, Any]) -> str:
         tr = state.get("tool_result") or {}
         if tr.get("ok"):
             state["previous_error"] = ""
@@ -307,8 +306,15 @@ def default_registry(policy=None):
 
 
 __all__ = [
-    "note_parse_miss", "parse_miss_count", "parse_miss_last",
-    "select_by_keyword", "parse_json_tolerant",
-    "file_selector", "prompt_builder", "output_parser",
-    "action_guard", "error_feeder", "default_registry",
+    "action_guard",
+    "default_registry",
+    "error_feeder",
+    "file_selector",
+    "note_parse_miss",
+    "output_parser",
+    "parse_json_tolerant",
+    "parse_miss_count",
+    "parse_miss_last",
+    "prompt_builder",
+    "select_by_keyword",
 ]

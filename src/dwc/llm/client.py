@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 的 LLM 接入层。
 
 ═══════════════════════════════════════════════════════════
@@ -51,7 +50,6 @@
 ═══════════════════════════════════════════════════════════
 """
 from __future__ import annotations
-import io
 
 import json
 import os
@@ -59,7 +57,7 @@ import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 #: ★ 配置来源（优先级从高到低）: 环境变量 → config/llm.json
 #:   ★★ 为什么不去读宿主（Hermes）的配置:
@@ -106,7 +104,7 @@ _HTTP_WIDTH = _http_width()
 _HTTP_LOCK = threading.Semaphore(_HTTP_WIDTH)
 
 
-def _load_file_config() -> Dict[str, str]:
+def _load_file_config() -> dict[str, str]:
     """★ 读 `config/llm.json`（docstring 承诺的第二配置源）。
 
     ★★★ R34 实测: 我第一版 **docstring 写了它、实现没写**
@@ -125,7 +123,7 @@ def _load_file_config() -> Dict[str, str]:
             os.path.dirname(os.path.abspath(__file__))))),
         "config", "llm.json")
     try:
-        with io.open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return {}
@@ -154,7 +152,7 @@ class LLMResult:
     source: str = "unavailable"   # llm / unavailable / error / not_configured
     error: str = ""
     #: ★★ 凭证相关的字段**一律不出现**（纪律①）
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     @property
     def degraded(self) -> bool:
@@ -176,13 +174,13 @@ class LLMClient:
       （那是**先想清楚**而非顺手做的决定）
     """
 
-    def __init__(self, base_url: Optional[str] = None,
-                 api_key: Optional[str] = None,
-                 model: Optional[str] = None,
-                 timeout: Optional[float] = None,
+    def __init__(self, base_url: str | None = None,
+                 api_key: str | None = None,
+                 model: str | None = None,
+                 timeout: float | None = None,
                  probe: bool = False,
-                 max_tokens: Optional[int] = None,
-                 reasoning_effort: Optional[str] = None):
+                 max_tokens: int | None = None,
+                 reasoning_effort: str | None = None):
         # ★★★ R36: timeout 默认必须是 **None**（不是 30.0）
         #   否则"不传参数"= 传了 30 ⇒ env/config 文件永远被盖住
         #   ⇒⇒ 而 docstring 说「参数 > env > 文件」⇒ 又一处不对齐
@@ -190,7 +188,7 @@ class LLMClient:
         _fc = _load_file_config()
         #: ★ R308-③ · 每配置项的来源层（只记层名不记值：explicit/env/file/factory）。
         #:   追加记账，不动上面三行的解决口径。
-        _src: Dict[str, str] = {}
+        _src: dict[str, str] = {}
         if base_url:
             _src["base_url"] = "explicit"
         elif os.environ.get(ENV_BASE, ""):
@@ -294,7 +292,7 @@ class LLMClient:
             self.retries = 2
             _src["retries"] = "factory"
         #: ★ R308-③ · 来源审计表（层名集合，不含任何值）。
-        self.sources: Dict[str, str] = dict(_src)
+        self.sources: dict[str, str] = dict(_src)
         #: 调用账本（可审计: 试了几次、成几次）
         self.n_calls = 0
         self.n_ok = 0
@@ -316,7 +314,7 @@ class LLMClient:
         except Exception:
             return ""
 
-    def __getstate__(self) -> Dict[str, Any]:
+    def __getstate__(self) -> dict[str, Any]:
         """★ 序列化时**丢掉 key**（否则可能被写进中间产物/缓存）。"""
         st = self.__dict__.copy()
         st["_key"] = ""
@@ -353,11 +351,11 @@ class LLMClient:
 
     # ── 调用 ──────────────────────────────────────────
 
-    def complete(self, prompt: str, *, system: Optional[str] = None,
-                 max_tokens: Optional[int] = None, json_mode: bool = False,
-                 images: Optional[List[str]] = None,
-                 tools: Optional[List[dict]] = None,
-                 tool_choice: Optional[str] = None,
+    def complete(self, prompt: str, *, system: str | None = None,
+                 max_tokens: int | None = None, json_mode: bool = False,
+                 images: list[str] | None = None,
+                 tools: list[dict] | None = None,
+                 tool_choice: str | None = None,
                  _retry: bool = False) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
@@ -381,7 +379,7 @@ class LLMClient:
         user_content: Any = prompt
         if images:
             import base64
-            parts: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+            parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
             for ip in images[:4]:               # 上限 4 图（上下文有界）
                 ext = os.path.splitext(str(ip))[1].lower()
                 mime = {".png": "image/png", ".jpg": "image/jpeg",
@@ -397,7 +395,7 @@ class LLMClient:
                     continue                    # 单图读失败不炸整体
             if len(parts) > 1:
                 user_content = parts
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "model": self._model,
             "messages": ([{"role": "system", "content": system}]
                          if system else [])
@@ -547,7 +545,7 @@ class LLMClient:
                                "finish_reason": finish})
 
     def complete_stream(self, prompt: str, *, system=None,
-                        max_tokens: Optional[int] = None, json_mode: bool = False,
+                        max_tokens: int | None = None, json_mode: bool = False,
                         images=None, on_delta=None) -> LLMResult:
         """★ token 级流式补全（R237）: SSE 逐 delta 回调 on_delta(text)。
 
@@ -558,7 +556,6 @@ class LLMClient:
         if not self.configured:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
-        import copy as _copy
         # ★ R377 · 未显式传 ⇒ 用实例配置（与 complete 同口径）
         if max_tokens is None:
             max_tokens = getattr(self, "max_tokens", 1200)
@@ -567,7 +564,7 @@ class LLMClient:
         user_content: Any = prompt
         if images:
             import base64
-            parts: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+            parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
             for ip in images[:4]:
                 ext = os.path.splitext(str(ip))[1].lower()
                 mime = {".png": "image/png", ".jpg": "image/jpeg",
@@ -583,7 +580,7 @@ class LLMClient:
                     continue
             if len(parts) > 1:
                 user_content = parts
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "model": self._model,
             "messages": ([{"role": "system", "content": system}]
                          if system else [])
@@ -609,8 +606,8 @@ class LLMClient:
                      "User-Agent": "Divine-Wisdom-Core/1.0 (+dwccore)",
                      "x-opencode-session": self._session_id},
             method="POST")
-        chunks: List[str] = []
-        rc_chunks: List[str] = []
+        chunks: list[str] = []
+        rc_chunks: list[str] = []
         finish = [None]
         try:
             # ★★★ R379 · 串行化（流式同样 —— 生产 progress 路径走这里）
@@ -693,7 +690,7 @@ class LLMClient:
                                "n_chunks": len(chunks),
                                "finish_reason": finish[0]})
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """★ 调用账本（不含量任何凭证）。"""
         return {"configured": self.configured, "model": self._model,
                 "n_calls": self.n_calls, "n_ok": self.n_ok,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """skill_store · 技能的跨进程真源（R438 · skill 维度）。
 
 定位声明 · **DWC-MEM**（记忆底座 · 技能=程序性记忆）
@@ -25,7 +24,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
@@ -42,7 +41,7 @@ def path_of(name: str) -> str:
 
 
 def save(name: str, description: str = "", content: str = "",
-         trigger: str = "", version: int = 1) -> Dict[str, Any]:
+         trigger: str = "", version: int = 1) -> dict[str, Any]:
     """写一个技能（原子写）。返回 {ok, path, name, version}。"""
     p = path_of(name)
     os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -58,9 +57,9 @@ def save(name: str, description: str = "", content: str = "",
             "version": int(version)}
 
 
-def parse(text: str) -> Dict[str, Any]:
+def parse(text: str) -> dict[str, Any]:
     """解析 SKILL.md（frontmatter + 正文）。坏文件 ⇒ 尽力而为，不抛。"""
-    meta: Dict[str, Any] = {}
+    meta: dict[str, Any] = {}
     body = text
     if text.startswith("---"):
         parts = text.split("---", 2)
@@ -78,10 +77,10 @@ def parse(text: str) -> Dict[str, Any]:
     return meta
 
 
-def load_all(root: str = "") -> Dict[str, Dict[str, Any]]:
+def load_all(root: str = "") -> dict[str, dict[str, Any]]:
     """读全部技能（目录不存在 ⇒ 空 dict，不报错）。"""
     base = root or SKILLS_DIR
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     if not os.path.isdir(base):
         return out
     for d in sorted(os.listdir(base)):
@@ -113,8 +112,8 @@ def _toks(s: str) -> set:
     return out
 
 
-def select(task: str, skills: Optional[Dict[str, Any]] = None,
-           k: int = 1) -> List[Dict[str, Any]]:
+def select(task: str, skills: dict[str, Any] | None = None,
+           k: int = 1) -> list[dict[str, Any]]:
     """按词元重叠选技能（≥2 才入选；同分按 version 高者优先）。"""
     table = skills if skills is not None else load_all()
     t = _toks(task)

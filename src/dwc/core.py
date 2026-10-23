@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 主类 —— 一个主类持有全部器官，三入口驱动。
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
@@ -31,28 +30,31 @@
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
 import uuid
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
-from dwc.foundation import dial_config
-from dwc.harness.run_term import TermRunner, TermReport
-from dwc.organs.actor import Actor, Receipt, Trace
+from dwc.harness.run_term import TermReport, TermRunner
+from dwc.organs.actor import Actor, Trace
 from dwc.organs.el_sched import ELScheduler
 from dwc.organs.evolver import Evolver
-from dwc.organs.replay import (DreamReport, PolicySpec, ReplayError,
-                               ReplaySimulator,
-                               no_worse_than_current, replay_score,
-                               select_policy)
 from dwc.organs.iwm import IwmOrgan, Observations
-from dwc.organs.judge import Judge, SPLIT_DEV
-from dwc.organs.memory import MemoryKind, MemoryKernel
+from dwc.organs.judge import SPLIT_DEV, Judge
+from dwc.organs.memory import MemoryKernel, MemoryKind
+from dwc.organs.replay import (
+    DreamReport,
+    PolicySpec,
+    ReplaySimulator,
+    no_worse_than_current,
+    replay_score,
+    select_policy,
+)
 from dwc.organs.world_model import WorldModel
 
 #: 系统外真值源（G2）—— 成功判定永远在 judge/回执, 不在本类
@@ -88,9 +90,9 @@ class DwcError(Exception):
     """主类入口的违规必须大声报错（不许静默降级 —— G7 静默门同族）。"""
 
 
-def _load_iron_laws(path: str = _IRON_LAWS_PATH) -> Dict[str, Any]:
+def _load_iron_laws(path: str = _IRON_LAWS_PATH) -> dict[str, Any]:
     """铁律配置面加载（id/severity 清单校验 —— 没校验的 yaml 只是文本）。"""
-    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    obj = yaml.safe_load(open(path, encoding="utf-8").read())
     if not isinstance(obj, dict) or "version" not in obj:
         raise DwcError("iron_laws.yaml 缺 version")
     laws = obj.get("laws")
@@ -109,20 +111,20 @@ def _load_iron_laws(path: str = _IRON_LAWS_PATH) -> Dict[str, Any]:
 
 
 def _load_capability_groups(path: str = _CAP_GROUPS_PATH
-                            ) -> Dict[str, List[str]]:
+                            ) -> dict[str, list[str]]:
     """能力组表 {组名: [sealed_task_ids]} —— R101 · C 方案播种的组真源。
 
     ★ 「没校验的 yaml 只是文本」（_load_iron_laws 同款）: version/groups 必在,
       组名与任务清单必填; 文件缺失/坏 ⇒ 构造期**大声 raise**（G7 不静默降级 —
       组表是播种数据前提, 缺了就该当场炸, 而不是悄悄退化成无组树）。
     """
-    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    obj = yaml.safe_load(open(path, encoding="utf-8").read())
     if not isinstance(obj, dict) or "version" not in obj:
         raise DwcError("capability_groups.yaml 缺 version")
     groups = obj.get("groups")
     if not isinstance(groups, list) or not groups:
         raise DwcError("capability_groups.yaml 的 groups 必须是非空列表")
-    out: Dict[str, List[str]] = {}
+    out: dict[str, list[str]] = {}
     for g in groups:
         gid = g.get("group_id")
         members = g.get("sealed_task_ids")
@@ -136,7 +138,7 @@ def _load_capability_groups(path: str = _CAP_GROUPS_PATH
 
 def load_groups_with_homing(path: str = _CAP_GROUPS_PATH,
                              anchors_path: str = _ANCHORS_DEV_PATH
-                             ) -> Dict[str, List[str]]:
+                             ) -> dict[str, list[str]]:
     """★ R287-E · 组表 + 新锚归位（生产播种 / 脚本分组共用）。
 
     组表 yaml 是 sealed 真相源（G1/G3 只认它，不动）；但 anchors（守门人）
@@ -146,7 +148,7 @@ def load_groups_with_homing(path: str = _CAP_GROUPS_PATH,
     """
     groups = _load_capability_groups(path)
     try:
-        _dev = json.load(io.open(anchors_path, encoding="utf-8"))
+        _dev = json.load(open(anchors_path, encoding="utf-8"))
     except (OSError, ValueError):
         return groups                      # anchors 不可读 ⇒ 纯组表（大声留痕在调用方）
     _known = {t for m in groups.values() for t in m}
@@ -165,10 +167,10 @@ class DWC:
 
     def __init__(self, depth_limit: int, max_nodes: int, *,
                  db_path: str = ":memory:",
-                 executor: Optional[Callable[[Dict[str, Any]], Any]] = None,
-                 llm: Optional[Any] = None,
+                 executor: Callable[[dict[str, Any]], Any] | None = None,
+                 llm: Any | None = None,
                  budget: float = 10.0,
-                 iwm_baseline: Optional[Observations] = None):
+                 iwm_baseline: Observations | None = None):
         """组装七器官 + harness。
 
         ★ depth_limit / max_nodes **必填无默认**（W6 同款: 组装者必须显式
@@ -219,7 +221,7 @@ class DWC:
         #: R80 · ℋ Dreaming 历史快照（设计稿裁决①: 单树时点快照,
         #: [(tree_id, deepcopy(WorldTree)), ...] — 每 run_term 尾追加,
         #: 超 history_max 丢最旧（内存环形, 不落盘）
-        self._replay_history: List[Tuple[str, Any]] = []
+        self._replay_history: list[tuple[str, Any]] = []
         #: ── 组装件（执行环境 / LLM / term 编排）──
         self.llm = llm
         # ★★★ R126 · 执行体默认接线（**零破坏**）:
@@ -288,8 +290,8 @@ class DWC:
     # ══════════════════════════════════════════════════════
     # 入口② · step —— 一次决策 + 执行（§3.2）
     # ══════════════════════════════════════════════════════
-    def step(self, task: Optional[Dict[str, Any]] = None, *,
-             executor: Optional[Callable] = None) -> Dict[str, Any]:
+    def step(self, task: dict[str, Any] | None = None, *,
+             executor: Callable | None = None) -> dict[str, Any]:
         """一次决策 + 执行 + 痕迹入记忆（§3.2 三层决策, 见模块诚实边界）。
 
         ★ task 缺省 ⇒ 从世界树未揭示叶子取（环节⑥: 任务自产, 不编造）。
@@ -335,7 +337,7 @@ class DWC:
         #              （learn/evolve 方法不存在; maintain 属记忆维护面,
         #               前置=巩固调度, 不冒充已实现 — 逐项可审计）
         action = decision.get("action")
-        dispatch: Dict[str, Any]
+        dispatch: dict[str, Any]
         if action == "remember":
             dispatch = {"kind": "remember", "dispatched": True,
                         "how": "ingest 已执行（原路径不动）"}
@@ -383,8 +385,8 @@ class DWC:
                 "judgement": judgement,
                 "action_dispatched": dispatch}
 
-    def _judge_and_backfill(self, task: Dict[str, Any],
-                            trace: Trace) -> Optional[Dict[str, Any]]:
+    def _judge_and_backfill(self, task: dict[str, Any],
+                            trace: Trace) -> dict[str, Any] | None:
         """★ 判分+回填（R84）—— 返回 Verdict dict 或 None（未判, 不冒充）。
 
         ★ W5 纪律: 树观测只填未带真值的节点（provenance 单向, 判分不可覆盖）。
@@ -418,7 +420,7 @@ class DWC:
                 "repair_layer": (repair_layer(sig.get("c"), "judge")
                                  if sig else None)}
 
-    def _task_deltas(self) -> Dict[str, float]:
+    def _task_deltas(self) -> dict[str, float]:
         """★ 任务级 δ（批2-C, C1 落点）—— 缓存: 判分点数变才重算。"""
         pts = self.judge.task_scores(split=SPLIT_DEV)
         token = len(pts)
@@ -429,8 +431,8 @@ class DWC:
             self._delta_token = token
         return self._delta_map
 
-    def _el_pick(self, acts: List[Dict[str, Any]]
-                 ) -> Dict[str, Any]:
+    def _el_pick(self, acts: list[dict[str, Any]]
+                 ) -> dict[str, Any]:
         """★ L592 三段式① 的采样核心: acts → (δ 排序) → EL 状态机 → act。
 
         ★ 节律: 世界树 Σn_obs 没变 ⇒ **不重复推进**（EL 判定绑定观测变化 —
@@ -458,9 +460,9 @@ class DWC:
         idx = d.index if d is not None else 1
         return acts[(idx - 1) % n]
 
-    def _decide(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    def _decide(self, task: dict[str, Any]) -> dict[str, Any]:
         """§3.2 三层决策（诚实降级链, 每层的可用性都记进 layers）。"""
-        layers: List[Dict[str, Any]] = [
+        layers: list[dict[str, Any]] = [
             {"layer": "pre_enactment", "available": False,
              "why": "DWC 无 ARSI Layer2 dynamics 预测层 ⇒ 显式缺席（不冒充）"},
         ]
@@ -469,7 +471,8 @@ class DWC:
             try:
                 _sys_action = "只输出一个动作名, 不解释。"
                 try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
-                    from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                    from dwc.llm.prompt_ota import note_miss as _ota_miss
+                    from dwc.llm.prompt_ota import ota_system as _ota
                     _sys_action = _ota("sys_action", _sys_action, __file__)
                 except Exception:
                     _ota_miss()
@@ -518,7 +521,7 @@ class DWC:
         rep.evo_feed = self._feed_evolver(rep)
         return rep
 
-    def _feed_evolver(self, rep) -> Dict[str, Any]:
+    def _feed_evolver(self, rep) -> dict[str, Any]:
         """★ R370 · B2: 把本 term 的失败签名喂给 evolver.diagnose。
 
         为什么落在这里而不在 TermRunner:
@@ -545,7 +548,7 @@ class DWC:
             return {"enabled": False,
                     "why": "feed_from_terms=false（灰度默认关）"}
 
-        sigs: List[Dict[str, str]] = []
+        sigs: list[dict[str, str]] = []
         for d in ((rep.judgement or {}).get("details") or []):
             if not isinstance(d, dict) or d.get("success") is not False:
                 continue
@@ -581,7 +584,7 @@ class DWC:
         from dwc.harness import evo_proposals
         meta = {"term_id": getattr(rep, "term_id", ""),
                 "chain_id": getattr(rep, "chain_id", "")}
-        recs: List[Dict[str, Any]] = []
+        recs: list[dict[str, Any]] = []
         for p in (diag.get("proposals") or []):
             psig = dict(getattr(p, "failure_signature", None) or {})
             if not psig.get("fn"):
@@ -627,7 +630,7 @@ class DWC:
     # ══════════════════════════════════════════════════════
     def dream(self, *, k2_max: int,
               seg_budget: int = 4,
-              policy_variants: Optional[List[PolicySpec]] = None,
+              policy_variants: list[PolicySpec] | None = None,
               adaptive_effort: bool = False
               ) -> DreamReport:
         """★ 离线 Dreaming（2609.14858 §2.5–2.7 编排, 零新机制）。
@@ -661,9 +664,8 @@ class DWC:
         # ★ R252 · §5.2 交替节流-冲刺: adaptive 时 k2 由调度器给
         #   （gain=本轮 v_star 相对上轮差; judge 观测分经 V 公式传入 — G2 不自判）;
         #   首轮无先例 ⇒ gain=None, k2 保持传入值（不装有先例）。
-        effort_info: Optional[Tuple[int, int, Optional[float]]] = None
+        effort_info: tuple[int, int, float | None] | None = None
         if adaptive_effort:
-            from dwc.organs.effort import next_effort
             st = getattr(self, "_effort_state", None)
             if st is None:
                 st = {"prev_k2": k2_max, "last_v": None}
@@ -679,12 +681,12 @@ class DWC:
         #   每版本在每历史树单独评估完才下一版本（§2.5 逐字）; None ⇒ M=1 等价
         specs = [PolicySpec()] + [v for v in (policy_variants or [])
                                    if v.pid != "π0"]
-        per_by: Dict[str, List[Tuple[str, float, int, int]]] = {}
-        segments_acc: List[str] = []          # R102: π0 的段序（稿审计字段）
-        picks_by: Dict[str, List[str]] = {}   # R102: {pid: pick 轨迹 — 探针②原料}
+        per_by: dict[str, list[tuple[str, float, int, int]]] = {}
+        segments_acc: list[str] = []          # R102: π0 的段序（稿审计字段）
+        picks_by: dict[str, list[str]] = {}   # R102: {pid: pick 轨迹 — 探针②原料}
         for _spec in specs:
-            per: List[Tuple[str, float, int, int]] = []
-            spec_picks: List[str] = []
+            per: list[tuple[str, float, int, int]] = []
+            spec_picks: list[str] = []
             for tid, T_i in worlds:
                 sim = ReplaySimulator(T_i)
                 k = 0
@@ -709,7 +711,7 @@ class DWC:
                                        key=lambda v: (-dmap.get(v, 0.0), v))
                 else:
                     seg_roots = kids          # 插入序 = step(root) 顺序规定
-                seg_rec: List[str] = []
+                seg_rec: list[str] = []
                 done = False
 
                 for seg_root in seg_roots:
@@ -833,7 +835,7 @@ class DWC:
     # δ_θ 生产喂入口（R72 · 器官⑥ weakness 的活链）
     # ══════════════════════════════════════════════════════
     def difficulty(self, group_id: str, *, split: str = SPLIT_DEV
-                   ) -> List[Dict[str, Any]]:
+                   ) -> list[dict[str, Any]]:
         """★ 从**本 agent 的判分史**算组内残差难度排序（弱→强, 排序偏置）。
 
         ★ 活链（R69 算法 × R71 数据 × R72 投影, 三轮接成一条）:
@@ -845,8 +847,7 @@ class DWC:
         ★ 无观测 ⇒ `[]`（不装数 —— X2 同族: 没数据 ≠ 零难度）。
         ★ split 默认 dev: 分难度史不跨 split 混算真值源（judge split 纪律）。
         """
-        from dwc.organs.weakness import (
-            DifficultyEstimator, z_history_from_scores)
+        from dwc.organs.weakness import DifficultyEstimator, z_history_from_scores
         pts = self.judge.task_scores(split=split)
         if not pts:
             return []
@@ -854,7 +855,7 @@ class DWC:
         return DifficultyEstimator(hist).weak_ranking(group_id)
 
     def success_stats(self, *, split: str = SPLIT_DEV
-                      ) -> Dict[str, Dict[str, Any]]:
+                      ) -> dict[str, dict[str, Any]]:
         """★ R103 · 成功侧聚合报表（Trace2Skill A+ 对称物的消费口①）。
 
         weakness.task_success_stats 的转发 — 挂在主类让序列任务流（scripts）

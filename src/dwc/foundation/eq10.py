@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Eq.10 Pareto 验收 —— R118 · ⑤执行轮（设计稿⑤ · DecoEvo 2607.25675 Eq.10）。
 
 accept ⟺ ∃k∈{gain,cost}: Δ_k > δ_k  ∧  ∀j∈{gain,cost,retention}: Δ_j ≥ −η_j
@@ -30,14 +29,14 @@ TRUTH_SOURCE（G2 · 判定能力系统外真值源）: eq10_accept 的 Δ 输�
 from __future__ import annotations
 
 from math import sqrt
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 #: 改善门 δ（∃k 只在 gain/cost — retention 是纯约束不进改善门）
-DELTA: Dict[str, float] = {"gain": 0.0, "cost": 0.10}
+DELTA: dict[str, float] = {"gain": 0.0, "cost": 0.10}
 #: 回退门 η（∀j 三维全查）
-ETA: Dict[str, float] = {"gain": 0.0, "cost": 0.20, "retention": 0.0}
+ETA: dict[str, float] = {"gain": 0.0, "cost": 0.20, "retention": 0.0}
 #: 每个门的校准注记（诚实位 — 值从哪来/还缺什么, 稿§⑤ 表字面）
-CALIBRATION: Dict[str, str] = {
+CALIBRATION: dict[str, str] = {
     "delta_gain": ("★ 初值 0（不虚报非平凡 — 有正 Δ 即认改善）; R118 重复"
                    "采样: 同底同 spec 连跑 5 次 dream V=1.0 恒等抖动 0.0"
                    "（golden 臂确定性=结构必然, 非抖动证据）— 真抖动须 LLM "
@@ -52,7 +51,7 @@ DIMENSIONS = ("gain", "cost", "retention")
 IMPROVABLE = ("gain", "cost")   # ∃k 候选域（retention 不当改善目标）
 
 #: 展示层权重（等权 — 明标无裁决效力, 稿⑤层3）
-DISPLAY_WEIGHTS: Dict[str, float] = {"gain": 1 / 3, "cost": 1 / 3,
+DISPLAY_WEIGHTS: dict[str, float] = {"gain": 1 / 3, "cost": 1 / 3,
                                       "retention": 1 / 3}
 
 
@@ -60,8 +59,8 @@ class Eq10Error(ValueError):
     """输入不合 Eq.10 契约（缺维/非数值）— 大声, 不静默容错。"""
 
 
-def eq10_accept(deltas: Dict[str, float], *,
-                gates: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def eq10_accept(deltas: dict[str, float], *,
+                gates: dict[str, Any] | None = None) -> dict[str, Any]:
     """★ Eq.10 支配式验收（唯一有裁决效力的函数）。
 
     deltas: {"gain": Δ(越大越好), "cost": Δ(变便宜为正 — 方向已翻转),
@@ -75,7 +74,7 @@ def eq10_accept(deltas: Dict[str, float], *,
         raise Eq10Error(
             "deltas 缺维 %r（三维齐才可比 — 缺维不许装可比, X2 同族）"
             % (missing,))
-    vals: Dict[str, float] = {}
+    vals: dict[str, float] = {}
     for d in DIMENSIONS:
         v = deltas[d]
         if not isinstance(v, (int, float)) or isinstance(v, bool):
@@ -101,7 +100,7 @@ def eq10_accept(deltas: Dict[str, float], *,
     }
 
 
-def score_display(norms: Dict[str, float]) -> float:
+def score_display(norms: dict[str, float]) -> float:
     """★ 展示层等权摘要（稿⑤层3）— **不参与任何 accept/reject 判定**。
 
     用途: 报告/趋势图的单值可读性。等权 = 不引入先验独裁, 但仍是聚合
@@ -117,7 +116,7 @@ def score_display(norms: Dict[str, float]) -> float:
 # 审计A · 耦合审计（稿⑤ §⑥ — 防 DecoEvo 教训的 13/15 反向）
 # ════════════════════════════════════════════════════════════
 
-def pearson(xs: List[float], ys: List[float]) -> Optional[float]:
+def pearson(xs: list[float], ys: list[float]) -> float | None:
     """Pearson ρ — 手写（无外部依赖）; n<2 或零方差 ⇒ None（不装）。"""
     n = len(xs)
     if n != len(ys) or n < 2:
@@ -137,7 +136,7 @@ COUPLE_TAU = 0.8
 AUDIT_MIN_N = 8
 
 
-def coupling_audit(samples: List[Dict[str, float]]) -> Dict[str, Any]:
+def coupling_audit(samples: list[dict[str, float]]) -> dict[str, Any]:
     """维间 ρ 矩阵 + |ρ|>0.8 标 coupled（只警示不裁决 — 稿⑧.3）。"""
     n = len(samples)
     if n < AUDIT_MIN_N:
@@ -146,8 +145,8 @@ def coupling_audit(samples: List[Dict[str, float]]) -> Dict[str, Any]:
                 "why": ("n<%d 的 ρ 不稳定 ⇒ 不出矩阵（不装数）"
                         % AUDIT_MIN_N)}
     cols = {d: [float(s[d]) for s in samples] for d in DIMENSIONS}
-    rho: Dict[str, Optional[float]] = {}
-    coupled: List[Tuple[str, str]] = []
+    rho: dict[str, float | None] = {}
+    coupled: list[tuple[str, str]] = []
     for i, a in enumerate(DIMENSIONS):
         for b in DIMENSIONS[i + 1:]:
             r = pearson(cols[a], cols[b])

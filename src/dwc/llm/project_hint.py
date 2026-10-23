@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R303-④ Project视图（对标 Cursor Projects 轻量版）。
 
 同组任务共享认知：task_id 前缀归组，取同组近3任务留痕拼 ≤5 行短 hint。
@@ -7,8 +6,6 @@
 定位声明（DWC-MEM · 记忆底座）：跨任务共享认知沉淀 ⇒ 属 DWC-MEM。
 """
 from __future__ import annotations
-
-from typing import Dict, List
 
 MAX_CHARS = 400
 MAX_TASKS = 3
@@ -24,13 +21,13 @@ def proj_id(task_id: str) -> str:
         return ""
 
 
-def project_hint(task_id: str, group_traces: Dict[str, List[str]]) -> str:
+def project_hint(task_id: str, group_traces: dict[str, list[str]]) -> str:
     """group_traces: {同组task_id: [留痕串]}。返回 hint（空组返回 ""）。"""
     try:
         if not group_traces:
             return ""
         keys = sorted(group_traces)[:MAX_TASKS]
-        lines: List[str] = []
+        lines: list[str] = []
         for k in keys:
             for s in (group_traces.get(k) or [])[:2]:
                 lines.append("%s：%s" % (k, str(s)[:80]))

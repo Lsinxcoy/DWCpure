@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Move-on 停止判决 —— R125 · 项2-4b（Meta-recursion 的 goal/停止决策件）。
 
 文献锚: R98 §⑨①「自适应停止 = move-on 四判据（5 连败 / 90% 峰值 / 时间 /
@@ -30,17 +29,17 @@ TRUTH_SOURCE（G2）: score_history 来自 judge 逐 term 观测（dev/sealed
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 #: 判据默认（管理口径 — 每条标 calibration 注记, 无文献值的明确说）
-DEFAULTS: Dict[str, Any] = {
+DEFAULTS: dict[str, Any] = {
     "loss_streak_k": 5,          # R98/AFlow「5 连败」字面
     "peak_frac": 0.9,            # R98「90% 峰值」字面
     "budget_frac": 2.0,          # R98「2× 预算」字面（时间/成本共用）
     "cb_min_gain_per_cost": 0.0, # §3.6.5 成本-收益阈值: >0 收益门槛初值 0
     "score_target": None,        # 无目标默认 ⇒ C2 用历史峰值当参照
 }
-CALIBRATION: Dict[str, str] = {
+CALIBRATION: dict[str, str] = {
     "loss_streak_k": "R98 §⑦ move-on 四判据 + AFlow patience 字面",
     "peak_frac": "R98 §⑦「90% 峰值」字面",
     "budget_frac": "R98 §⑦「2× 预算」字面",
@@ -53,7 +52,7 @@ class StopError(ValueError):
     """输入不合契约（负值/窗口 <1/序列非数值）— 大声, 不静默。"""
 
 
-def _validate(score_history: List[float], *, k: int, budget_frac: float
+def _validate(score_history: list[float], *, k: int, budget_frac: float
               ) -> None:
     if not isinstance(score_history, list) or not score_history:
         raise StopError("score_history 须为非空 list")
@@ -66,7 +65,7 @@ def _validate(score_history: List[float], *, k: int, budget_frac: float
         raise StopError("budget_frac 须 >0, 实为 %r" % (budget_frac,))
 
 
-def _streak_moves(score_history: List[float], k: int) -> Dict[str, Any]:
+def _streak_moves(score_history: list[float], k: int) -> dict[str, Any]:
     """C1: 末 k 项全**低于**首项（连败）— 确定性邻域定义, 不用外推。"""
     if len(score_history) < k:
         return {"fired": False, "why": "序列 <k（%d<%d）⇒ 不判"
@@ -78,12 +77,12 @@ def _streak_moves(score_history: List[float], k: int) -> Dict[str, Any]:
             else "末 %d 项有回升/持平" % k}
 
 
-def move_on_verdict(*, score_history: List[float],
-                    cost_history: Optional[List[float]] = None,
-                    time_used: Optional[float] = None,
-                    time_budget: Optional[float] = None,
-                    params: Optional[Dict[str, Any]] = None
-                    ) -> Dict[str, Any]:
+def move_on_verdict(*, score_history: list[float],
+                    cost_history: list[float] | None = None,
+                    time_used: float | None = None,
+                    time_budget: float | None = None,
+                    params: dict[str, Any] | None = None
+                    ) -> dict[str, Any]:
     """★ move-on 判决（五判据并集 — 任一触发即 move_on）。
 
     score_history: 逐 term（或逐轮）已验证分数（judge 域）。
@@ -96,8 +95,8 @@ def move_on_verdict(*, score_history: List[float],
     _validate(score_history, k=p["loss_streak_k"],
               budget_frac=p["budget_frac"])
 
-    fired: List[str] = []
-    details: Dict[str, Any] = {}
+    fired: list[str] = []
+    details: dict[str, Any] = {}
 
     c1 = _streak_moves(score_history, p["loss_streak_k"])
     details["C1_loss_streak"] = c1

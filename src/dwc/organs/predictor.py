@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R231 · 行为结果预测器（视图层）—— RSI-Anything「预测引导选择」的 DWC 落地。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— agent 对自己动作/任务结果的成功率预测。
@@ -20,13 +19,11 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
-import math
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from dwc.foundation.paths import find_root
 
@@ -60,8 +57,8 @@ class OutcomePredictor:
                  world_model: Any = None) -> None:
         self.log_path = log_path
         self.world_model = world_model          # 树族读取源（可后注入/每 term 换代）
-        self._counts: Dict[str, List[int]] = {}  # 台账族: key -> [α, β]（先验 1,1）
-        self._recent: List[Tuple[str, bool]] = []  # 校准窗口（近 N 观测）
+        self._counts: dict[str, list[int]] = {}  # 台账族: key -> [α, β]（先验 1,1）
+        self._recent: list[tuple[str, bool]] = []  # 校准窗口（近 N 观测）
         self._lock = threading.Lock()
         self._replay()
 
@@ -70,7 +67,7 @@ class OutcomePredictor:
         """★ replay 防遗忘: 台账族计数 = 重放 append-only 日志（不是增量补丁）。"""
         if not os.path.exists(self.log_path):
             return
-        for ln in io.open(self.log_path, encoding="utf-8").read().splitlines():
+        for ln in open(self.log_path, encoding="utf-8").read().splitlines():
             if not ln.strip():
                 continue
             try:
@@ -104,12 +101,12 @@ class OutcomePredictor:
                "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
         os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
         with self._lock:
-            with io.open(self.log_path, "a", encoding="utf-8") as fh:
+            with open(self.log_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             self._bump(key, bool(success))
 
     # ── 预测（两族同口径）──────────────────────────────────────
-    def _tree_obs(self, key: str) -> Optional[Tuple[int, int]]:
+    def _tree_obs(self, key: str) -> tuple[int, int] | None:
         """"tree:{tree_id}/{node_id}" → 谱系 (n_obs, n_pass); 不可用返回 None。"""
         if self.world_model is None:
             return None
@@ -122,7 +119,7 @@ class OutcomePredictor:
         except (ValueError, AttributeError, KeyError):
             return None
 
-    def predict(self, key: str) -> Dict[str, Any]:
+    def predict(self, key: str) -> dict[str, Any]:
         """★ 统一口径: p̂ = Beta(1,1) 后验均值; uncertainty = 1/(α+β)。
         树族: α=1+n_pass, β=1+(n_obs-n_pass)（与收束 Laplace 同式）。
         树不可用 ⇒ 先验 p=0.5 且 source 标记（诚实缺失, 不装有）。"""
@@ -140,11 +137,11 @@ class OutcomePredictor:
         return {"p": a / (a + b), "uncertainty": 1.0 / (a + b),
                 "n": a + b - 2, "source": "ledger", "version": self.VERSION}
 
-    def predict_batch(self, keys: List[str]) -> Dict[str, Dict[str, Any]]:
+    def predict_batch(self, keys: list[str]) -> dict[str, dict[str, Any]]:
         return {k: self.predict(k) for k in keys}
 
     # ── 校准（声称=实测的落点）─────────────────────────────────
-    def calibrate(self, recent: int = 200) -> Dict[str, Any]:
+    def calibrate(self, recent: int = 200) -> dict[str, Any]:
         """Brier 分数 + 五桶 reliability — 校准度是实测的, 不是自我声称。"""
         rows = self._recent[-recent:]
         if not rows:
@@ -156,7 +153,7 @@ class OutcomePredictor:
             ps.append(pr)
             se.append((pr - (1.0 if ok else 0.0)) ** 2)
         buckets = [[0, 0, 0] for _ in range(5)]      # [Σp, Σy, n]
-        for (key, ok), pr in zip(rows, ps):
+        for (_, ok), pr in zip(rows, ps):
             idx = min(4, max(0, int(pr * 5)))
             buckets[idx][0] += pr
             buckets[idx][1] += 1.0 if ok else 0.0
@@ -170,24 +167,24 @@ class OutcomePredictor:
                 "version": self.VERSION}
 
     # ── 持久化（台账族视图; 树族不复制）────────────────────────
-    def checkpoint(self) -> Dict[str, Any]:
+    def checkpoint(self) -> dict[str, Any]:
         payload = {"version": self.VERSION,
                    "counts": {k: v for k, v in sorted(self._counts.items())}}
         body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         doc = {"sha": _sha(body), "doc": payload,
                "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
         os.makedirs(os.path.dirname(PRED_CKPT), exist_ok=True)
-        with io.open(PRED_CKPT, "w", encoding="utf-8") as fh:
+        with open(PRED_CKPT, "w", encoding="utf-8") as fh:
             json.dump(doc, fh, ensure_ascii=False, indent=1)
         return {"path": PRED_CKPT, "sha": doc["sha"], "keys": len(self._counts)}
 
     @classmethod
     def load(cls, path: str = PRED_CKPT, log_path: str = PRED_LOG,
-             world_model: Any = None) -> "OutcomePredictor":
+             world_model: Any = None) -> OutcomePredictor:
         """★ 身份校验: sha 不符 / version 不符 ⇒ 拒载（rsi.py 同款）。"""
         if not os.path.exists(path):
             raise PredictorError("checkpoint 不存在: %s" % path)
-        doc = json.load(io.open(path, encoding="utf-8"))
+        doc = json.load(open(path, encoding="utf-8"))
         body = json.dumps(doc.get("doc"), ensure_ascii=False, sort_keys=True)
         if doc.get("sha") != _sha(body):
             raise PredictorError("checkpoint sha 不符 — 拒载（可能损坏/被改）")

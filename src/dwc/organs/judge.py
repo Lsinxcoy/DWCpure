@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC judge —— 判分器（器官 2/7）。
 
 ★★★ 这个器官为什么是当前最要紧的
@@ -42,16 +41,18 @@
 from __future__ import annotations
 
 import ast
-import io
 import json
-import re
 import os
+import re
 import sys as _sys
+
 from dwc.foundation.paths import find_root as _fr
+
 ROOT = _fr()
 import time
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from dwc.foundation.version import dw_version as _git_version
 
@@ -103,7 +104,7 @@ class JudgeError(Exception):
 
 #: ★★★ 本模块的系统外真值源（判据 G2 的硬要求）
 #:   形式: (类别, 路径) —— 路径必须是**真实存在**的文件
-TRUTH_SOURCE: Tuple[str, ...] = (
+TRUTH_SOURCE: tuple[str, ...] = (
     # ★★ dev: 已落地（10 条 · 6 behavior + 4 keyword_match）
     ("dev_anchors", os.path.join(ROOT, "config", "anchors", "dev.json")),
     # ★★ test: **未落地**。2607.12790 §2.2 原文 test 是 locked split，
@@ -151,26 +152,26 @@ class Verdict:
     task_id: str
     split: str
     #: ★ None = 未评价（缺 golden reference / fallback 不合规 / 未跑）
-    success: Optional[bool]
+    success: bool | None
     #: 为什么是这个结论（含 None 的原因）
     reason: str
     #: 真值源类别（可审计: 结论从哪来）
-    truth_category: Optional[str] = None
+    truth_category: str | None = None
     #: 若 success 是 None，缺什么
-    missing: Optional[str] = None
+    missing: str | None = None
     # ★★★ R30: 失败签名 —— 由**规则**填 c/q（2609.06396 原文分工）
     #   ⇒ 此前 judge 完全不产签名，而 actor 只在**异常**时产
     #     ⇒⇒ 于是"值错误"这条路径上**三端都不产签名**
     #       ⇒⇒ ⇒★ 被迫手填 ⇒ 与 RULES 键不匹配 ⇒ 端到端断
     #   ⇒ ⇒★ 所以这是补**根因**，不是加功能
-    failure_signature: Optional[Dict[str, str]] = None
+    failure_signature: dict[str, str] | None = None
     #: ★★★ R197 · **多失败签名清单**（① 数据面改进 — 不是新接口）
     #:   failure_signature = 首个 notok check 的签名（R30 原口径, 不变）;
     #:   sigs = 该 verdict 上**全部** notok check 的签名（去重; 单失败时相同）
     #:   ⇒ Loop→evolver.diagnose 可一次拿全簇; diagnose 已按 (c,q,m) 聚类
     #     ⇒ 传多个不会重复提案（约束 4 逐字）。
     #:   ★ fail 时非空 / pass 时 []（pass 无签名可产 — 不造空签名）。
-    sigs: Optional[List[Dict[str, str]]] = None
+    sigs: list[dict[str, str]] | None = None
     #: ★★★★ R54 · **k/n 的分母/分子**（细粒度分数的原料）
     #:   ⚠ 背景: `diffs` 字段存的是 **失败条目**（`bad`，成功时 = []）
     #:     ⇒ 我第一版 `pass_rate` 拿 `len(v.diffs)` 当分母 = **完全错**
@@ -178,18 +179,18 @@ class Verdict:
     #:     到底存了什么**（先读再写没做到）
     #:   ⇒ ⇒★ 所以 judge 在 evaluate 时就把 k/n 存进来（它手里有全部 diffs）
     #:   ★ None = 未评价（observed 缺 / 早期 return）—— 不许当 0/1
-    n_checks: Optional[int] = None
-    k_passed: Optional[int] = None
+    n_checks: int | None = None
+    k_passed: int | None = None
     #: ★ 逐条差异（judge 判 fail 时必须说**哪条**、差在哪）
     #:   ⇒ 此前 reason 是通用文案（"按 golden reference 比较实测"）
     #:     ⇒⇒ 那等于没说 ⇒ c 的原料根本没有
-    diffs: Optional[List[Dict[str, Any]]] = None
+    diffs: list[dict[str, Any]] | None = None
 
     def is_pass(self) -> bool:
         """★ 只有显式 True 才算通过（None 不算）。"""
         return self.success is True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """★ Verdict 的**完整**序列化（R72 修正）。
 
         ★★★ 缺陷史（R72 抓的存量洞）:
@@ -268,7 +269,7 @@ class Verdict:
 # ═══════════════════════════════════════════════════════════
 
 
-def pass_rate(v) -> Optional[float]:
+def pass_rate(v) -> float | None:
     """★ 单 task 的通过率 **k/n**（细粒度, 不再压成 0/1）。
 
     ★ 输入 `Verdict`（judge 的产物）；返回 float ∈ [0,1] 或 **None**
@@ -293,7 +294,7 @@ def pass_rate(v) -> Optional[float]:
     return k / n
 
 
-def overall_score(verdicts) -> Optional[float]:
+def overall_score(verdicts) -> float | None:
     """★★ 聚合分数 **Σk / Σn**（论文式13 的 `Ŝ_t` = overall score）。
 
     ★ 输入: `Verdict` 的**可迭代**（一轮里所有 task 的判定）
@@ -515,9 +516,9 @@ class TaskScoreStore:
     ★ 聚合口径: group_scores 无条目的组**不出现**（不装 0 —— X2 同族）。
     """
 
-    def __init__(self, path: Optional[str] = None,
-                 evidence_path: Optional[str] = None, *,
-                 dw_version: Optional[str] = None,
+    def __init__(self, path: str | None = None,
+                 evidence_path: str | None = None, *,
+                 dw_version: str | None = None,
                  wm_version: str = ""):
         if (path is None) != (evidence_path is None):
             raise JudgeError(
@@ -531,8 +532,8 @@ class TaskScoreStore:
                            else _git_version())
         #: world_model 当前**无版本机制** —— 占位字段如实空串（诚实边界）
         self.wm_version = wm_version
-        self._points: List[TaskScorePoint] = []
-        self._evidence: Dict[str, Dict[str, Any]] = {}
+        self._points: list[TaskScorePoint] = []
+        self._evidence: dict[str, dict[str, Any]] = {}
         self._n_mem_evi = 0
         if path and os.path.exists(path):
             self._load_jsonl_tolerant(path, self._points, TaskScorePoint)
@@ -554,7 +555,7 @@ class TaskScoreStore:
         """
         n_bad = 0
         try:
-            lines = io.open(path, encoding="utf-8").read().splitlines()
+            lines = open(path, encoding="utf-8").read().splitlines()
         except Exception as exc:                       # noqa: BLE001
             _sys.stderr.write("judge store 读取失败 %s: %s\n" % (path, exc))
             self.n_corrupt = getattr(self, "n_corrupt", 0)
@@ -576,7 +577,7 @@ class TaskScoreStore:
         """同 `_load_jsonl_tolerant`（evidence 版本）。"""
         n_bad = 0
         try:
-            lines = io.open(path, encoding="utf-8").read().splitlines()
+            lines = open(path, encoding="utf-8").read().splitlines()
         except Exception as exc:                       # noqa: BLE001
             _sys.stderr.write("evidence 读取失败 %s: %s\n" % (path, exc))
             return
@@ -595,8 +596,8 @@ class TaskScoreStore:
         self.n_corrupt = getattr(self, "n_corrupt", 0) + n_bad
 
     # ── 写入（判分点 → 分数点）────────────────────────────
-    def record(self, verdict: "Verdict", *, group_id: str,
-               rung: int) -> Optional[TaskScorePoint]:
+    def record(self, verdict: Verdict, *, group_id: str,
+               rung: int) -> TaskScorePoint | None:
         """★ 判分点即记录点。
 
         ★ 未评价（success=None）或零分母（n_checks=0）⇒ **不记** ——
@@ -628,12 +629,12 @@ class TaskScoreStore:
                          json.dumps(asdict(pt), ensure_ascii=False))
         return pt
 
-    def _store_evidence(self, verdict: "Verdict") -> str:
+    def _store_evidence(self, verdict: Verdict) -> str:
         d = verdict.to_dict()
         if self.evidence_path:
             n = 0
             if os.path.exists(self.evidence_path):
-                n = sum(1 for line in io.open(self.evidence_path,
+                n = sum(1 for line in open(self.evidence_path,
                                               encoding="utf-8")
                         if line.strip())
             ref = "%s#%d" % (os.path.basename(self.evidence_path), n + 1)
@@ -646,7 +647,7 @@ class TaskScoreStore:
         self._evidence[ref] = d
         return ref
 
-    def evidence(self, ref: str) -> Dict[str, Any]:
+    def evidence(self, ref: str) -> dict[str, Any]:
         """按 ref 拉回 evidence 全文（约定④: 点里只有 ID, 查时才取）。"""
         if ref not in self._evidence:
             raise JudgeError(
@@ -654,22 +655,22 @@ class TaskScoreStore:
         return self._evidence[ref]
 
     # ── TS3 双查询口 ─────────────────────────────────────
-    def task_scores(self, split: Optional[str] = None,
-                    wm_version: Optional[str] = None
-                    ) -> List[TaskScorePoint]:
+    def task_scores(self, split: str | None = None,
+                    wm_version: str | None = None
+                    ) -> list[TaskScorePoint]:
         """TS3 口①: 逐任务分数序列（第⑦步 / δ_θ 的数据源）。"""
         return [p for p in self._points
                 if (split is None or p.split == split)
                 and (wm_version is None or p.wm_version == wm_version)]
 
     def group_scores(self, split: str,
-                     round_index: Optional[int] = None
-                     ) -> Dict[str, float]:
+                     round_index: int | None = None
+                     ) -> dict[str, float]:
         """TS3 口②: 按能力组聚合（均值）。
 
         ★ 无条目的组**不出现** —— 不装 0（"没观测过"≠"组 0 分"）。
         """
-        buckets: Dict[str, List[float]] = {}
+        buckets: dict[str, list[float]] = {}
         for p in self._points:
             if p.split != split:
                 continue
@@ -682,13 +683,13 @@ class TaskScoreStore:
 class Judge:
     """DWC 判分器。★ 只读 agent 可见面，不进递归。"""
 
-    def __init__(self, anchors_path: Optional[str] = None,
-                 sealed_path: Optional[str] = None,
-                 train_path: Optional[str] = None,
-                 fresh_path: Optional[str] = None,
-                 store_path: Optional[str] = None,
-                 evidence_path: Optional[str] = None,
-                 dw_version: Optional[str] = None):
+    def __init__(self, anchors_path: str | None = None,
+                 sealed_path: str | None = None,
+                 train_path: str | None = None,
+                 fresh_path: str | None = None,
+                 store_path: str | None = None,
+                 evidence_path: str | None = None,
+                 dw_version: str | None = None):
         self.anchors = self._load(anchors_path
                                   or TRUTH_SOURCE[0][1], SPLIT_DEV)
         # ★ HCE 拆分（稿⑥§③ · 裁决①"拆"）: dev 内 D_search/D_val 两子集
@@ -731,9 +732,9 @@ class Judge:
             ROOT, "config", "anchors", "fresh.json"))
         self.fresh = (self._load(_p_fresh, SPLIT_FRESH)
                       if os.path.exists(_p_fresh) else None)
-        self._fallbacks: Dict[str, Callable] = {}
+        self._fallbacks: dict[str, Callable] = {}
         # ★★ 记住每一次判定，用于"未评价不许悄悄变 True"的审计
-        self._log: List[Verdict] = []
+        self._log: list[Verdict] = []
         # ★★★ C3' · TS3: 逐任务分数序列存储（judge 内部存储 — 设计 §3.1）
         #   ⇒ path 缺省 None = **内存模式**（测试零污染; 生产由 core 注入路径）
         self.store = TaskScoreStore(path=store_path,
@@ -742,7 +743,7 @@ class Judge:
 
     # ── 真值源加载与自检 ──
     @staticmethod
-    def _load_unlabeled(path: str, split: str) -> Dict[str, Dict[str, Any]]:
+    def _load_unlabeled(path: str, split: str) -> dict[str, dict[str, Any]]:
         """★★ R184 · train split 专用装载（无标签大集合 — 论文逐字）。
 
         ★ 与 _load 的差别只有一条且只有一条: **不要求 golden 字段**
@@ -755,7 +756,7 @@ class Judge:
         """
         if not os.path.exists(path):
             raise JudgeError("train split 文件不存在: %s" % path)
-        data = json.loads(io.open(path, encoding="utf-8").read())
+        data = json.loads(open(path, encoding="utf-8").read())
         if not isinstance(data, dict) or not data:
             raise JudgeError("train split 为空: %s" % path)
         n = 0
@@ -786,14 +787,14 @@ class Judge:
         return data
 
     @staticmethod
-    def _load(path: str, split: str) -> Dict[str, Dict[str, Any]]:
+    def _load(path: str, split: str) -> dict[str, dict[str, Any]]:
         """加载真值源。★ 文件不存在必须 raise（不许返回空 dict 假装合法）。"""
         if not os.path.exists(path):
             raise JudgeError(
                 "真值源不存在: %s（split=%s）"
                 " —— ★ 声明了 TRUTH_SOURCE 却没有真实文件"
                 " ⇒ 违反原则 1（判据必须在系统之外）" % (path, split))
-        data = json.loads(io.open(path, encoding="utf-8").read())
+        data = json.loads(open(path, encoding="utf-8").read())
         if not isinstance(data, dict) or not data:
             raise JudgeError("真值源为空: %s" % path)
         for tid, rec in data.items():
@@ -856,7 +857,7 @@ class Judge:
         return data
 
     @staticmethod
-    def _task_ids(src: Dict[str, Dict[str, Any]]) -> Set[str]:
+    def _task_ids(src: dict[str, dict[str, Any]]) -> set[str]:
         """★ 任务 id 集合（**排除**元数据键）。
 
         ★★★★ R28: 我 R24 修过一次「_provenance 被当任务」的 bug
@@ -867,7 +868,7 @@ class Judge:
         """
         return {k for k in src if not k.startswith("_")}
 
-    def _check_truth_source(self) -> Dict[str, List[str]]:
+    def _check_truth_source(self) -> dict[str, list[str]]:
         """★ 启动自检: 已落地的真值源必须存在；未落地的要显式列名。
 
         ★★★★ R24 实测修正: 初版要求 TRUTH_SOURCE 里**每一个**文件都存在
@@ -898,8 +899,8 @@ class Judge:
     # 判分主路径
     # ══════════════════════════════════════════════
     def evaluate(self, task_id: str, split: str = SPLIT_DEV,
-                 observed: Optional[Dict[str, Any]] = None,
-                 predicted: Optional[Any] = None, *,
+                 observed: dict[str, Any] | None = None,
+                 predicted: Any | None = None, *,
                  split_mode: str = "legacy") -> Verdict:
         """★ 判一次。★ 三个 split 互不相交，跨 split 用错要 raise。
 
@@ -1012,7 +1013,7 @@ class Judge:
             verdict = "一致" if agree else "**不一致**"
             note = "｜agent 自报与实测" + verdict
 
-        sig: Optional[Dict[str, str]] = None
+        sig: dict[str, str] | None = None
         bad = [d for d in diffs if not d["ok"]]
         if not ok:
             # ★★★ 产出失败签名（c/q 由**规则**分配 —— 2609.06396 原文）
@@ -1056,7 +1057,7 @@ class Judge:
         #   "pass 时 []"）。
         #   ★ R197 测试为何没逮到: `if v2.success:` 守卫 — 那次实测
         #     verdict 恰为 fail ⇒ 断言从未执行（弱断言, G4 族）。
-        _sigs: List[Dict[str, str]] = [sig] if sig is not None else []
+        _sigs: list[dict[str, str]] = [sig] if sig is not None else []
         if len(bad) > 1:
             _seen = {(sig.get("c"), sig.get("q"), sig.get("fn"))}
             for d in bad[1:]:
@@ -1096,7 +1097,7 @@ class Judge:
         return v
 
     def held_out_score(self, task_id: str,
-                       observed: Optional[Dict[str, Any]]) -> Optional[float]:
+                       observed: dict[str, Any] | None) -> float | None:
         """★ R291-P4 Task 1 · held_out 分数口（读 sealed，不读 dev）。
 
         success True→1.0 / False→0.0 / None→None（未评价不当 0/1）。
@@ -1117,8 +1118,8 @@ class Judge:
         return None
 
     def cross(self, task_id: str,
-              observed: Optional[Dict[str, Any]] = None,
-              predicted: Optional[Any] = None) -> Dict[str, Any]:
+              observed: dict[str, Any] | None = None,
+              predicted: Any | None = None) -> dict[str, Any]:
         """★ D3 · crossed evaluation 单版本内 cross（companion §6.3.3）。
 
         同 task × 双 split（dev＋sealed）：换 anchor/换模型时对任务集跑
@@ -1134,14 +1135,14 @@ class Judge:
             _sealed_task = self.held_out_peer(task_id)
         except (JudgeError, KeyError, TypeError):
             _sealed_task = None
-        _sealed: Optional[bool] = None
+        _sealed: bool | None = None
         if _sealed_task is not None and self.sealed is not None:
             try:
                 _sealed = self.evaluate(
                     _sealed_task, SPLIT_TEST, observed=observed,
                     predicted=predicted).success
             except JudgeError:
-                _sealed = None        # noqa: BLE001 — 判不了记缺席
+                _sealed = None
         _d = _dev.success
         return {"task": task_id, "sealed_task": _sealed_task,
                 "dev": _d, "sealed": _sealed,
@@ -1149,7 +1150,7 @@ class Judge:
                           if (_d is not None and _sealed is not None)
                           else None)}
 
-    def held_out_peer(self, task_id: str) -> Optional[str]:
+    def held_out_peer(self, task_id: str) -> str | None:
         """★ R291-P4 Task 4 · dev→sealed 配对查询（同族按序号，显式表）。
 
         表 `config/anchors/dev_sealed_pairing.json`（新文件=增非改）：
@@ -1161,7 +1162,7 @@ class Judge:
                               "dev_sealed_pairing.json")
             if not os.path.exists(_p):
                 return None
-            _m = json.loads(io.open(_p, encoding="utf-8").read())
+            _m = json.loads(open(_p, encoding="utf-8").read())
             _peer = _m.get(task_id)
             if not isinstance(_peer, str):
                 return None
@@ -1172,8 +1173,8 @@ class Judge:
             return None
 
     @staticmethod
-    def _diff(golden: Dict[str, Any],
-              observed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _diff(golden: dict[str, Any],
+              observed: dict[str, Any]) -> list[dict[str, Any]]:
         """★ 逐条差异 —— **_compare 的唯一真源**。
 
         ★★★★ R30: 我原本要「另写一个 diff 版本」给签名用
@@ -1195,13 +1196,13 @@ class Judge:
         if kind == "expected_values":
             text = str(observed.get("answer", observed.get("text", "")))
             tol = float(golden.get("tolerance") or 0.0)
-            parsed: Dict[str, float] = {}
+            parsed: dict[str, float] = {}
             for _m in re.finditer(r"(\w+)\s*=\s*(-?\d+(?:\.\d+)?)", text):
                 try:
                     parsed[_m.group(1)] = float(_m.group(2))
                 except ValueError:            # 理论不可达（正则已限数值）
                     continue
-            out2: List[Dict[str, Any]] = []
+            out2: list[dict[str, Any]] = []
             for i, (key, want_raw) in enumerate(
                     sorted((golden.get("expected_values") or {}).items())):
                 want = float(want_raw)
@@ -1226,7 +1227,7 @@ class Judge:
             return [{"index": -1, "kind": kind, "ok": False,
                      "reason": "无 checks ⇒ 按原则 1 不许判通过"}]
 
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         if kind == "keyword_match":
             text = str(observed.get("answer", observed.get("text", "")))
             for i, c in enumerate(checks):
@@ -1290,8 +1291,8 @@ class Judge:
                  "reason": "未知 verifier_kind %r ⇒ 不许判通过" % kind}]
 
     @staticmethod
-    def _compare(golden: Dict[str, Any],
-                 observed: Dict[str, Any]) -> bool:
+    def _compare(golden: dict[str, Any],
+                 observed: dict[str, Any]) -> bool:
         """★ 比较口径: 按 verifier_kind 分别处理两种形态。
 
         ★★★★ R24 实测修正: 初版只按 dict 迭代 checks
@@ -1314,9 +1315,9 @@ class Judge:
     # fallback（★ 必须同契约 —— JUDGE_DESIGN §3.3）
     # ══════════════════════════════════════════════
     def register_fallback(self, name: str,
-                          fn: Callable[[str, Dict[str, Any]],
-                                      Optional[bool]],
-                          contract: Dict[str, Any]) -> str:
+                          fn: Callable[[str, dict[str, Any]],
+                                      bool | None],
+                          contract: dict[str, Any]) -> str:
         """★ 注册 fallback。★ 必须提供**可被自动判定**的契约。
 
         ★★★ 硬要求（JUDGE_DESIGN §3.3 原文的直译）:
@@ -1344,7 +1345,7 @@ class Judge:
 
     def evaluate_with_fallback(self, task_id: str,
                                split: str = SPLIT_DEV,
-                               observed: Optional[Dict] = None
+                               observed: dict | None = None
                                ) -> Verdict:
         """★ 用 fallback 判（仅当 fallback 已注册且合规）。"""
         v = self.evaluate(task_id, split, observed)
@@ -1362,12 +1363,12 @@ class Judge:
     # 批量与统计（★ 供 run_term 的终止条件③ 用）
     # ══════════════════════════════════════════════
     # ── ★ C3' · TS3 双查询口（判据原文: 只有聚合没有逐条 = 等于没做）──
-    def task_scores(self, split: Optional[str] = None,
-                    wm_version: Optional[str] = None):
+    def task_scores(self, split: str | None = None,
+                    wm_version: str | None = None):
         """TS3 口①: 逐任务分数序列（第⑦步 / δ_θ 的数据源）。"""
         return self.store.task_scores(split=split, wm_version=wm_version)
 
-    def evidence(self, ref: str) -> Dict[str, Any]:
+    def evidence(self, ref: str) -> dict[str, Any]:
         """★★ R180: TS3 口③ evidence 委派（store.evidence 的 Judge 面）。
 
         ★ 补缺口的动因（实测 — 不是发明新面）: R180 Metric Loop 接真数据
@@ -1380,13 +1381,13 @@ class Judge:
         """
         return self.store.evidence(ref)
 
-    def group_scores(self, split: str, round_index: Optional[int] = None):
+    def group_scores(self, split: str, round_index: int | None = None):
         """TS3 口②: 按能力组聚合（均值; 无条目组不出现 — 不装 0）。"""
         return self.store.group_scores(split=split, round_index=round_index)
 
     def score(self, split: str = SPLIT_DEV,
-              observations: Optional[Dict[str, Dict]] = None
-              ) -> Dict[str, Any]:
+              observations: dict[str, dict] | None = None
+              ) -> dict[str, Any]:
         """★ 给一个 split 打分。
 
         ★★★ 关键: 未评价**单独计数**，不混进通过率
@@ -1409,7 +1410,7 @@ class Judge:
         src = self.anchors if split == SPLIT_DEV else self.sealed
         obs = observations or {}
         n_pass = n_fail = n_none = 0
-        details: List[Dict[str, Any]] = []
+        details: list[dict[str, Any]] = []
         for tid in src:
             if tid.startswith("_"):
                 continue        # ★ 元数据不是任务
@@ -1435,9 +1436,9 @@ class Judge:
             "details": details,
         }
 
-    def regression_check(self, baseline: Dict[str, Any],
-                         current: Dict[str, Any], *,
-                         epsilon: float = 0.0) -> Dict[str, Any]:
+    def regression_check(self, baseline: dict[str, Any],
+                         current: dict[str, Any], *,
+                         epsilon: float = 0.0) -> dict[str, Any]:
         """★ 保护组回归检测（终止条件③ 的实现基础）。
 
         ★★★★ R24 实测修正: 初版用「两侧 not_evaluated 都为 0」当可比条件
@@ -1500,11 +1501,11 @@ class Judge:
     # ══════════════════════════════════════════════
     # 审计
     # ══════════════════════════════════════════════
-    def unevaluated(self) -> List[Dict[str, Any]]:
+    def unevaluated(self) -> list[dict[str, Any]]:
         """★ 所有"未评价"的判定（供门检与报告）。"""
         return [v.to_dict() for v in self._log if v.success is None]
 
-    def self_check(self) -> Dict[str, Any]:
+    def self_check(self) -> dict[str, Any]:
         """★ 启动自检。已落地真值源缺失就 raise；未落地的显式列出。"""
         ts = self._check_truth_source()
         return {

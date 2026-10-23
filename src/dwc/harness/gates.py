@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """gates · 门组入链执行器（V2 §5.4 六门顺序 · 口径桥 + 三态裁决）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -23,7 +22,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: 三态（与 G2 TRUTH_SOURCE 一致: 没输入≠通过）
 GATE_PASSED = "passed"
@@ -31,12 +30,12 @@ GATE_BLOCKED = "blocked"
 GATE_NOT_APPLICABLE = "not_applicable"
 
 #: 六门顺序（V2 §5.4 — 值枚举, 顺序即契约）
-GATE_ORDER: Tuple[str, ...] = ("leakage", "contract", "drawback", "split",
+GATE_ORDER: tuple[str, ...] = ("leakage", "contract", "drawback", "split",
                                "noncomp", "budget")
 
 #: 可在 DWC 当前形态下真判的门（其余显式 not_applicable）
-_JUDGE_BACKED: Tuple[str, ...] = ("drawback",)          # judge verdict 可投影
-_EVOLVER_BACKED: Tuple[str, ...] = ("split",)           # evolver 已有判定
+_JUDGE_BACKED: tuple[str, ...] = ("drawback",)          # judge verdict 可投影
+_EVOLVER_BACKED: tuple[str, ...] = ("split",)           # evolver 已有判定
 
 
 class GateChainError(Exception):
@@ -49,9 +48,9 @@ class GateOutcome:
 
     gate: str
     status: str
-    detail: Dict[str, Any] = field(default_factory=dict)
+    detail: dict[str, Any] = field(default_factory=dict)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"gate": self.gate, "status": self.status,
                 "detail": self.detail}
 
@@ -67,23 +66,23 @@ class TermFacts:
       edits —— 显式申报编辑（空 ⇒ ⑥ not_applicable）。
     """
 
-    pass_rate: Optional[float] = None
-    score_star: Optional[float] = None
-    delta_s: Optional[float] = None
-    delta_c: Optional[float] = None
-    nu_str: Optional[float] = None
-    noise_band: Optional[float] = None
-    domain_guard_ok: Optional[bool] = None
+    pass_rate: float | None = None
+    score_star: float | None = None
+    delta_s: float | None = None
+    delta_c: float | None = None
+    nu_str: float | None = None
+    noise_band: float | None = None
+    domain_guard_ok: bool | None = None
     not_evaluated: int = 0
-    candidate_diff: Optional[str] = None
-    vocabulary: Tuple[str, ...] = ()
+    candidate_diff: str | None = None
+    vocabulary: tuple[str, ...] = ()
     edits: Any = None      # Sequence[EditItem]（budget.check 的输入）
-    split_verdict: Optional[Dict[str, Any]] = None     # evolver 的判定引用
+    split_verdict: dict[str, Any] | None = None     # evolver 的判定引用
     #: ★ R159 · split 门真判输入: evolver.accept(baseline, current) 的两份
     #   判分口径（in_score / held_out_score — 缺 held_out 面是系统级形态,
     #   非调用方疏忽 ⇒ 映射 na 而非 blocked, 见 _g4_split 裁决）
-    baseline: Optional[Dict[str, float]] = None
-    current: Optional[Dict[str, float]] = None
+    baseline: dict[str, float] | None = None
+    current: dict[str, float] | None = None
     #: ★★★ R193 · 判据点自带的两个 op 口粮（dev 回归面 — R180 旧注释
     #   "candidate_diff 不在 evidence 判据面"半错的连带修正: 判据面**还有**
     #   success 与"解析过"两桩事实, 一并投影, 否则 judge_verdict /
@@ -91,8 +90,8 @@ class TermFacts:
     #   1/6）。**None/缺 = 没判/没解析 ⇒ abstain**（缺席≠0 纪律）:
     #     judge_success — judge 自己的成否判定（True ⇒ pass / False ⇒ fail）
     #     parsed_ok     — 判据点是否被成功解析（有 evidence = True）
-    judge_success: Optional[bool] = None
-    parsed_ok: Optional[bool] = None
+    judge_success: bool | None = None
+    parsed_ok: bool | None = None
 
 
 def _g1_leakage(f: TermFacts) -> GateOutcome:
@@ -122,7 +121,6 @@ def _g2_contract(f: TermFacts) -> GateOutcome:
       dafny 现场反射层 — 被测约束量与 budget 门同源）。
     """
     from dwc.organs.contracts_builtin import check_against_facts
-    from dwc.organs.contract import ContractRegistry, ST_NO_CONTRACT
     reg = _registry()
     # ★★ R170 修: registry 缺席 ⇒ 回落 **builtin**（R167 已裁"各处默认
     #   装这个" — 首版这里造空表 ⇒ 门② blocked, 于是 run_round 链恒
@@ -284,7 +282,7 @@ _DISPATCH = {"leakage": _g1_leakage, "contract": _g2_contract,
 
 #: ★★★ R181 · ③门的当前生效树注入表（Metric Loop 采纳面 — 同契约表模式）
 #:   None = 未注入（出厂全池树 — 旧行为）; Node = 生效中的检测树
-_CURRENT_TREE: List[Any] = [None]
+_CURRENT_TREE: list[Any] = [None]
 
 
 def _current_tree_injection():
@@ -302,7 +300,7 @@ def set_current_tree(node) -> None:
 
 
 #: 契约注册表的进程内共享表（②查它 — 空表 = 未注册面在档）
-_SHARED_REGISTRY: Optional[Any] = None
+_SHARED_REGISTRY: Any | None = None
 
 #: ★★ R185 · planner 现场层开关（进程内共享表 — 与 _SHARED_REGISTRY/
 #   _CURRENT_TREE 同族模式）。缺省 False = **旧行为逐字节不变**
@@ -339,7 +337,7 @@ def planner_layer_injection() -> bool:
 
 
 def run_gates(facts: TermFacts, *, stop_at_first_block: bool = False
-              ) -> Dict[str, Any]:
+              ) -> dict[str, Any]:
     """★ 六门顺序执行（§5.4 顺序不可换 — 前门 blocked 记后仍问后门? 否）。
 
     ★★ stop_at_first_block=True ⇒ 一门 blocked 即停（论文"每一步建立
@@ -348,7 +346,7 @@ def run_gates(facts: TermFacts, *, stop_at_first_block: bool = False
       verdict 仍 = 有一门 blocked 就 blocked — 默认不让"其余都好"补偿,
       非补偿精神贯到链级）。
     """
-    out: List[GateOutcome] = []
+    out: list[GateOutcome] = []
     for name in GATE_ORDER:
         o = _DISPATCH[name](facts)
         out.append(o)
@@ -368,7 +366,7 @@ def run_gates(facts: TermFacts, *, stop_at_first_block: bool = False
                      "互偿 — blocked 段就是留痕, 不是'其余都好'的缓冲）")}
 
 
-GATE_CHAIN: Dict[str, str] = {
+GATE_CHAIN: dict[str, str] = {
     "order": "leakage → contract → drawback → split → noncomp → budget（§5.4 顺序不可换）",
     "three_states": "passed / blocked（缺口径）/ not_applicable（无对象）",
     "no_compensation": "链级 verdict: 一门 blocked ⇒ 全链 blocked（门间不可互偿）",

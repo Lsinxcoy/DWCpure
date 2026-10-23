@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC applier —— 落地器（器官 5/7）。★ 把闭环最后一段接上。
 
 ★★★ 这个器官为什么现在最要紧（APPLIER_DESIGN §一 实测结论）
@@ -54,13 +53,15 @@
 """
 
 from __future__ import annotations
+
 import datetime
+
 # ★★★ R44: 我加 `_record_liquidity` 时用了 os/io 却**没 import**
 #   （同族第 5 次「用了没引」—— 前 4 次: evolver 的 os ×2、
 #    os.path→os.join、applier 这次）
 #   ⇒ ⇒★ 教训: 加函数时先 grep 它用的模块在不在 import 区
-import io
 import os
+
 # ★★★★ TRUTH_SOURCE（判据 G2）
 #   ★★ 本模块**不判分** ⇒ 它没有真值源
 #   ★★ 它产出的是「是否落地 / 是否回滚」的状态，而**分数**由 judge 算
@@ -89,8 +90,9 @@ DEFAULT_WINDOW = 5
 import copy
 import json
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 
 def _now() -> str:
@@ -118,11 +120,11 @@ class AppliedResult:
     #: ★ 判据 1: 读回校验的证据（不许静默计成功）
     readback_ok: bool
     #: ★ 判据 2: 落地前的旧值（回滚要用）
-    old_value: Optional[str] = None
-    new_value: Optional[str] = None
+    old_value: str | None = None
+    new_value: str | None = None
     #: ★ 判据 3: 窗口（含窗口长度与窗口末比对结果）
     window: int = 0
-    window_result: Optional[str] = None
+    window_result: str | None = None
     reason: str = ""
     timestamp: float = 0.0
 
@@ -138,7 +140,7 @@ class AppliedResult:
                 "（原则 4）" % self.action)
         self.timestamp = self.timestamp or time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
 
 
@@ -157,10 +159,10 @@ class Target:
 
     def __init__(self, getter: Callable[[], Any],
                  setter: Callable[[Any], None],
-                 copier: Optional[Callable[[Any], Any]] = None,
-                 has_fn: Optional[Callable[[], bool]] = None,
-                 delete_fn: Optional[Callable[[], None]] = None,
-                 flush_fn: Optional[Callable[[], Any]] = None):
+                 copier: Callable[[Any], Any] | None = None,
+                 has_fn: Callable[[], bool] | None = None,
+                 delete_fn: Callable[[], None] | None = None,
+                 flush_fn: Callable[[], Any] | None = None):
         self._get = getter
         self._set = setter
         self._copy = copier or copy.deepcopy
@@ -168,7 +170,7 @@ class Target:
         self.delete_fn = delete_fn
         self.flush_fn = flush_fn
 
-    def has(self) -> Optional[bool]:
+    def has(self) -> bool | None:
         """★ 该键/属性是否**原本存在**（None = 未知，调用方未提供）。"""
         if self.has_fn is None:
             return None
@@ -209,7 +211,7 @@ class Target:
         """★ 回滚用的旧值（判据 2）。"""
         return self._copy(self._get())
 
-    def write(self, value: Any) -> Tuple[bool, Any]:
+    def write(self, value: Any) -> tuple[bool, Any]:
         """★ 写 + **立即读回**（判据 1）。
 
         ★ 返回 (readback_ok, 实际读回值)
@@ -239,19 +241,19 @@ class Applier:
     def __init__(self, window: int = DEFAULT_WINDOW):
         self.window = window
         #: ★ 回滚用：目标 id → 旧值（判据 2）
-        self._history: Dict[str, Any] = {}
+        self._history: dict[str, Any] = {}
         #: ★★★ R32: 落地**之前**该键是否存在
         #   ⇒ 回滚对"原本不存在"的键必须 **delete**，而不是写回 None
         #   ⇒⇒ R30 我修了 apply_on_copy 的同款问题，**漏了 commit 路径**
         #     ⇒⇒ ⇒★ 实测: commit 一个新键 → rollback ⇒ 键仍在但值 None
         #       （G4 生灭门要求"能生也要能死"⇒ 那是**死不干净**）
-        self._origin: Dict[str, bool] = {}
+        self._origin: dict[str, bool] = {}
         #: ★ 状态：目标 id → (proposal_id, action, AppliedResult)
-        self.log: List[AppliedResult] = []
+        self.log: list[AppliedResult] = []
 
     # ── line 9 · 在副本上应用（不碰主干）──
     def apply_on_copy(self, proposal_id: str, target: Target,
-                      patch: Any) -> Dict[str, Any]:
+                      patch: Any) -> dict[str, Any]:
         """★ 在**候选副本**上应用（主干不动）。
 
         ★★ 这是 2606.09498 的 line 9 ⇒ 生产主干在 commit 前未被触碰
@@ -276,7 +278,6 @@ class Applier:
         else:
             # ★ 未知（调用方没给 has_fn）⇒ 至少写回旧值并**显式报告**
             target.write(old)
-        restored_ok = (got == patch)
         return {"proposal_id": proposal_id, "on_copy": True,
                 "candidate": patch, "readback_at_copy": ok,
                 "restored": True, "had_before": had, "old_value": old,
@@ -334,8 +335,8 @@ class Applier:
     # ┘
 
     def retire_rule(self, target: Any, key: str, reason: str,
-                    evidence: Dict[str, Any],
-                    check_fn: Optional[Any] = None) -> AppliedResult:
+                    evidence: dict[str, Any],
+                    check_fn: Any | None = None) -> AppliedResult:
         """★★★ 退役一条规则（生灭的"死"）—— 三闸镜像 land_rule。
 
         ★ 三闸:
@@ -411,9 +412,9 @@ class Applier:
     # │     学到的候选只在进程内，下次同类失败仍要重新试
     # ┘
 
-    def land_rule(self, target: Any, key: str, entry: Dict[str, Any],
-                  evidence: Dict[str, Any],
-                  check_fn: Optional[Any] = None) -> AppliedResult:
+    def land_rule(self, target: Any, key: str, entry: dict[str, Any],
+                  evidence: dict[str, Any],
+                  check_fn: Any | None = None) -> AppliedResult:
         """★ 固化一条**已验证**的规则（LearnedRule 落进可写面）。
 
         ★★★ 职责边界（这段最重要，别理解成 applier 在判分）:
@@ -549,7 +550,7 @@ class Applier:
     # ── 判据 3 · 窗口（不立即生效）──
     def _record_liquidity(self, component, hypothesis, diff,
                           delta_s, delta_c, round_no, is_winner,
-                          proposal_id) -> Dict[str, Any]:
+                          proposal_id) -> dict[str, Any]:
         """★★★ R44 · 把结算结果记进 ℒ_t（式10）—— 接线点。
 
         ★ 三态（**不许只有"记了"和"静默"两种**）:
@@ -570,9 +571,9 @@ class Applier:
                     "why": ("★ 缺 round_no（式10 的 t_i）⇒ 编轮次会污染"
                             "g_t 的历史窗口 ⇒ 不记"),
                     "proposal_id": proposal_id}
-        liq: List[Dict[str, Any]] = []
+        liq: list[dict[str, Any]] = []
         if os.path.exists(LIQUIDITY_PATH):
-            for ln in io.open(LIQUIDITY_PATH,
+            for ln in open(LIQUIDITY_PATH,
                               encoding="utf-8", errors="replace"):
                 ln = ln.strip()
                 if ln:
@@ -589,15 +590,15 @@ class Applier:
                 "proposal_id": proposal_id}
 
     def window_settle(self, proposal_id: str, steps: int,
-                      base_score: Optional[float],
-                      current_score: Optional[float],
-                      scorer_resolution: Optional[float] = None,
+                      base_score: float | None,
+                      current_score: float | None,
+                      scorer_resolution: float | None = None,
                       min_gain: float = 0.0,
-                      component: Optional[str] = None,
-                      hypothesis: Optional[str] = None,
-                      diff: Optional[str] = None,
-                      cost_delta: Optional[float] = None,
-                      round_no: Optional[int] = None) -> Dict[str, Any]:
+                      component: str | None = None,
+                      hypothesis: str | None = None,
+                      diff: str | None = None,
+                      cost_delta: float | None = None,
+                      round_no: int | None = None) -> dict[str, Any]:
         """★ 窗口末结算（判据 3 + 母巢失败 1/2 的修正）。
 
         ★★★ 母巢失败 1 的修正（原文: 「base 必须打老配置，
@@ -612,7 +613,7 @@ class Applier:
             - 若它是 0 或非常小 ⇒ 返回 `no_resolution`
             ⇒⇒ ★★★ 分辨率是前提，门槛是调节（原文原话）
         """
-        out: Dict[str, Any] = {"proposal_id": proposal_id,
+        out: dict[str, Any] = {"proposal_id": proposal_id,
                                "steps": steps,
                                "window": self.window}
         if steps < self.window:
@@ -659,7 +660,7 @@ class Applier:
             is_winner=(verdict == "keep"), proposal_id=proposal_id)
         return out
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         n_commit = sum(1 for x in self.log if x.action == "commit")
         n_rollback = sum(1 for x in self.log if x.action == "rollback")
         # ★★★ R33: land/retire **必须分开计** —— 否则

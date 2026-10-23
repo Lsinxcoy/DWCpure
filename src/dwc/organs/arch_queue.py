@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """arch_queue · 架构类提案的人工审批队列（R438 · #7）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -24,11 +23,10 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
@@ -39,11 +37,11 @@ def _path(p: str = "") -> str:
     return p or QUEUE
 
 
-def _read(p: str) -> List[Dict[str, Any]]:
+def _read(p: str) -> list[dict[str, Any]]:
     if not os.path.isfile(p):
         return []
     out = []
-    with io.open(p, encoding="utf-8") as f:
+    with open(p, encoding="utf-8") as f:
         for ln in f:
             ln = ln.strip()
             if not ln:
@@ -55,14 +53,14 @@ def _read(p: str) -> List[Dict[str, Any]]:
     return out
 
 
-def _append(row: Dict[str, Any], p: str) -> None:
+def _append(row: dict[str, Any], p: str) -> None:
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    with io.open(p, "a", encoding="utf-8", newline="\n") as f:
+    with open(p, "a", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def enqueue(component: str, target: str, patch: str, rationale: str = "",
-            p: str = "") -> Dict[str, Any]:
+            p: str = "") -> dict[str, Any]:
     """入队一条架构提案；同 (component,target,patch) 去重。"""
     path = _path(p)
     pid = "A_" + hashlib.sha256(
@@ -78,8 +76,8 @@ def enqueue(component: str, target: str, patch: str, rationale: str = "",
     return {"outcome": "queued", "id": pid, "path": path}
 
 
-def _status(path: str) -> Dict[str, Dict[str, Any]]:
-    st: Dict[str, Dict[str, Any]] = {}
+def _status(path: str) -> dict[str, dict[str, Any]]:
+    st: dict[str, dict[str, Any]] = {}
     for r in _read(path):
         pid = r.get("id")
         if not pid:
@@ -95,7 +93,7 @@ def _status(path: str) -> Dict[str, Dict[str, Any]]:
     return st
 
 
-def list_items(status: Optional[str] = None, p: str = "") -> List[Dict]:
+def list_items(status: str | None = None, p: str = "") -> list[dict]:
     rows = list(_status(_path(p)).values())
     if status:
         rows = [r for r in rows if r.get("status") == status]
@@ -104,7 +102,7 @@ def list_items(status: Optional[str] = None, p: str = "") -> List[Dict]:
 
 
 def decide(pid: str, approve: bool, by: str = "user",
-           note: str = "", p: str = "") -> Dict[str, Any]:
+           note: str = "", p: str = "") -> dict[str, Any]:
     """批准/驳回；幂等（已决 ⇒ already_decided，不追加事件）。"""
     path = _path(p)
     st = _status(path).get(pid)

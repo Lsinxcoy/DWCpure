@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R235 · `dwc` 专属命令入口（console_scripts entry — 头部 agent 同款形态）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— 用户面对的唯一命令面。

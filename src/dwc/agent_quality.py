@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R213 · 任务质量回路（DWC 缺的执行引擎 — 用户 2026-10-12 诊断拍板）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— 任务执行经验的评估/沉淀/检索层。
@@ -17,9 +16,10 @@ import os
 import re
 import sys
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 # ★ R438 · 尊重 DWC_VAR_DIR（与 agent_rpc 同口径）。
 #   现场：本模块写死 <repo>/var ⇒ 测试里每个任务都去读**生产** 1205 条教训
@@ -31,7 +31,7 @@ LESSONS_ARCHIVE = os.path.join(VAR, "dwc_lessons_archive.jsonl")
 SOURCES = os.path.join(VAR, "dwc_sources.jsonl")
 
 
-def _tokens(text: str) -> List[str]:
+def _tokens(text: str) -> list[str]:
     """中英混排粗分词（2-gram 汉字 + 单词）—— 检索用, 不追求精度。"""
     text = (text or "").lower()
     toks = re.findall(r"[a-z_][a-z0-9_\.]*", text)
@@ -41,7 +41,7 @@ def _tokens(text: str) -> List[str]:
     return toks
 
 
-def classify_fail(report: Dict[str, Any], passed) -> str:
+def classify_fail(report: dict[str, Any], passed) -> str:
     """失败模式分类（bench 与收件箱共用的判据表）。"""
     if passed:
         return "ok"
@@ -140,10 +140,10 @@ def score_lesson_quality(detail: str, history: list) -> dict:
 
 #: ★ R438 · 教训表 mtime 缓存（sources_context 现在每单都读 ⇒ 1205 行
 #   重复解析会成为任务路径的热点；文件被 touch_lessons 改写 ⇒ mtime 变 ⇒ 重读）
-_LESSONS_CACHE: Dict[str, Any] = {"key": None, "rows": []}
+_LESSONS_CACHE: dict[str, Any] = {"key": None, "rows": []}
 
 
-def load_lessons() -> List[Dict[str, Any]]:
+def load_lessons() -> list[dict[str, Any]]:
     try:
         _st = os.stat(LESSONS)
         _key = (LESSONS, _st.st_mtime, _st.st_size)
@@ -218,8 +218,7 @@ def _rewrite_lessons(rows: list) -> bool:
     tmp = LESSONS + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
-            for row in rows:
-                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            fh.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
         os.replace(tmp, LESSONS)
     except OSError:
         return False
@@ -269,8 +268,7 @@ def enforce_tier_capacity(short: int = 300, medium: int = 1000) -> int:
         try:
             os.makedirs(VAR, exist_ok=True)
             with open(LESSONS_ARCHIVE, "a", encoding="utf-8") as fh:
-                for row in arch:
-                    fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                fh.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in arch)
         except OSError:
             return 0
     _rewrite_lessons(keep)
@@ -315,7 +313,7 @@ def lesson_contrast(task_id: str) -> bool:
         return False
 
 
-def recall_lessons(task: str, k: int = 3) -> List[Dict[str, Any]]:
+def recall_lessons(task: str, k: int = 3) -> list[dict[str, Any]]:
     """★ 接单检索: 任务文本 token 重叠打分 top-k（历史失败教训优先）。
     ★ R234: 同 overlap 分下 contrast（有成败对照）优先 —— 强证据先注入。"""
     qt = set(_tokens(task))
@@ -367,7 +365,7 @@ _TEMPLATES = {
 }
 
 
-def consolidate_skills() -> Dict[str, int]:
+def consolidate_skills() -> dict[str, int]:
     """★ R214: 同 fail_mode 教训 ≥ SKILL_MIN 条 ⇒ 固化规避技能文件。
     （把"被纠 N 次"变成可注入的永久规矩 — 技能库本体）"""
     os.makedirs(SKILLS_DIR, exist_ok=True)
@@ -406,7 +404,7 @@ def consolidate_skills() -> Dict[str, int]:
 
 
 def revision_lessons(task: str, *, status: str, fail_why: str = "",
-                     llm: Any = None) -> Dict[str, Any]:
+                     llm: Any = None) -> dict[str, Any]:
     """★ R258 · 规矩文件的后向修订（ReHarness 2610.12668 §3.2 — 文件轨）。
 
     ★ diagnostic gate（§6 poker 教训）: status ∉ {done, failed} ⇒ 跳过
@@ -423,7 +421,7 @@ def revision_lessons(task: str, *, status: str, fail_why: str = "",
     if llm is None:
         return {"revised": [], "skipped": "no_llm"}
     hits = recall_lessons(task, 2)
-    revised: List[str] = []
+    revised: list[str] = []
     for h in hits:
         fm = str(h.get("fail_mode") or "").strip()
         sp = os.path.join(SKILLS_DIR, "%s.md" % fm) if fm else ""
@@ -546,7 +544,7 @@ def record_chat_outcome(task, rep):
 # 用户 2026-10-14: "任务执行的记忆包括搜索到的信源/知识/论文是驱动系统
 # 进化的重要组成部分" — A 层沉淀, 本层检索; lessons 同款 _tokens overlap。
 
-def load_sources() -> List[Dict[str, Any]]:
+def load_sources() -> list[dict[str, Any]]:
     if not os.path.exists(SOURCES):
         return []
     out = []
@@ -560,7 +558,7 @@ def load_sources() -> List[Dict[str, Any]]:
     return out
 
 
-def recall_sources(task: str, k: int = 3) -> List[Dict[str, Any]]:
+def recall_sources(task: str, k: int = 3) -> list[dict[str, Any]]:
     """★ 接单检索: 任务文本 vs 历史任务/queries/urls/findings 重叠 top-k。"""
     qt = set(_tokens(task))
     if not qt:
@@ -593,8 +591,6 @@ def _sources_off() -> bool:
     try:
         if (os.environ.get("DWC_SOURCES") or "").strip().lower() == "off":
             return True
-        here = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))          # src/dwc/agent_quality.py
         # ★ R438 · 与 VAR 同源（改前算成 src/dwc/var，生产永远找不到开关）
         var = (os.environ.get("DWC_VAR_DIR") or "").strip() \
             or VAR

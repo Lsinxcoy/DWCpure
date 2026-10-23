@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R303-① PR级Security Review（对标 Cursor Security Review 轻量版）。
 
 纯规则、零 LLM。只报可利用漏洞六类：SQL/命令/模板注入、鉴权绕过、
@@ -10,7 +9,6 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List
 
 # (cls, sev, re) —— 约15条
 _RULES = [
@@ -36,7 +34,7 @@ _RULES = [
 _NOISE_COMMENT = re.compile(r"^\s*#")
 
 
-def review_diff(diff_text: str, path: str = "") -> List[Dict[str, object]]:
+def review_diff(diff_text: str, path: str = "") -> list[dict[str, object]]:
     """返回 [{"cls","sev","line","why"}]；无问题 []。永不抛错（坏输入返回 []）。"""
     try:
         lines = str(diff_text).splitlines()
@@ -46,7 +44,7 @@ def review_diff(diff_text: str, path: str = "") -> List[Dict[str, object]]:
         return []
     # requirements.txt：只查未 pin 行
     only_pin = (path or "").replace("\\", "/").endswith("requirements.txt")
-    out: List[Dict[str, object]] = []
+    out: list[dict[str, object]] = []
     for i, ln in enumerate(lines, 1):
         if _NOISE_COMMENT.match(ln):
             continue

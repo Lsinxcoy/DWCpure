@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """consume_points · 消费点登记面（R193 债 X3 — 观测面五元组）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -24,8 +23,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 #: ★ 消费点五元组（与 applier.TARGETS 同 schema — consumer/path/attr/verify）
 #:   consumer — 谁读（人/模块/测试/文档）
 #:   path    — 属性路径（宿主对象.属性）
@@ -33,7 +30,7 @@ from typing import Dict, List, Optional
 #:   range   — 值域/口径（None 是合法输出 ⇒ 必须写进 range, 否则消费方
 #:              会拿 None 当异常）
 #:   verify  — 回读/校验方式（怎么确认真读到了）
-CONSUME_POINTS: Dict[str, Dict[str, str]] = {
+CONSUME_POINTS: dict[str, dict[str, str]] = {
     # ── R170-R173 · 单轮闭环痕迹（Loop 侧 L4-L11）────────────
     "last_skip": {
         "consumer": "daemon 探针 / e2e 断言 / 人工巡查",
@@ -156,23 +153,23 @@ CONSUME_POINTS: Dict[str, Dict[str, str]] = {
 }
 
 
-def consume_point_names() -> List[str]:
+def consume_point_names() -> list[str]:
     """登记键清单（排序 ⇒ 输出确定 — 测试可断言）。"""
     return sorted(CONSUME_POINTS)
 
 
-def consumer_of(name: str) -> Optional[str]:
+def consumer_of(name: str) -> str | None:
     """键 ⇒ consumer（未登记 ⇒ None — 不猜）。"""
     p = CONSUME_POINTS.get(name)
     return p.get("consumer") if p else None
 
 
-def declared_range(name: str) -> Optional[str]:
+def declared_range(name: str) -> str | None:
     """键 ⇒ 声明的值域（消费方判 None 是否合法的机器依据）。"""
     p = CONSUME_POINTS.get(name)
     return p.get("range") if p else None
 
 
-def undeclared(attrs: List[str]) -> List[str]:
+def undeclared(attrs: list[str]) -> list[str]:
     """给定 Loop 属性清单 ⇒ **未登记**的那些（G7: 漏登记要显式, 不静默）。"""
     return sorted(a for a in attrs if a not in CONSUME_POINTS)

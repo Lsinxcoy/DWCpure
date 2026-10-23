@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC actor —— 行动者（器官 3/7）。唯一产生痕迹的器官。
 
 ★★★ 这个器官现在为什么最要紧
@@ -58,11 +57,11 @@ SUCCESS_SOURCES = ("judge_verdict", "tool_receipt", NOT_EVALUATED)
 OUTCOMES = ("returned", "raised", None)
 
 import ast
-import io
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 
 class ActorError(Exception):
@@ -83,31 +82,31 @@ class Trace:
       ⇒ 而 Actor **不填**它 —— 它由外部回执或 judge 填（§3.3）
     """
     #: ── 三分离（§3.4）──
-    prediction: Optional[Dict[str, Any]] = None   # 世界模型的预测
-    decision: Dict[str, Any] = field(default_factory=dict)
-    outcome: Optional[str] = None                 # ★ 枚举，不是自由字符串
+    prediction: dict[str, Any] | None = None   # 世界模型的预测
+    decision: dict[str, Any] = field(default_factory=dict)
+    outcome: str | None = None                 # ★ 枚举，不是自由字符串
 
     #: ── 执行 ──
     action: str = ""
-    action_params: Dict[str, Any] = field(default_factory=dict)
-    state_before: Dict[str, Any] = field(default_factory=dict)
-    state_after: Dict[str, Any] = field(default_factory=dict)
+    action_params: dict[str, Any] = field(default_factory=dict)
+    state_before: dict[str, Any] = field(default_factory=dict)
+    state_after: dict[str, Any] = field(default_factory=dict)
     #: ★ expected: 修"失败是非事件"（§3.2）—— 记下本该发生什么
-    expected: Dict[str, Any] = field(default_factory=dict)
-    observed: Dict[str, Any] = field(default_factory=dict)
+    expected: dict[str, Any] = field(default_factory=dict)
+    observed: dict[str, Any] = field(default_factory=dict)
 
     #: ── 证据（ARSI 缺）──
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
     success_source: str = NOT_EVALUATED
-    success: Optional[bool] = None
+    success: bool | None = None
 
     #: ── 失败定位（Recuris 判据）──
     #: {c: 终止级原因, q: 因果角色, m: 抽象机制名}
-    failure_signature: Optional[Dict[str, str]] = None
+    failure_signature: dict[str, str] | None = None
 
     #: ── 三层粒度（§3.1）──
     granularity: str = "user_turn"
-    trajectory_id: Optional[str] = None
+    trajectory_id: str | None = None
     turn_index: int = 0
 
     generation: int = 0
@@ -139,8 +138,8 @@ class Trace:
                 "预测/决策必须可独立分析）")
 
     # ══════════════════════════════════════════════
-    def set_external_verdict(self, success: Optional[bool],
-                             source: str) -> "Trace":
+    def set_external_verdict(self, success: bool | None,
+                             source: str) -> Trace:
         """★ 由**外部**填 success（§3.3: actor 不许自己判）。
 
         ★★ 这是唯一能设置 success 的路径 —— 所以"actor 自判成功"
@@ -156,7 +155,7 @@ class Trace:
         self.success_source = source
         return self
 
-    def validate(self) -> "Trace":
+    def validate(self) -> Trace:
         """★ 显式校验（构造后、落库前各调一次）。
 
         ★★★★ R26 实测修正: __post_init__ 只在**构造那一刻**跑
@@ -180,7 +179,7 @@ class Trace:
                 % (self.granularity, list(GRANULARITY)))
         return self
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
 
 
@@ -198,11 +197,11 @@ class Receipt:
       ⇒ 所以 Receipt 必须能被**读回校验**（verified 字段）
     """
     ok: bool
-    detail: Dict[str, Any] = field(default_factory=dict)
+    detail: dict[str, Any] = field(default_factory=dict)
     #: ★ 读回校验的证据（真回执 vs 假返回）
     verified: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
 
 
@@ -214,15 +213,15 @@ class Receipt:
 class Actor:
     """★ 行动者。★ 只产生痕迹，不判成功、不造任务、不产生记忆。"""
 
-    def __init__(self, trajectory_id: Optional[str] = None):
+    def __init__(self, trajectory_id: str | None = None):
         self.trajectory_id = trajectory_id
-        self.traces: List[Trace] = []
+        self.traces: list[Trace] = []
         self._turn = 0
 
     # ══════════════════════════════════════════════
     # ★ 任务源：actor 不得自己造任务（接口契约）
     # ══════════════════════════════════════════════
-    def legal_actions(self, task_source: Any) -> List[Dict[str, Any]]:
+    def legal_actions(self, task_source: Any) -> list[dict[str, Any]]:
         """★ 取本轮可做的任务（任务源唯一 = 世界模型）。
 
         ★★ 纪律（ACTOR_DESIGN 的接口契约原文）:
@@ -240,12 +239,12 @@ class Actor:
     # ══════════════════════════════════════════════
     # ★ 执行：observe → decide → act → record
     # ══════════════════════════════════════════════
-    def act(self, task: Dict[str, Any],
-            executor: Callable[[Dict[str, Any]], Receipt],
-            expected: Optional[Dict[str, Any]] = None,
-            prediction: Optional[Dict[str, Any]] = None,
-            decision: Optional[Dict[str, Any]] = None,
-            trace_hook: Optional[Callable[[Trace], None]] = None,
+    def act(self, task: dict[str, Any],
+            executor: Callable[[dict[str, Any]], Receipt],
+            expected: dict[str, Any] | None = None,
+            prediction: dict[str, Any] | None = None,
+            decision: dict[str, Any] | None = None,
+            trace_hook: Callable[[Trace], None] | None = None,
             ) -> Trace:
         """★ 执行一个任务，返回结构化痕迹。
 
@@ -312,7 +311,7 @@ class Actor:
         return tr
 
     def _push(self, tr: Trace,
-              hook: Optional[Callable[[Trace], None]]) -> None:
+              hook: Callable[[Trace], None] | None) -> None:
         """★ 记录痕迹。★ hook 是"trace_before_persist"的实现点。
 
         ★★ 而 hook 抛异常 ⇒ 痕迹**不进** list（判据 S5: 注入失败看链是否断裂）
@@ -329,7 +328,7 @@ class Actor:
     # ══════════════════════════════════════════════
     @staticmethod
     def _signature_from_receipt(rc: Receipt,
-                                task: Dict[str, Any]) -> Dict[str, str]:
+                                task: dict[str, Any]) -> dict[str, str]:
         """★★ R27 修正（闭环实测暴露）: q 必须是**被改对象**而非 task_id。
 
         ★★★ 实测: 闭环跑起来后，evolver 的规则键对不上
@@ -373,7 +372,7 @@ class Actor:
 
     @staticmethod
     def _signature(exc: BaseException,
-                   task: Dict[str, Any]) -> Dict[str, str]:
+                   task: dict[str, Any]) -> dict[str, str]:
         """★ 从异常提取 (c, q, m)。
 
         ★ c = 终止级原因（异常类型）
@@ -390,11 +389,11 @@ class Actor:
     # ══════════════════════════════════════════════
     # 查询
     # ══════════════════════════════════════════════
-    def not_evaluated(self) -> List[Trace]:
+    def not_evaluated(self) -> list[Trace]:
         """★ 未评价的痕迹（§3.3③ 的可审计出口）。"""
         return [t for t in self.traces if t.success is None]
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         n = len(self.traces)
         return {
             "n_traces": n,
@@ -450,8 +449,8 @@ class PureFunctionExecutor:
         "reverse_string": "def reverse_string(s):\n    return s[::-1]",
     }
 
-    def __init__(self, fn_name: str, source: Optional[str] = None,
-                 allowed: Optional[Any] = None):
+    def __init__(self, fn_name: str, source: str | None = None,
+                 allowed: Any | None = None):
         """★ source 缺省用 REFERENCE（基准）；可传入**待评的实现**。
 
         ★★ R169: `allowed` 可选注入（split 驱动的白名单收敛面）。
@@ -477,7 +476,7 @@ class PureFunctionExecutor:
         self.fn_name = fn_name
         self.source_from = "reference" if source is None else "provided"
         body = self.REFERENCE[fn_name] if source is None else source
-        ns: Dict[str, Any] = {}
+        ns: dict[str, Any] = {}
         # ★ 只编译白名单里那一个函数（不做任意 exec）
         try:
             exec(compile(body, "<%s>" % self.source_from, "exec"), ns)
@@ -490,9 +489,9 @@ class PureFunctionExecutor:
                 "实现 %r 里没有定义 %r（eval 侧缺定义 ⇒ 必然失败）"
                 % (self.source_from, fn_name))
         self.fn = ns[fn_name]
-        self.calls: List[Tuple[str, Any]] = []
+        self.calls: list[tuple[str, Any]] = []
 
-    def __call__(self, task: Dict[str, Any]) -> Receipt:
+    def __call__(self, task: dict[str, Any]) -> Receipt:
         """★ 执行并**读回校验**（Verified Coupling）。"""
         args = self._parse_args(task.get("args", ""))
         # ★ R65 实测: 多参字面量（"5, 0, 10"）被 literal_eval 解析成 **tuple**,
@@ -587,9 +586,9 @@ def build_implementation(fn_name: str, base_source: str,
 
 
 def _run_keyword_task(judge: Any, task_id: str, split: str,
-                       implementation: Optional[str],
-                       _src: Dict[str, Any],
-                       rec: Dict[str, Any]) -> Dict[str, Any]:
+                       implementation: str | None,
+                       _src: dict[str, Any],
+                       rec: dict[str, Any]) -> dict[str, Any]:
     """★★ R171: keyword_match 任务的执行面（答案文本执行器）。
 
     ★ 执行形态: 不是跑代码 — **答案文本原样进 observation**
@@ -613,11 +612,11 @@ def _run_keyword_task(judge: Any, task_id: str, split: str,
                         "chars": len(implementation)}]}
 
 
-def execute_task(actor: "Actor", judge: Any, task_id: str,
+def execute_task(actor: Actor, judge: Any, task_id: str,
                  decision_source: str = "heuristic",
                  trace_hook=None,
-                 implementation: Optional[str] = None,
-                 split: str = "dev") -> Dict[str, Any]:
+                 implementation: str | None = None,
+                 split: str = "dev") -> dict[str, Any]:
     """★ 执行一个 split 任务，产出 **judge 的观测契约**格式。
 
     ★★ R169: 加 `split` 参数（默认 "dev" — 向后兼容）。此前硬读
@@ -689,7 +688,7 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
     ex = PureFunctionExecutor(fn_name, source=implementation,
                               allowed=_fn_pool)
     traces = []
-    calls: List[List[Any]] = []
+    calls: list[list[Any]] = []
     for c in checks:                 # ★★★ 全部断言，不只第一条
         task = {"task_id": task_id, "kind": "code_repair",
                 "fn": fn_name, "args": c["args"]}
@@ -731,19 +730,19 @@ def execute_task(actor: "Actor", judge: Any, task_id: str,
                   % len(checks))}
 
 
-def run_dev_suite(actor: "Actor", judge: Any,
-                  trace_hook=None) -> Dict[str, Any]:
+def run_dev_suite(actor: Actor, judge: Any,
+                  trace_hook=None) -> dict[str, Any]:
     """★ 跑完 dev 集里全部 behavior 任务，并把观测交给 judge 判。
 
     ★★★ 这个函数的意义: 产生**第一批真实观测**
       ⇒⇒ 此前 run_term._build_observations 的那批是自造的
         （用 golden 关键词拼、必然通过）⇒ 而这批是真的跑出来的
     """
-    obs: Dict[str, Dict[str, Any]] = {}
-    traces: List[Any] = []
+    obs: dict[str, dict[str, Any]] = {}
+    traces: list[Any] = []
     beh = [k for k, v in judge.anchors.items()
            if not k.startswith("_") and v.get("verifier_kind") == "behavior"]
-    skipped: List[str] = []
+    skipped: list[str] = []
     for tid in sorted(beh):
         try:
             r = execute_task(actor, judge, tid, trace_hook=trace_hook)

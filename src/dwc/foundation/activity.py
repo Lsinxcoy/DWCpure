@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 六层活性模型的载体 —— Γ 事件级机制活动追踪。
 
 ★★★ 这个模块为什么现在写
@@ -31,7 +30,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
 
 # ══════════════════════════════════════════════════════════
 # 六层
@@ -60,7 +58,7 @@ class Layer(str, Enum):
 #:     —— 而这是真实存在的情况。
 #:   ⇒⇒⇒ 正确模型: 六层是**六份并列证据**，不是一条链。
 #:     ORDER 只保留给 depth() 报告"证据有几份、最深到哪"，不施加顺序约束。
-ORDER: Tuple[Layer, ...] = (
+ORDER: tuple[Layer, ...] = (
     Layer.PRESENT,
     Layer.REGISTERED,
     Layer.CALLED,
@@ -71,7 +69,7 @@ ORDER: Tuple[Layer, ...] = (
 
 #: ★ 某层点亮所**要求**的证据集合（空集 = 该层可独立成立）。
 #:   只有 present 有要求（机制必须存在）；其余层各自独立取证。
-REQUIRES: Dict[Layer, frozenset] = {
+REQUIRES: dict[Layer, frozenset] = {
     Layer.PRESENT:            frozenset(),
     Layer.REGISTERED:         frozenset({Layer.PRESENT}),
     Layer.CALLED:             frozenset({Layer.PRESENT}),
@@ -80,7 +78,7 @@ REQUIRES: Dict[Layer, frozenset] = {
     Layer.FEEDBACK_CLOSED:    frozenset(),   # ★ 回到判分器可独立发生
 }
 
-ORDER_INDEX: Dict[Layer, int] = {lay: i for i, lay in enumerate(ORDER)}
+ORDER_INDEX: dict[Layer, int] = {lay: i for i, lay in enumerate(ORDER)}
 
 
 # ══════════════════════════════════════════════════════════
@@ -188,7 +186,7 @@ class ActivityState:
             return False
         return not self.at_least(Layer.CALLED) or self.not_called > 0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """序列化。★ 供 TermReport / 五元盘点快照使用（M6 要求）。"""
         return {
             "mechanism": self.mechanism,
@@ -220,7 +218,7 @@ def lit(*layers: Layer, exists: bool = True,
         若调用方只传 SUCCEEDED，构造器会因缺直接上游而 raise
         —— 这是有意的：它逼调用方说清"凭什么认为 succeeded 成立"。
     """
-    reached: Set[Layer] = set(layers)
+    reached: set[Layer] = set(layers)
     if exists:
         reached.add(Layer.PRESENT)
     else:
@@ -263,7 +261,7 @@ class MechanismRegistry:
     """机制注册表。★ present/registered 两层的数据源。"""
 
     def __init__(self):
-        self._states: Dict[str, ActivityState] = {}
+        self._states: dict[str, ActivityState] = {}
 
     def register(self, name: str) -> ActivityState:
         """登记机制 ⇒ 点亮 present + registered。"""
@@ -290,20 +288,20 @@ class MechanismRegistry:
             raise LayerError("机制 %r 未登记" % name)
         return st
 
-    def dead(self) -> List[str]:
+    def dead(self) -> list[str]:
         """死机制名单。★ 与"stale"（曾经活跃后失效）**分开**。"""
         return sorted(n for n, s in self._states.items() if s.is_dead())
 
-    def stale(self) -> List[str]:
+    def stale(self) -> list[str]:
         """曾活跃后失效：已达 CALLED 但未达 SUCCEEDED。"""
         return sorted(
             n for n, s in self._states.items()
             if s.at_least(Layer.CALLED) and not s.at_least(Layer.SUCCEEDED))
 
-    def all_states(self) -> List[ActivityState]:
+    def all_states(self) -> list[ActivityState]:
         return [self._states[k] for k in sorted(self._states)]
 
-    def snapshot(self) -> List[Dict]:
+    def snapshot(self) -> list[dict]:
         """全量快照。★ 供 TermReport 落盘（M6 的 snapshot 要求）。"""
         return [s.to_dict() for s in self.all_states()]
 

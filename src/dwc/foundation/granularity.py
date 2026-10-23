@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """granularity · 干预粒度的三层记账面（R195 · 债 Y2 — **收口, 不是新造**）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -36,17 +35,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Tuple
+from typing import Any
 
 #: 三层的全序（coarse → fine）— 用于"哪个更粗"的比较, **不碰选优**
-GRANULARITY_LEVELS: Tuple[str, ...] = (
+GRANULARITY_LEVELS: tuple[str, ...] = (
     "L1_direction", "L2_component", "L3_intervention")
 
 #: L3 记账时 patch 的摘要长度（记"改哪", 不记全文 — 防账本膨胀）
 _PATCH_SUMMARY_CHARS = 24
 
 
-def granularity_of(proposal: Any) -> Tuple[str, str, str]:
+def granularity_of(proposal: Any) -> tuple[str, str, str]:
     """proposal ⇒ (L1, L2, L3) 三层记账（只读字段, 不重算）。
 
     ★ L1 未声明 ⇒ **"undeclared"**（不是 None — R188「None 不是第四方向」
@@ -60,7 +59,7 @@ def granularity_of(proposal: Any) -> Tuple[str, str, str]:
     comp = str(getattr(proposal, "component", "") or "")
     layer = ""
     if comp:
-        from dwc.organs.evolver import layer_of      # A1 族: 层的唯一入口
+        from dwc.organs.evolver import layer_of  # A1 族: 层的唯一入口
         layer = layer_of(comp)
     l2 = "%s:%s" % (comp or "undeclared", layer or "unassigned")
     target = str(getattr(proposal, "target", "") or "")
@@ -85,7 +84,7 @@ def is_coarser(a: str, b: str) -> bool:
     return level_of(a) < level_of(b)
 
 
-def coarsest(g: Tuple[str, ...]) -> str:
+def coarsest(g: tuple[str, ...]) -> str:
     """给定若干层名 ⇒ 最粗的那个（空 ⇒ raise — 不返回 None 冒充）。"""
     if not g:
         raise ValueError("coarsest: 空层级清单 ⇒ 无最粗可判（None 不是层）")

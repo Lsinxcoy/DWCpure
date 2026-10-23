@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """world_tree.yaml / difficulty.yaml / dials.yaml 的加载器 + 校验器。
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
@@ -18,13 +17,13 @@
 """
 from __future__ import annotations
 
-import io
 import os
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 CFG = os.path.join(ROOT, "config")
 
@@ -39,16 +38,16 @@ class DialError(Exception):
     """配置违反硬约束。★ 与 capability_groups.ConfigError 同款（承重代码不吞异常）。"""
 
 
-def _load(path: str) -> Dict[str, Any]:
+def _load(path: str) -> dict[str, Any]:
     if not os.path.exists(path):
         raise DialError("配置不存在: %s" % path)
-    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    obj = yaml.safe_load(open(path, encoding="utf-8").read())
     if not isinstance(obj, dict):
         raise DialError("配置顶层不是映射: %s" % path)
     return obj
 
 
-def _need(obj: Dict[str, Any], key: str, where: str) -> Any:
+def _need(obj: dict[str, Any], key: str, where: str) -> Any:
     """★ 必填检查。★ 缺失必须 raise —— 不许给默认值（K4/G11/X1/Q1/M6 同款纪律）。"""
     if key not in obj or obj[key] is None:
         raise DialError("%s: 必填字段 %r 缺失或为 None" % (where, key))
@@ -63,7 +62,7 @@ STRATEGIES = {"ig_tree", "gepa_pareto"}
 PARETO_DIMS = {"task", "task_group"}
 
 
-def load_world_tree(path: str = WORLD_TREE_PATH) -> Dict[str, Any]:
+def load_world_tree(path: str = WORLD_TREE_PATH) -> dict[str, Any]:
     wt = _load(path)
     tree = _need(wt, "world_tree", "world_tree.yaml")
 
@@ -133,7 +132,7 @@ def _sealed_task_count() -> int:
     if not os.path.exists(p):
         raise DialError("sealed_tasks 不存在（查 %s）⇒ Z2 无法判定（不是『通过』）"
                         % p)
-    obj = yaml.safe_load(io.open(p, encoding="utf-8").read())
+    obj = yaml.safe_load(open(p, encoding="utf-8").read())
     tasks = obj.get("tasks") if isinstance(obj, dict) else obj
     if not tasks:
         raise DialError("sealed_tasks 里没有 tasks ⇒ Z2 无法判定")
@@ -147,7 +146,7 @@ def _sealed_task_count() -> int:
 SEMANTICS = {"group_baseline", "world_knowledge"}
 
 
-def load_difficulty(path: str = DIFFICULTY_PATH) -> Dict[str, Any]:
+def load_difficulty(path: str = DIFFICULTY_PATH) -> dict[str, Any]:
     d = _load(path)
     diff = _need(d, "difficulty", "difficulty.yaml")
 
@@ -193,7 +192,7 @@ def load_difficulty(path: str = DIFFICULTY_PATH) -> Dict[str, Any]:
 # replay.yaml — Dreaming 循环参数（R80 · 设计稿三裁决③）
 # ══════════════════════════════════════════════════════════
 
-def load_replay(path: str = REPLAY_PATH) -> Dict[str, Any]:
+def load_replay(path: str = REPLAY_PATH) -> dict[str, Any]:
     """β₁/β₂ + ℋ 快照上限。
 
     ★ β 必填（R74 的「必传无默认」纪律在配置层的对应）—— 文件缺 β =
@@ -245,7 +244,7 @@ DIAL_BOOLS = ("m_in_agent", "rho_grounded", "rho_external_content",
               "rho_agent_can_rewrite")
 
 
-def load_dials(path: str = DIALS_PATH) -> Dict[str, Any]:
+def load_dials(path: str = DIALS_PATH) -> dict[str, Any]:
     o = _load(path)
     dials = _need(o, "dials", "dials.yaml")
 
@@ -281,7 +280,7 @@ DRIFT_PATH = os.path.join(CFG, "drift.yaml")
 DRIFT_WEIGHT_KEYS = ("semantic", "lexical", "structural", "distributional")
 
 
-def load_drift(path: str = DRIFT_PATH) -> Dict[str, Any]:
+def load_drift(path: str = DRIFT_PATH) -> dict[str, Any]:
     """环节⑤ 的档位校验（GDI 权重 / tau / CAR 下限 / self_trust 下限）。
 
     ★ 与 load_world_tree 同款纪律: 必填、无默认、可审计 ——
@@ -357,7 +356,7 @@ _DEAD_ACTIONS = {"hold", "evict"}
 _ZERO_REF_CLASSES = {"zero", "not_zero_reference"}
 
 
-def load_retention(path: str = RETENTION_PATH) -> Dict[str, Any]:
+def load_retention(path: str = RETENTION_PATH) -> dict[str, Any]:
     """判据 D8 的配置面。★ 2026-10-05 MEMORY_SYSTEM §六 Q2 裁决后新增。
 
     ★★★ 关键语义: dead_after_terms 的单位是 **term** 不是 step。
@@ -436,7 +435,7 @@ def load_retention(path: str = RETENTION_PATH) -> Dict[str, Any]:
 # evolution.yaml — R370 · B2 进化喂食灰度开关
 # ══════════════════════════════════════════════════════════
 
-def load_evolution(path: str = EVOLUTION_PATH) -> Dict[str, Any]:
+def load_evolution(path: str = EVOLUTION_PATH) -> dict[str, Any]:
     """run_term 结束后是否把失败签名喂给 evolver.diagnose。
 
     ★ 两个键都必填无默认（灰度纪律: 默认关这件事必须写在文件里，
@@ -477,7 +476,7 @@ def load_evolution(path: str = EVOLUTION_PATH) -> Dict[str, Any]:
 
 # ══════════════════════════════════════════════════════════
 
-def validate_all() -> Dict[str, Any]:
+def validate_all() -> dict[str, Any]:
     return {
         "world_tree": load_world_tree(),
         "difficulty": load_difficulty(),

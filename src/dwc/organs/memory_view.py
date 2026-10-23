@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R271 · 记忆看板纯函数（只读不判定 — G1 DWC-AUTO 用户界面层数据口）。
 
 DWC-MEM(记忆底座)-可视化：lessons 分层/episodes 链/workflows 模板/
@@ -6,12 +5,12 @@ night 终态，全从 var/ JSONL 现场数出来。文件缺席记"—"不炸。
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 VAR = os.path.join(ROOT, "var")
 LESSONS_PATH = os.path.join(VAR, "dwc_lessons.jsonl")
@@ -25,7 +24,7 @@ def _read(path: str) -> list:
     if not os.path.exists(path):
         return []
     out = []
-    for ln in io.open(path, encoding="utf-8").read().splitlines():
+    for ln in open(path, encoding="utf-8").read().splitlines():
         if ln.strip():
             try:
                 out.append(json.loads(ln))

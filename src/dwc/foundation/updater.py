@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R248 · 自更新器 — 以 GitHub 仓库为源（用户 2026-10-13 指令）。
 
 定位: DWC-AUTO（自我强化 — 更新链让常驻体从远端源获得新能力）。
@@ -15,12 +14,11 @@
 """
 from __future__ import annotations
 
-import io
 import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 _SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -30,7 +28,7 @@ def _dwc_root() -> str:
     return os.path.abspath(os.path.join(_SRC, "..", ".."))
 
 
-_DEGRADED: Dict[str, int] = {}   # ★ G7: 降级计数（心跳轮询/停进程）
+_DEGRADED: dict[str, int] = {}   # ★ G7: 降级计数（心跳轮询/停进程）
 
 
 def _deg(what: str) -> None:
@@ -60,10 +58,10 @@ def _venv_python(root: str) -> str:
     return "python"
 
 
-def check(root: Optional[str] = None) -> Dict[str, Any]:
+def check(root: str | None = None) -> dict[str, Any]:
     """查更新: behind/ahead/dirty/远端 tip（不改任何状态）。"""
     root = root or _dwc_root()
-    out: Dict[str, Any] = {"root": root}
+    out: dict[str, Any] = {"root": root}
     r = _git(root, "fetch", "origin", "master", timeout=90)
     if r.returncode != 0:
         return {"ok": False, "why": "fetch 失败(网络/远端): " +
@@ -79,14 +77,14 @@ def check(root: Optional[str] = None) -> Dict[str, Any]:
     return out
 
 
-def _restart_agent(root: str) -> Dict[str, Any]:
+def _restart_agent(root: str) -> dict[str, Any]:
     """重启 resident agent 让新码生效（停→清 pid→detached 拉活→验心跳）。"""
     try:
         import psutil
     except Exception:                             # noqa: BLE001
         return {"ok": False, "why": "无 psutil — 手动: dwc stop && dwc start"}
     # 1. 停（cmdline 匹配, 只杀 agent 本体）
-    killed: List[int] = []
+    killed: list[int] = []
     for p in psutil.process_iter(["pid", "cmdline"]):
         cl = p.info.get("cmdline")
         if cl and "dwc_agent.py" in " ".join(cl):
@@ -120,7 +118,7 @@ def _restart_agent(root: str) -> Dict[str, Any]:
     while time.time() - t0 < 12:
         try:
             import json as _j
-            hb = _j.load(io.open(hbf, encoding="utf-8"))
+            hb = _j.load(open(hbf, encoding="utf-8"))
             ts = str(hb.get("ts", ""))
             if ts >= time.strftime("%Y-%m-%dT%H:%M", time.localtime(time.time() - 60)):
                 return {"ok": True, "pid": hb.get("pid"), "killed": killed}
@@ -131,8 +129,8 @@ def _restart_agent(root: str) -> Dict[str, Any]:
             "killed": killed}
 
 
-def update(root: Optional[str] = None,
-           restart_agent: bool = True) -> Dict[str, Any]:
+def update(root: str | None = None,
+           restart_agent: bool = True) -> dict[str, Any]:
     """执行更新: ff-only pull → 依赖变更检测 → 重启 agent。"""
     root = root or _dwc_root()
     st = check(root)
@@ -159,7 +157,7 @@ def update(root: Optional[str] = None,
     df = _git(root, "diff", "--name-only", before, after).stdout.splitlines()
     deps = [f for f in df if f.strip() in ("requirements.txt", "pyproject.toml")]
     n = int(_git(root, "rev-list", "--count", "%s..%s" % (before, after)).stdout.strip() or 0)
-    rep: Dict[str, Any] = {"changed": True, "from": before[:9], "to": after[:9],
+    rep: dict[str, Any] = {"changed": True, "from": before[:9], "to": after[:9],
                            "commits": n, "deps_changed": deps,
                            "deps_hint": ("需要: pip install -r requirements.txt"
                                          if deps else "")}

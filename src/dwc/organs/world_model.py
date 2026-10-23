@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """world_model · 第七器官 · 承载进化循环环节⑥ 探索（ARCHITECTURE §4.7）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -13,14 +12,13 @@
 """
 from __future__ import annotations
 
-import io
 import json
 import math
 import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 from dwc.foundation.dial_config import load_world_tree
 
@@ -64,7 +62,7 @@ class WorldNode:
     """
 
     id: str
-    parent_id: Optional[str]
+    parent_id: str | None
     action: str
     provenance: str          # W2 ∈ {observed, simulated} —— 无默认
     confidence_source: str   # ∈ {judge_dev, dynamics, none} —— 无默认
@@ -75,10 +73,10 @@ class WorldNode:
     #:   ★ 调和说明: add_child 入口给默认 ""（=「无组」显式域值）以守 R92 稿
     #:   「groups 不传 ⇒ 现行为零破坏」—— 必填纪律落在数据类构造层。
     group_id: str
-    score: Optional[float] = None
-    branch: Optional[str] = None   # simulated 节点必有（add_child 自动锚定）
+    score: float | None = None
+    branch: str | None = None   # simulated 节点必有（add_child 自动锚定）
     cost: float = 0.0
-    children: List[str] = field(default_factory=list)
+    children: list[str] = field(default_factory=list)
     n_obs: int = 0
     n_pass: int = 0
 
@@ -132,7 +130,7 @@ class WorldTree:
         self.tree_id = tree_id
         self.depth_limit = depth_limit
         self.max_nodes = max_nodes
-        self.nodes: Dict[str, WorldNode] = {}
+        self.nodes: dict[str, WorldNode] = {}
         root = WorldNode(id="root", parent_id=None, action=root_action,
                          provenance="observed",  # root = 初始工作区（已存在）
                          confidence_source="judge_dev", depth=0,
@@ -178,7 +176,7 @@ class WorldTree:
         parent.children.append(node_id)
         return node
 
-    def _observed_anchor(self, node_id: str) -> Optional[str]:
+    def _observed_anchor(self, node_id: str) -> str | None:
         """最近的已观察祖先（simulated 节点的 branch 锚点）。root 恒 observed。"""
         cur = self.nodes.get(node_id)
         while cur is not None and cur.provenance != "observed":
@@ -213,11 +211,11 @@ class WorldTree:
         return node
 
     # ── 环节⑥ 的树侧接口 ────────────────────────────────────
-    def legal_actions(self) -> List[WorldNode]:
+    def legal_actions(self) -> list[WorldNode]:
         """未揭示的叶子（§4.7 职责一: 任务列表）。"""
         return [n for n in self.nodes.values() if n.score is None and not n.children]
 
-    def judgeable(self) -> List[WorldNode]:
+    def judgeable(self) -> list[WorldNode]:
         """★ W3: judge 的输入不得含 provenance=simulated 的节点。
         ★ R101: 组节点（group_id==id）也不得进 —— 组非任务域（W3 探针②）。"""
         return [n for n in self.nodes.values()
@@ -246,9 +244,9 @@ class WorldModel:
     """
 
     def __init__(self, depth_limit: int, max_nodes: int,
-                 config_path: Optional[str] = None,
-                 tracked_path: Optional[str] = None,
-                 merge_log_path: Optional[str] = None):
+                 config_path: str | None = None,
+                 tracked_path: str | None = None,
+                 merge_log_path: str | None = None):
         # ★ W6: 深度外部化 —— 构造必填，无默认
         for name, v in (("depth_limit", depth_limit), ("max_nodes", max_nodes)):
             if isinstance(v, bool) or not isinstance(v, int) or v < 1:
@@ -268,16 +266,16 @@ class WorldModel:
         #:   恒 true —— 「检查不可关」在校验器层，这里只读不改）
         self.cand_cfg = wt["candidates"]
         self.merge_cfg = wt["merge"]
-        self.trees: Dict[str, WorldTree] = {}
+        self.trees: dict[str, WorldTree] = {}
         #: Z6: 卡住事件留痕（触发过什么处置，可观测）
-        self.stuck_events: List[Dict[str, Any]] = []
+        self.stuck_events: list[dict[str, Any]] = []
         self._stuck_streak = 0
         # ── Z4: 候选 tracked 清单（persist=true ⇒ 构造时载回 —— 重启不丢）──
         self.tracked_path = tracked_path or _DEFAULT_TRACKED
-        self.tracked: List[Dict[str, Any]] = []
+        self.tracked: list[dict[str, Any]] = []
         if os.path.exists(self.tracked_path):
             try:
-                with io.open(self.tracked_path, "r", encoding="utf-8") as f:
+                with open(self.tracked_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 self.tracked = list(data.get("tracked", []))
             except (ValueError, OSError) as exc:
@@ -287,7 +285,7 @@ class WorldModel:
                     % (type(exc).__name__, exc))
         # ── Z5: merge check log（append-only, 每次尝试都记）──
         self.merge_log_path = merge_log_path or _DEFAULT_MERGE_LOG
-        self.merge_events: List[Dict[str, Any]] = []
+        self.merge_events: list[dict[str, Any]] = []
 
     # ── Z4: 候选必须持久化 + 记 lineage（WORLD_TREE_CONVERGENCE §四）──
     def expand(self, tree_id: str, parent_id: str, *, node_id: str,
@@ -326,13 +324,13 @@ class WorldModel:
         #   ⇒ 文件永久损坏 ⇒ 下次启动 `WorldModelError` 直接拒启。
         #   临时文件 + fsync + os.replace：要么旧文件，要么新文件，不存在半截。
         tmp = "%s.tmp.%d" % (self.tracked_path, os.getpid())
-        with io.open(tmp, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"tracked": self.tracked}, f, ensure_ascii=False,
                       indent=1)
             f.flush()
             try:
                 os.fsync(f.fileno())
-            except OSError as _e:               # noqa: BLE001
+            except OSError as _e:
                 # ★★★ G7 静默门（2026-10-21 gate.py 实测抓到）：
                 #   fsync 失败 = "掉电保护"没生效，原子性降级为 rename-only。
                 #   **不许 pass** —— 必须留痕，否则这种降级永远没人知道。
@@ -341,7 +339,7 @@ class WorldModel:
         os.replace(tmp, self.tracked_path)
 
     # ── Z5: merge 三条件 + 发生率（Appendix D.1 逐字）─────────────
-    def merge(self, tree_id: str, a_id: str, b_id: str) -> Dict[str, Any]:
+    def merge(self, tree_id: str, a_id: str, b_id: str) -> dict[str, Any]:
         """★ Z5: 三条件**同时**满足才 merge；每次尝试都记 check log。
 
         ① 同一祖先  ② 互补集合  ③ 都优于祖先（config merge.require_all=true，
@@ -364,7 +362,7 @@ class WorldModel:
         if a is None or b is None:
             raise WorldModelError("merge 引用了不存在的节点: %r / %r"
                                   "（已有: %s）" % (a_id, b_id, sorted(t.nodes)))
-        failed: List[str] = []
+        failed: list[str] = []
         # ① 同一祖先
         if not (a.parent_id is not None and a.parent_id == b.parent_id):
             failed.append("not_same_ancestor")
@@ -377,7 +375,7 @@ class WorldModel:
                 or a.score is None or b.score is None
                 or not (a.score > parent.score and b.score > parent.score)):
             failed.append("not_both_better_than_ancestor")
-        entry: Dict[str, Any] = {"tree": tree_id, "a": a_id, "b": b_id,
+        entry: dict[str, Any] = {"tree": tree_id, "a": a_id, "b": b_id,
                                  "passed": not failed, "failed": failed,
                                  "at": time.time()}
         self.merge_events.append(entry)
@@ -392,16 +390,16 @@ class WorldModel:
         entry["result_node"] = merged.id
         return {"merged": True, "node": merged.id}
 
-    def _flush_merge_log(self, entry: Dict[str, Any]) -> None:
+    def _flush_merge_log(self, entry: dict[str, Any]) -> None:
         if not self.merge_cfg.get("log_rate"):
             return                        # 配置面关日志（当前 config 恒 true）
         d = os.path.dirname(self.merge_log_path)
         if d:
             os.makedirs(d, exist_ok=True)
-        with io.open(self.merge_log_path, "a", encoding="utf-8") as f:
+        with open(self.merge_log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    def merge_rate(self) -> Optional[float]:
+    def merge_rate(self) -> float | None:
         """★ Z5 log_rate 的读出: 成功/尝试 —— 无尝试返回 **None**（不装 0.0）。"""
         if not self.merge_events:
             return None
@@ -418,7 +416,7 @@ class WorldModel:
 
     def seed_tasks(self, task_ids, *, tree_id: str = "dev",
                    root_action: str = "dev_tasks",
-                   groups: Optional[Dict[str, List[str]]] = None) -> int:
+                   groups: dict[str, list[str]] | None = None) -> int:
         """★ §4.7 职责一「初始播种」: 一棵发现树、root + 每任务一叶。
 
           𝒲 = {W_1..W_n}, 每个 W = 一棵发现树; W.legal_actions() = 未揭示的
@@ -481,15 +479,15 @@ class WorldModel:
         return t
 
     # ── 环节⑥ 接口①: 下一轮任务源（§4.7 职责一）────────────
-    def candidate_nodes(self) -> List[Candidate]:
+    def candidate_nodes(self) -> list[Candidate]:
         """全部树的未揭示叶子（跨树，默认按树 id、节点 id 稳定排序）。"""
-        out: List[Candidate] = []
+        out: list[Candidate] = []
         for tid in sorted(self.trees):
             for n in sorted(self.trees[tid].legal_actions(), key=lambda x: x.id):
                 out.append(Candidate(tid, n))
         return out
 
-    def legal_actions(self) -> List[Dict[str, Any]]:
+    def legal_actions(self) -> list[dict[str, Any]]:
         """★ 环节⑥ 的任务源（run_term._next_task_source 消费的形态）。
 
         ★ 语义: 未揭示的叶子 = 下一轮该执行的候选任务（不是结算报告）。
@@ -502,7 +500,7 @@ class WorldModel:
                 for c in self.candidate_nodes()]
 
     # ── R101 · C 方案(2a): 组层 cost —— Table 1 平滑分级的类比物 ──
-    def group_rates(self) -> Dict[str, float]:
+    def group_rates(self) -> dict[str, float]:
         """{组名: 组内叶的 Σn_pass/Σn_obs} —— observed_rate 同款公式复用。
 
         ★ **无观测的组不在返回内**（X2 同族: 没数据 ≠ 0 难度, 不装数）;
@@ -511,7 +509,7 @@ class WorldModel:
         ★ W4 同源: 只吃 n_obs/n_pass 两个整数, 不读任何 confidence。
         ★ 聚合对象 = 组内**叶**（组节点 observe 被拒, 恒无观测 — 结构占位）。
         """
-        agg: Dict[str, List[int]] = {}
+        agg: dict[str, list[int]] = {}
         for t in self.trees.values():
             for n in t.nodes.values():
                 if not n.group_id or (n.group_id == n.id
@@ -523,7 +521,7 @@ class WorldModel:
         return {g: a[1] / float(a[0]) for g, a in agg.items() if a[0]}
 
     # ── R76 · EL 速率口的观测源（批1 A/B 共用）─────────────
-    def observed_rate(self) -> Optional[float]:
+    def observed_rate(self) -> float | None:
         """候选池的聚合布尔通过率 Σn_pass/Σn_obs（= ELScheduler 速率口的 p̂）。
 
         ★ **无任何观测 ⇒ None**（"没观测过"不冒充 0.0 —— X2 同族）。
@@ -551,8 +549,8 @@ class WorldModel:
         self.tree(tree_id).observe(node_id, score, success)
 
     # ── 收束③: 选信息增益最大（不是选最高分）────────────────
-    def select(self, candidates: Optional[List[Candidate]] = None,
-               current: Optional[Candidate] = None) -> List[Candidate]:
+    def select(self, candidates: list[Candidate] | None = None,
+               current: Candidate | None = None) -> list[Candidate]:
         """收束三段的第三段（WORLD_TREE §4.2/§4.3）。
 
         ★ 排序键**只有**信息增益（谱系布尔观测的熵）——
@@ -563,7 +561,7 @@ class WorldModel:
         """
         items = self.candidate_nodes() if candidates is None else list(candidates)
         seen = set()
-        picked: List[Candidate] = []
+        picked: list[Candidate] = []
         for c in items:
             if c.tree not in self.trees:
                 raise WorldModelError("候选引用了不存在的树: %r" % c.tree)
@@ -581,7 +579,7 @@ class WorldModel:
                           c.tree, c.node.id))
 
     # ── Z6: 卡住检测（路线①的已知病, Figure 6a）─────────────
-    def record_round(self, improved: bool) -> Optional[str]:
+    def record_round(self, improved: bool) -> str | None:
         """每轮汇报「有没有改进」；连续 n_stuck 轮无改进 ⇒ 返回处置动作。
 
         ★ Z6 依据: Figure 6a「repeatedly attempts to refine it, fails to

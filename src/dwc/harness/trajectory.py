@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """trajectory · 轮次状态序列的机械面（R196 · Z 类落地 乙类 B1 + B2）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -28,7 +27,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.harness.consume_points import CONSUME_POINTS
 
@@ -36,7 +35,7 @@ from dwc.harness.consume_points import CONSUME_POINTS
 TRAJECTORY_SCHEMA_VERSION = 1
 
 
-def snapshot(loop: Any) -> Dict[str, Any]:
+def snapshot(loop: Any) -> dict[str, Any]:
     """Loop ⇒ 一次轮次状态投影（**只读已登记字段**）。
 
     ★ 键的边界: 只取 `CONSUME_POINTS` 里登记过的键（R194 的 16 条 + dir_ledger）。
@@ -47,7 +46,7 @@ def snapshot(loop: Any) -> Dict[str, Any]:
     """
     attrs = [k for k in CONSUME_POINTS if k.startswith("last_")
              or k.startswith("dir_")]
-    raw: Dict[str, Any] = {}
+    raw: dict[str, Any] = {}
     for k in attrs:
         raw[k] = getattr(loop, "_" + k, None) if k != "dir_ledger" else None
     return {
@@ -73,7 +72,7 @@ def _project(v: Any) -> Any:
     return str(v)
 
 
-def _autonomy_markers(raw: Dict[str, Any]) -> List[str]:
+def _autonomy_markers(raw: dict[str, Any]) -> list[str]:
     """★ 丙类 C1 · autonomy 的如实记账（**不建 autonomy 模块**）。
 
     ★ "autonomy" 是论文的**功能描述词**, 不是该有同名模块的东西（R195 已用
@@ -84,7 +83,7 @@ def _autonomy_markers(raw: Dict[str, Any]) -> List[str]:
       adopted             — _last_adopt 在场且 adopted=True
       consolidation_done  — _last_consolidation 在场且 outcome=="consolidated"
     """
-    m: List[str] = []
+    m: list[str] = []
     d = raw.get("last_dir_decision")
     if d is not None and getattr(d, "reason", ""):
         m.append("direction_switched")
@@ -100,7 +99,7 @@ def _autonomy_markers(raw: Dict[str, Any]) -> List[str]:
     return m
 
 
-def append(archive_path: str, snap: Dict[str, Any]) -> int:
+def append(archive_path: str, snap: dict[str, Any]) -> int:
     """snap ⇒ jsonl 追加（返回新行号 — 1-based; 与 direction_ledger 同格式纪律）。
 
     ★ 父目录不存在 ⇒ 建（机械面不论断环境, 但也不静默失败 — 失败即抛）。
@@ -113,14 +112,14 @@ def append(archive_path: str, snap: Dict[str, Any]) -> int:
     return len(read(archive_path))
 
 
-def read(archive_path: str) -> List[Dict[str, Any]]:
+def read(archive_path: str) -> list[dict[str, Any]]:
     """回读（**机械面**）: 逐行 json.loads; 坏行 ⇒ 抛（不跳过 — G7）。
 
     ★ 文件不存在 ⇒ []（从未写过 = 空序列, 是合法一等输出, 不是错误）。
     """
     if not os.path.exists(archive_path):
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     with open(archive_path, encoding="utf-8") as fh:
         for ln, line in enumerate(fh, 1):
             line = line.strip()
@@ -135,7 +134,7 @@ def read(archive_path: str) -> List[Dict[str, Any]]:
     return out
 
 
-def age_rounds(traj: List[Dict[str, Any]], gen: int) -> int:
+def age_rounds(traj: list[dict[str, Any]], gen: int) -> int:
     """B2 · freshness 的**唯一查询**: 给定 gen ⇒ 距今几轮（无该 gen ⇒ -1）。
 
     ★★ **不设阈值**: DWC 无"多久算陈旧"的论文据 ⇒ 本函数只回答"几轮",

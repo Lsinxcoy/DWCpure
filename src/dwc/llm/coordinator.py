@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R303-⑤ Coordinator（对标 Cursor Projects coordinator 规则版前半）。
 
 plan(task)：纯规则拆活，零 LLM。只支持 2 种可判定型：
@@ -15,7 +14,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 MAX_BLOCKS = 3
 
@@ -40,7 +40,7 @@ def mark(kanban_path: str, sub: str, status: str) -> bool:
         return False
 
 
-def plan(task: str) -> List[Dict[str, Any]]:
+def plan(task: str) -> list[dict[str, Any]]:
     """返回 [{"sub","dep"}]。永不抛错（坏输入返回单块）。"""
     try:
         t = str(task or "").strip()
@@ -61,10 +61,10 @@ def plan(task: str) -> List[Dict[str, Any]]:
         return [{"sub": str(task), "dep": []}]
 
 
-def run_plan(blocks: List[Dict[str, Any]], kanban_path: str,
-             emit: Callable[[Dict[str, Any]], Any] = None) -> List[str]:
+def run_plan(blocks: list[dict[str, Any]], kanban_path: str,
+             emit: Callable[[dict[str, Any]], Any] = None) -> list[str]:
     """串行执行，结果 ["done"/"fail"...]。emit 缺省为空跑（只记账不执行）。"""
-    states: List[str] = []
+    states: list[str] = []
     drops = 0  # ★ G7 · kanban 写失败计数（静默丢行不许，直接记数回写）
     try:
         fh = open(kanban_path, "a", encoding="utf-8")

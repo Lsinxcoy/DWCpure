@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """iwm · 内省自检 · 第五器官承载进化循环环节⑤ 防漂移（ARCHITECTURE §4.5）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -44,7 +43,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from dwc.foundation import dial_config
 from dwc.foundation.state import State
@@ -76,10 +75,10 @@ class Observations:
       distributional: 分数序列（经验分布样本）
     """
 
-    semantic_embedding: Optional[Tuple[float, ...]] = None
-    lexical: Optional[Dict[str, int]] = None
-    structural: Optional[Dict[str, float]] = None
-    distributional: Optional[Tuple[float, ...]] = None
+    semantic_embedding: tuple[float, ...] | None = None
+    lexical: dict[str, int] | None = None
+    structural: dict[str, float] | None = None
+    distributional: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -96,7 +95,7 @@ class Advice:
 # GDI 四信号（2603.06333 Appendix B · 全部落在 [0,1]）
 # ══════════════════════════════════════════════════════════
 
-def semantic_delta(e0: Tuple[float, ...], e1: Tuple[float, ...]) -> float:
+def semantic_delta(e0: tuple[float, ...], e1: tuple[float, ...]) -> float:
     """Δ_semantic = (1 − s_cos)/2 （Eq.8）。两向量等长且非零才可算。"""
     if len(e0) != len(e1):
         raise IwmError("semantic: 两嵌入等长才可比, 实得 %d vs %d"
@@ -110,14 +109,14 @@ def semantic_delta(e0: Tuple[float, ...], e1: Tuple[float, ...]) -> float:
     return (1.0 - cos) / 2.0
 
 
-def _normalize(freq: Dict[str, int]) -> Dict[str, float]:
+def _normalize(freq: dict[str, int]) -> dict[str, float]:
     total = float(sum(v for v in freq.values() if v > 0))
     if total <= 0:
         return {}
     return {k: v / total for k, v in freq.items() if v > 0}
 
 
-def lexical_delta(p0: Dict[str, int], pt: Dict[str, int]) -> Optional[float]:
+def lexical_delta(p0: dict[str, int], pt: dict[str, int]) -> float | None:
     """Δ_lexical = JSD(P₀‖P_t) （Eq.9, log2 ⇒ ∈[0,1]）。
 
     任一侧词频和为 0（空语料）⇒ None（不可比 —— 不是 0, 0 意味着测过没漂）。
@@ -140,8 +139,8 @@ def lexical_delta(p0: Dict[str, int], pt: Dict[str, int]) -> Optional[float]:
     return max(0.0, min(1.0, jsd))
 
 
-def structural_delta(s0: Dict[str, float],
-                     st: Dict[str, float]) -> Optional[float]:
+def structural_delta(s0: dict[str, float],
+                     st: dict[str, float]) -> float | None:
     """Δ_structural = (1/K)·Σ min(1, |s₀−s_t|/(|s₀|+ε)) （Eq.10）。
 
     ★ 分母用 |s₀|（设计写 s₀+ε, 但结构量若为负会翻符号 ⇒ 取绝对值, 语义不变）。
@@ -157,8 +156,8 @@ def structural_delta(s0: Dict[str, float],
     return acc / len(keys)
 
 
-def distributional_delta(xs: Tuple[float, ...],
-                         ys: Tuple[float, ...]) -> Optional[float]:
+def distributional_delta(xs: tuple[float, ...],
+                         ys: tuple[float, ...]) -> float | None:
     """Δ_distributional = 1-Wasserstein（Eq.11, 等分位网格上的平均绝对差）。
 
     任一侧为空 ⇒ None。等长时即逐位平均 |差|；不等长用分位插值到同一网格。
@@ -196,13 +195,13 @@ class IwmOrgan:
     """
 
     def __init__(self, baseline: Observations,
-                 config_path: Optional[str] = None,
-                 judge: Optional[Any] = None):
+                 config_path: str | None = None,
+                 judge: Any | None = None):
         #: 档位（config/drift.yaml · 必填无默认 + Σweights==1 已校验）
         self.config = (dial_config.load_drift(config_path) if config_path
                        else dial_config.load_drift())
         d = self.config["drift"]
-        self.weights: Dict[str, float] = {k: float(d["weights"][k])
+        self.weights: dict[str, float] = {k: float(d["weights"][k])
                                           for k in dial_config.DRIFT_WEIGHT_KEYS}
         self.tau_gdi = float(d["tau_gdi"])
         self.car_floor = float(d["car_floor"])
@@ -213,32 +212,32 @@ class IwmOrgan:
         #: 回归判定的 judge（可选注入 —— 没注入时回归显式 not_checked）
         self._judge = judge
         #: Q6 对照臂: {"iwm": [n, n_success], "baseline": [n, n_success]}
-        self._arms: Dict[str, List[int]] = {"iwm": [0, 0], "baseline": [0, 0]}
+        self._arms: dict[str, list[int]] = {"iwm": [0, 0], "baseline": [0, 0]}
         #: ★ R215 · trust 窗口（判据校准见 drift.yaml 注释 — 全历史 trust
         #:   在永久降级策略下自锁; 窗口让行为改变后 trust 能回升）
         self.trust_window = int(d["trust_window"])   # d = config["drift"]
-        self._arm_window: List[Tuple[str, bool]] = []
+        self._arm_window: list[tuple[str, bool]] = []
         #: 最近一次 drift 结果（governor_advice 的输入之一）
-        self._last_drift: Optional[Dict[str, Any]] = None
+        self._last_drift: dict[str, Any] | None = None
         self._dials = dial_config.load_dials()
 
     # ── 环节⑤ · drift ──────────────────────────────────────
     def drift(self, current: Observations,
-              quality_baseline: Optional[float] = None,
-              quality_now: Optional[float] = None,
-              judge_baseline: Optional[Dict[str, Any]] = None,
-              judge_current: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+              quality_baseline: float | None = None,
+              quality_now: float | None = None,
+              judge_baseline: dict[str, Any] | None = None,
+              judge_current: dict[str, Any] | None = None) -> dict[str, Any]:
         """GDI 四信号（对 θ₀）+ CAR + 回归风险 + grounded —— 环节⑤ 的观测。
 
         ★ 缺席信号进 absent（显式）, GDI 对**有效**信号做权重归一 ——
           缺一信号不许把 GDI 整体算成 0（那是把「没测」当「没漂」）。
         """
         b, c = self.baseline, current
-        parts: Dict[str, Optional[float]] = {"semantic": None,
+        parts: dict[str, float | None] = {"semantic": None,
                                              "lexical": None,
                                              "structural": None,
                                              "distributional": None}
-        absent: List[str] = []
+        absent: list[str] = []
 
         if b.semantic_embedding is None or c.semantic_embedding is None:
             absent.append("semantic: 无嵌入源（DWC 当前没有嵌入提供方）")
@@ -282,7 +281,7 @@ class IwmOrgan:
             gdi, why = None, "四信号全部缺席 ⇒ GDI 不可算（不是 0）"
 
         # ── CAR = (𝒬_c − 𝒬_0)/GDI （Eq.25 · E.3 决策规则）──
-        car: Optional[float] = None
+        car: float | None = None
         car_why = ""
         if quality_baseline is None or quality_now is None:
             car_why = "quality 未由调用方从 judge 传入 ⇒ CAR 不可算"
@@ -326,7 +325,7 @@ class IwmOrgan:
         return out
 
     # ── grounded 双条件（2609.13406 §2.2, AND 缺一不可）────────
-    def grounded(self) -> Dict[str, Any]:
+    def grounded(self) -> dict[str, Any]:
         """① 内容来自系统外 ② base 在 agent 外 —— 读 dials.yaml 三布尔。"""
         d = self._dials["dials"]
         conds = {
@@ -350,7 +349,7 @@ class IwmOrgan:
         if len(self._arm_window) > self.trust_window:
             del self._arm_window[:-self.trust_window]
 
-    def self_trust(self) -> Dict[str, Any]:
+    def self_trust(self) -> dict[str, Any]:
         """Q6 内省器自检 —— 度量 **iwm 自己**（ARSI calibrate 同构）。
 
         ★ 样本不足 ⇒ trust=0 且 degrade=True（ARSI min_samples 语义:
@@ -380,10 +379,12 @@ class IwmOrgan:
         #   算 ECE ⇒ "过置信"作为**附加字段**返回（调用方自愿消费; 不减
         #   字段不改契约 — 纯增量）。样本全同 conf ⇒ ECE=0（信任自洽）;
         #   失败历史留痕 ⇒ 可审计（不是算不出就缺席）。
-        ece: Dict[str, Any] = {"available": False}
+        ece: dict[str, Any] = {"available": False}
         try:
             from dwc.foundation.calibration import (
-                expected_calibration_error, from_trust_history)
+                expected_calibration_error,
+                from_trust_history,
+            )
             # 真序列: 每轮 (trust_snapshot, improved) — 历史无逐轮 trust
             # 快照（Q6 只存聚合计数）⇒ 用末态 trust 回填（诚实标注近似）
             series = [(trust, True)] * s_i + [(trust, False)] * (n_i - s_i)
@@ -416,7 +417,7 @@ class IwmOrgan:
         """
         if layer not in ("world_model", "llm", "all"):
             raise IwmError("layer=%r 不合法 ∈ {world_model, llm, all}" % (layer,))
-        reasons: List[str] = []
+        reasons: list[str] = []
         t = self.self_trust()
         d = self._last_drift
         g = self.grounded()
@@ -461,7 +462,7 @@ class IwmOrgan:
                       reason="；".join(reasons) if reasons else "无触发")
 
     # ── Level 3 探针（CONSUMER_VERIFICATION §二）──────────────
-    def probe(self, probe_id: str) -> Dict[str, Any]:
+    def probe(self, probe_id: str) -> dict[str, Any]:
         """行为级探针 —— 拿构造已知的输入验信号本身（真值 = 构造对）。
 
         ★ 未知 probe_id ⇒ 大声报错并列可用项（不静默返回 ok）。

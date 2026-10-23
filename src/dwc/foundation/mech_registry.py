@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 机制目录（R303-③）：只读加载 config/mechanisms.yaml。
 只读校验器（capability_groups.py 纪律）：校验失败 raise，绝不静默降级。
 
@@ -6,14 +5,14 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
 from dwc.foundation.paths import find_root
 
 
-def load(root: Optional[str] = None) -> Dict[str, dict]:
+def load(root: str | None = None) -> dict[str, dict]:
     """读 <root>/config/mechanisms.yaml → {name: 条目}。缺文件/坏格式 raise。"""
     r = root or str(find_root())
     import os
@@ -22,7 +21,7 @@ def load(root: Optional[str] = None) -> Dict[str, dict]:
         items = yaml.safe_load(f)
     if not isinstance(items, list) or not items:
         raise ValueError("mechanisms.yaml 为空或非列表: %s" % p)
-    reg: Dict[str, dict] = {}
+    reg: dict[str, dict] = {}
     for it in items:
         if not isinstance(it, dict) or not it.get("name") or not it.get("entry"):
             raise ValueError("机制条目缺 name/entry: %r" % (it,))
@@ -33,18 +32,18 @@ def load(root: Optional[str] = None) -> Dict[str, dict]:
             _m = importlib.import_module(_mod)
             getattr(_m, _fn)
         except Exception as _e:
-            raise ValueError("机制 entry 不可调用 %r: %r" % (it["entry"], _e))
+            raise ValueError("机制 entry 不可调用 %r: %r" % (it["entry"], _e)) from None
         reg[it["name"]] = it
     return reg
 
 
-def is_enabled(reg: Dict[str, dict], name: str) -> bool:
+def is_enabled(reg: dict[str, dict], name: str) -> bool:
     """未登记一律 False（默认关，不假设）。"""
     it = reg.get(name)
     return bool(it and it.get("enabled"))
 
 
-def call(reg: Dict[str, dict], name: str, *args: Any, **kw: Any) -> Any:
+def call(reg: dict[str, dict], name: str, *args: Any, **kw: Any) -> Any:
     """按 entry "module:func" 动态调。未登记/禁用 raise KeyError（大声报错）。"""
     it = reg.get(name)
     if it is None or not it.get("enabled"):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R209 · LLM 用户任务执行器（独立 agent 的接单能力 — 用户 2026-10-12 拍板）。
 
 ★★★ 定位（G1 定位门）: **DWC-AUTO（自我强化）** —— 本模块让 agent 能消费
@@ -22,7 +21,6 @@
 """
 from __future__ import annotations
 
-import io
 import hashlib
 import json
 import os
@@ -30,9 +28,10 @@ import re  # ★ R276c · ask 词边界（platform/transform 误含 rm 曾误拦
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 WORK = os.path.join(ROOT, "var", "inbox_work")
 #: 危险命令黑名单（子串匹配; run 动作的护栏之一 — 不是完备沙箱, 是护栏）
@@ -60,7 +59,7 @@ _PAIRS_FAIL = 0   # ★ G7: 修订对落盘失败计数（不静默）
 PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认; conftest 设 env 时落到 tmp）
 
 
-def _ask_level(cmd_joined: str) -> Optional[str]:
+def _ask_level(cmd_joined: str) -> str | None:
     """run 命令的三态分级: 黑名单=None(调用方硬拒); ask 命中=该词; 都无=放行。
     ★ R276c · 词左边界（(?<!\\w): platform/transform 含 rm 不得误拦）。"""
     for w in _ASK:
@@ -92,9 +91,9 @@ def _parse_ddg(html: str) -> list:
     """★ R263 · DDG HTML 结果解析（活体结构 2026-10-14:
     a.result__a href=//duckduckgo.com/l/?uddg=<urlenc> + result__snippet
     — uddg 参数解出真实 URL, rut 是追踪签名丢弃）。"""
-    from html.parser import HTMLParser
     import html as _html
     import urllib.parse as _up
+    from html.parser import HTMLParser
 
     class _P(HTMLParser):
         def __init__(self):
@@ -161,7 +160,7 @@ def _html_to_text(html: str) -> str:
         def __init__(self):
             super().__init__(convert_charrefs=True)
             self._skip = 0
-            self._buf: List[str] = []
+            self._buf: list[str] = []
 
         def handle_starttag(self, tag, attrs):
             if tag in ("script", "style", "noscript"):
@@ -184,7 +183,7 @@ def _html_to_text(html: str) -> str:
     return "\n".join(t._buf)
 
 
-def _args_snapshot(step: Dict[str, Any], limit: int = 200) -> str:
+def _args_snapshot(step: dict[str, Any], limit: int = 200) -> str:
     """★★★ R400 · 留痕参数快照 —— **JSON 必须完整**。
 
     现场（2026-10-21 00:41 全池，code-locate 5 单灭 4 单）：
@@ -227,7 +226,7 @@ _IDENT_Q_RE = re.compile(
 _UPPER_IDENT = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 _CAMEL_IDENT = re.compile(r"\b[a-zA-Z]+(?:[A-Z][a-z0-9]+)+\b")
 
-_REPO_TEXT_CACHE: Optional[str] = None
+_REPO_TEXT_CACHE: str | None = None
 _REPO_SKIP_DIRS = {".git", ".cache", "var", "archive", "node_modules",
                    "__pycache__", ".venv", "venv", "build", "dist",
                    # ★★★ R427 · `docs/repos/` 是**外部仓库镜像**（README 转储，
@@ -303,7 +302,7 @@ def _ident_used_in_code(tok: str) -> bool:
     return re.search(pat, _repo_text()) is not None
 
 
-_REPO_FILES_CACHE: Optional[set] = None
+_REPO_FILES_CACHE: set | None = None
 
 #: 任务在**问文件名**（才做存在性校验；写文件类任务会提到尚不存在的文件名）
 _FILE_Q_RE = re.compile(r"(文件名|哪个文件|什么文件|入口文件|脚本名|叫什么)")
@@ -322,7 +321,7 @@ def _repo_files() -> set:
     root = os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__)))))
     names = set()
-    for dp, dn, fn in os.walk(root):
+    for _dp, dn, fn in os.walk(root):
         # ★ R437 · 用 `_FIND_SKIP_DIRS`（不排 var/archive）—— 存在性校验要
         #   和 `find_files` 的可见范围一致：agent 能找到的文件，就不能判成
         #   "不存在"。旧实现用 `_REPO_SKIP_DIRS`，把 var/ 下的真实文件判成幻觉。
@@ -428,7 +427,7 @@ def _refusal_gate(task: str, ans: str, has_ev: bool, ev: str = ""):
             "并在答案里引用你查过的具体路径。" % (task, ev or "（无）"))
 
 
-def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
+def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
     """执行一个白名单动作 → 观察（回喂 LLM 的材料）。"""
     try:  # ★ R308-② · 能力开关（关⇒拒收留痕，不静默；默认全开零行为变）
         from dwc.caps.registry import is_enabled as _cap_on
@@ -444,8 +443,8 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
         # ★ R263 · 网页搜索（研究任务的起点是"查 X" — 只能抓已知 URL 就是
         #   死路; DDG HTML 版免 key 零依赖 — 结构 2026-10-14 活体探测:
         #   10×result__a + uddg 重定向链接 + 浏览器 UA 才 200）
-        import urllib.request
         import urllib.parse
+        import urllib.request
         query = str(args.get("query", "")).strip()
         if not query:
             return {"ok": False, "error": "web_search 需要 query"}
@@ -515,7 +514,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             # ★ R263 · PDF 读（研究任务高频 — 曾按 utf-8 读二进制=乱码;
             #   抽文本后走**同一** offset/limit 分页 — 零新分页逻辑）
             try:
-                import pypdf            # noqa: PLC0415 — 缺依赖时明确报
+                import pypdf
             except ImportError:
                 return {"ok": False, "error": "读 PDF 缺依赖 pypdf — "
                         "安装: pip install pypdf"}
@@ -534,7 +533,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                         % (type(exc).__name__, exc)}
             lines = txt.splitlines()
         else:
-            with io.open(p, encoding="utf-8", errors="replace") as fh:
+            with open(p, encoding="utf-8", errors="replace") as fh:
                 txt = fh.read()
             lines = txt.splitlines()
         n = len(lines)
@@ -573,7 +572,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
         content = str(args.get("content", ""))
-        with io.open(p, "w", encoding="utf-8") as fh:
+        with open(p, "w", encoding="utf-8") as fh:
             fh.write(content)
         # ★ R305-T2 · sec_review 接线（纯规则只告警不驳回：照写 ok=True，
         #   findings 进 obs 回喂 LLM；坏输入 [] 不拦）
@@ -714,7 +713,7 @@ def _looks_like_refusal(text: str, n_actions: int) -> str:
 
 
 #: ★ R438 · 策略产物读取（带 mtime 缓存：产物变了下一轮就生效，不必重启）
-_POLICY_CACHE: Dict[str, Any] = {}
+_POLICY_CACHE: dict[str, Any] = {}
 
 
 def _policy(component: str, key: str, default: Any) -> Any:
@@ -1228,7 +1227,7 @@ def _ask_human(ask_word: str, cmd_joined: str, tid: str):
                             % ASK_PENDING)
     try:
         os.makedirs(os.path.dirname(ASK_PENDING), exist_ok=True)
-        with io.open(ASK_PENDING, "a", encoding="utf-8") as fh:
+        with open(ASK_PENDING, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({"task_id": tid, "word": ask_word,
                                  "cmd": cmd_joined[:200],
                                  "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
@@ -1242,7 +1241,7 @@ def _ask_human(ask_word: str, cmd_joined: str, tid: str):
     while time.time() - t0 < ASK_WAIT:
         try:
             if os.path.exists(ASK_ANSWERS):
-                lines = io.open(ASK_ANSWERS, encoding="utf-8").read().splitlines()
+                lines = open(ASK_ANSWERS, encoding="utf-8").read().splitlines()
                 hit_idx = None
                 approved = False
                 for i, ln in enumerate(lines):
@@ -1257,7 +1256,7 @@ def _ask_human(ask_word: str, cmd_joined: str, tid: str):
                     #   一次授权只放行一次等待中的操作, 下次 ask 重新问）
                     rest = [x for i, x in enumerate(lines)
                             if i != hit_idx and x.strip()]
-                    with io.open(ASK_ANSWERS, "w", encoding="utf-8") as fh:
+                    with open(ASK_ANSWERS, "w", encoding="utf-8") as fh:
                         fh.write("".join(x + "\n" for x in rest))
                     if approved:
                         return True
@@ -1268,7 +1267,7 @@ def _ask_human(ask_word: str, cmd_joined: str, tid: str):
     return "timeout(%.0fs)" % ASK_WAIT
 
 
-def _parse_confirmed(ctx: Optional[str]) -> set:
+def _parse_confirmed(ctx: str | None) -> set:
     """★ R222 · 人工授权解析: ctx 里 '人工授权: <词>' 行 → 放行词集合。"""
     out = set()
     for ln in (ctx or "").splitlines():
@@ -1277,9 +1276,9 @@ def _parse_confirmed(ctx: Optional[str]) -> set:
     return out
 
 
-def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
-                 recent: List[Dict[str, Any]],
-                 qa_mode: bool = False) -> Optional[Dict[str, Any]]:
+def _revise_step(*, llm: Any, task: str, step: dict[str, Any], why: str,
+                 recent: list[dict[str, Any]],
+                 qa_mode: bool = False) -> dict[str, Any] | None:
     """★ State Revision 轻量版（2609.28416 §2.3）: 对 noisy 提案重写一次。
 
     ★ 每次判别**只调一次**; 失败返回 None ⇒ 调用方 fallback 保留原提案
@@ -1334,19 +1333,19 @@ def _revise_step(*, llm: Any, task: str, step: Dict[str, Any], why: str,
 _SRC_FAIL = globals().setdefault("_SOURCES_FAIL", [0])   # G7: 沉淀失败必须计数
 
 
-def _extract_sources(log: List[Dict[str, Any]], *, task_id: str, task: str,
-                     answer: str = "", artifacts: Optional[List[str]] = None) -> None:
+def _extract_sources(log: list[dict[str, Any]], *, task_id: str, task: str,
+                     answer: str = "", artifacts: list[str] | None = None) -> None:
     """★ R266A · 任务知识沉淀: actions_log 的 web_search/web_read 信源 +
     final 结论/产物 → dwc_sources.jsonl; 论文类 URL 分拣进 dwc_reading_list
     （C 层进化投单的候选池）。G7: 写失败计数+stderr, 不阻断主链。"""
-    queries: List[str] = []
-    urls: List[Dict[str, str]] = []
+    queries: list[str] = []
+    urls: list[dict[str, str]] = []
     for row in log:
         if not isinstance(row, dict) or row.get("phase") != "obs":
             continue
         op = row.get("op")
         target = str(row.get("target") or "")
-        obs: Dict[str, Any] = {}
+        obs: dict[str, Any] = {}
         try:
             obs = json.loads(row.get("obs") or "{}")
         except (ValueError, TypeError):
@@ -1369,20 +1368,20 @@ def _extract_sources(log: List[Dict[str, Any]], *, task_id: str, task: str,
            "artifacts": list(artifacts or [])[:10]}
     try:
         os.makedirs(os.path.dirname(SOURCES), exist_ok=True)
-        with io.open(SOURCES, "a", encoding="utf-8") as fh:
+        with open(SOURCES, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
         papers = [u for u in urls if u["kind"] == "paper"]
         if papers:
             known = set()
             if os.path.exists(READING):
-                for ln in io.open(READING, encoding="utf-8"):
+                for ln in open(READING, encoding="utf-8"):
                     ln = ln.strip()
                     if ln:
                         try:
                             known.add(json.loads(ln).get("url", ""))
                         except (ValueError, TypeError):
                             continue
-            with io.open(READING, "a", encoding="utf-8") as fh:
+            with open(READING, "a", encoding="utf-8") as fh:
                 for u in papers:
                     if u["url"] not in known:
                         fh.write(json.dumps(
@@ -1397,8 +1396,8 @@ def _extract_sources(log: List[Dict[str, Any]], *, task_id: str, task: str,
                               % (_SRC_FAIL[0], exc))
 
 
-def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
-                    sid: str, progress: Any = None) -> Optional[Dict[str, Any]]:
+def _revision_retry(*, task: str, fail: dict[str, Any], llm: Any,
+                    sid: str, progress: Any = None) -> dict[str, Any] | None:
     """★ R256 · 任务级修订重试（2609.28416 §3.3 AEWM-RFT 数据策略的 DWC 落地）。
 
     失败任务 → LLM 基于失败留痕**重写任务理解** → 二跑（不再三跑, 防循环）。
@@ -1429,7 +1428,7 @@ def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
         progress({"ev": "revision_retry", "revised": revised[:200]})
     try:      # _sess 是 execute_user_task 闭包 — 模块级直写同款文件
         os.makedirs(SESSIONS, exist_ok=True)
-        with io.open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
+        with open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
                      encoding="utf-8") as fh:
             fh.write(json.dumps({"at": time.strftime("%H:%M:%S"),
                                  "phase": "task_revision", "original": task[:200],
@@ -1448,7 +1447,7 @@ def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
         "retried_status": res2.get("status"),
         "retried_ok": res2.get("status") == "done"}
     try:
-        with io.open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
+        with open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
                      encoding="utf-8") as fh:
             fh.write(json.dumps({"at": time.strftime("%H:%M:%S"),
                                  "phase": "task_revision_result",
@@ -1463,7 +1462,7 @@ def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
             os.environ.get("DWC_VAR_DIR") or os.path.join(ROOT, "var"),
             "dwc_pairs.jsonl")
         os.makedirs(os.path.dirname(pair_p), exist_ok=True)
-        with io.open(pair_p, "a", encoding="utf-8") as fh:
+        with open(pair_p, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(res2["revision_pair"], ensure_ascii=False) + "\n")
     except Exception as exc:               # noqa: BLE001 — G7: 计数不静默
         _PAIRS_FAIL += 1
@@ -1472,11 +1471,11 @@ def _revision_retry(*, task: str, fail: Dict[str, Any], llm: Any,
 
 
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
-                      ctx: Optional[str] = None,
-                      task_id: Optional[str] = None,
+                      ctx: str | None = None,
+                      task_id: str | None = None,
                       _depth: int = 0,
                       retry_on_fail: bool = True,
-                      progress: Optional[Any] = None) -> Dict[str, Any]:
+                      progress: Any | None = None) -> dict[str, Any]:
     """★ 接单执行: 任务描述 → 多轮 LLM+白名单动作 → final 结果。
 
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
@@ -1492,7 +1491,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     self_md = ""
     try:
         if os.path.exists(SELF_MD):
-            self_md = io.open(SELF_MD, encoding="utf-8").read()[:4000]
+            self_md = open(SELF_MD, encoding="utf-8").read()[:4000]
     except OSError:
         self_md = ""
     # ★ R218 · 会话留痕（session 概念最小形态: 每任务一个 jsonl, 轮转可查）
@@ -1501,10 +1500,10 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
 
     _sess_fail = globals().setdefault("_SESS_FAIL", [0])   # G7: 静默必须计数
 
-    def _sess(ev: Dict[str, Any]) -> None:
+    def _sess(ev: dict[str, Any]) -> None:
         try:
             os.makedirs(SESSIONS, exist_ok=True)
-            with io.open(sess_path, "a", encoding="utf-8") as fh:
+            with open(sess_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps({"at": time.strftime("%H:%M:%S"), **ev},
                                     ensure_ascii=False)[:2000] + "\n")
         except OSError as exc:               # 留痕失败不阻断主链, 但必须计数
@@ -1616,22 +1615,22 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             import sys as _sys2
             _sys2.stderr.write("skill 注入失败×%d: %s\n"
                                % (_SRC_FAIL[0], _exc2))
-    log: List[Dict[str, Any]] = []
-    dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
+    log: list[dict[str, Any]] = []
+    dup_sigs: list[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     #: ★ R384 · 原生工具模式下"只输出正文不调工具"的已重试次数（上限 1）
     _native_nudge = [0]
     #: ★ R396 · 强制 final 的状态（熔断后给一次机会，仍不提交才判死）
     _ff_used = [0]
     _ff_pending = [False]
-    _last_rev_sig: Optional[str] = None   # ★ R255 修订去重（连续同签名⇒fallback）
+    _last_rev_sig: str | None = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     #: ★★★ R418 · 每个闸**各自**的打回额度（闸之间不许互相吃掉）
     _gate_strikes: dict = {}
     _r4_blanks = 0      # ★ R302补5b · R4 无 op 连空计数（≥3 诚实收敛）
-    last_image: Optional[str] = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
+    last_image: str | None = None   # ★ R226: 最近读到的图（下轮挂给 LLM）
     prompt = "任务: %s\n%s" % (task, ("\n上下文: " + ctx) if ctx else "")
     for rnd in range(1, max_rounds + 1):
-        obs: Dict[str, Any] = {}   # ★ R247: final 轮不走 _do_action —
+        obs: dict[str, Any] = {}   # ★ R247: final 轮不走 _do_action —
         #   每轮开头重置, 留痕段引用不至 UnboundLocal
         if progress:
             progress({"ev": "round", "n": rnd})
@@ -1754,7 +1753,6 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 #   R383 的两道护栏仍然生效（声称做过动作但零动作 / 拒绝执行）。
                 #   现场：全池 2 轮 208 次里 4 次；工具修复后复测 3 单里 2 单
                 #   命中此路径（都是"只答文件名"的短问句，模型直接写正文）。
-                pass
             # ★★★ R380 · 纯文本答案**不许判死**。
             #   现场（2026-10-20 09:40 跑批）：8 单失败里 7 单的 `why`
             #   就是答案本身（`prev_node_id` / `dwc_pairs.jsonl` /
@@ -1918,8 +1916,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                "subs": obs["subs"]}
                 else:
                     try:
-                        from concurrent.futures import ThreadPoolExecutor \
-                            as _TPE1
+                        from concurrent.futures import ThreadPoolExecutor as _TPE1
                         with _TPE1(max_workers=1) as _pool1:
                             _fut1 = _pool1.submit(
                                 execute_user_task, str(step.get("task", "")),
@@ -2127,8 +2124,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             # ★ R255 · EditAct 事前判别 + 轻量修订（2609.28416 §2.2/2.3 规则版;
             #   R247 熔断保留为第二防线; env DWC_STEP_JUDGE=0 可关）
             if op != "final" and os.environ.get("DWC_STEP_JUDGE", "1") != "0":
-                from dwc.llm.step_judge import (judge_step, step_signature,
-                                                validate_step)
+                from dwc.llm.step_judge import judge_step, step_signature, validate_step
                 recent_obs = [e for e in log
                               if isinstance(e, dict)
                               and e.get("phase") == "obs"][-6:]

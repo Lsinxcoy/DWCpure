@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """contract · FGGM 契约检查（2603.25111 §4.2 · V2 门②「判定能力是否真可用」）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -15,11 +14,12 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 #: FGGM 七字段（Eq.15 BNF 逐字段 — 值枚举, 不自创字段）
-FGGM_FIELDS: Tuple[str, ...] = ("id", "gmid", "type_sig", "phi_l", "psi_l",
+FGGM_FIELDS: tuple[str, ...] = ("id", "gmid", "type_sig", "phi_l", "psi_l",
                                 "f_p", "f_d")
 
 #: 检查结论（check 的三值 — false 必须带违规记录, 不许静默）
@@ -79,7 +79,7 @@ class ContractRegistry:
     """契约注册表 + check 门（同 id 重注册即抛 — 不静默换契约）。"""
 
     def __init__(self) -> None:
-        self._f: Dict[str, FGGM] = {}
+        self._f: dict[str, FGGM] = {}
 
     def register(self, f: FGGM) -> None:
         if f.id in self._f:
@@ -92,10 +92,10 @@ class ContractRegistry:
             raise KeyError(fid)
         del self._f[fid]
 
-    def get(self, fid: str) -> Optional[FGGM]:
+    def get(self, fid: str) -> FGGM | None:
         return self._f.get(fid)
 
-    def check(self, fid: str, x: Any, y: Any) -> Dict[str, Any]:
+    def check(self, fid: str, x: Any, y: Any) -> dict[str, Any]:
         """★ Alg 4 check 的 DWC 落地: 确定性检查 + fallback 在场校验。
 
         返回（三值显式 — 不许把"没契约"混成"契约失败"）:
@@ -112,7 +112,7 @@ class ContractRegistry:
                 "note": ("契约违反 — 该候选不许过门②"
                          if not ok else "契约满足")}
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {"n_registered": len(self._f),
                 "ids": sorted(self._f),
                 "fields": list(FGGM_FIELDS)}
@@ -154,7 +154,7 @@ def no_diff_fallback(p: Any, y: Any) -> Any:
     return p
 
 
-CONTRACT_MECHANICS: Dict[str, str] = {
+CONTRACT_MECHANICS: dict[str, str] = {
     "seven_fields": "Eq.15 BNF: id;GMid;typeSig;(Φ_l,Ψ_l);f_p;f_d;info",
     "four_properties": "§4.2: Flexibility / Parameter-Independent / Local Objective / fallback 必要性",
     "fallback_why": "无 fallback ⇒ 拒绝采样可能耗尽; fallback=约束无条件成立的关键",

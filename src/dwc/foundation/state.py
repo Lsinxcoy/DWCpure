@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC state · 四层冻结快照 —— docs/STATE_SCHEMA.md（2026-10-04 已定）的实现。
 
 定位声明（DWC-MEM · 记忆底座 · 判据 G1 定位门）
@@ -18,8 +17,8 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -57,8 +56,8 @@ class GateSnapshot:
     iwm_reason: str
     train_verdict: str                # world_model.train() 是否成功
     # ── 铁律汇总 ──
-    laws_block: Tuple[str, ...] = ()  # 触发的 block 级铁律 id
-    laws_warn: Tuple[str, ...] = ()   # 触发的 warn 级铁律 id
+    laws_block: tuple[str, ...] = ()  # 触发的 block 级铁律 id
+    laws_warn: tuple[str, ...] = ()   # 触发的 warn 级铁律 id
     # ── 预算（§9 第 2 项 b_t）──
     b_t: int = 0                      # 本轮可归因编辑数
     cost_used: float = 0.0            # 已用预算, 供 C ≤ B 判定
@@ -94,6 +93,6 @@ class State:
     G: GateSnapshot
     X: ExecutionContext
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         from dataclasses import asdict
         return asdict(self)

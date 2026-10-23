@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """planner · 契约现场合成面（器官⑧ planner · 2603.25111 §4.3 三阶段 DWC 复刻）。
 
 DWC-AUTO（自我强化）: 契约合成 ⇒ 门②逐契约判 ⇒ 通过了才用 — 自我强化的
@@ -23,14 +22,12 @@ DWC-AUTO（自我强化）: 契约合成 ⇒ 门②逐契约判 ⇒ 通过了才
 from __future__ import annotations
 
 import json
-import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from dwc.organs.contract import (FGGM, ContractError, ContractRegistry,
-                                bounded_param)
+from dwc.organs.contract import FGGM, ContractError, bounded_param
 
 #: ★ 模板族（白名单 — 静态 λ, 不来自 LLM; LLM 只选 kind + 填参）
-TEMPLATES: Dict[str, Dict[str, Any]] = {
+TEMPLATES: dict[str, dict[str, Any]] = {
     # kind: {descriptor, params 说明, build}
     "bounded_param": {
         "doc": "Ψ_l: (l <= f) ∧ (f <= u); f_d = clamp（contract.bounded_param 同款）",
@@ -77,12 +74,12 @@ class PlannerError(Exception):
     """合成/校验失败必须大声报错（G7 同族 — 不许静默 ⊥）。"""
 
 
-def available_templates() -> List[str]:
+def available_templates() -> list[str]:
     """可合成模板族名（审计面 — planner 的能力边界）。"""
     return sorted(TEMPLATES)
 
 
-def _validate_spec(spec: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def _validate_spec(spec: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """★★ Alg3 validateFGGM 的 DWC 版（本地校验 — 不把 llm 输出当真）。
 
     校验: kind 在白名单 · 参数类型对 · 数值有限 · enum 非空且全 str
@@ -138,7 +135,7 @@ def _validate_spec(spec: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     return kind, params
 
 
-def build_fggm(spec: Dict[str, Any]) -> FGGM:
+def build_fggm(spec: dict[str, Any]) -> FGGM:
     """validate + build（白名单构造器 ⇒ 真 FGGM; 构造自身炸 ⇒ PlannerError）。"""
     kind, params = _validate_spec(spec)
     try:
@@ -149,13 +146,12 @@ def build_fggm(spec: Dict[str, Any]) -> FGGM:
             "原因回灌 planner）" % (kind, type(exc).__name__, exc))
 
 
-def parse_llm_spec(text: str) -> Dict[str, Any]:
+def parse_llm_spec(text: str) -> dict[str, Any]:
     """LLM 文本 ⇒ spec dict（容忍 ```json 栅栏 — 模型常见输出形态）。"""
     t = (text or "").strip()
     if t.startswith("```"):
         t = t.split("\n", 1)[1] if "\n" in t else t[3:]
-        if t.endswith("```"):
-            t = t[:-3]
+        t = t.removesuffix("```")
         t = t.strip()
         if t.lower().startswith("json"):
             t = t[4:].strip()
@@ -172,8 +168,8 @@ def parse_llm_spec(text: str) -> Dict[str, Any]:
     return obj
 
 
-def craft(task_view: Dict[str, Any], llm: Any, *,
-          budget: int = 3) -> Tuple[Optional[FGGM], Dict[str, Any]]:
+def craft(task_view: dict[str, Any], llm: Any, *,
+          budget: int = 3) -> tuple[FGGM | None, dict[str, Any]]:
     """★★★ R175 三阶段（论文 Alg1 defineFGGM → validateFGGM → 包候选）。
 
     任务面 ⇒ LLM 合成 spec ⇒ 本地 validate+build ⇒ (FGGM, 痕迹)
@@ -181,7 +177,7 @@ def craft(task_view: Dict[str, Any], llm: Any, *,
       假契约**; llm 不可用/未配置 ⇒ 同 ⊥）
     · 痕迹: attempts/trace（每次失败的原因 — 审计面, 可复盘）
     """
-    trace: List[Dict[str, Any]] = []
+    trace: list[dict[str, Any]] = []
     if llm is None or not getattr(llm, "configured", False):
         return None, {"outcome": "no_llm", "why": "llm 未配置 ⇒ 不合成",
                       "attempts": 0, "trace": trace}
@@ -194,7 +190,7 @@ def craft(task_view: Dict[str, Any], llm: Any, *,
     except Exception:                            # noqa: BLE001
         pass
     prompt = compose_prompt(task_view)
-    err: Optional[str] = None
+    err: str | None = None
     for attempt in range(1, max(1, budget) + 1):
         user = prompt if err is None else (
             prompt + "\n\n★★ 上次合成被拒, 原因: %s\n按原因修正, "
@@ -219,7 +215,7 @@ def craft(task_view: Dict[str, Any], llm: Any, *,
                   "trace": trace}
 
 
-def compose_prompt(task_view: Dict[str, Any]) -> str:
+def compose_prompt(task_view: dict[str, Any]) -> str:
     """任务面 ⇒ planner prompt（白名单模板族 + 取参要求 — 结构封闭）。
 
     ★ 实现用 list-join（R175 教训: 字符串拼接里的 \n 经多层转义
@@ -228,7 +224,8 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
     q = task_view.get("quantity")
     _planner_head = "你是 DWC 的契约合成器（planner）。为下面的任务面现场合成一份判定契约。"
     try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
-        from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+        from dwc.llm.prompt_ota import note_miss as _ota_miss
+        from dwc.llm.prompt_ota import ota_system as _ota
         _planner_head = _ota("planner_head", _planner_head, __file__)
     except Exception:
         _ota_miss()
@@ -242,8 +239,8 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
                          for k, v in TEMPLATES.items()}, ensure_ascii=False,
                         indent=1)
     try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
-        from dwc.llm.prompt_ota import render_here as _render
         from dwc.llm.prompt_ota import note_miss as _ota_miss2
+        from dwc.llm.prompt_ota import render_here as _render
         _t = _render("planner", {"head": _planner_head, "target_block": _target,
                                  "templates_dump": _dumps,
                                  "task_face": json.dumps(task_view,
@@ -253,7 +250,7 @@ def compose_prompt(task_view: Dict[str, Any]) -> str:
             return _t
     except Exception:
         _ota_miss2()
-    lines: List[str] = [
+    lines: list[str] = [
         _planner_head,
     ]
     if q:

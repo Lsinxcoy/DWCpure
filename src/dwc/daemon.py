@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """daemon · 常驻循环引擎（R164 — DWC 的"活着"那一面）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -27,11 +26,12 @@ import json
 import os
 import signal
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 #: ★ 熔断四律（母巢教训直搬 — 每条都有出处, 不是拍脑袋）
-_FUSE_RULES: Dict[str, str] = {
+_FUSE_RULES: dict[str, str] = {
     "llm_timeout": "单轮 LLM 超时 ⇒ 跳过并记录（熔断≠失败 — 循环继续）",
     "consecutive_idle": "连续 N 轮无可判动作 ⇒ 自动停机（防空转死循环烧 quota）",
     "stop_file": "stop 文件在场 ⇒ 当前轮收尾后退出（不半轮死）",
@@ -51,13 +51,13 @@ class RoundLog:
     started_at: float
     finished_at: float = 0.0
     n_candidates: int = 0
-    chain_verdict: Optional[str] = None
-    blocked: List[str] = field(default_factory=list)
+    chain_verdict: str | None = None
+    blocked: list[str] = field(default_factory=list)
     landed: bool = False
-    score: Optional[float] = None
-    sigma: Optional[int] = None
-    skipped_reason: Optional[str] = None
-    error: Optional[str] = None
+    score: float | None = None
+    sigma: int | None = None
+    skipped_reason: str | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -85,10 +85,10 @@ class Daemon:
       除非连续空转超限）。
     """
 
-    def __init__(self, round_fn: Callable[[int, "Daemon"], Optional[Dict]],
+    def __init__(self, round_fn: Callable[[int, Daemon], dict | None],
                  *, state_dir: str,
                  max_idle_rounds: int = DEFAULT_MAX_IDLE_ROUNDS,
-                 on_round: Optional[Callable[[RoundLog], None]] = None):
+                 on_round: Callable[[RoundLog], None] | None = None):
         if not callable(round_fn):
             raise DaemonError("round_fn 须 callable(round_no, daemon) -> dict")
         self.round_fn = round_fn
@@ -100,10 +100,10 @@ class Daemon:
         self._log_path = os.path.join(state_dir, "rounds.jsonl")
         self._stop_path = os.path.join(state_dir, DEFAULT_STOP_FILENAME)
         self.state = self._load_state()
-        self._sig_prev: Dict[int, Any] = {}
+        self._sig_prev: dict[int, Any] = {}
         #: ★ 留痕面（G7 — 静默 except 的记账位, 不是吞异常）
-        self._stop_unlink_error: Optional[str] = None
-        self._sig_errors: List[str] = []
+        self._stop_unlink_error: str | None = None
+        self._sig_errors: list[str] = []
 
     # ── 持久化（checkpoint — 崩溃后续轮的锚）──
     def _load_state(self) -> DaemonState:
@@ -142,7 +142,7 @@ class Daemon:
 
     # ── 停机信号（SIGINT ⇒ 收尾后退出 — 不半轮死）──
     def install_signal_handlers(self) -> None:
-        def _handler(signum, frame):                 # noqa: ARG001
+        def _handler(signum, frame):
             self.state.stop_requested = True
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
@@ -209,8 +209,8 @@ class Daemon:
         return rl
 
     # ── 主循环（四条熔断纪律的执行点）──
-    def run(self, *, rounds: Optional[int] = None,
-            budget_seconds: Optional[float] = None) -> Dict[str, Any]:
+    def run(self, *, rounds: int | None = None,
+            budget_seconds: float | None = None) -> dict[str, Any]:
         """★ 跑到停机条件（rounds 数到 / 预算尽 / stop / 连空转超限）。"""
         self.install_signal_handlers()
         t0 = time.time()
@@ -245,7 +245,7 @@ class Daemon:
                 "log_file": self._log_path}
 
 
-DAEMON_MECHANICS: Dict[str, str] = {
+DAEMON_MECHANICS: dict[str, str] = {
     "not_engine": "round_fn 注入（单轮逻辑用现有器官）; 本模块只驱动+记账+熔断",
     "four_fuses": "llm_timeout(跳过≠中断)/consecutive_idle(连空转停机)/stop_file/SIGINT(收尾后退出)",
     "checkpoint": "每轮 daemon_state.json 原子写 + rounds.jsonl 追加 ⇒ 崩溃可查可续",
@@ -255,7 +255,7 @@ DAEMON_MECHANICS: Dict[str, str] = {
 }
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI 入口（--rounds/--budget-seconds/--state-dir/--once）。"""
     import argparse
 
@@ -274,7 +274,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("  用法示例见 DAEMON_MECHANICS.not_engine")
         return 2
 
-    def _demo_round(n: int, d: "Daemon") -> Dict[str, Any]:
+    def _demo_round(n: int, d: Daemon) -> dict[str, Any]:
         # ★ 演示面: 只证明循环/记账/熔断跑得起来（不碰真引擎）
         return {"n_candidates": 0,
                 "chain_verdict": "blocked",

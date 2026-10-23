@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """R224 · MCP 工具协议 client（stdio JSON-RPC 2.0 子集 — 发布级工具面）。
 
 ★★★ 定位（G1）: **DWC-AUTO** —— agent 对外工具生态的标准接入协议
@@ -18,20 +17,20 @@
 from __future__ import annotations
 
 import atexit
-import io
 import json
 import os
 import subprocess
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from dwc.foundation.paths import find_root
+
 ROOT = find_root()
 MCP_CONF = os.path.join(ROOT, "config", "mcp.json")
 
 #: 进程池 {name: {"proc": Popen, "lock": Lock, "tools": [...]}}
-_POOL: Dict[str, Dict[str, Any]] = {}
+_POOL: dict[str, dict[str, Any]] = {}
 _POOL_LOCK = threading.Lock()
 #: G7 静默计数（except: pass 必须有计数/日志 — 门判据）
 _SILENT = [0]
@@ -50,13 +49,13 @@ class McpError(Exception):
     pass
 
 
-def load_config(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+def load_config(path: str | None = None) -> dict[str, dict[str, Any]]:
     path = path or MCP_CONF      # ★ 运行时取模块属性（默认参数会绑死定义值）
     """读 mcp.json — 缺文件=空配置（不装有）; 坏文件大声报错。"""
     if not os.path.exists(path):
         return {}
     try:
-        obj = json.load(io.open(path, encoding="utf-8"))
+        obj = json.load(open(path, encoding="utf-8"))
     except (ValueError, OSError) as exc:
         raise McpError("mcp.json 坏了（%s: %s）— 不许悄悄空配置开跑"
                        % (type(exc).__name__, exc))
@@ -75,7 +74,7 @@ def _framed(obj: dict) -> bytes:
     return b"Content-Length: %d\r\n\r\n" % len(raw) + raw
 
 
-def _read_msg(proc: subprocess.Popen, deadline: float) -> Optional[dict]:
+def _read_msg(proc: subprocess.Popen, deadline: float) -> dict | None:
     """读一条 JSON-RPC 消息（两种分帧探测: 头分帧优先, 行分帧兜底）。"""
     f = proc.stdout
     head = b""
@@ -107,7 +106,7 @@ def _read_msg(proc: subprocess.Popen, deadline: float) -> Optional[dict]:
         return None
 
 
-def _rpc(name: str, method: str, params: Optional[dict] = None,
+def _rpc(name: str, method: str, params: dict | None = None,
          timeout: float = 30.0) -> Any:
     """向池内 server 发一发（每 server 串行 — lock; 多 server 天然并行）。"""
     cfg_servers = load_config(MCP_CONF)
@@ -173,7 +172,7 @@ def initialize(name: str) -> dict:
     return r or {}
 
 
-def tools_list(name: str, ttl_s: float = 300) -> List[Dict[str, Any]]:
+def tools_list(name: str, ttl_s: float = 300) -> list[dict[str, Any]]:
     """工具清单（缓存于池 entry; 供 system prompt 注入摘要）。
 
     ★ R309-② · 缓存 TTL：过期重探（防 stale 工具表永不过期）。
@@ -210,13 +209,13 @@ def probe(name: str, timeout: float = 5) -> bool:
         return False
 
 
-def tools_call(name: str, tool: str, arguments: Optional[dict] = None,
-               timeout: float = 60.0, ttl_s: float = 300) -> Dict[str, Any]:
+def tools_call(name: str, tool: str, arguments: dict | None = None,
+               timeout: float = 60.0, ttl_s: float = 300) -> dict[str, Any]:
     """★ task_exec 'mcp' 动作的落点: 调用工具 → 原样观察。"""
     tools_list(name, ttl_s=ttl_s)          # 未握手先握手（幂等；TTL 过期重探）
     r = _rpc(name, "tools/call",
              {"name": tool, "arguments": arguments or {}}, timeout=timeout)
-    out: Dict[str, Any] = {"ok": True, "server": name, "tool": tool}
+    out: dict[str, Any] = {"ok": True, "server": name, "tool": tool}
     if isinstance(r, dict):
         texts = []
         for c in r.get("content", []) or []:

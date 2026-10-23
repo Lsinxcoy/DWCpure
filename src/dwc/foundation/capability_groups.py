@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """config/capability_groups.yaml 的加载器 + 校验器。
 
 ★★★ 存在理由（R9/A11 教训的直接应用）
@@ -35,11 +34,10 @@
 """
 from __future__ import annotations
 
-import io
 import os
 import statistics
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import yaml
 
@@ -79,10 +77,10 @@ class AssertionStats:
 @dataclass(frozen=True)
 class Group:
     group_id: str
-    sealed_task_ids: Tuple[str, ...]
+    sealed_task_ids: tuple[str, ...]
     scoring: str
     verifier_rung: int
-    n_assertions_per_task: Tuple[int, ...]
+    n_assertions_per_task: tuple[int, ...]
     n_assertions_total: int
     n_assertions_median: float
     lambda_assert: int
@@ -98,7 +96,7 @@ class Group:
 # 源数据解析
 # ══════════════════════════════════════════════════════════
 
-def _count_assertions(task: Dict[str, Any]) -> Tuple[str, int]:
+def _count_assertions(task: dict[str, Any]) -> tuple[str, int]:
     """★ 口径必须先声明再统计（原则 13 纪律②）
 
     口径声明：
@@ -107,22 +105,22 @@ def _count_assertions(task: Dict[str, Any]) -> Tuple[str, int]:
       values   → len(expected_values) 的键数
     ⇒ 三种口径的"一个断言"含义不同，这是已知遗留（诚实边界②）。
     """
-    if "expected_behavior" in task and task["expected_behavior"]:
+    if task.get("expected_behavior"):
         return "behavior", str(task["expected_behavior"]).count(" and ") + 1
-    if "expected_keywords" in task and task["expected_keywords"]:
+    if task.get("expected_keywords"):
         return "keywords", len(task["expected_keywords"])
-    if "expected_values" in task and task["expected_values"]:
+    if task.get("expected_values"):
         return "values", len(task["expected_values"])
     raise ConfigError(
         "任务 %r 三种断言字段全缺 ⇒ 无法计断言数（不许默认为 1）"
         % task.get("id"))
 
 
-def load_sealed(path: str = SEALED_PATH) -> List[AssertionStats]:
+def load_sealed(path: str = SEALED_PATH) -> list[AssertionStats]:
     """解析 sealed_tasks.yaml。★ 路径不存在必须 raise，不许静默返回空。"""
     if not os.path.exists(path):
         raise ConfigError("sealed_tasks 不存在: %s" % path)
-    obj = yaml.safe_load(io.open(path, encoding="utf-8").read())
+    obj = yaml.safe_load(open(path, encoding="utf-8").read())
     tasks = obj.get("tasks") if isinstance(obj, dict) else obj
     if not tasks:
         raise ConfigError("sealed_tasks 里没有 tasks ⇒ 无可检对象（不是『通过』）")
@@ -140,14 +138,14 @@ def load_sealed(path: str = SEALED_PATH) -> List[AssertionStats]:
 # config 解析 + 校验
 # ══════════════════════════════════════════════════════════
 
-def load_config(path: str = CFG_PATH) -> Dict[str, Any]:
+def load_config(path: str = CFG_PATH) -> dict[str, Any]:
     if not os.path.exists(path):
         raise ConfigError("config 不存在: %s" % path)
-    return yaml.safe_load(io.open(path, encoding="utf-8").read())
+    return yaml.safe_load(open(path, encoding="utf-8").read())
 
 
-def build_groups(cfg: Dict[str, Any],
-                 sealed: List[AssertionStats]) -> List[Group]:
+def build_groups(cfg: dict[str, Any],
+                 sealed: list[AssertionStats]) -> list[Group]:
     """构造 Group 列表，重算派生字段，并执行 G1–G6。"""
     cons = cfg.get("constraints") or {}
     n_min = int(cons.get("n_min_per_group", 3))
@@ -155,7 +153,7 @@ def build_groups(cfg: Dict[str, Any],
     by_id = {s.task_id: s for s in sealed}
     all_ids = [s.task_id for s in sealed]
 
-    groups: List[Group] = []
+    groups: list[Group] = []
     for raw in cfg["groups"]:
         gid = raw["group_id"]
         ids = tuple(raw["sealed_task_ids"])
@@ -238,7 +236,7 @@ def build_groups(cfg: Dict[str, Any],
 
 
 def validate_all(cfg_path: str = CFG_PATH,
-                 sealed_path: str = SEALED_PATH) -> List[Group]:
+                 sealed_path: str = SEALED_PATH) -> list[Group]:
     """一步到位。★ 任何违反都 raise，不返回『部分通过』。"""
     return build_groups(load_config(cfg_path), load_sealed(sealed_path))
 

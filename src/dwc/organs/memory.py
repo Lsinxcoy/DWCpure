@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """DWC 记忆内核 —— 四区 + 七管归属的第一个实现。
 
 ★★★ 这个模块为什么现在做
@@ -39,15 +38,13 @@
 """
 from __future__ import annotations
 
-import io
 import json
-import os
 import sqlite3
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 # ══════════════════════════════════════════════════════════
 # 契约
@@ -179,13 +176,13 @@ class MemoryNode:
     zone: Zone
     kind: MemoryKind
     tube: Tube
-    payload: Dict[str, Any]
-    chain_id: Optional[str] = None
+    payload: dict[str, Any]
+    chain_id: str | None = None
     created_at: float = 0.0
-    last_access: Optional[float] = None
+    last_access: float | None = None
     access_count: int = 0
     effect_count: int = 0
-    archived_at: Optional[float] = None
+    archived_at: float | None = None
 
     # ── D7 · 价值只能由实测推出 ──
     def used(self) -> bool:
@@ -204,7 +201,7 @@ class MemoryNode:
         """
         return self.used()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "node_id": self.node_id, "zone": self.zone.value,
             "kind": self.kind.value, "tube": self.tube.value,
@@ -231,7 +228,7 @@ class MemoryKernel:
             self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
         self._conn.commit()
-        self._retrieved: List[str] = []   # ★ R258 检索留痕（修订候选集）
+        self._retrieved: list[str] = []   # ★ R258 检索留痕（修订候选集）
 
     def close(self) -> None:
         self._conn.close()
@@ -239,9 +236,9 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # 四管之一：remember（任务痕迹 / 工作态 → PROXY）
     # ══════════════════════════════════════════════
-    def remember(self, kind: MemoryKind, payload: Dict[str, Any],
-                 chain_id: Optional[str] = None,
-                 node_id: Optional[str] = None) -> str:
+    def remember(self, kind: MemoryKind, payload: dict[str, Any],
+                 chain_id: str | None = None,
+                 node_id: str | None = None) -> str:
         """写入一条记忆（remember / learn / evolve 共用）。
 
         ★★ D6 强制: 若 kind 属 EXPERIENCE 类，payload 必须含
@@ -332,21 +329,21 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # 检索（索引消费点）
     # ══════════════════════════════════════════════
-    def by_signature(self, c: str, q: str, m: str) -> List[str]:
+    def by_signature(self, c: str, q: str, m: str) -> list[str]:
         """按失败签名三元组精确聚类。★ 消费 ix_sig_lookup。"""
         rows = self._conn.execute(
             "SELECT node_id FROM failure_sig WHERE c=? AND q=? AND m=?",
             (c, q, m)).fetchall()
         return [r["node_id"] for r in rows]
 
-    def by_zone(self, zone: Zone) -> List[MemoryNode]:
+    def by_zone(self, zone: Zone) -> list[MemoryNode]:
         """按区查。★ 消费 ix_node_zone。"""
         rows = self._conn.execute(
             "SELECT node_id FROM memory_node WHERE zone=? ORDER BY created_at",
             (zone.value,)).fetchall()
         return [self.get(r["node_id"]) for r in rows]
 
-    def by_chain(self, chain_id: str) -> List[MemoryNode]:
+    def by_chain(self, chain_id: str) -> list[MemoryNode]:
         """按链查（这条记忆是哪次进化产生的）。★ 消费 ix_node_chain。"""
         rows = self._conn.execute(
             "SELECT node_id FROM memory_node WHERE chain_id=?",
@@ -356,7 +353,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # 淘汰证据（★ 只出证据，不做决策）
     # ══════════════════════════════════════════════
-    def eviction_candidates(self) -> List[Dict[str, Any]]:
+    def eviction_candidates(self) -> list[dict[str, Any]]:
         """列出候选淘汰的记忆 + 它们的证据。
 
         ★★ 本方法**不删任何东西**，只把证据摆出来。
@@ -374,7 +371,7 @@ class MemoryKernel:
         for r in rows:
             rare = False
             if r["kind"] == MemoryKind.FAILURE_SIGNATURE.value:
-                cnt = self._conn.execute(
+                _cnt = self._conn.execute(
                     "SELECT COUNT(*) AS n FROM failure_sig WHERE node_id=?",
                     (r["node_id"],)).fetchone()["n"]
                 # ★ 同一三元组只有一条 ⇒ 它是唯一签名 ⇒ 稀有保护
@@ -401,8 +398,8 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # Tube.RECALL · 取回（四路融合 + RRF + 重力排序）
     # ══════════════════════════════════════════════
-    def recall_search(self, scene: str, terms: Optional[List[str]] = None,
-                      k: int = 5) -> List[MemoryNode]:
+    def recall_search(self, scene: str, terms: list[str] | None = None,
+                      k: int = 5) -> list[MemoryNode]:
         """★ 按**场景词**检索，返回节点（未记 access）。
 
         ★★★ R22 这个方法是为了解一个实测出来的死结:
@@ -425,7 +422,7 @@ class MemoryKernel:
           免得各路量纲不可比（这正是母巢「多路融合」的做法）
         """
         terms = [t for t in (terms or []) if t]
-        pool: Dict[str, MemoryNode] = {}
+        pool: dict[str, MemoryNode] = {}
         for n in self._all_nodes():
             pool[n.node_id] = n
 
@@ -475,7 +472,7 @@ class MemoryKernel:
 
         # ── RRF 融合 ──
         # score = Σ 1/(60 + rank) —— 60 是 RRF 的标准常数
-        score: Dict[str, float] = {}
+        score: dict[str, float] = {}
         for route in (route1, route2, route3, route4_ids):
             for rank, nid in enumerate(route):
                 score[nid] = score.get(nid, 0.0) + 1.0 / (60 + rank + 1)
@@ -490,8 +487,8 @@ class MemoryKernel:
         self._note_retrieved([nid for nid, _ in ordered[:k]])
         return [pool[nid] for nid, _ in ordered[:k]]
 
-    def recall_many(self, scene: str, terms: Optional[List[str]] = None,
-                   k: int = 5) -> List[MemoryNode]:
+    def recall_many(self, scene: str, terms: list[str] | None = None,
+                   k: int = 5) -> list[MemoryNode]:
         """★ 检索**并**记 access（Tube.RECALL 的完整语义）。
 
         ★★★ 判据 D7/MEMORY_SYSTEM §2.2②: 「取回后 access_count 必须 +1」
@@ -508,7 +505,7 @@ class MemoryKernel:
         self._conn.commit()
         return [self.get(i) for i in out]
 
-    def _all_nodes(self) -> List[MemoryNode]:
+    def _all_nodes(self) -> list[MemoryNode]:
         """全部未归档节点。★ 检索的候选池（内部用）。"""
         rows = self._conn.execute(
             "SELECT node_id FROM memory_node WHERE archived_at IS NULL"
@@ -516,7 +513,7 @@ class MemoryKernel:
         return [self.get(r["node_id"]) for r in rows]
 
     def _near_duplicate(self, kind: MemoryKind,
-                        payload: Dict[str, Any]) -> Optional[str]:
+                        payload: dict[str, Any]) -> str | None:
         """★ R104 · 同 kind 经验的近重复节点（ratio ≥ MERGE_TAU ⇒ 合并去重）。
 
         ★ 全表扫限经验域未归档行（小库量级 — 库大了要建索引, 现标边界）。
@@ -535,7 +532,7 @@ class MemoryKernel:
                 return r["node_id"]
         return None
 
-    def contribution_report(self) -> Dict[str, Any]:
+    def contribution_report(self) -> dict[str, Any]:
         """★ R104 · 库治理观测层（Library Drift 四件套①的报表先行版）。
 
         ★ 只报**事实**: 访问数/效果数/最近访问 + 「访问过但零效果」标记
@@ -600,7 +597,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # Tube.DREAM · 反刍（记忆重组 + 沙箱试演）
     # ══════════════════════════════════════════════
-    def dream(self, c: str, q: str, m: str) -> Dict[str, Any]:
+    def dream(self, c: str, q: str, m: str) -> dict[str, Any]:
         """★ 反刍一簇同签名的失败记忆，返回重组后的候选技能。
 
         ★★★ 为什么 DREAM 不能"以后再说":
@@ -678,7 +675,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # Tube.MAINTAIN · 维护（遗忘 + 稀有保护 + 审计）
     # ══════════════════════════════════════════════
-    def maintain(self, chain_id: Optional[str] = None) -> Dict[str, Any]:
+    def maintain(self, chain_id: str | None = None) -> dict[str, Any]:
         """★ 执行一次维护，返回处置记录（**归档而非删除**）。
 
         ★★★ 与 eviction_candidates 的分工:
@@ -720,7 +717,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # ★ R258 · 后向修订（ReHarness 2610.12668 §3.2）
     # ══════════════════════════════════════════════
-    def revise(self, node_id: str, payload_new: Dict[str, Any], *,
+    def revise(self, node_id: str, payload_new: dict[str, Any], *,
                source_traj: str, why: str) -> MemoryNode:
         """★ 版本链式修订一条 SKILL（reflection 等价物）。
 
@@ -760,7 +757,7 @@ class MemoryKernel:
                 self._retrieved.append(nid)
         del self._retrieved[:-64]
 
-    def last_retrieved(self, n: int = 8) -> List[MemoryNode]:
+    def last_retrieved(self, n: int = 8) -> list[MemoryNode]:
         """★ 最近一次检索用过的节点（修订的候选集 — 检索留痕）。"""
         out = []
         for nid in list(reversed(self._retrieved))[:n]:
@@ -798,7 +795,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # 统计（D7 的门禁数据）
     # ══════════════════════════════════════════════
-    def usage_stats(self) -> Dict[str, Any]:
+    def usage_stats(self) -> dict[str, Any]:
         """★★ D7 的核心指标: 有多少记忆**真被用过**。
 
         ★ 母巢的反面教材是 98.8% access_count=0 ——

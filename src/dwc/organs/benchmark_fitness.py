@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """benchmark_fitness · 外部基准 → 进化 fitness 信号（Phase 3.1）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -13,19 +12,19 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 #: 静默门留痕计数 (G7 非静默)
 _INVALID_RATE_COUNT = [0]
 
 
-def load_report(path: str) -> Dict[str, Any]:
+def load_report(path: str) -> dict[str, Any]:
     """读取 benchmark 报告 (adapter 输出格式)。"""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def external_score(report: Dict[str, Any]) -> float:
+def external_score(report: dict[str, Any]) -> float:
     """外部 resolved rate (0..1)。缺失 ⇒ 0.0 (fail-closed, 不猜)。"""
     if not isinstance(report, dict):
         return 0.0
@@ -47,10 +46,10 @@ def external_score(report: Dict[str, Any]) -> float:
     return ok / n if n else 0.0
 
 
-def calibration(internal_pass_rate: Optional[float],
-               external_rate: float) -> Dict[str, Any]:
+def calibration(internal_pass_rate: float | None,
+               external_rate: float) -> dict[str, Any]:
     """内部 pass_rate vs 外部 resolved rate 的校准对比。"""
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "internal_pass_rate": internal_pass_rate,
         "external_resolved_rate": external_rate,
     }
@@ -76,8 +75,8 @@ def calibration(internal_pass_rate: Optional[float],
     return out
 
 
-def fitness_signal(report: Dict[str, Any],
-                   internal_pass_rate: Optional[float] = None) -> Dict[str, Any]:
+def fitness_signal(report: dict[str, Any],
+                   internal_pass_rate: float | None = None) -> dict[str, Any]:
     """进化循环可消费的 fitness 信号包。"""
     ext = external_score(report)
     cal = calibration(internal_pass_rate, ext)
@@ -103,7 +102,7 @@ REALIZATION_LEVELS = ("parse_ok", "apply_ok", "syntax_ok")
 OUTCOME_LEVELS = ("f2p_ok", "p2p_ok", "verifier_ok")
 
 
-def _rate(records, level: str) -> Optional[float]:
+def _rate(records, level: str) -> float | None:
     """某一级的通过率；该级无任何已测样本 ⇒ None（不是 0）。
 
     ★ 纪律：未填 ≠ 测得零。`None` 字段不计入分母。
@@ -114,7 +113,7 @@ def _rate(records, level: str) -> Optional[float]:
     return sum(1 for v in vals if v) / len(vals)
 
 
-def fitness_breakdown(records) -> Dict[str, Any]:
+def fitness_breakdown(records) -> dict[str, Any]:
     """把逐 instance 的六元组汇总成分级 fitness。
 
     输入: [{instance_id, parse_ok, apply_ok, syntax_ok,
@@ -127,7 +126,7 @@ def fitness_breakdown(records) -> Dict[str, Any]:
       scalar      realization * outcome（落地是前提：落地为 0 ⇒ scalar 为 0）
     """
     recs = [r for r in (records or []) if isinstance(r, dict)]
-    counts: Dict[str, Dict[str, Any]] = {}
+    counts: dict[str, dict[str, Any]] = {}
     for lv in GRADED_LEVELS:
         vals = [r.get(lv) for r in recs if r.get(lv) is not None]
         counts[lv] = {
@@ -136,7 +135,7 @@ def fitness_breakdown(records) -> Dict[str, Any]:
             "rate": _rate(recs, lv),
         }
 
-    def _mean(levels) -> Optional[float]:
+    def _mean(levels) -> float | None:
         got = [counts[lv]["rate"] for lv in levels if counts[lv]["rate"] is not None]
         return sum(got) / len(got) if got else None
 
@@ -159,7 +158,7 @@ def fitness_breakdown(records) -> Dict[str, Any]:
     }
 
 
-def record_from_harness(report: Dict[str, Any]) -> Dict[str, Any]:
+def record_from_harness(report: dict[str, Any]) -> dict[str, Any]:
     """把 `dwc_agent_patch` 的报告转成一条分级记录。
 
     ★ 只做字段搬运，不补值：harness 没测的级保持 None。
@@ -187,7 +186,7 @@ def record_from_harness(report: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def compare_policies(policy_records: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+def compare_policies(policy_records: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     """在**共同测量集**上比较多个策略的 fitness（可比口径）。
 
     ★ 为什么需要：`fitness_breakdown` 的 outcome 分母随 realization 变化——
@@ -205,7 +204,7 @@ def compare_policies(policy_records: Dict[str, List[Dict[str, Any]]]) -> Dict[st
         return {"comparable": False, "why": "少于两个策略，无可比对象",
                 "policies": pols}
 
-    by_id: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    by_id: dict[str, dict[str, dict[str, Any]]] = {}
     for p in pols:
         for r in policy_records[p]:
             iid = r.get("instance_id")
@@ -214,7 +213,7 @@ def compare_policies(policy_records: Dict[str, List[Dict[str, Any]]]) -> Dict[st
 
     common_ids = sorted(iid for iid, m in by_id.items() if all(p in m for p in pols))
 
-    per_level: Dict[str, Dict[str, Any]] = {}
+    per_level: dict[str, dict[str, Any]] = {}
     for lv in GRADED_LEVELS:
         ids = [iid for iid in common_ids
                if all(by_id[iid][p].get(lv) is not None for p in pols)]
@@ -251,7 +250,7 @@ def compare_policies(policy_records: Dict[str, List[Dict[str, Any]]]) -> Dict[st
 
 
 def write_calibration(report_path: str, out_path: str,
-                      internal_pass_rate: Optional[float] = None) -> Dict[str, Any]:
+                      internal_pass_rate: float | None = None) -> dict[str, Any]:
     report = load_report(report_path)
     sig = fitness_signal(report, internal_pass_rate)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)

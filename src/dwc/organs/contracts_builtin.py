@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """contracts_builtin · 内置契约注册（R167 — 门②从"表非空"到真判）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -21,12 +20,16 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from dwc.organs.budget import DEFAULT_B_MAX, DEFAULT_B_MIN
 from dwc.organs.contract import (
-    ST_CHECKED, ST_NO_CONTRACT, ContractRegistry,
-    bounded_param, dafny_annotate_identity)
+    ST_CHECKED,
+    ST_NO_CONTRACT,
+    ContractRegistry,
+    bounded_param,
+    dafny_annotate_identity,
+)
 
 
 def builtin_registry() -> ContractRegistry:
@@ -70,7 +73,7 @@ def _default_llm():
     return LLMClient()
 
 
-def _task_view(facts: Any) -> Dict[str, Any]:
+def _task_view(facts: Any) -> dict[str, Any]:
     """★ R178: TermFacts ⇒ planner 任务面（白名单投影 — 不搬 evidence 全文）。
 
     ★★ R178 实测纠偏: TermFacts 是**判据事实投影**（无 task 身份字段 —
@@ -91,7 +94,7 @@ def _task_view(facts: Any) -> Dict[str, Any]:
             "quantity": {"name": "n_edits", "value": len(edits)}}
 
 
-def _template_params_for(f: Any) -> Tuple[Any, ...]:
+def _template_params_for(f: Any) -> tuple[Any, ...]:
     """★ R178: FGGM ⇒ 该模板的 check 参数组 x（不猜 — 从 id 反解）。
 
     ★ 为什么不传 (): bounded_param/delta_band 的 check 吃 x[0]/x[1]
@@ -117,7 +120,7 @@ def _template_params_for(f: Any) -> Tuple[Any, ...]:
 
 def check_against_facts(reg: ContractRegistry, facts: Any, *,
                         planner_layer: bool = False
-                        ) -> Dict[str, Any]:
+                        ) -> dict[str, Any]:
     """★★ TermFacts ⇒ 逐契约 check（门②升级的判定面 — 两层合报）。
 
     ★ 全局层: reg 里注册的静态契约（budget_window）逐条 check;
@@ -132,7 +135,7 @@ def check_against_facts(reg: ContractRegistry, facts: Any, *,
     if s["n_registered"] == 0:
         return {"verdict": "no_contracts", "n_contracts": 0,
                 "why": "空表 ⇒ ② blocked（缺对象要建设, 不是通过）"}
-    out: Dict[str, Any] = {"n_contracts": s["n_registered"], "ids": s["ids"],
+    out: dict[str, Any] = {"n_contracts": s["n_registered"], "ids": s["ids"],
                            "per_contract": {}, "n_checked": 0, "n_ok": 0,
                            "n_violation": 0, "n_no_contract": 0}
     diff = getattr(facts, "candidate_diff", None)
@@ -225,7 +228,7 @@ def check_against_facts(reg: ContractRegistry, facts: Any, *,
     return out
 
 
-BUILTIN_MECHANICS: Dict[str, str] = {
+BUILTIN_MECHANICS: dict[str, str] = {
     "two_contracts": "budget_window(boundedParam 实例−R151 议程值域) + patch_reflexive(dafnyAnnotate 实例−R153 patch 语义)",
     "flexibility_honest": "论文『planner LLM 现场合成一阶公式』DWC 无 planner（无验证器闭环不造）⇒ 静态注册面, 合成留 backlog",
     "gate2_upgrade": "表空⇒blocked; 表非空+无对象⇒passed(注册面); 有 edits⇒逐 check: 违反⇒blocked(真 veto), no_contract⇒记不否决",
@@ -235,6 +238,6 @@ BUILTIN_MECHANICS: Dict[str, str] = {
 }
 
 
-def install_builtin(reg: Optional[ContractRegistry] = None) -> ContractRegistry:
+def install_builtin(reg: ContractRegistry | None = None) -> ContractRegistry:
     """★ 安装面（Evolver/gates 的注入点 — 复用则透传, 缺省建厂发表）。"""
     return reg if reg is not None else builtin_registry()

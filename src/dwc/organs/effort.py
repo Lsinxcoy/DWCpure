@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """effort · 探索预算调度（2609.14858 §5.2「交替节流-冲刺」· R252）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -18,7 +17,7 @@
 """
 from __future__ import annotations
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 
 class EffortError(ValueError):
@@ -61,13 +60,13 @@ def next_effort(*, gain: float, prev: int, plateau_eps: float,
 
 def simulate_schedule(*, gains: Sequence[float], init: int,
                       plateau_eps: float, factor_up: float,
-                      factor_down: float, lo: int, hi: int) -> List[int]:
+                      factor_down: float, lo: int, hi: int) -> list[int]:
     """★ 自验回放（深读「必须自验」的兑现）: 逐 gain 序列复现调度轨迹。
 
     返回与 gains 等长的 effort 序列（第 t 个 = 用了第 t 个 gain 后的预算）。
     ★ 纯合成 — 不触网不产分, 单测/审计可复跑。
     """
-    out: List[int] = []
+    out: list[int] = []
     prev = init
     for g in gains:
         prev = next_effort(gain=g, prev=prev, plateau_eps=plateau_eps,

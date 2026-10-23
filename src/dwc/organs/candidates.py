@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """候选生成 —— EVOLUTION_CORE_V2 器官②（改什么）的**生成**那一半。
 
 ★★★ 为什么补这一段（"学习新规则"闭环的缺口）
@@ -43,13 +42,14 @@ TRUTH_SOURCE = {
 }
 """
 from __future__ import annotations
-import json
 
+import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-from .evolver import (COMPONENT_VOCAB, DIMENSIONS, K_META,
-                     layer_of, check_component)
+from typing import Any
+
+from .evolver import COMPONENT_VOCAB, DIMENSIONS, K_META, check_component, layer_of
+
 
 class CandidateError(Exception):
     """违反候选生成契约（不许吞异常）。"""
@@ -61,7 +61,7 @@ class Candidate:
     #: ★ source: deterministic(本模块推导) / llm(原文形态, 未启用)
     source: str
     #: ★★★ grounding: 依据哪条 diff —— 没有它就是"编造"
-    grounding: List[Dict[str, Any]]
+    grounding: list[dict[str, Any]]
     #: 推导规则名（可审计: 哪条规则产的）
     rule: str = ""
     #: 供 Evolver.propose 的目标函数
@@ -99,7 +99,7 @@ class Candidate:
     #:   ⇒ 若固化只记 m 本身 ⇒ 后人无法回溯"这条 m 哪次调用来的"
     #:   ⇒ ⇒★ 记指纹 (model, n_diffs, prompt_ver, ts) ⇒ 可审计且
     #:     **不假装 m 可复现**（温度 0.2 也不保证逐字一致）
-    provenance: Dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.grounding:
@@ -120,9 +120,9 @@ class CandidateGenerator:
     #:   · 超限必须有行为(overflow) —— 三者皆由 G4 机械检查
     MAX_POOL = 8   # ★ G4 判据字面量: 池子上限
 
-    def __init__(self, pool_limit: Optional[int] = None,
-                 llm: Optional[Any] = None):
-        self.rules_fired: List[str] = []
+    def __init__(self, pool_limit: int | None = None,
+                 llm: Any | None = None):
+        self.rules_fired: list[str] = []
         #: ★★★ R34 · LLM 形态（可选 —— 不给 = 保持确定性退化形态）
         #:   ★ 为什么默认不自动建 client:
         #:     建 client 会读环境变量 ⇒ 若有人误配了错误端点，
@@ -134,19 +134,19 @@ class CandidateGenerator:
         self.n_llm_calls = 0
         self.n_llm_ok = 0
         #: ★★ 淘汰表: candidate_key → 被否决的原因（判分方写入）
-        self.rejected: Dict[str, str] = {}
+        self.rejected: dict[str, str] = {}
         self.pool_limit = (pool_limit if pool_limit is not None
                            else self.MAX_POOL)
         #: ★★★ R32 · 静默跳过的**痕迹**（G7 的盲区在补）
         #:   ⇒ 编不过的候选仍不产出（不产垃圾），但**必须可审计**
         self.n_syntax_rejected = 0
-        self.syntax_rejects: List[Dict[str, Any]] = []
+        self.syntax_rejects: list[dict[str, Any]] = []
 
-    def key_of(self, c: "Candidate") -> str:
+    def key_of(self, c: Candidate) -> str:
         """★ 候选身份（淘汰表用）—— patch + rule。"""
         return "%s|%s" % (c.rule, c.patch)
 
-    def record_rejection(self, c: "Candidate", reason: str) -> None:
+    def record_rejection(self, c: Candidate, reason: str) -> None:
         """★★★ 判分方在**否决**某候选时必须调（G4 淘汰判据）。
 
         ★ 否则: 同一个错候选每轮都会被重新产出 ⇒ 空转
@@ -160,14 +160,14 @@ class CandidateGenerator:
 
     # ── 纪律①/③ 的统一出口 ──
     @staticmethod
-    def _empty(why: str, need_llm: bool) -> Dict[str, Any]:
+    def _empty(why: str, need_llm: bool) -> dict[str, Any]:
         """★ 产不出时**显式**返回 —— 不许静默空列表。"""
         return {"candidates": [], "n": 0, "need_llm": need_llm,
                 "why": why, "source": "none"}
 
     @staticmethod
-    def _baseline_reproduces(bad: List[Dict[str, Any]],
-                             src: str, fn_name: str) -> Optional[bool]:
+    def _baseline_reproduces(bad: list[dict[str, Any]],
+                             src: str, fn_name: str) -> bool | None:
         """★ 基线是否复现了 diffs 里的 actual（纪律④）。
 
         ★ 返回 None = **无法判定**（编译失败 / 无入参 / 非数值）
@@ -177,7 +177,7 @@ class CandidateGenerator:
         fn = fn_name or (bad[0].get("fn") if bad else "")
         if not fn:
             return None
-        ns: Dict[str, Any] = {}
+        ns: dict[str, Any] = {}
         try:
             exec(compile(src, "<baseline>", "exec"), ns)
         except Exception:
@@ -200,10 +200,10 @@ class CandidateGenerator:
                 return False
         return True if checks else None
 
-    def generate(self, sig: Dict[str, str],
-                 diffs: Optional[List[Dict[str, Any]]],
-                 baseline_source: Optional[str],
-                 fn_name: str = "") -> Dict[str, Any]:
+    def generate(self, sig: dict[str, str],
+                 diffs: list[dict[str, Any]] | None,
+                 baseline_source: str | None,
+                 fn_name: str = "") -> dict[str, Any]:
         """★ 由失败证据生成候选 patch。\n\n        ★★ 输入的 diffs 必须来自 judge._diff（唯一真源）\n          ⇒ 若调用方手拼 diffs ⇒ grounding 会指向不存在的证据\n          ⇒⇒ 那是**编造**（由调用方负责，本模块无法识别）\n        """
         # ── 纪律①: 没有证据就不产 ──
         if not diffs:
@@ -218,7 +218,7 @@ class CandidateGenerator:
         # ★ R285 · R3（prompt 形态）不需要 baseline —— 基线缺席时只跑 R3，
         #   有产出走共享尾部（淘汰/池上限/计数），无产出才报缺基线。
         _no_base = not baseline_source
-        cands_pre: List[Candidate] = []
+        cands_pre: list[Candidate] = []
         if _no_base:
             cands_pre = self._r3_float_iron(bad, fn)
             if not cands_pre:
@@ -240,7 +240,7 @@ class CandidateGenerator:
                 "source **不是**产生这次失败的实现（我实测传过 "
                 "REFERENCE 导致候选全错）", need_llm=False)
 
-        cands: List[Candidate] = []
+        cands: list[Candidate] = []
         cands.extend(cands_pre)   # ★ R285: 基线缺席时此即 R3 产出；平时为空
 
         # ── 规则 R1: range 边界偏移（trace-grounded 于差值模式）──
@@ -404,7 +404,7 @@ class CandidateGenerator:
                     "candidates": []}
         self.n_llm_calls += 1
         ev_lines = []
-        for i, d in enumerate(diffs):
+        for _i, d in enumerate(diffs):
             if not isinstance(d, dict):
                 continue
             # ★★★ R34: 用 **judge 的字段真源**，不凭记忆写字段名
@@ -429,8 +429,8 @@ class CandidateGenerator:
         }
         prompt = None
         try:  # ★ R307 · 模板渲染（失败⇒老路，老路一字不差）
-            from dwc.llm.prompt_ota import render_here as _render
             from dwc.llm.prompt_ota import note_miss as _ota_miss2
+            from dwc.llm.prompt_ota import render_here as _render
             prompt = _render("fixer", _fields, __file__)
         except Exception:
             _ota_miss2()
@@ -494,7 +494,8 @@ class CandidateGenerator:
             _sys_strict = ("你只输出 JSON。不许解释。"
                            "patch 必须是可直接插入的函数体。")
             try:  # ★ R306 · prompt OTA（缺失⇒内嵌老路）
-                from dwc.llm.prompt_ota import ota_system as _ota, note_miss as _ota_miss
+                from dwc.llm.prompt_ota import note_miss as _ota_miss
+                from dwc.llm.prompt_ota import ota_system as _ota
                 _sys_strict = _ota("sys_json_strict", _sys_strict, __file__)
             except Exception:
                 _ota_miss()
@@ -608,7 +609,7 @@ class CandidateGenerator:
                 n_rejected += 1
                 continue
             # ★ 首行缩进归零（与确定性候选同一约定）
-            lines = [l[4:] if l.startswith("    ") else l
+            lines = [l.removeprefix("    ")
                      for l in body.strip().splitlines()]
             out.append(Candidate(
                 patch=nl.join(lines), source="llm", rule="R_llm",
@@ -654,7 +655,7 @@ class CandidateGenerator:
         return src[:m.end()] + new_body + after
 
     # ── R1 · range 边界扰动（模式分类 + 局部扰动）──
-    def _r1_range_offset(self, bad, src: str, fn: str) -> List[Candidate]:
+    def _r1_range_offset(self, bad, src: str, fn: str) -> list[Candidate]:
         """★ 源码含 range 且差值与入参**相关** ⇒ 扰动边界产出候选。
 
         ★★★ R31 实测修正（我第一版规则是错的）:
@@ -704,7 +705,7 @@ class CandidateGenerator:
         else:
             mode = "delta_correlated"       # 有相关性但非上述
         # ★★★ 局部扰动集合（空间由本次源码的 range 表达式决定）
-        forms: List[Tuple[str, str]] = []
+        forms: list[tuple[str, str]] = []
         if "," in arg:
             a0, a1 = [x.strip() for x in arg.split(",", 1)]
             forms = [
@@ -730,7 +731,7 @@ class CandidateGenerator:
         if mode == "delta_eq_args":
             forms.sort(key=lambda kv: (0 if kv[0] in
                                        ("stop_plus1", "start1_stop1") else 1))
-        out: List[Candidate] = []
+        out: list[Candidate] = []
         for where, expr in forms:
             new_src = src[:m.start()] + expr + src[m.end():]
             try:
@@ -774,7 +775,7 @@ class CandidateGenerator:
         return out
 
     # ── R2 · 类型不匹配 ──
-    def _r2_type_wrap(self, bad, src: str, fn: str) -> List[Candidate]:
+    def _r2_type_wrap(self, bad, src: str, fn: str) -> list[Candidate]:
         """★ 期望数字实测字符串 ⇒ 候选: 在 return 处做字面量归一。"""
         hit = [d for d in bad
                if isinstance(d.get("expected"), (int, float))
@@ -815,7 +816,7 @@ class CandidateGenerator:
         self.rules_fired.append("R2")
         return out
 
-    def _r3_float_iron(self, bad, fn: str) -> List[Candidate]:
+    def _r3_float_iron(self, bad, fn: str) -> list[Candidate]:
         """★ R285 · 浮点截断 ⇒ prompt 铁律（无需 baseline_source）。
 
         ★ 触发（deterministic，不编）: diff 条目 expected/actual 皆可

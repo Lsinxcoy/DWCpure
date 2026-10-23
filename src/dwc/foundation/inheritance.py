@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """★ 六段继承产物 —— R109 · 稿①执行轮（综述 §7 原文六段的 DWC 落地）。
 
 设计稿: docs/proposal_six_stage_inheritance.html（R108 过审稿）
@@ -34,11 +33,17 @@ import hashlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-__all__ = ["InheritanceError", "build_inheritance", "validate_inheritance",
-           "attach_inheritance", "load_latest_gen", "truth_fingerprint",
-           "judge_fingerprint"]
+__all__ = [
+    "InheritanceError",
+    "attach_inheritance",
+    "build_inheritance",
+    "judge_fingerprint",
+    "load_latest_gen",
+    "truth_fingerprint",
+    "validate_inheritance",
+]
 
 #: 六段键（顺序即 §7 原文顺序）
 SEGMENTS = ("parent_state", "proposed_change", "motivating_evidence",
@@ -67,17 +72,17 @@ class InheritanceError(ValueError):
 def build_inheritance(
     *,
     gen: int,
-    parent_gen: Optional[int],
+    parent_gen: int | None,
     at: str,
-    parent_state: Dict[str, Any],
-    proposed_change: Dict[str, Any],
-    motivating_evidence: Dict[str, Any],
-    evaluation_config: Dict[str, Any],
-    acceptance_decision: Dict[str, Any],
-    subsequent_use: Optional[Dict[str, Any]] = None,
-    supersedes: Optional[str] = None,
-    attribution: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    parent_state: dict[str, Any],
+    proposed_change: dict[str, Any],
+    motivating_evidence: dict[str, Any],
+    evaluation_config: dict[str, Any],
+    acceptance_decision: dict[str, Any],
+    subsequent_use: dict[str, Any] | None = None,
+    supersedes: str | None = None,
+    attribution: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """构造六段对象（构造后立即 validate — 两步一体）。"""
     obj = {
         "gen": gen,
@@ -107,7 +112,7 @@ def build_inheritance(
 # ══════════════════════════════════════════════════
 # 校验（稿① §⑥ 七判据 — 逐条 raise 带定位信息）
 # ══════════════════════════════════════════════════
-def validate_inheritance(obj: Dict[str, Any]) -> None:
+def validate_inheritance(obj: dict[str, Any]) -> None:
     if not isinstance(obj, dict):
         raise InheritanceError("六段对象必须是 dict, 实为 %r" % type(obj))
 
@@ -239,8 +244,8 @@ def validate_inheritance(obj: Dict[str, Any]) -> None:
 # ══════════════════════════════════════════════════
 # 档接合 + 链读取
 # ══════════════════════════════════════════════════
-def attach_inheritance(record: Dict[str, Any],
-                       inheritance: Dict[str, Any]) -> Dict[str, Any]:
+def attach_inheritance(record: dict[str, Any],
+                       inheritance: dict[str, Any]) -> dict[str, Any]:
     """把六段挂进 knowledge3 档（只扩不破: 已有键被覆盖=错误, 防误写历史）。"""
     if "inheritance" in record:
         raise InheritanceError(
@@ -252,9 +257,9 @@ def attach_inheritance(record: Dict[str, Any],
     return record
 
 
-def load_latest_gen(archive_dir: str) -> Optional[int]:
+def load_latest_gen(archive_dir: str) -> int | None:
     """扫 knowledge3 档找最大 gen（parent_gen 链用）。无档 ⇒ None（首档）。"""
-    best: Optional[int] = None
+    best: int | None = None
     if not os.path.isdir(archive_dir):
         return None
     for fn in os.listdir(archive_dir):

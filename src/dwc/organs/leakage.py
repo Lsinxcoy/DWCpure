@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """leakage · 泄漏筛查（2609.24972 RRSI 第 0 步 · 必须在任何评估之前）。
 
 定位声明 · **DWC-AUTO**（自我强化 · 判据 G1 定位门）
@@ -29,11 +28,12 @@
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 #: 泄漏类别（原文五类 + 惰机 — 值枚举, 不自创类别）
-LEAK_KINDS: Tuple[str, ...] = ("task_name", "entity_name",
+LEAK_KINDS: tuple[str, ...] = ("task_name", "entity_name",
                                "task_specific_value", "answer", "inert_machinery")
 
 #: 与 critic 角色对应的缺口标记
@@ -55,10 +55,10 @@ class Candidate:
 
     candidate_id: str
     diff: str
-    task_names: Tuple[str, ...] = ()
-    entity_names: Tuple[str, ...] = ()
-    answers: Tuple[str, ...] = ()
-    task_specific_values: Tuple[str, ...] = ()
+    task_names: tuple[str, ...] = ()
+    entity_names: tuple[str, ...] = ()
+    answers: tuple[str, ...] = ()
+    task_specific_values: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.candidate_id:
@@ -83,11 +83,11 @@ class ScreenResult:
 
     candidate_id: str
     allowed: bool
-    hits: List[LeakHit] = field(default_factory=list)
+    hits: list[LeakHit] = field(default_factory=list)
     inert_machinery: bool = False
     critic: str = CRITIC_STATUS
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"candidate_id": self.candidate_id, "allowed": self.allowed,
                 "n_hits": len(self.hits),
                 "hits": [{"kind": h.kind, "term": h.term,
@@ -142,7 +142,7 @@ def screen_candidate(c: Candidate, *, inert_probe: bool = True
     if not isinstance(c, Candidate):
         raise LeakError("screen_candidate 要 Candidate, 实 %r"
                         % (type(c).__name__,))
-    hits: List[LeakHit] = []
+    hits: list[LeakHit] = []
     for kind, vocab in (("task_name", c.task_names),
                         ("entity_name", c.entity_names),
                         ("answer", c.answers),
@@ -167,7 +167,7 @@ def screen_candidate(c: Candidate, *, inert_probe: bool = True
                         hits=hits, inert_machinery=inert)
 
 
-def screen_batch(cands: Iterable[Candidate]) -> Dict[str, Any]:
+def screen_batch(cands: Iterable[Candidate]) -> dict[str, Any]:
     """批量筛查 + 汇总（顺序保序 — 评估按候选序进, 不许悄悄换序）。"""
     results = [screen_candidate(c) for c in cands]
     rejected = [r.candidate_id for r in results if not r.allowed]
@@ -179,7 +179,7 @@ def screen_batch(cands: Iterable[Candidate]) -> Dict[str, Any]:
                      "evolve 分数去诱后续轮 — 原文前置理由）")}
 
 
-LEAKAGE: Dict[str, str] = {
+LEAKAGE: dict[str, str] = {
     "order": "RRSI 第 0 步 — 必须在任何评估之前（顺序不可换）",
     "paper_criteria": "拒: task names/entity names/task-specific values/answers/benchmark-specific logic; 拒: inert machinery; 留: generic 改进",
     "dwc_subset": "只做字面五类词表匹配（机械可判）+ 惰机弱 proxy（只标记不否决）",
