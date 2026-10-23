@@ -59,7 +59,7 @@ import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 #: ★ 配置来源（优先级从高到低）: 环境变量 → config/llm.json
 #:   ★★ 为什么不去读宿主（Hermes）的配置:

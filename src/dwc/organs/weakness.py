@@ -34,7 +34,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Any
 
 from dwc.foundation.dial_config import load_difficulty
 

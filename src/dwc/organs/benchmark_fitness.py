@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 #: 静默门留痕计数 (G7 非静默)
 _INVALID_RATE_COUNT = [0]

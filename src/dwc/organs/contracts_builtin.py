@@ -46,7 +46,7 @@ def builtin_registry() -> ContractRegistry:
     return reg
 
 
-def budget_window_contract() -> FGGM:
+def budget_window_contract() -> ContractRegistry:
     """① budget_window: b_t ∈ [b_min, b_max] 的 FGGM 化（R151 议程值域）。
 
     ★ 与论文 boundedParam(l,u) 逐字段对齐: Ψ = (l≤f≤u), f_d=clamp。
@@ -55,7 +55,7 @@ def budget_window_contract() -> FGGM:
     return bounded_param(float(DEFAULT_B_MIN), float(DEFAULT_B_MAX))
 
 
-def patch_reflexive_contract() -> FGGM:
+def patch_reflexive_contract() -> ContractRegistry:
     """② patch_reflexive: patch 反射性（f(p)=p 恒在"无差异"关系中）。
 
     ★ 与论文 dafnyAnnotate(p) 对齐（DWC 可判定子集 — R148 已落地:

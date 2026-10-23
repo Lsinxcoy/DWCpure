@@ -30,7 +30,7 @@ import io
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from dwc.organs.actor import Actor, execute_task
 from dwc.organs.applier import Applier
