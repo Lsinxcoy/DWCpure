@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R438 · 19 项进化对象落地总案</title><style>
-:root{--bg:#0d1117;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--bad:#f85149}
+:root{--bg:#0d1117;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 header{padding:34px 40px 18px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#161b22,#0d1117)}
 h1{margin:0 0 6px;font-size:25px}.sub{color:var(--dim);font-size:13px}
@@ -14,9 +14,9 @@ table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
 th,td{border:1px solid var(--bd);padding:7px 9px;text-align:left;vertical-align:top}
 th{background:#1c2128}tr:nth-child(even) td{background:#11161d}
 code{background:#1c2128;padding:1px 5px;border-radius:4px;font-size:12px;color:#ffa657;font-family:Consolas,monospace}
-blockquote{border-left:3px solid var(--warn);margin:14px 0;padding:8px 14px;background:#161b22;color:#c9d1d9}
+blockquote{border-left:3px solid #d29922;margin:14px 0;padding:8px 14px;background:#161b22}
 strong{color:#fff}
-</style></head><body><header><h1>R438 · 19 项进化对象落地总案</h1><div class="sub">产物 + 消费者 + 试验 + 回滚 · 2026-10-23</div></header><div class="wrap"><nav><a href="#s0">零、先说三条硬约束</a><a href="#s1">一、19 项 → 11 个组件 → 11 个产物</a><a href="#s2">二、统一机制（不造 11 套轮子）</a><a href="#s3">三、执行阶段（按风险升序）</a><a href="#s4">四、每阶段的验收（统一四条）</a><a href="#s5">五、进度</a></nav><main><h1>R438 · 19 项进化对象落地总案</h1>
+</style></head><body><header><h1>R438 · 19 项进化对象落地总案</h1><div class="sub">产物 + 消费者 + 试验 + 回滚 · 19/19 落地 · 2026-10-23</div></header><div class="wrap"><nav><a href="#s0">零、先说三条硬约束</a><a href="#s1">一、19 项 → 11 个组件 → 11 个产物</a><a href="#s2">二、统一机制（不造 11 套轮子）</a><a href="#s3">三、执行阶段（按风险升序）</a><a href="#s4">四、每阶段的验收（统一四条）</a><a href="#s5">五、进度（19/19 已落地）</a></nav><main><h1>R438 · 19 项进化对象落地总案</h1>
 <blockquote>
 <p>口径：<strong>“落地”= 有产物文件 + 有消费者读它 + 有试验能判好坏 + 能回滚</strong>。
 四项缺一，就不算落地 —— 只是又造了一个没人读的 JSON。</p>
@@ -279,8 +279,7 @@ strong{color:#fff}
 <li><strong>可区分</strong>：降级/拒绝/成功三种状态在台账里可区分（不许静默）。</li>
 </ol>
 <hr />
-<h2 id="s5">五、进度</h2>
-<h3>已落地（有产物 + 有消费者 + 有测试 + 可回滚）</h3>
+<h2 id="s5">五、进度（19/19 已落地）</h2>
 <table>
 <thead>
 <tr>
@@ -288,113 +287,128 @@ strong{color:#fff}
 <th>对象 #</th>
 <th>产物</th>
 <th>消费者</th>
-<th>测试</th>
+<th>状态</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>control_flow</code></td>
 <td>2,16,19</td>
-<td><code>config/anchors/rules.json</code>（<strong>已真有 1 条</strong>）</td>
-<td><code>Mutator.propose</code> 查表</td>
-<td><code>test_r438_landing</code>（6）</td>
+<td><code>config/anchors/rules.json</code></td>
+<td><code>Mutator.propose</code></td>
+<td>✅ 真落 1 条（fibonacci）</td>
 </tr>
 <tr>
 <td><code>memory</code></td>
 <td>4,5</td>
-<td><code>var/dwc_lessons.jsonl</code>（tier 晋升）</td>
-<td><code>sources_context → lessons_context</code></td>
-<td><code>test_r438_memory</code>（5）</td>
+<td><code>var/dwc_lessons.jsonl</code> + tier</td>
+<td><code>sources_context</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>skill</code></td>
 <td>3</td>
 <td><code>skills/&lt;name&gt;/SKILL.md</code></td>
-<td><code>task_exec</code> 注入 system</td>
-<td><code>test_r438_skill</code>（7）</td>
+<td><code>task_exec</code> 注入</td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>context_mgmt</code></td>
 <td>11</td>
 <td><code>config/context_policy.json</code></td>
-<td><code>task_exec.read_default_lines()</code></td>
-<td><code>test_r438_targets</code>（12）</td>
+<td><code>read_default_lines()</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>output_plumbing</code></td>
 <td>12</td>
 <td><code>config/output_policy.json</code></td>
-<td><code>task_exec._cap_answer()</code></td>
-<td>同上</td>
+<td><code>_cap_answer()</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>client_tool</code></td>
 <td>9</td>
 <td><code>config/tools_extra.json</code></td>
 <td><code>TASK_TOOLS</code> 合并</td>
-<td>同上</td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>config</code></td>
 <td>1,13,17</td>
 <td><code>config/tunables.json</code></td>
-<td><code>dwc_agent.py</code> 缺省值</td>
-<td>同上（读侧）</td>
+<td><code>dwc_agent.py</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>subagent</code></td>
 <td>10</td>
 <td><code>config/subagent_policy.json</code></td>
-<td><code>cap_limit("delegate",…)</code></td>
-<td>同上</td>
+<td><code>cap_limit("delegate")</code></td>
+<td>✅</td>
 </tr>
-</tbody>
-</table>
-<h3>未落地</h3>
-<table>
-<thead>
-<tr>
-<th>组件</th>
-<th>对象 #</th>
-<th>卡在哪</th>
-</tr>
-</thead>
-<tbody>
 <tr>
 <td><code>prompt</code></td>
 <td>8</td>
-<td>三件套齐（候选/AB/判定），缺<strong>驱动层</strong>（定时跑 + 自动晋升）</td>
+<td><code>prompts/&lt;name&gt;.vN.md</code> + manifest</td>
+<td>A/B → 晋升</td>
+<td>✅ 驱动层 + 周排程</td>
 </tr>
 <tr>
 <td><code>code</code></td>
 <td>6</td>
-<td>沙箱能验，但<strong>没写回源文件</strong>（只落了规则文本）</td>
-</tr>
-<tr>
-<td><code>architecture</code></td>
-<td>7</td>
-<td>按设计须人工批准；缺审批队列</td>
+<td><code>rules.json</code> 的 <code>code</code> 字段</td>
+<td><code>propose</code> 复用实现</td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>meta_evolution</code></td>
 <td>14</td>
-<td><code>evolution.yaml</code> 可改，但没有"改它"的提案器</td>
+<td><code>config/evolution.yaml</code></td>
+<td>cron 按压力调旋钮</td>
+<td>✅ 3 天冷却</td>
+</tr>
+<tr>
+<td><code>architecture</code></td>
+<td>7</td>
+<td><code>var/architecture_queue.jsonl</code></td>
+<td>人工审批 CLI</td>
+<td>✅ 不许自动落</td>
 </tr>
 <tr>
 <td><code>evaluator</code></td>
 <td>15</td>
-<td><strong>只读</strong>（G10 密封）；缺"拒绝编辑"的显式证据</td>
+<td>—（只读）</td>
+<td>构造即拒</td>
+<td>✅ 代码级拒绝</td>
 </tr>
 <tr>
 <td><code>external_source</code></td>
 <td>18</td>
-<td><strong>只读</strong>；缺登记与拒绝证据</td>
+<td>—（只读）</td>
+<td>构造即拒</td>
+<td>✅ 代码级拒绝</td>
 </tr>
 </tbody>
 </table>
-<h3>一处更正（诚实记账）</h3>
-<p>R437 审计说「<code>ensure_loaded</code> 零调用」——<strong>不准确</strong>：
-<code>evolver.py:2922</code> 有模块级 <code>_MUTATOR_LOADED_AT_IMPORT = Mutator.ensure_loaded()</code>，
-所以落盘规则在 import 时就已加载。真正的断点只有两个：
-<code>apply=False</code> 硬编码 + <code>rules.json</code> 从未被创建。
-R438 补的 agent/cron 启动调用是<strong>冗余保险</strong>（幂等，不改行为）。</p></main></div></body></html>
+<h3>测试</h3>
+<ul>
+<li>新增 9 个测试文件、<strong>63 条</strong>（landing 7 / memory 4 / skill 8 / targets 13 /
+  prompt 7 / code 2 / readonly 4 / meta 7 / arch 7，含守卫）。</li>
+<li>全量：<strong>2702 passed / 7:57</strong>（<code>var/pytest_r438h.log</code>），最终复跑见 <code>pytest_r438_final.log</code>。</li>
+</ul>
+<h3>途中抓到的 4 个真 bug</h3>
+<ol>
+<li><code>ROOT</code> 少算一层 ⇒ 产物写进 <code>src/config/</code>（消费者永远读不到）。</li>
+<li>重复实现 <code>lessons_context</code> ⇒ 遮蔽原实现，24 红。</li>
+<li>测试写掉生产 <code>rules.json</code>（<code>test_module_level_load</code> pin 回生产路径再删）。</li>
+<li><code>agent_quality.VAR</code> 写死 <code>&lt;repo&gt;/var</code> ⇒ 全量从 6.5min 涨到 40min+，
+   且测试 <code>touch</code> 污染生产 <code>use_count</code>；<code>_sources_off</code> 开关也算错目录。</li>
+</ol>
+<h3>诚实边界</h3>
+<ul>
+<li><code>#15/#18</code> 的"落地"= <strong>拒绝证据</strong>（构造即抛 + 测试），不是"它们能进化"。</li>
+<li><code>#7</code> 的"落地"= 审批队列；架构改动本身仍由人做。</li>
+<li><code>#8</code> 的 A/B 每周只跑一次（1-4h），首个候选要等下个周日。</li>
+<li><code>#14</code> 目前只调 <code>auto_apply_max_per_round</code>（唯一有压力信号的旋钮）。</li>
+</ul></main></div></body></html>

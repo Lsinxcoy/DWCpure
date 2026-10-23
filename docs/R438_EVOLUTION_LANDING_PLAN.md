@@ -113,36 +113,42 @@
 
 ---
 
-## 五、进度
+## 五、进度（19/19 已落地）
 
-### 已落地（有产物 + 有消费者 + 有测试 + 可回滚）
-
-| 组件 | 对象 # | 产物 | 消费者 | 测试 |
+| 组件 | 对象 # | 产物 | 消费者 | 状态 |
 |---|---|---|---|---|
-| `control_flow` | 2,16,19 | `config/anchors/rules.json`（**已真有 1 条**） | `Mutator.propose` 查表 | `test_r438_landing`（6） |
-| `memory` | 4,5 | `var/dwc_lessons.jsonl`（tier 晋升） | `sources_context → lessons_context` | `test_r438_memory`（5） |
-| `skill` | 3 | `skills/<name>/SKILL.md` | `task_exec` 注入 system | `test_r438_skill`（7） |
-| `context_mgmt` | 11 | `config/context_policy.json` | `task_exec.read_default_lines()` | `test_r438_targets`（12） |
-| `output_plumbing` | 12 | `config/output_policy.json` | `task_exec._cap_answer()` | 同上 |
-| `client_tool` | 9 | `config/tools_extra.json` | `TASK_TOOLS` 合并 | 同上 |
-| `config` | 1,13,17 | `config/tunables.json` | `dwc_agent.py` 缺省值 | 同上（读侧） |
-| `subagent` | 10 | `config/subagent_policy.json` | `cap_limit("delegate",…)` | 同上 |
+| `control_flow` | 2,16,19 | `config/anchors/rules.json` | `Mutator.propose` | ✅ 真落 1 条（fibonacci） |
+| `memory` | 4,5 | `var/dwc_lessons.jsonl` + tier | `sources_context` | ✅ |
+| `skill` | 3 | `skills/<name>/SKILL.md` | `task_exec` 注入 | ✅ |
+| `context_mgmt` | 11 | `config/context_policy.json` | `read_default_lines()` | ✅ |
+| `output_plumbing` | 12 | `config/output_policy.json` | `_cap_answer()` | ✅ |
+| `client_tool` | 9 | `config/tools_extra.json` | `TASK_TOOLS` 合并 | ✅ |
+| `config` | 1,13,17 | `config/tunables.json` | `dwc_agent.py` | ✅ |
+| `subagent` | 10 | `config/subagent_policy.json` | `cap_limit("delegate")` | ✅ |
+| `prompt` | 8 | `prompts/<name>.vN.md` + manifest | A/B → 晋升 | ✅ 驱动层 + 周排程 |
+| `code` | 6 | `rules.json` 的 `code` 字段 | `propose` 复用实现 | ✅ |
+| `meta_evolution` | 14 | `config/evolution.yaml` | cron 按压力调旋钮 | ✅ 3 天冷却 |
+| `architecture` | 7 | `var/architecture_queue.jsonl` | 人工审批 CLI | ✅ 不许自动落 |
+| `evaluator` | 15 | —（只读） | 构造即拒 | ✅ 代码级拒绝 |
+| `external_source` | 18 | —（只读） | 构造即拒 | ✅ 代码级拒绝 |
 
-### 未落地
+### 测试
 
-| 组件 | 对象 # | 卡在哪 |
-|---|---|---|
-| `prompt` | 8 | 三件套齐（候选/AB/判定），缺**驱动层**（定时跑 + 自动晋升） |
-| `code` | 6 | 沙箱能验，但**没写回源文件**（只落了规则文本） |
-| `architecture` | 7 | 按设计须人工批准；缺审批队列 |
-| `meta_evolution` | 14 | `evolution.yaml` 可改，但没有"改它"的提案器 |
-| `evaluator` | 15 | **只读**（G10 密封）；缺"拒绝编辑"的显式证据 |
-| `external_source` | 18 | **只读**；缺登记与拒绝证据 |
+- 新增 9 个测试文件、**63 条**（landing 7 / memory 4 / skill 8 / targets 13 /
+  prompt 7 / code 2 / readonly 4 / meta 7 / arch 7，含守卫）。
+- 全量：**2702 passed / 7:57**（`var/pytest_r438h.log`），最终复跑见 `pytest_r438_final.log`。
 
-### 一处更正（诚实记账）
+### 途中抓到的 4 个真 bug
 
-R437 审计说「`ensure_loaded` 零调用」——**不准确**：
-`evolver.py:2922` 有模块级 `_MUTATOR_LOADED_AT_IMPORT = Mutator.ensure_loaded()`，
-所以落盘规则在 import 时就已加载。真正的断点只有两个：
-`apply=False` 硬编码 + `rules.json` 从未被创建。
-R438 补的 agent/cron 启动调用是**冗余保险**（幂等，不改行为）。
+1. `ROOT` 少算一层 ⇒ 产物写进 `src/config/`（消费者永远读不到）。
+2. 重复实现 `lessons_context` ⇒ 遮蔽原实现，24 红。
+3. 测试写掉生产 `rules.json`（`test_module_level_load` pin 回生产路径再删）。
+4. `agent_quality.VAR` 写死 `<repo>/var` ⇒ 全量从 6.5min 涨到 40min+，
+   且测试 `touch` 污染生产 `use_count`；`_sources_off` 开关也算错目录。
+
+### 诚实边界
+
+- `#15/#18` 的"落地"= **拒绝证据**（构造即抛 + 测试），不是"它们能进化"。
+- `#7` 的"落地"= 审批队列；架构改动本身仍由人做。
+- `#8` 的 A/B 每周只跑一次（1-4h），首个候选要等下个周日。
+- `#14` 目前只调 `auto_apply_max_per_round`（唯一有压力信号的旋钮）。
