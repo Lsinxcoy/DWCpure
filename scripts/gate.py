@@ -513,7 +513,7 @@ def gate8_contract() -> dict:
             if re.search(r"K_META\s*[:=]\s*", _t):
                 _voc_s = _t
                 break
-    m = re.search(r"K_META\s*:\s*Dict\[str, bool\]\s*=\s*\{(.*?)\n\}",
+    m = re.search(r"K_META\s*:\s*(?:Dict|dict)\[str, bool\]\s*=\s*\{(.*?)\n\}",
                   _voc_s, re.S)
     if not m:
         m = re.search(r"K_META\s*=\s*\{(.*?)\n\}", _voc_s, re.S)
@@ -770,7 +770,9 @@ def gate8_contract() -> dict:
         os.path.join(ROOT, "src", "dwc", "organs", "judge.py"),
         os.path.join(ROOT, "src", "dwc", "foundation", "capability_groups.py"),
         os.path.join(ROOT, "config", "capability_groups.yaml"),
-        os.path.join("E:/", "ARSI", "config", "sealed_tasks.yaml"),
+        # ★ R审计-P1 · sealed_tasks 不再硬编码 E:/ARSI（开发机残留路径必报违规）;
+        #   真源 = capability_groups.SEALED_PATH（env DWC_SEALED_TASKS 优先,
+        #   缺省仓库内 config/sealed_tasks.yaml）—— 下面动态加载即检查它。
     ]
     # sealed tasks path is external; check the configured SEALED_PATH constant
     try:

@@ -40,6 +40,20 @@ PY = sys.executable
 THROTTLE = 3   # ★ 单间节流秒数（端点限流实测）
 
 
+def _quote_py() -> str:
+    """★ R审计-P1 · PY 路径加引号再进 shell 命令。
+
+    Windows 上 shell=True 走 cmd.exe：路径含空格（如 `Z:\\DWC pure\\...`）
+    且不加引号时，命令在空格处被截断（`'Z:\\DWC' 不是内部或外部命令`）
+    ⇒ rerun rc=1 ⇒ rc_and_contains 判据误杀。
+    PowerShell 风格的 & 调用不需要；cmd 风格需要双引号。
+    """
+    p = PY
+    if " " in p:
+        return '"%s"' % p
+    return p
+
+
 # ══════════ 验收器（agent 外独立判）══════════
 
 def _file_of(path_rel: str) -> str:
@@ -383,10 +397,10 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
         cmd = check["cmd"]
         try:
             r = subprocess.run(
-                (cmd.replace("python ", PY + " ", 1)
-                 if cmd.startswith("python ") else cmd),
-                shell=True, capture_output=True, text=True, timeout=300,
-                cwd=_ROOT, encoding="utf-8", errors="replace")
+                            (cmd.replace("python ", _quote_py() + " ", 1)
+                             if cmd.startswith("python ") else cmd),
+                            shell=True, capture_output=True, text=True, timeout=300,
+                            cwd=_ROOT, encoding="utf-8", errors="replace")
         except Exception as exc:                    # noqa: BLE001
             return (False, "verify-rerun failed: %s" % exc)
         ok = r.returncode == 0 and (not check["target"]

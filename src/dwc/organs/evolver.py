@@ -1337,6 +1337,9 @@ class Mutator:
     #: ★ 种子键（**代码里定义的**）—— persist 时排除它们
     SEED_KEYS: frozenset = frozenset()
 
+    #: ★ R审计-P1 · G7 静默门：_carry 坏 key 降级的可观测计数
+    _SILENT_CARRY: int = 0
+
     @classmethod
     def load_learned(cls) -> int:
         """★ 把**落盘学到的**规则合并进 RULES（进程启动时调）。
@@ -1396,7 +1399,8 @@ class Mutator:
             if isinstance(_r, dict):
                 _r["carried"] = int(_r.get("carried", 0) or 0) + 1
         except (TypeError, ValueError):
-            pass
+            # ★ R审计-P1 · G7 静默门：坏 key 计数必须可观测（不许 except: pass）
+            cls._SILENT_CARRY += 1
 
     # ★ C1 · ARCHIVE 中间态（多版本并存；RULES 仍单条目）。
     ARCHIVE: dict[str, list] = {}
