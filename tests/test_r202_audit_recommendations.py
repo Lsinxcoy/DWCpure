@@ -14,7 +14,7 @@ import hashlib
 import os
 import sys
 
-ROOT = r"E:\Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.organs.evolver import COMPONENT_VOCAB, Mutator      # noqa: E402
@@ -166,7 +166,7 @@ def test_drift_watch_health_is_silent():
     import json as _json
     import subprocess
     import time as _t
-    ROOT_DIR = r"E:\Divine Wisdom Core"
+    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     st_path = os.path.join(os.environ["LOCALAPPDATA"], "hermes", "scripts",
                            ".dwc_drift_watch_state.json")
     old = None
@@ -219,7 +219,7 @@ def test_drift_watch_no_heartbeat_on_second_tick_of_day():
             _json.dump({"heartbeat": _t.strftime("%Y-%m-%d"), "sugg": None},
                        fh, ensure_ascii=False)
         r = subprocess.run(
-            [sys.executable, r"E:\Divine Wisdom Core\scripts\dwc_anchor_drift_watch.py"],
+            [sys.executable, os.path.join(ROOT_DIR, "scripts", "dwc_anchor_drift_watch.py")],
             capture_output=True, text=True)
         assert r.returncode == 0
         assert r.stdout == "", "同日二次 tick 不得输出"

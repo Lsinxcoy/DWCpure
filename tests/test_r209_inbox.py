@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-ROOT = r"E:\Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 PY = r"C:\Users\41228\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"

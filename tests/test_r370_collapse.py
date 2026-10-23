@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """★ Phase 1.3 · collapse 判定回归测试。"""
 import os, sys
-ROOT = "E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import dwc_agent as A
 

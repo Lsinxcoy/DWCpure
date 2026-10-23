@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-ROOT = r"E:\Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from dwc.organs.predictor import OutcomePredictor              # noqa: E402

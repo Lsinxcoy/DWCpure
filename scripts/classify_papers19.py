@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """19 篇论文的进化相关性分类 —— 判据先行, 逐篇给证据。"""
 import io, os, re
-d = r"E:/Divine Wisdom Core/papers_txt"
+d = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "papers_txt")
 
 # 判据 (可机械查):
 #  A. 标题含 进化/自我改进 词根
@@ -49,6 +49,6 @@ n_only_alt = [r for r in rows if r["alt"] and not (r["title_evo"] or r["abs_evo"
 print("★ 仅命中'世界模型/认知'替代判据: %d 篇" % len(n_only_alt))
 for r in n_only_alt: print("    %s  %s" % (r["file"], r["title"]))
 
-io.open(r"E:/Divine Wisdom Core/.cache/papers19_classify.json", "w", encoding="utf-8").write(
+io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "papers19_classify.json"), "w", encoding="utf-8").write(
     __import__("json").dumps(rows, ensure_ascii=False, indent=1))
 print("\n已存 .cache/papers19_classify.json")

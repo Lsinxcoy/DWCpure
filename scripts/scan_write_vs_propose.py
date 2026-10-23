@@ -2,7 +2,7 @@
 """判决性: 每个仓库的落地是否"真写" —— 找 setattr / 真赋值 / 版本切换, 而非只生成提案。"""
 import io, os, re, json
 
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
+ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 
 def read(p):
     try: return io.open(p, encoding="utf-8", errors="replace").read()
@@ -52,5 +52,5 @@ for r in rows:
       " ".join("%s:%d" % (k.split()[0], v) for k, v in rw.items() if v),
       " ".join("%s:%d" % (k.split()[0], v) for k, v in po.items() if v)))
 
-json.dump(rows, io.open(r"E:/Divine Wisdom Core/.cache/write_vs_propose.json","w",encoding="utf-8"), ensure_ascii=False, indent=1)
+json.dump(rows, io.open(ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "write_vs_propose.json"),"w",encoding="utf-8"), ensure_ascii=False, indent=1)
 print("\n已存 .cache/write_vs_propose.json")

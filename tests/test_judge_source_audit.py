@@ -23,7 +23,7 @@ import os
 import re
 import sys
 
-ROOT = os.path.join("E:", os.sep, "Divine Wisdom Core")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "dwc")
 if os.path.join(ROOT, "src") not in sys.path:
     # ★ 照 test_llm_candidates 的既有模式: 插 `src`（不是 src/dwc）

@@ -1,0 +1,105 @@
+# DWC sealed_tasks 判据文件（R审计-P0 重建）
+# ---------------------------------------------------------------------------
+# ★★ 来源声明（诚实边界，G2 判据纪律）:
+#   本文件由 2026-10-23 审计修复时**从仓库内真源重建**——
+#   原始数据在 ARSI 项目的 E:/ARSI/config/sealed_tasks.yaml（该外部项目
+#   未随本仓库发布，本机不可达）。重建依据:
+#     · config/capability_groups.yaml 的 sealed_task_ids / n_assertions_per_task
+#       / verifier_rung / category 映射（该文件 2026-10-04 建时"15 条逐条已核"）
+#     · test_capability_groups.py 的断言数契约（3 组 / 15 任务）
+#   ★ 每条任务的 id / category / verifier_rung / 断言数逐条对上 config；
+#     expected_* 的具体内容是占位（行为描述格式正确，供 _count_assertions
+#     计数），ARI 原始判据若回归应在 ARSI 侧合并真值，本文件是 DWC 侧的
+#     可复现基线。
+# ---------------------------------------------------------------------------
+
+version: 1
+
+tasks:
+  # ── code_repair（6 条 · scoring=assertion · rung 1 · 断言 [2,2,2,3,2,2]）──
+  - id: code_fix_001
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 无副作用"
+  - id: code_fix_002
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 边界输入不炸"
+  - id: code_fix_003
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 时间复杂度不退化"
+  - id: code_fix_004
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 处理空输入 and 保持纯函数"
+  - id: code_fix_005
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 异常路径可复现"
+  - id: code_fix_006
+    category: code_repair
+    verifier_rung: 1
+    scoring: assertion
+    expected_behavior: "修复函数返回正确结果 and 与其他函数不互相干扰"
+
+  # ── knowledge_reasoning（6 条 · scoring=keyword · rung 1 · 断言 [3,3,4,4,4,3]）──
+  - id: reasoning_001
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 推理链完整, 分步论证]
+  - id: reasoning_002
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 依据充分, 无自相矛盾]
+  - id: reasoning_003
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 推理链完整, 分步论证, 覆盖面完整]
+  - id: reasoning_004
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 依据充分, 无自相矛盾, 可复现]
+  - id: reasoning_005
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 推理链完整, 分步论证, 有反例检查]
+  - id: reasoning_006
+    category: knowledge_reasoning
+    verifier_rung: 1
+    scoring: keyword
+    expected_keywords: [结论明确, 依据充分, 边界情形说明]
+
+  # ── paper_reproduction（3 条 · scoring=value · rung 3 · 断言 [3,2,2]）──
+  - id: reproduce_001
+    category: paper_reproduction
+    verifier_rung: 3
+    scoring: value
+    expected_values:
+      metric: [accuracy, coverage]
+      baseline_metric: 0.94
+      improvement_over_baseline: 0.02
+  - id: reproduce_002
+    category: paper_reproduction
+    verifier_rung: 3
+    scoring: value
+    expected_values:
+      metric: [delta_score]
+      ablation_disabled: 0.0
+  - id: reproduce_003
+    category: paper_reproduction
+    verifier_rung: 3
+    scoring: value
+    expected_values:
+      metric: [n_rounds]
+      convergence_check: true

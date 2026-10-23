@@ -29,7 +29,7 @@
 """
 import io, json, os, sys
 
-R = r"E:/Divine Wisdom Core"
+R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEV = R + "/config/anchors/dev.json"
 OUT = R + "/config/anchors/test_sealed.json"
 

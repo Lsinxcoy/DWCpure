@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
@@ -35,7 +35,8 @@ def test_r297_stale_lock_taken_over(tmp_path):
 
 def _race_live_worker(pid_path, q):
     import sys as _s
-    _s.path.insert(0, r"E:/Divine Wisdom Core/scripts")
+    _s.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
     from dwc_agent import acquire_singleton
     q.put(acquire_singleton(pid_path))
 
@@ -79,7 +80,8 @@ def test_r297_raises_quota_acquire_never_none(tmp_path):
 
 def _race_worker(pid_path, q):
     import sys as _s
-    _s.path.insert(0, r"E:/Divine Wisdom Core/scripts")
+    _s.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
     from dwc_agent import acquire_singleton
     q.put(acquire_singleton(pid_path))
 

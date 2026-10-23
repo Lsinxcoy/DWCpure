@@ -8,8 +8,8 @@
 """
 import io, os, re, json
 
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
-OUT  = r"E:/Divine Wisdom Core/.cache/evolution_order.json"
+ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+OUT  = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_order.json")
 
 def read(p):
     try: return io.open(p, encoding="utf-8", errors="replace").read()

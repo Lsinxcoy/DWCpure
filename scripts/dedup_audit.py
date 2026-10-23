@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """严格去重审计: 提取 6 套体系的逐字对象清单 + 交叉比对。"""
 import io, os, re, json
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
-OUT  = r"E:/Divine Wisdom Core/docs/DEDUP_AUDIT_6SYSTEMS.md"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+OUT  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "DEDUP_AUDIT_6SYSTEMS.md")
 
 def rd(p):
     try: return io.open(p,encoding="utf-8",errors="replace").read()
@@ -76,6 +76,6 @@ print("   计数: %d" % len(set(mut_names)))
 json.dump({"layers12":layers12,"dims9":dims9,"layers4":layers4,
            "tracks_a":tracks_a,"tracks_b":tracks_b.group(0) if tracks_b else "",
            "dirs3":dirs3,"dirs3b":sorted(set(dirs3b)),"mut15":sorted(set(mut_names))},
-          io.open(r"E:/Divine Wisdom Core/.cache/dedup_raw.json","w",encoding="utf-8"),
+          io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "dedup_raw.json"),"w",encoding="utf-8"),
           ensure_ascii=False, indent=1)
 print("\n已存 .cache/dedup_raw.json")

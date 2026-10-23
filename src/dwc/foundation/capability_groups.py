@@ -50,7 +50,12 @@ ROOT = (_ROOT_ENV if _ROOT_ENV and os.path.isdir(_ROOT_ENV) else
         os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))))))
 CFG_PATH = os.path.join(ROOT, "config", "capability_groups.yaml")
-SEALED_PATH = r"E:/ARSI/config/sealed_tasks.yaml"
+#: ★ R审计-P0 · sealed_tasks 判据文件路径可配置化（不再写死 E:/ARSI 开发机路径）:
+#:   env DWC_SEALED_TASKS 优先 → 缺省仓库内 config/sealed_tasks.yaml →
+#:   两处都没有时保持 ConfigError（「无法判定不是通过」语义不变）。
+_SEALED_ENV = os.environ.get("DWC_SEALED_TASKS", "").strip()
+SEALED_PATH = (_SEALED_ENV if _SEALED_ENV else
+               os.path.join(ROOT, "config", "sealed_tasks.yaml"))
 
 
 # ══════════════════════════════════════════════════════════

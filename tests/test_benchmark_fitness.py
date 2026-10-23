@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """★ Phase 3.1 · benchmark_fitness 回归测试。"""
 import os, sys
-ROOT = "E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.organs.benchmark_fitness import external_score, calibration, fitness_signal
 

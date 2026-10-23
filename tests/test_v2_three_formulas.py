@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import sys
 
-ROOT = os.path.join("E:", os.sep, "Divine Wisdom Core")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if os.path.join(ROOT, "src") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT, "src"))
 

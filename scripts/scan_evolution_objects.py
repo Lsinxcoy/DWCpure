@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """每个仓库的进化对象清单 (能改什么) —— 从类名/常量/枚举机械抽取。"""
 import io, os, re, json
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
+ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 
 def read(p):
     try: return io.open(p, encoding="utf-8", errors="replace").read()
@@ -43,5 +43,5 @@ for r in rows:
     print("="*80)
     print("### %s   (%d 个对象标记)" % (r["repo"], len(r["objects"])))
     for o in r["objects"][:22]: print("    %s" % o)
-json.dump(rows, io.open(r"E:/Divine Wisdom Core/.cache/evolution_objects.json","w",encoding="utf-8"), ensure_ascii=False, indent=1)
+json.dump(rows, io.open(ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_objects.json"),"w",encoding="utf-8"), ensure_ascii=False, indent=1)
 print("\n已存 .cache/evolution_objects.json")

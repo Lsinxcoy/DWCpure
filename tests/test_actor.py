@@ -20,7 +20,7 @@ import sys
 
 import pytest
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import dwc.organs.judge as J  # noqa: E402
 from dwc.organs.actor import (  # noqa: E402

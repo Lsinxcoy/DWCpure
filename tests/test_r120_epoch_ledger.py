@@ -15,7 +15,7 @@ import sys
 
 import pytest
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from dep_scan import read_last_regime  # noqa: E402

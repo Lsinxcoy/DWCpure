@@ -123,9 +123,16 @@ def load_world_tree(path: str = WORLD_TREE_PATH) -> Dict[str, Any]:
 
 
 def _sealed_task_count() -> int:
-    p = r"E:/ARSI/config/sealed_tasks.yaml"
+    #: ★ R审计-P0 · 与 capability_groups.SEALED_PATH 同源（env 优先，缺省仓库内
+    #:   config/sealed_tasks.yaml）——不再写死 E:/ARSI 开发机路径。
+    try:
+        from dwc.foundation.capability_groups import SEALED_PATH
+        p = SEALED_PATH
+    except Exception:                                   # noqa: BLE001
+        p = r"E:/ARSI/config/sealed_tasks.yaml"  # 兜底（capability_groups 不可用时）
     if not os.path.exists(p):
-        raise DialError("sealed_tasks 不存在 ⇒ Z2 无法判定（不是『通过』）")
+        raise DialError("sealed_tasks 不存在（查 %s）⇒ Z2 无法判定（不是『通过』）"
+                        % p)
     obj = yaml.safe_load(io.open(p, encoding="utf-8").read())
     tasks = obj.get("tasks") if isinstance(obj, dict) else obj
     if not tasks:

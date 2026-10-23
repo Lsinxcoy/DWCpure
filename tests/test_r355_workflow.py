@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """★ R355 · Workflow-as-graph primitive (MASS)."""
 import importlib.util, os, sys
-ROOT="E:/Divine Wisdom Core"; sys.path.insert(0, os.path.join(ROOT,"src"))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "src"))
 def _load():
     spec=importlib.util.spec_from_file_location("ev_r355", os.path.join(ROOT,"src","dwc","organs","evolver.py"))
     m=importlib.util.module_from_spec(spec); sys.modules[spec.name]=m; spec.loader.exec_module(m); return m

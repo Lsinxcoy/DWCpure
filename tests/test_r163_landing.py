@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.harness.landing import (  # noqa: E402

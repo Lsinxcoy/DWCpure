@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """严格去重审计: 6 套体系的逐字清单 + 两两交叉比对矩阵。"""
 import io, os, re, json
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 def rd(p):
     try: return io.open(p,encoding="utf-8",errors="replace").read()
     except Exception: return ""
@@ -79,6 +79,6 @@ for x in allobj: print("   %s" % x)
 json.dump({"layers12":layers12,"dims9":dims9,"layers4":layers4,"tracksA":tracksA,"tracksB":tracksB,
            "dirs3":dirs3,"mut15":mut15,"union":allobj,
            "cover":{"12层":c12,"9维":c9,"4层":c4,"4轨A":cA,"4轨B":cB,"3方向":c3,"15变异":c15}},
-          io.open(r"E:/Divine Wisdom Core/.cache/dedup_result.json","w",encoding="utf-8"),
+          io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "dedup_result.json"),"w",encoding="utf-8"),
           ensure_ascii=False, indent=1)
 print("\n已存 .cache/dedup_result.json")

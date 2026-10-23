@@ -24,7 +24,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "dwc", "foundation", "capability_groups.py")
 
 sys.path.insert(0, os.path.join(ROOT, "src"))

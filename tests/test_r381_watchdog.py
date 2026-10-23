@@ -53,7 +53,7 @@ def test_find_agents_uses_contains_not_endswith(W, monkeypatch):
     class _P:
         pid = 999999
         info = {"cmdline": ["C:/py/python.exe",
-                            "E:/Divine Wisdom Core/scripts/dwc_agent.py",
+                            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "dwc_agent.py"),
                             "--llm", "--interval", "30"]}
 
     class _PS:

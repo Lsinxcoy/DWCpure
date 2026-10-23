@@ -15,7 +15,7 @@ import json
 import os
 import sys
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
@@ -69,7 +69,7 @@ def test_expansion_does_not_separate_strategies():
     """★ Q3: 各档 v_distinct 恒 1 ⇒ 单纯扩池不解锁策略区分。"""
     from probe_tree_expansion import main  # noqa: E402
     import subprocess
-    ROOT = r"E:/Divine Wisdom Core"
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     subprocess.run([sys.executable,
                     os.path.join(ROOT, "scripts",
                                  "probe_tree_expansion.py")],
@@ -86,7 +86,7 @@ def test_dream_exhausts_every_tier():
     """★ R287-E 修订: dev 16 任务（树可揭示 19→27）后, k2_max=4 固定预算
     仍不穷举全树（max=23 < 27）⇒ 穷举性是**规模相关**的（R199 同款，
     数字跟走）。若将来提 k2 预算后重新穷举 ⇒ 本断言翻 True 时更新。"""
-    ROOT = r"E:/Divine Wisdom Core"
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     p = os.path.join(ROOT, "docs", "tree_expansion_probe.json")
     d = json.load(open(p, encoding="utf-8"))
     # ★★★ R287-E 实测**延续** R199 新态（max=23 < 27 仍未穷举）。

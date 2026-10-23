@@ -80,7 +80,7 @@ _R292_SNAPSHOT_FILES = [
     "archive/epoch_ledger.jsonl",
     "archive/gate_trace.jsonl",
 ]
-_R292_ROOT = r"E:/Divine Wisdom Core"
+_R292_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _r292_read_bytes(p):

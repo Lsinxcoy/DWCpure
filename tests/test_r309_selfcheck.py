@@ -6,7 +6,7 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 

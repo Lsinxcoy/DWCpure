@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """提取 19 篇论文的 Abstract, 为进化相关性分类做准备。"""
 import io, os, re
-d = r"E:/Divine Wisdom Core/papers_txt"
+d = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "papers_txt")
 out = []
 for f in sorted(os.listdir(d)):
     p = os.path.join(d, f)
@@ -21,5 +21,5 @@ for f in sorted(os.listdir(d)):
     out.append((f, ab[:1400]))
 print("\n\n" + "#" * 84)
 print("=== 全部摘要已提取 %d 篇 ===" % len(out))
-io.open(r"E:/Divine Wisdom Core/.cache/papers19_abstracts.txt", "w", encoding="utf-8").write(
+io.open(ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "papers19_abstracts.txt"), "w", encoding="utf-8").write(
     "\n\n".join("### %s\n%s" % (a, b) for a, b in out))

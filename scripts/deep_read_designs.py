@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """深读设计最丰富的仓库: 实际代码片段 (门/顺序/落地)。"""
 import io, os, re
-ROOT = r"E:/Divine Wisdom Core/.cache/gh_clones"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 
 def show(repo, rel, pats, ctx=340, limit=3):
     p = os.path.join(ROOT, repo, rel)

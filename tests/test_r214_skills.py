@@ -6,7 +6,7 @@ import os
 import shutil
 import sys
 
-ROOT = r"E:\Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc import agent_quality as Q                             # noqa: E402
 

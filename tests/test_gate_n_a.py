@@ -40,7 +40,7 @@ import shutil
 import subprocess
 import sys
 
-ROOT = r"E:/Divine Wisdom Core"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GATE = os.path.join(ROOT, "scripts", "gate.py")
 SRC = os.path.join(ROOT, "src", "dwc")
 
