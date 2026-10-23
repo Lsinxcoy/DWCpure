@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """★★★ R279 · 进化收尾 cron 包装（no_agent 脚本作业用）。
 
-★ 只报告、不落地（--apply 永不自动开 —— 落盘须人工拍板）。
-★ 路径：代码经 .dwc_repo 指针找仓库；数据固定 ~/.dwc 生产库。
+★ 落地策略（R438 改）：由 `config/evolution.yaml` 的 `auto_apply` 决定。
+  关 ⇒ 只报告；开 ⇒ 试跑通过 + 门判 adopted 才写 rules.json（带备份）。
+  单轮落地条数由 `auto_apply_max_per_round` 限（默认 1）。
+★ 回滚：`--rollback <key>` 删单键；`--restore <backup.json>` 整文件还原。
+★ 路径：代码经 .dwc_repo 指针找仓库；数据根与 agent 同源（仓库 var/）。
 ★ CRON RUNS THE COPY: 同步 %LOCALAPPDATA%/hermes/scripts/ 后生效。
 
 cron: 每日 04:00（nightbench 02:30 跑完后顺手收尾，错开 03:00 备份）。
@@ -52,6 +55,41 @@ def _code_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _rollback_key(key: str, rules_path: str, backup_dir: str) -> dict:
+    """★ R438 · 删掉一条已落地规则（单键回滚，不动其它键）。
+
+    ★ 为什么不复用 `evolver.rollback_rule`：那个函数的备份布局是
+      `backup_root/latest → <stamp>/anchors/rules.json`（演练脚本用），
+      与本轮 `var/backups/rules_<ts>.json` 不同源。两套布局混用会
+      在回滚时读到旧快照 ⇒ 把别人刚落的一起冲掉。
+    ★ 原子写：tmp + os.replace，避免半截 JSON。
+    """
+    import json as _j
+    import os as _os
+    import shutil as _sh
+    import time as _t
+    if not _os.path.isfile(rules_path):
+        return {"outcome": "not_found", "why": "rules.json 不存在",
+                "path": rules_path}
+    with open(rules_path, encoding="utf-8") as _f:
+        data = _j.load(_f)
+    learned = data.get("learned") or {}
+    if key not in learned:
+        return {"outcome": "not_found", "key": key, "n_learned": len(learned)}
+    _os.makedirs(backup_dir, exist_ok=True)
+    bak = _os.path.join(backup_dir, "rules_before_rollback_%s.json"
+                        % _t.strftime("%Y%m%d_%H%M%S"))
+    _sh.copy2(rules_path, bak)
+    learned.pop(key)
+    data["learned"] = learned
+    tmp = rules_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as _f:
+        _j.dump(data, _f, ensure_ascii=False, indent=1)
+    _os.replace(tmp, rules_path)
+    return {"outcome": "rolled_back", "key": key,
+            "n_learned": len(learned), "backup": bak}
+
+
 def main() -> int:
     import argparse as _ap
     _p = _ap.ArgumentParser()
@@ -64,15 +102,47 @@ def main() -> int:
     # ★ N7 · 起草预算校准（probe：want_code 路 1000 fail/1500 pass；
     #   无码路 800 pass；真实 prompt 多 ~600 字 reasoning 开销 ⇒ 2000 余量）。
     _p.add_argument("--draft-tokens", type=int, default=2000)
+    # ★ R438 · 回滚与还原（落地后的后悔药）
+    _p.add_argument("--rollback", default=None,
+                    help="删掉一条已落地规则（key 形如 c:q:fn）")
+    _p.add_argument("--restore", default=None,
+                    help="用备份文件整份还原 rules.json")
+    _p.add_argument("--report-only", action="store_true",
+                    help="强制只报告（覆盖 evolution.yaml 的 auto_apply）")
     _a = _p.parse_args()
     sys.path.insert(0, os.path.join(_code_root(), "scripts"))
     sys.path.insert(0, os.path.join(_code_root(), "src"))
     import dwc_evo_round as EVO
     from dwc.llm.client import LLMClient
-    from dwc.organs.evolver import Evolver, LLMMutator
+    from dwc.organs.evolver import Evolver, LLMMutator, Mutator
     from dwc.organs.judge import Judge
     from dwc.organs.predictor import OutcomePredictor
+    from dwc.foundation.dial_config import load_evolution
     prod = _prod_root()
+    rules_path = os.path.join(prod, "config", "anchors", "rules.json")
+
+    # ★ R438 · 回滚 / 还原：先处理，不必跑轮
+    if _a.rollback or _a.restore:
+        if _a.restore:
+            import shutil as _sh
+            if not os.path.isfile(_a.restore):
+                print(json.dumps({"error": "备份不存在: %s" % _a.restore},
+                                 ensure_ascii=False))
+                return 2
+            _sh.copy2(_a.restore, rules_path)
+            print(json.dumps({"restored": _a.restore, "to": rules_path},
+                             ensure_ascii=False))
+            return 0
+        _rb = _rollback_key(_a.rollback, rules_path,
+                            os.path.join(prod, "var", "backups"))
+        print(json.dumps(_rb, ensure_ascii=False))
+        return 0 if _rb.get("outcome") == "rolled_back" else 2
+
+    # ★ R438 · 启动即加载已学规则（改前 `ensure_loaded` 全仓库零调用
+    #   ⇒ 即使 rules.json 有内容，新进程也读不到 = 学了等于没学）
+    _n_loaded = Mutator.ensure_loaded()
+    _cfg = load_evolution()
+    _apply = bool(_cfg["auto_apply"]) and not _a.report_only
     db = os.path.join(prod, "var", "dwc_prod.sqlite")
     # ★ R299-b2 · 基线跨轮落盘：Judge 带 path（points 落 var/dwc_task_scores
     #   .jsonl＋evidence，trial 基线/peer 基线下轮可读；内存轮抛则基线恒空
@@ -90,8 +160,9 @@ def main() -> int:
         db, Evolver(), mu, "anchors: %s" % (sorted(judge.anchors)[:12],),
         trial_fn=lambda t, pa, code=None: EVO._real_trial(
             judge, llm, t, pa, code=code),
-        apply=False,
-        rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
+        apply=_apply,
+        max_land=_cfg["auto_apply_max_per_round"],
+        rules_path=rules_path,
         # ★★★ R437 · 任务名/函数名不再由这里硬编码 —— `collect_unmapped`
         #   从 memory_node.payload 读真实 task（表本身没有 task 列），
         #   fn 从锚点 checks 反查。这里只保留兜底（读不到时为空）。
@@ -197,6 +268,36 @@ def main() -> int:
         rep["predictor"] = _op.calibrate()
     except Exception as exc:  # noqa: BLE001
         rep["predictor"] = {"n": -1, "brier": None, "note": "校准跳过: %s" % exc}
+    # ★ R438 · 记忆维度：教训晋升（改前 promote_lessons 生产零调用
+    #   ⇒ 1205 条教训永远停在 short 层，且没有注入点）
+    try:
+        from dwc.agent_quality import promote_lessons
+        rep["lessons_promoted"] = promote_lessons()
+    except Exception as _e:  # noqa: BLE001 — 晋升坏不掀轮（留痕）
+        rep["lessons_promoted"] = {"error": repr(_e)}
+    # ★ R438 · 统一进化台账（每条候选一行：落没落、为什么、备份在哪）
+    rep["auto_apply"] = _apply
+    rep["rules_loaded"] = _n_loaded
+    try:
+        import time as _tm2
+        _led = os.path.join(prod, "var", "evolution_ledger.jsonl")
+        _n_led = 0
+        with open(_led, "a", encoding="utf-8") as _f:
+            for _it in rep.get("results", []):
+                _f.write(json.dumps({
+                    "ts": _tm2.time(),
+                    "component": "control_flow",
+                    "key": _it.get("key"),
+                    "decision": _it.get("adopt"),
+                    "landed": bool(_it.get("landed")),
+                    "reason": _it.get("reason") or "",
+                    "backup": _it.get("backup"),
+                    "trial": _it.get("trial"),
+                }, ensure_ascii=False, default=str) + "\n")
+                _n_led += 1
+        rep["ledger"] = {"path": _led, "n": _n_led}
+    except Exception as _e:  # noqa: BLE001 — 台账坏不掀轮（留痕）
+        rep["ledger_error"] = repr(_e)
     print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000], flush=True)
     return 0
 

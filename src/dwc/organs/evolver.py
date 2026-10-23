@@ -1453,8 +1453,24 @@ class Mutator:
                 "trigger": trigger or name.split("_")[0],
                 "version": _ver,
             }
-            return {"registered": True, "name": name, "version": _ver}
-        except Exception:  # noqa: BLE001 — 坏不断主路
+            # ★ R438 · 落盘（改前只在进程内 dict ⇒ 重启即失，且无消费者）
+            _path = ""
+            try:
+                from dwc.organs import skill_store as _SS
+                _saved = _SS.save(name, description=description,
+                                  content=content,
+                                  trigger=(trigger or name.split("_")[0]),
+                                  version=_ver)
+                _path = _saved["path"]
+                Mutator.SKILLS[name]["path"] = _path
+            except Exception as _se:  # noqa: BLE001 — 落盘坏不掀主路，但留痕
+                import sys as _s
+                _s.stderr.write("skill 落盘失败 %s: %r\n" % (name, _se))
+            return {"registered": True, "name": name, "version": _ver,
+                    "path": _path}
+        except Exception as _e:  # noqa: BLE001 — 坏不断主路（留痕）
+            import sys as _s
+            _s.stderr.write("skill_register 失败 %s: %r\n" % (name, _e))
             return {"registered": False, "name": name}
 
     @staticmethod
@@ -1899,6 +1915,12 @@ class Mutator:
     #   ⇒⇒ 若不捕获 SEED_KEYS ⇒ persist 会把种子也写进 json ⇒ 双源
     SEED_KEYS = frozenset(RULES)
 
+    # ★ R438 · 种子快照（测试隔离用）：生产 rules.json 现在会真的有内容，
+    #   而 RULES 是类级全局 ⇒ 一个落盘规则会渗进所有测试的计数断言。
+    #   conftest 在每个测试前用它复位，测试只看到**代码里的种子**。
+    import copy as _copy
+    SEED_SNAPSHOT = _copy.deepcopy(RULES)
+
     #: ★★ 加载的**触发点** = 模块级（import 即生效）
     #   ★★★ 两次踩同一个坑，都记下:
     #   ① 第一版: 类体里 `try: load_learned() except: pass`
@@ -2224,6 +2246,7 @@ class LLMMutator:
                                  want_code: bool = False,
                                  learned_hint: str = "",
                                  operator: str = "improve",
+                                 component: str = "",
                                  ) -> Optional["Proposal"]:
         if not sigs:
             self.last_reason = "空簇：无签名可起草"
@@ -2281,18 +2304,28 @@ class LLMMutator:
         self._direction_history.append(DirectionAttempt(
             direction=_dec.direction, n_candidates=1,
             note="起草成功（方向 %s 出 1 候选）" % (_dec.direction.value,)))
+        # ★ R438 · 车道即落地面：调用方给了 component（如 control_flow 车道），
+        #   就以车道为准 —— 否则 LLM 把一条"控制流规则"标成 skill，
+        #   会落进 rules.json 却挂着 skill 的名字（名字与实现不对齐）。
+        #   LLM 的原始标签保留在 rationale 里，可追溯。
+        _llm_comp = str(entry.get("component") or "")
+        _comp = str(component or _llm_comp)
+        if _comp != _llm_comp:
+            entry["rationale"] = ("%s（LLM 原标 %s，按车道归 %s）"
+                                  % (entry.get("rationale", ""), _llm_comp,
+                                     _comp))
         return Proposal(
             proposal_id="P_" + hashlib.sha256(
                 ("LLM:" + key).encode()).hexdigest()[:8],
             failure_signature=full,
-            component=entry["component"], target=entry["target"],
+            component=_comp, target=entry["target"],
             patch=entry["patch"],
             code=entry.get("code"),  # ★ R295-Task2 · 无码⇒None（trial 老路）
             rationale=("LLM 起草（n=%d 同簇失败）: %s"
                        % (len(sigs), entry["rationale"])),
             dimension=entry.get("dimension"),
-            target_layer=(entry.get("target_layer")
-                          or layer_of(entry["component"])),
+            target_layer=(layer_of(_comp) if component
+                          else (entry.get("target_layer") or layer_of(_comp))),
             operator=operator)
 
 
@@ -2598,8 +2631,35 @@ class Evolver:
                                "rollback_trigger": "held-out regression",
                                "expires": None}}}
         _persist = Mutator.persist_learned()
+        _bak = self._backup_rules()
         return {"outcome": "landed", "key": _key,
-                "persist": _persist}
+                "persist": _persist, "backup": _bak}
+
+    @staticmethod
+    def _backup_rules() -> Optional[str]:
+        """★ R438 · 落地后备份 rules.json（回滚与审计的物证）。
+
+        ★ 为什么"落地后"才备份：备份要包含刚落的那一条，否则回滚到
+          "落地前"会连上一条一起丢。回滚用 `--rollback <key>` 删单键，
+          整文件还原用 `--restore <backup>`。
+        """
+        src = Mutator.LEARNED_PATH
+        if not os.path.exists(src):
+            return None
+        import shutil
+        import time as _t
+        bak_dir = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(src))), "var", "backups")
+        try:
+            os.makedirs(bak_dir, exist_ok=True)
+            dst = os.path.join(bak_dir, "rules_%s.json"
+                               % _t.strftime("%Y%m%d_%H%M%S"))
+            shutil.copy2(src, dst)
+            return dst
+        except OSError as exc:      # ★ G7 · 备份失败必须留痕，不许静默
+            import sys as _sys
+            _sys.stderr.write("rules 备份失败: %r\n" % (exc,))
+            return None
 
     # ══════════════════════════════════════════════
     # ★★★ 关键: 采纳必须同时过**两组 split**（约束 3）
@@ -2866,6 +2926,16 @@ class Evolver:
 #   理由见 Mutator.ensure_loaded 的注释（两次踩坑的记录）
 #   ★ 不抛异常: 没学到过（文件不存在）是**常态**，不是错误
 _MUTATOR_LOADED_AT_IMPORT = Mutator.ensure_loaded()
+
+# ★ R438 · 技能跨进程加载（改前 SKILLS 只有进程内 dict，重启即空）
+try:
+    from dwc.organs import skill_store as _SKILL_STORE
+    _SKILLS_AT_IMPORT = len(_SKILL_STORE.load_all())
+    Mutator.SKILLS.update(_SKILL_STORE.load_all())
+except Exception as _e:  # noqa: BLE001 — 技能读不了不拦主路，但留痕
+    import sys as _sys
+    _SKILLS_AT_IMPORT = 0
+    _sys.stderr.write("skills 加载失败: %r\n" % (_e,))
 
 if __name__ == "__main__":
     ev = Evolver()

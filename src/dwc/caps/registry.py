@@ -91,7 +91,23 @@ def disabled_list(path: str = "") -> list:
 
 
 def cap_limit(name: str, key: str, default, path: str = ""):
-    """★ R309-① · 数值项（超时/TTL）：yaml 缺省回 default。永不抛错。"""
+    """★ R309-① · 数值项（超时/TTL）：yaml 缺省回 default。永不抛错。
+
+    ★ R438 · 先看进化产物 `config/subagent_policy.json`（subagent 维度）：
+      delegate 的超时可以被进化改写，且**不必重启**（每次读文件 + mtime 缓存
+      在 evo_targets 里）。产物坏 ⇒ 回落到 yaml/default，并留痕。
+    """
+    if name == "delegate":
+        try:
+            import os as _os
+            from dwc.organs import evo_targets as _ET
+            if _os.path.isfile(_ET.path_of("subagent")):
+                _ov = _ET.read("subagent")
+                if key in _ov:
+                    return _ov[key]
+        except Exception as _e:  # noqa: BLE001 — 产物坏不拦调用，但留痕
+            import sys as _s
+            _s.stderr.write("subagent 策略覆盖读取失败: %r\n" % (_e,))
     try:
         t = load_table(path) if path else (
             _TABLE if _LOADED[0] == "y" else load_table())

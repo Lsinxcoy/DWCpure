@@ -24,3 +24,15 @@ evolution:
   # ★ 上限的理由: 一次 term 可能产出上百条签名（每个失败观测一条），
   #   全喂会拖慢常驻主循环；超出的部分丢弃并在 evo_feed 里如实记 n_dropped。
   max_sigs_per_term: 50
+
+  # ★ R438 · 每日进化轮是否**自动落地**（必填 · 无默认）
+  #   改前: dwc_evo_round_cron.py 里 `apply=False` 硬编码 ⇒ 试跑再漂亮也不落盘，
+  #         进化系统永远只报告不改变行为。
+  #   改后: 由本键控制。关着 ⇒ 只报告（老路）；开着 ⇒ 试跑通过 + 门判过才落。
+  #   ★ 仍然不是"无条件落"：run_round 里 apply 只在 `_ok is True` 且
+  #     `evolver.accept()` 判 adopted_not_implemented 时才写 rules.json。
+  auto_apply: true
+
+  # ★ R438 · 单轮最多落几条（必填 · 无默认）
+  #   防止一轮里连续落多条规则互相掩盖效果；超出的只报告不落。
+  auto_apply_max_per_round: 1

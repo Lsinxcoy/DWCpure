@@ -304,13 +304,17 @@ def recall_lessons(task: str, k: int = 3) -> List[Dict[str, Any]]:
     qt = set(_tokens(task))
     if not qt:
         return []
+    # ★ R438 · 层级权重：晋升过的教训（medium/long）同 overlap 下优先
+    #   —— 这是 `promote_lessons()` 唯一有意义的消费点（否则晋升=白晋）
+    _w = {"short": 1.0, "medium": 2.0, "long": 3.0}
     scored = []
     for les in load_lessons():
         lt = set(_tokens(les.get("task", ""))) | set(
             _tokens(les.get("fail_mode", "")))
         overlap = len(qt & lt)
         if overlap:
-            scored.append((overlap, les))
+            scored.append((overlap * _w.get(str(les.get("tier", "short")),
+                                            1.0), les))
     def _contrast(tid):
         try:
             return lesson_contrast(tid)
@@ -585,15 +589,21 @@ def sources_context(task: str, k: int = 3) -> str:
     """★ 注入用文本块: 此前任务找到的相关信源+发现（零命中零开销）。"""
     if _sources_off():
         return ""
+    parts = []
     hits = recall_sources(task, k)
-    if not hits:
-        return ""
-    lines = ["历史任务找到的相关材料（可复用, 不必重搜）:"]
-    for r in hits[:k]:
-        for u in (r.get("urls") or [])[:3]:
-            lines.append("- [%s] %s" % (u.get("kind", "doc"), u.get("url", "")))
-        if r.get("queries"):
-            lines.append("  检索词: %s" % " / ".join(r["queries"][:3]))
-        if r.get("findings"):
-            lines.append("  发现: %s" % str(r["findings"])[:260])
-    return "\n".join(lines)[:2500]
+    if hits:
+        lines = ["历史任务找到的相关材料（可复用, 不必重搜）:"]
+        for r in hits[:k]:
+            for u in (r.get("urls") or [])[:3]:
+                lines.append("- [%s] %s" % (u.get("kind", "doc"),
+                                            u.get("url", "")))
+            if r.get("queries"):
+                lines.append("  检索词: %s" % " / ".join(r["queries"][:3]))
+            if r.get("findings"):
+                lines.append("  发现: %s" % str(r["findings"])[:260])
+        parts.append("\n".join(lines))
+    # ★ R438 · 记忆维度：已晋升教训（medium/long）
+    _lc = lessons_context(task, k=k)
+    if _lc:
+        parts.append(_lc)
+    return "\n\n".join(parts)[:2500]

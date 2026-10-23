@@ -1,0 +1,400 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R438 · 19 项进化对象落地总案</title><style>
+:root{--bg:#0d1117;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--bad:#f85149}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:34px 40px 18px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#161b22,#0d1117)}
+h1{margin:0 0 6px;font-size:25px}.sub{color:var(--dim);font-size:13px}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;align-self:flex-start;width:250px;flex:0 0 250px;padding:24px 16px;border-right:1px solid var(--bd);max-height:100vh;overflow:auto}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;border-left:2px solid transparent}
+nav a:hover{color:var(--fg);background:#1c2128;border-left-color:var(--acc)}
+main{flex:1;min-width:0;padding:24px 40px 80px}
+h2{margin:36px 0 12px;font-size:19px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+h3{margin:22px 0 8px;font-size:15px;color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+th,td{border:1px solid var(--bd);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#1c2128}tr:nth-child(even) td{background:#11161d}
+code{background:#1c2128;padding:1px 5px;border-radius:4px;font-size:12px;color:#ffa657;font-family:Consolas,monospace}
+blockquote{border-left:3px solid var(--warn);margin:14px 0;padding:8px 14px;background:#161b22;color:#c9d1d9}
+strong{color:#fff}
+</style></head><body><header><h1>R438 · 19 项进化对象落地总案</h1><div class="sub">产物 + 消费者 + 试验 + 回滚 · 2026-10-23</div></header><div class="wrap"><nav><a href="#s0">零、先说三条硬约束</a><a href="#s1">一、19 项 → 11 个组件 → 11 个产物</a><a href="#s2">二、统一机制（不造 11 套轮子）</a><a href="#s3">三、执行阶段（按风险升序）</a><a href="#s4">四、每阶段的验收（统一四条）</a><a href="#s5">五、进度</a></nav><main><h1>R438 · 19 项进化对象落地总案</h1>
+<blockquote>
+<p>口径：<strong>“落地”= 有产物文件 + 有消费者读它 + 有试验能判好坏 + 能回滚</strong>。
+四项缺一，就不算落地 —— 只是又造了一个没人读的 JSON。</p>
+</blockquote>
+<hr />
+<h2 id="s0">零、先说三条硬约束</h2>
+<ol>
+<li><strong>第 15 项（评估器）与第 18 项（训练桥→external_source）按设计只读</strong>
+   （<code>K_META["evaluator"]=False</code> / <code>K_META["external_source"]=False</code>，G10 密封）。
+   让评估器可进化 = 自己改考卷 ⇒ 整个适应度失去意义。
+   这两项的“落地”= <strong>登记 + 显式拒绝编辑 + 拒绝留痕</strong>，不是让它变异。</li>
+<li><strong>第 7 项（架构）须人工批准</strong>（<code>K_META["architecture"]=True</code> 但 G3 人类主权）。
+   落地 = 提案进审批队列 + 人工批准后才写，<strong>不自动 apply</strong>。</li>
+<li><strong>第 20/21 项（外部机制源）本轮搁置</strong>（用户指示）。</li>
+</ol>
+<hr />
+<h2 id="s1">一、19 项 → 11 个组件 → 11 个产物</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>对象</th>
+<th>组件</th>
+<th>产物（真源）</th>
+<th>消费者（谁读它）</th>
+<th>试验判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>标量参数/超参</td>
+<td><code>config</code></td>
+<td><code>config/tunables.json</code></td>
+<td>启动时注入 env / LLMClient</td>
+<td>池 A 子集跑分</td>
+</tr>
+<tr>
+<td>2</td>
+<td>策略</td>
+<td><code>control_flow</code></td>
+<td><code>config/anchors/rules.json</code></td>
+<td><code>Mutator.propose</code> 查表</td>
+<td>目标任务重放</td>
+</tr>
+<tr>
+<td>3</td>
+<td>技能</td>
+<td><code>skill</code></td>
+<td><code>skills/&lt;name&gt;/SKILL.md</code></td>
+<td><code>task_exec</code> 技能段注入</td>
+<td>目标任务跑分</td>
+</tr>
+<tr>
+<td>4</td>
+<td>记忆</td>
+<td><code>memory</code></td>
+<td><code>var/dwc_lessons.jsonl</code></td>
+<td><code>agent_quality.sources_context</code></td>
+<td>目标任务跑分</td>
+</tr>
+<tr>
+<td>5</td>
+<td>知识</td>
+<td><code>memory</code></td>
+<td>同上（tier=long）</td>
+<td>同上</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>6</td>
+<td>代码</td>
+<td><code>code</code></td>
+<td>源文件函数体</td>
+<td>Python 运行时</td>
+<td>沙箱 + f2p/p2p</td>
+</tr>
+<tr>
+<td>7</td>
+<td>架构</td>
+<td><code>architecture</code></td>
+<td><code>var/arch_proposals.jsonl</code></td>
+<td>人工审批队列</td>
+<td>人工裁决</td>
+</tr>
+<tr>
+<td>8</td>
+<td>提示词</td>
+<td><code>prompt</code></td>
+<td><code>prompts/*.vN.md</code> + manifest</td>
+<td><code>prompt_ota.render</code></td>
+<td>同题两臂 A/B</td>
+</tr>
+<tr>
+<td>9</td>
+<td>工具</td>
+<td><code>client_tool</code></td>
+<td><code>config/tools_extra.json</code></td>
+<td><code>TASK_TOOLS</code> 合并</td>
+<td>工具冒烟</td>
+</tr>
+<tr>
+<td>10</td>
+<td>协作</td>
+<td><code>subagent</code></td>
+<td><code>config/subagent_policy.json</code></td>
+<td>派发器</td>
+<td>路由测试</td>
+</tr>
+<tr>
+<td>11</td>
+<td>上下文</td>
+<td><code>context_mgmt</code></td>
+<td><code>config/context_policy.json</code></td>
+<td><code>task_exec</code> 读默认</td>
+<td>上下文类任务</td>
+</tr>
+<tr>
+<td>12</td>
+<td>观测</td>
+<td><code>output_plumbing</code></td>
+<td><code>config/output_policy.json</code></td>
+<td>最终答案处理</td>
+<td>格式类任务</td>
+</tr>
+<tr>
+<td>13</td>
+<td>执行环境</td>
+<td><code>config</code></td>
+<td><code>config/tunables.json</code></td>
+<td>启动器</td>
+<td>同 #1</td>
+</tr>
+<tr>
+<td>14</td>
+<td>元进化</td>
+<td><code>meta_evolution</code></td>
+<td><code>config/evolution.yaml</code></td>
+<td>进化轮自身</td>
+<td>轮指标</td>
+</tr>
+<tr>
+<td>15</td>
+<td>评估器</td>
+<td><code>evaluator</code></td>
+<td><strong>只读</strong></td>
+<td>—</td>
+<td>拒绝编辑证明</td>
+</tr>
+<tr>
+<td>16</td>
+<td>控制/安全</td>
+<td><code>control_flow</code></td>
+<td><code>rules.json</code></td>
+<td>同 #2</td>
+<td>同 #2</td>
+</tr>
+<tr>
+<td>17</td>
+<td>模型选择</td>
+<td><code>config</code></td>
+<td><code>config/tunables.json</code></td>
+<td><code>LLMClient</code></td>
+<td>同 #1</td>
+</tr>
+<tr>
+<td>18</td>
+<td>训练桥</td>
+<td><code>external_source</code></td>
+<td><strong>只读</strong></td>
+<td>—</td>
+<td>拒绝编辑证明</td>
+</tr>
+<tr>
+<td>19</td>
+<td>行为/工作流</td>
+<td><code>control_flow</code></td>
+<td><code>rules.json</code></td>
+<td>同 #2</td>
+<td>同 #2</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s2">二、统一机制（不造 11 套轮子）</h2>
+<pre><code>信号 → 车道路由 → 起草 → 试验 → 门 → 落地（带备份）→ 读回 → 台账
+</code></pre>
+<ul>
+<li><strong>Target</strong>：复用 <code>organs/applier.py::Target</code>（getter/setter/has/delete/flush，
+  写后立即读回）。</li>
+<li><strong>产物注册表</strong>：<code>src/dwc/organs/evo_targets.py</code>
+  <code>TARGETS: Dict[str, TargetSpec]</code>，每项含
+  <code>path / schema / read / merge / trial / rollback</code>。</li>
+<li><strong>驱动器</strong>：<code>src/dwc/organs/evo_driver.py</code>
+  <code>run_component_round(component, signals)</code>，与 <code>dwc_evo_round.py</code> 共用
+  <code>ProposalGate</code> + <code>Evolver.accept</code>。</li>
+<li><strong>台账</strong>：<code>var/evolution_ledger.jsonl</code>，每行
+  <code>{ts, component, key, decision, before_hash, after_hash, backup, trial}</code>。</li>
+</ul>
+<p><strong>为什么统一</strong>：11 套独立轮子 = 11 套 bug + 11 种台账口径（R426 同族教训）。</p>
+<hr />
+<h2 id="s3">三、执行阶段（按风险升序）</h2>
+<h3>P0 · 让 <code>control_flow</code> 真落地（覆盖 #2 #16 #19）</h3>
+<table>
+<thead>
+<tr>
+<th>改动</th>
+<th>位置</th>
+<th>判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--apply</code> 由 <code>config/evolution.yaml:auto_apply</code> 控制（必填无默认）</td>
+<td><code>dwc_evo_round_cron.py:93</code></td>
+<td>缺键 ⇒ 启动报错</td>
+</tr>
+<tr>
+<td>启动时 <code>Mutator.ensure_loaded()</code></td>
+<td><code>scripts/dwc_agent.py</code> + cron</td>
+<td>新进程能读到已学规则</td>
+</tr>
+<tr>
+<td>落地前备份 <code>rules.json</code> → <code>var/backups/rules_&lt;ts&gt;.json</code></td>
+<td><code>Evolver._land_adopted</code></td>
+<td>备份文件存在</td>
+</tr>
+<tr>
+<td><code>--rollback &lt;key&gt;</code> CLI</td>
+<td><code>dwc_evo_round_cron.py</code></td>
+<td>回滚后键消失</td>
+</tr>
+<tr>
+<td>台账</td>
+<td><code>var/evolution_ledger.jsonl</code></td>
+<td>每轮一行</td>
+</tr>
+</tbody>
+</table>
+<h3>P1 · 策略型产物（覆盖 #1 #9 #10 #11 #12 #13 #14 #17）</h3>
+<p>一个通用 <code>JsonPolicyTarget</code>：
+<code>read → dict</code> / <code>merge(candidate)</code> / <code>write + readback</code> / <code>backup</code> / <code>rollback</code>。
+六个产物共用，各自带 schema 校验 + 消费者。</p>
+<h3>P2 · 记忆与知识（覆盖 #4 #5）</h3>
+<p><code>promote_lessons</code> 接进每日轮 + <code>sources_context</code> 注入 long 层教训。</p>
+<h3>P3 · 技能（覆盖 #3）</h3>
+<p><code>skills/&lt;name&gt;/SKILL.md</code> 产物 + <code>task_exec</code> 按任务词元匹配注入。</p>
+<h3>P4 · 提示词驱动层（覆盖 #8）</h3>
+<p><code>PromptEvolutionOrgan</code>：候选 → A/B → 晋升（带 manifest 回滚）。</p>
+<h3>P5 · 代码落地（覆盖 #6）</h3>
+<p>沙箱通过的函数体写回源文件（备份 + <code>git diff</code> 可查 + 失败自动还原）。</p>
+<h3>P6 · 只读与人工（覆盖 #7 #15 #18）</h3>
+<p>架构提案进审批队列；评估器/外部源拒绝编辑并留痕。</p>
+<hr />
+<h2 id="s4">四、每阶段的验收（统一四条）</h2>
+<ol>
+<li><strong>产物存在</strong>：文件真的被写出来，不是内存里改了。</li>
+<li><strong>消费者生效</strong>：新进程读到它，且行为有可观测差异。</li>
+<li><strong>可回滚</strong>：<code>--rollback</code> 后文件恢复原状，行为回退。</li>
+<li><strong>可区分</strong>：降级/拒绝/成功三种状态在台账里可区分（不许静默）。</li>
+</ol>
+<hr />
+<h2 id="s5">五、进度</h2>
+<h3>已落地（有产物 + 有消费者 + 有测试 + 可回滚）</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>对象 #</th>
+<th>产物</th>
+<th>消费者</th>
+<th>测试</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>control_flow</code></td>
+<td>2,16,19</td>
+<td><code>config/anchors/rules.json</code>（<strong>已真有 1 条</strong>）</td>
+<td><code>Mutator.propose</code> 查表</td>
+<td><code>test_r438_landing</code>（6）</td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td>4,5</td>
+<td><code>var/dwc_lessons.jsonl</code>（tier 晋升）</td>
+<td><code>sources_context → lessons_context</code></td>
+<td><code>test_r438_memory</code>（5）</td>
+</tr>
+<tr>
+<td><code>skill</code></td>
+<td>3</td>
+<td><code>skills/&lt;name&gt;/SKILL.md</code></td>
+<td><code>task_exec</code> 注入 system</td>
+<td><code>test_r438_skill</code>（7）</td>
+</tr>
+<tr>
+<td><code>context_mgmt</code></td>
+<td>11</td>
+<td><code>config/context_policy.json</code></td>
+<td><code>task_exec.read_default_lines()</code></td>
+<td><code>test_r438_targets</code>（12）</td>
+</tr>
+<tr>
+<td><code>output_plumbing</code></td>
+<td>12</td>
+<td><code>config/output_policy.json</code></td>
+<td><code>task_exec._cap_answer()</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>client_tool</code></td>
+<td>9</td>
+<td><code>config/tools_extra.json</code></td>
+<td><code>TASK_TOOLS</code> 合并</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>1,13,17</td>
+<td><code>config/tunables.json</code></td>
+<td><code>dwc_agent.py</code> 缺省值</td>
+<td>同上（读侧）</td>
+</tr>
+<tr>
+<td><code>subagent</code></td>
+<td>10</td>
+<td><code>config/subagent_policy.json</code></td>
+<td><code>cap_limit("delegate",…)</code></td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<h3>未落地</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>对象 #</th>
+<th>卡在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prompt</code></td>
+<td>8</td>
+<td>三件套齐（候选/AB/判定），缺<strong>驱动层</strong>（定时跑 + 自动晋升）</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>6</td>
+<td>沙箱能验，但<strong>没写回源文件</strong>（只落了规则文本）</td>
+</tr>
+<tr>
+<td><code>architecture</code></td>
+<td>7</td>
+<td>按设计须人工批准；缺审批队列</td>
+</tr>
+<tr>
+<td><code>meta_evolution</code></td>
+<td>14</td>
+<td><code>evolution.yaml</code> 可改，但没有"改它"的提案器</td>
+</tr>
+<tr>
+<td><code>evaluator</code></td>
+<td>15</td>
+<td><strong>只读</strong>（G10 密封）；缺"拒绝编辑"的显式证据</td>
+</tr>
+<tr>
+<td><code>external_source</code></td>
+<td>18</td>
+<td><strong>只读</strong>；缺登记与拒绝证据</td>
+</tr>
+</tbody>
+</table>
+<h3>一处更正（诚实记账）</h3>
+<p>R437 审计说「<code>ensure_loaded</code> 零调用」——<strong>不准确</strong>：
+<code>evolver.py:2922</code> 有模块级 <code>_MUTATOR_LOADED_AT_IMPORT = Mutator.ensure_loaded()</code>，
+所以落盘规则在 import 时就已加载。真正的断点只有两个：
+<code>apply=False</code> 硬编码 + <code>rules.json</code> 从未被创建。
+R438 补的 agent/cron 启动调用是<strong>冗余保险</strong>（幂等，不改行为）。</p></main></div></body></html>

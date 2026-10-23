@@ -992,14 +992,23 @@ def main(argv) -> int:
         print("frozen:", os.path.exists(FROZEN))
         return 0
 
+    # ★ R438 · config 维度：产物 config/tunables.json 作为**缺省值**
+    #   （命令行显式传参永远优先；产物坏了回硬编码默认并留痕）
+    try:
+        from dwc.organs.evo_targets import read as _read_tun
+        _tun = _read_tun("config")
+    except Exception as _e:  # noqa: BLE001 — 坏不拦启动，但留痕
+        sys.stderr.write("tunables 读取失败: %r\n" % (_e,))
+        _tun = {}
     interval = float(argv[argv.index("--interval") + 1]) \
-        if "--interval" in argv else 600.0
-    steps = int(argv[argv.index("--steps") + 1]) if "--steps" in argv else 2
+        if "--interval" in argv else float(_tun.get("interval", 600.0))
+    steps = int(argv[argv.index("--steps") + 1]) \
+        if "--steps" in argv else int(_tun.get("steps", 2))
     tpd = float(argv[argv.index("--terms-per-day") + 1]) \
-        if "--terms-per-day" in argv else 96.0
+        if "--terms-per-day" in argv else float(_tun.get("terms_per_day", 96.0))
     # ★ R422 · 同上：48 也小于全池 52 单，先于预算触发自停。
     bpd = float(argv[argv.index("--budget-day") + 1]) \
-        if "--budget-day" in argv else 80.0
+        if "--budget-day" in argv else float(_tun.get("budget_day", 80.0))
     # ★★★ R422 · 默认 40 → 80 ——
     #   实测：全池 52 单，跑到第 40 单时 `agent_stopped: daily_limit` 自停，
     #   剩下 12 单全部变成 timeout（日志里看着像模型全崩）。
@@ -1044,6 +1053,16 @@ def main(argv) -> int:
         # 指令面降级（留痕可查; 单例锁已防双 agent 主因）
         sys.stderr.write("RPC server 起失败(端口%s): %s\n"
                          % (rpc_port, exc))
+
+    # ★ R438 · 启动即加载已学规则（rules.json → Mutator.RULES）
+    #   改前 `ensure_loaded` 全仓库零调用 ⇒ 就算 rules.json 有内容，
+    #   新进程也读不到 = 学了等于没学（进化闭环在最后一米断掉）。
+    try:
+        from dwc.organs.evolver import Mutator as _Mu
+        _n_learned = _Mu.ensure_loaded()
+        print("已学规则加载：%d 条" % (_n_learned,), flush=True)
+    except Exception as _e:  # noqa: BLE001 — 加载坏不拦启动，但必须留痕
+        sys.stderr.write("已学规则加载失败: %r\n" % (_e,))
 
     d = DWC(depth_limit=3, max_nodes=50, budget=bpd, db_path=DB)
     if use_llm:

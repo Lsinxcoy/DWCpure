@@ -294,7 +294,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               ledger_path=None, resume=True, ledger_date=None,
               max_attempts=3, priority_prefixes=None,
               task_filter=None, hint_mode="reuse", pool_n=None,
-              reproducible_only=True, clusters=None):
+              reproducible_only=True, clusters=None, max_land=None,
+              lane_component="control_flow"):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -337,6 +338,8 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         clusters = list(clusters)
     # ★ D4-① diagnose 段（18813：失败签名→候选前，先聚簇定位病灶）。
     results = []
+    # ★ R438 · 单轮落地配额（None = 不限；生产由 evolution.yaml 给 1）
+    _n_landed = 0
     # ★ R309-⑦ · 当日已做 key（ledger 缺=空集=老路全跑，一字不差）。
     _date = ledger_date or time.strftime("%Y-%m-%d")
     _done = (_read_done(ledger_path, _date)
@@ -463,10 +466,21 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                     _op = "debug" if _op == "improve" else _op
                 if len(cl["sigs"]) > 1:
                     _op = "crossover"
+                # ★ R438 · 车道组件只传给支持它的 mutator（鸭子类型：
+                #   测试替身/旧实现没有 component 参数时，行为与改前一致）
+                _kw_comp = {}
+                try:
+                    import inspect as _insp
+                    if "component" in _insp.signature(
+                            mu.propose_from_cluster).parameters:
+                        _kw_comp = {"component": lane_component}
+                except (TypeError, ValueError):
+                    _kw_comp = {}
                 p = mu.propose_from_cluster(cl["sigs"], context,
                                             want_code=want_code_of(_task),
                                             learned_hint=_hint,
-                                            operator=_op)
+                                            operator=_op,
+                                            **_kw_comp)
                 # ★ R342 · patch 层 dedup：patch 不得包含任何 benchmark 的
                 #   expected_behavior（防 test leakage，OpenRSI dedup 原则）。
                 try:
@@ -520,6 +534,13 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         else:
             _base, _cur = {}, {}
         if apply and _ok is True:
+            # ★ R438 · 落地配额：满了就只报告（不静默 —— reason 写明）
+            if max_land is not None and _n_landed >= max_land:
+                item["reason"] = ("落地配额已满（max_land=%d）—— 本轮只报告不落"
+                                  % max_land)
+                item["adopt"] = "quota_exceeded"
+                results.append(item)
+                continue
             # ★ R287-C · adopt 门（Evolver.accept）：trial 布尔无分数 ⇒
             #   accept 缺 baseline/current 会判 not_evaluated/blocked。
             #   诚实处置：先判，有分数走门（第五态→_land_adopted 落）；
@@ -556,6 +577,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 item["backup"] = evolver._land_adopted(
                     p, admission_round=ledger_date)
                 item["landed"] = True
+                _n_landed += 1
             else:
                 # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有
                 #   分数＋accept 拿真输入）。门没判过（blocked/rejected/

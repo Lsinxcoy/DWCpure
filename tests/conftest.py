@@ -92,6 +92,10 @@ def _r292_no_side_effects(tmp_path, monkeypatch):
         from dwc.organs.evolver import Mutator
         monkeypatch.setattr(Mutator, "LEARNED_PATH",
                             str(tmp_path / "learned_isolated.json"))
+        # ★ R438 · 生产 rules.json 现在会真有落盘规则；RULES 是类级全局，
+        #   不复位就会渗进所有测试的计数断言（实测 24 红）。
+        Mutator.RULES.clear()
+        Mutator.RULES.update(Mutator.SEED_SNAPSHOT)
     except Exception:                           # noqa: BLE001 — evolver 坏不断全量
         pass
     _before = {_f: _r292_read_bytes(os.path.join(_R292_ROOT, _f))

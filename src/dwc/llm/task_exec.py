@@ -551,7 +551,8 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
             #   未能读取」并用别处的数字猜。**50 行缺省把一次读变成三次，
             #   模型每次都可能在中途放弃。**
             #   仓库里绝大多数文件 < 200 行 ⇒ 一次读完，翻页只留给大文件。
-            lim = min(400, max(1, int(args.get("limit", 200) or 200)))
+            _def = read_default_lines()
+            lim = min(400, max(1, int(args.get("limit", _def) or _def)))
         except (TypeError, ValueError):
             lim = 0
         seg = lines[off:] if not lim else lines[off:off + lim]
@@ -712,6 +713,55 @@ def _looks_like_refusal(text: str, n_actions: int) -> str:
     return m.group(0)[:40] if m else ""
 
 
+#: ★ R438 · 策略产物读取（带 mtime 缓存：产物变了下一轮就生效，不必重启）
+_POLICY_CACHE: Dict[str, Any] = {}
+
+
+def _policy(component: str, key: str, default: Any) -> Any:
+    """读 evo_targets 的产物；坏文件/未知组件 ⇒ default + stderr 留痕。"""
+    try:
+        from dwc.organs import evo_targets as ET
+        p = ET.path_of(component)
+        try:
+            mt = os.path.getmtime(p)
+        except OSError:
+            return default
+        ck = component + "|" + str(mt)
+        hit = _POLICY_CACHE.get(ck)
+        if hit is None:
+            hit = ET.read(component)
+            _POLICY_CACHE.clear()
+            _POLICY_CACHE[ck] = hit
+        return hit.get(key, default)
+    except Exception as exc:  # noqa: BLE001 — 策略坏不拦任务，但必须留痕
+        import sys as _s
+        _s.stderr.write("策略读取失败 %s.%s: %r\n" % (component, key, exc))
+        return default
+
+
+def read_default_lines() -> int:
+    """read_file 缺省行数（context_mgmt 维度）。"""
+    try:
+        return int(_policy("context_mgmt", "read_default_lines", 200))
+    except (TypeError, ValueError):
+        return 200
+
+
+def output_max_chars() -> int:
+    """最终答案最大字符数（output_plumbing 维度）。"""
+    try:
+        return int(_policy("output_plumbing", "max_answer_chars", 6000))
+    except (TypeError, ValueError):
+        return 6000
+
+
+def _cap_answer(s: Any) -> str:
+    """最终答案统一出口：strip + 截断（output_plumbing 的唯一消费者）。"""
+    t = str(s or "").strip()
+    n = output_max_chars()
+    return t if len(t) <= n else t[:n]
+
+
 #: ★★★ R384 · 原生 tool calling 的工具表（与内部 op 白名单一一对应）。
 #:   模型本来就会调工具（实测 finish=tool_calls / read_file{path:...}），
 #:   是旧代码用手拼 JSON 提示词逼它输出散文 ⇒ 全池 51/54 = 94% 零动作。
@@ -771,6 +821,20 @@ TASK_TOOLS = [
                        "properties": {"answer": {"type": "string"}},
                        "required": ["answer"]}}},
 ]
+
+# ★ R438 · client_tool 维度：从产物合并额外工具（只增不改，重名忽略）
+try:
+    from dwc.organs import evo_targets as _ET_T
+    _extra_tools = _ET_T.read("client_tool").get("tools") or []
+    _known = {t.get("function", {}).get("name") for t in TASK_TOOLS}
+    for _t in _extra_tools:
+        _n = (_t or {}).get("function", {}).get("name")
+        if _n and _n not in _known:
+            TASK_TOOLS.append(_t)
+            _known.add(_n)
+except Exception as _e:  # noqa: BLE001 — 产物坏不拦任务，但留痕
+    import sys as _s
+    _s.stderr.write("tools_extra 合并失败: %r\n" % (_e,))
 
 #: 工具名 → 内部 op 名 + 参数改名
 _TOOL_TO_OP = {
@@ -1539,6 +1603,19 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             import sys as _sys
             _sys.stderr.write("sources_context 注入失败×%d: %s\n"
                               % (_SRC_FAIL[0], _exc))
+    # ★ R438 · skill 维度：把匹配到的技能正文拼进 system
+    #   （改前 Mutator.SKILLS 既无落盘也无消费者 ⇒ 技能维度不存在）
+    try:
+        from dwc.organs import skill_store as _SS
+        _sk = _SS.context(task, k=1)
+        if _sk:
+            system += "\n\n# 技能（已验证的做法）\n" + _sk
+    except Exception as _exc2:      # noqa: BLE001 — 坏不拦任务，但留痕
+        _SRC_FAIL[0] += 1
+        if _SRC_FAIL[0] <= 3:
+            import sys as _sys2
+            _sys2.stderr.write("skill 注入失败×%d: %s\n"
+                               % (_SRC_FAIL[0], _exc2))
     log: List[Dict[str, Any]] = []
     dup_sigs: List[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     #: ★ R384 · 原生工具模式下"只输出正文不调工具"的已重试次数（上限 1）
@@ -1728,7 +1805,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                                           % (_pg_fail[0], _ge))
                 return {"task": task, "task_id": sid,
                         "status": "done", "rounds": rnd,
-                        "answer": _raw.strip(),
+                        "answer": _cap_answer(_raw),
                         "artifacts": [], "actions_log": log,
                         "answer_mode": "plain_text",
                         "why": "模型直接给出纯文本答案（非 JSON）—— 已收下"}
@@ -2040,7 +2117,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                              artifacts=list(step.get("artifacts") or []))
             return {"task": task, "task_id": sid, "status": "done",
                     "rounds": rnd,
-                    "answer": str(step.get("answer", "")),
+                    "answer": _cap_answer(step.get("answer", "")),
                     "artifacts": list(step.get("artifacts") or []),
                     "actions_log": log}
         try:

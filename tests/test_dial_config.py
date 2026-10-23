@@ -313,4 +313,6 @@ def test_validate_all_includes_retention():
     assert set(v) == {"world_tree", "difficulty", "dials", "retention",
                       "evolution"}
     # 强化: 新键必须由校验器真产出（不是硬塞空 dict）
-    assert set(v["evolution"]) == {"feed_from_terms", "max_sigs_per_term"}
+    # ★ R438 · 新增两个落地开关（auto_apply / auto_apply_max_per_round）
+    assert set(v["evolution"]) == {"feed_from_terms", "max_sigs_per_term",
+                                   "auto_apply", "auto_apply_max_per_round"}

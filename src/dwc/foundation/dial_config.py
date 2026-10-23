@@ -446,7 +446,19 @@ def load_evolution(path: str = EVOLUTION_PATH) -> Dict[str, Any]:
     if not isinstance(mx, int) or isinstance(mx, bool) or mx < 1:
         raise DialError(
             "R370: evolution.max_sigs_per_term 须为 ≥1 整数, 实为 %r" % (mx,))
-    return {"feed_from_terms": feed, "max_sigs_per_term": mx}
+    # ★ R438 · 自动落地开关（必填无默认 —— 同 feed 的理由：缺键与"显式关闭"
+    #   必须可区分；代码里 `get(..., False)` 兜底会让配置缺失静默变成关）
+    auto = _need(ev, "auto_apply", "evolution.evolution")
+    if not isinstance(auto, bool):
+        raise DialError(
+            "R438: evolution.auto_apply 须为 bool, 实为 %r" % (auto,))
+    cap = _need(ev, "auto_apply_max_per_round", "evolution.evolution")
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        raise DialError(
+            "R438: evolution.auto_apply_max_per_round 须为 ≥1 整数, 实为 %r"
+            % (cap,))
+    return {"feed_from_terms": feed, "max_sigs_per_term": mx,
+            "auto_apply": auto, "auto_apply_max_per_round": cap}
 
 
 # ══════════════════════════════════════════════════════════
