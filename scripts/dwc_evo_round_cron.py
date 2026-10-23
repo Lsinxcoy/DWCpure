@@ -335,9 +335,52 @@ def main() -> int:
         rep["ledger"] = {"path": _led, "n": _n_led}
     except Exception as _e:  # noqa: BLE001 — 台账坏不掀轮（留痕）
         rep["ledger_error"] = repr(_e)
-    print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000], flush=True)
+    # ★ R438-j · 报告必须让人看见"这轮到底做了什么"。
+    #   改前 [:2000] 截断，behavior_sigs（2093 条）把后面的
+    #   lessons_promoted / prompt_evolve / meta_evolution 全挤出视野 ⇒
+    #   cron 输出看起来只有一堆签名，等于没报告。
+    _slim = {k: v for k, v in rep.items() if k != "behavior_sigs"}
+    if isinstance(_slim.get("results"), list):
+        _slim["results"] = [{k: v for k, v in r.items() if k != "sigs"}
+                            for r in _slim["results"]]
+    if isinstance(_slim.get("behavior_sigs"), list):
+        _slim["behavior_sigs"] = "%d 条（已省略）" % len(rep["behavior_sigs"])
+    print(json.dumps(_slim, ensure_ascii=False, indent=1)[:6000], flush=True)
     return 0
 
 
+def _bootstrap_interpreter() -> None:
+    """★ R438-j · cron 解释器自举（Hermes 自带 python 没有 pyyaml）。
+
+    现场：R438 新增的 `load_evolution` 在 import 期 `import yaml`，
+          而 cron 用 `%LOCALAPPDATA%/hermes/tools/python-3.x/python.exe` 跑脚本，
+          该解释器无 PyYAML ⇒ ModuleNotFoundError ⇒ 整轮进化不跑。
+    做法：缺 yaml 就换到 Hermes venv 的解释器重跑本文件（带 DWC_REEXEC 防环）。
+          Windows 上不用 os.execv —— 含空格路径会被拆断（R428 教训）。
+    """
+    try:
+        import yaml  # noqa: F401
+        return
+    except ImportError:
+        pass
+    if os.environ.get("DWC_REEXEC") == "1":
+        raise SystemExit("缺少 PyYAML，自举后仍缺（DWC_REEXEC 已设，避免死循环）")
+    _cands = [
+        os.path.expandvars(r"%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts\python.exe"),
+        os.path.expanduser("~/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"),
+    ]
+    for _c in _cands:
+        _c = os.path.abspath(_c)
+        if not os.path.isfile(_c):
+            continue
+        if os.path.realpath(_c) == os.path.realpath(sys.executable):
+            continue
+        import subprocess
+        _env = dict(os.environ, DWC_REEXEC="1")
+        raise SystemExit(subprocess.call(
+            [_c, os.path.abspath(__file__)] + sys.argv[1:], env=_env))
+
+
 if __name__ == "__main__":
+    _bootstrap_interpreter()
     sys.exit(main())
