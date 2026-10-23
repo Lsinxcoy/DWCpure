@@ -75,3 +75,27 @@ def test_rule_without_code_gives_none(tmp_path, monkeypatch):
         Mutator.RULES.clear()
         Mutator.RULES.update(_snap)
         Mutator._loaded = True
+
+
+def test_landing_is_idempotent_across_processes(tmp_path, monkeypatch):
+    """★ 守卫：第二个进程（import 时文件还不存在）落地同键 ⇒ already_landed。
+
+    现场：两个 --deep-task 进程同时起，import 时 rules.json 还没写 ⇒
+    两边都判"键不存在" ⇒ 同一键落两次（台账两行 landed=true）。
+    修法：_land_adopted 落地前 reload_learned() 与盘对齐。
+    """
+    rules = tmp_path / "rules.json"
+    monkeypatch.setattr(Mutator, "LEARNED_PATH", str(rules))
+    monkeypatch.setattr(Mutator, "SEED_KEYS", frozenset())
+    _snap = dict(Mutator.RULES)
+    try:
+        Evolver()._land_adopted(_mk("def fibonacci(n):\n    return n"))
+        # 模拟进程 B：内存里没有该键，且 _loaded 已是 True（import 早于落盘）
+        Mutator.RULES.clear()
+        Mutator._loaded = True
+        out = Evolver()._land_adopted(_mk("def fibonacci(n):\n    return n"))
+        assert out["outcome"] == "already_landed", out
+    finally:
+        Mutator.RULES.clear()
+        Mutator.RULES.update(_snap)
+        Mutator._loaded = True

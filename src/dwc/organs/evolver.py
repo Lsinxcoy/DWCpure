@@ -1020,6 +1020,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -1961,6 +1962,13 @@ class Mutator:
         return cls.load_learned()
 
     @classmethod
+    def reload_learned(cls) -> int:
+        """★ R438 · 强制与盘对齐（只补缺失键；已有键不覆盖）。"""
+        cls._loaded = False
+        return cls.ensure_loaded()
+
+
+    @classmethod
     def entry_from_candidate(cls, cand: Any, rationale: str = ""
                              ) -> Dict[str, Any]:
         """★★★ R35 · 把**候选**组装成可固化的规则条目（7 字段）。
@@ -2621,6 +2629,14 @@ class Evolver:
             raise EvolverError(
                 "只有 adopted_not_implemented 可落地，实 state=%r"
                 % (p.state,))
+        # ★ R438 · 落地前先与盘对齐（跨进程幂等）。
+        #   现场：两个 --deep-task 进程同时启动，import 时 rules.json 还不存在
+        #   ⇒ 两个进程都判"键不存在"⇒ 同一键落两次（台账两行 landed=true）。
+        #   重读一次（只补缺失键，不改已有）即可让第二个进程正确判 already_landed。
+        try:
+            self.mutator.reload_learned()
+        except OSError as _e:      # 读不回不拦落地，但必须留痕（G7）
+            sys.stderr.write("落地前重读 rules.json 失败: %r\n" % (_e,))
         _sig = dict(p.failure_signature or {})
         _sig.setdefault("fn", p.target)
         _key = Mutator.key_for(_sig)
