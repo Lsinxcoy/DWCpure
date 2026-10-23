@@ -365,44 +365,50 @@ scripts/dwc_evo_round.py:768   if (hint_code or "").strip():  # 拼进 peer prom
 
 在此之前它是**数据结构的准备**，不是决策机制。诚实记账。
 
-### P4 · 改进库：让"改进器"自己进化（R447+）
+### P4 · 改进库（R446）· 落地即入库，但**还不读**
 
-**来源**：Harness²（arXiv 2610.14224）§2.3 + `core/library.py`。
+**来源**：Harness² `core/library.py` 四条硬规则 + Figure 7。
 
-**目标**：把 R438 #14 的 `meta_evolution`（只调一个旋钮）升级为**带经验的改进器**。
+**DWC 的现状**：`config/anchors/rules.json` 的 `learned` 条目已有
+`key`（=cue）/ `rationale`（≈lesson）/ `provenance`（≈evidence），
+**但没有任何东西强制它们非空** —— 半条记录也能进，下轮按 cue 取用会拿到没有依据的"经验"。
 
-**核心结构（照抄 `library.py` 的形态，不抄它的文件树）**
+**四条硬规则 → DWC 的对应物**
 
-```
-var/improver_library/<domain>/
-    INDEX.md                          # 索引：每条一行 cue
-    entries/<task_id>/
-        harness/                      # 采纳的完整产物（DWC 是规则+配置快照）
-        EXPERIENCE.md                 # cue / lesson / evidence / confidence
-```
-
-**四条硬规则（全部来自论文实测）**
-
-| # | 规则 | 论文依据 |
+| Harness² | 原文位置 | DWC 落地 |
 |---|---|---|
-| 1 | **缺证据不入库**：`cue`/`lesson`/`evidence` 三项任一为空 ⇒ 不写（返回 None，不写半条） | `library.py:43-47` |
-| 2 | **防泄漏**：写库前断言产物里没有判据/评分；库只保留**当前任务之前**的条目 | `library.py:101-104,122-123` |
-| 3 | **选择性复用**：下轮从基线起，按 cue 从库取用，不自动继承 | §2.3 |
-| 4 | **库空时只能"恢复"不能"提升"**：k=1 的库只能把性能拉回基线；要增益必须积累到 k≥5 的探索量 | Figure 7 |
+| 三要素缺一不入库 | `library.py:43-47` | `validate()`：`cue` / `lesson` / `evidence` 任一为空 ⇒ 返回**原因**，`add()` 不写半条 |
+| 写库前无判分结论 | `library.py:122-123` | `from_rule()` 只取 `rationale` 与 `in_score/held_out/baseline_in`，**不把 expected 抄进 lesson** |
+| 只留当前任务之前 | `library.py:101-104` | `before(rows, ts)`：`ts > 给定时刻` 的条目一律过滤 |
+| 存整棵树不存摘要 | `library.py:22-23` | 存 `rationale` 全文 + 完整 evidence dict，不压缩成一句话 |
 
-**Files**
-- Create: `src/dwc/organs/improver_library.py`
-- Modify: `src/dwc/organs/meta_policy.py`（从"调旋钮"扩为"调旋钮 + 读库"）
-- Modify: `scripts/dwc_evo_round.py`（轮末写库、轮初读库）
-- Create: `tests/test_r447_library.py`
+**Files（实际）**
+- Create: `src/dwc/organs/library.py`（`validate` / `add` / `load` / `family` / `select_family` / `before` / `from_rule` / `has_cue`）
+- Modify: `scripts/dwc_evo_round.py`（落地成功处入库；报告出 `library` 块）
+- Create: `tests/test_r446_library.py`（13 条）
 
-**验收**
-- 缺 `evidence` 的条目写不进去（返回 None 且磁盘无变化）。
-- 含判据字样的产物被拒。
-- 第二轮起草的提示里出现第一轮的 `cue`（证明库被读到）。
-- 删掉库 ⇒ 性能回到基线（复现论文的 w/o library −3.1/−1.8）。
+**真实回填（不是演示数据）**
 
----
+`var/backfill_library.py` 从 `rules.json` + `var/evolution_ledger.jsonl` 回填两条：
+
+| cue | evidence |
+|---|---|
+| `E_VALUE:wrong_magnitude:fibonacci` | in=1.0 / ho=1.0 / baseline=1.0 |
+| `E_VALUE:wrong_magnitude:average` | in=1.0 / ho=1.0 / baseline=1.0 |
+
+证据来自账本里那两次真实落地的 `trial` 字段 —— **不是编的**。
+
+**★★ 诚实缺口（必须写在最显眼处）**
+
+库**只写不读**。起草器仍走 `rules.json` 的 `hint_code`，
+`select_family()` 今天只有报告在用。
+
+要让它真正参与"按 cue 选择性复用"，下一步是把
+`select_family(load(), cue)` 的结果喂进 `Mutator.propose` 的上下文
+（Harness² Figure 7 还提醒：k=1 的库只能把性能**拉回基线**，
+要正增益需 k≥5 的探索量 —— DWC 目前 2 条，远不够）。
+
+**所以 P4 的定位是"记忆先合规"**，不是"记忆已生效"。两件事不能混为一谈。
 
 ## 5. 论文接入协议（本版本的核心机制）
 

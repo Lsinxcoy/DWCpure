@@ -590,6 +590,27 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                         p, admission_round=ledger_date)
                     item["landed"] = True
                     _n_landed += 1
+                    # ★ R446 · P4 改进库：落地即入库（三要素缺一不入，不写半条）。
+                    #   ★ 只写不读：起草仍走 rules.json 的 hint_code —— 不假装已复用。
+                    try:
+                        from dwc.organs import library as _LB
+                        _ent = _LB.from_rule(
+                            str(cl.get("key") or ""),
+                            {"rationale": getattr(p, "rationale", ""),
+                             "provenance": {"proposal_id":
+                                            getattr(p, "proposal_id", "")}},
+                            t if isinstance(t, dict) else {})
+                        _why = _LB.validate(_ent)
+                        if _why:
+                            item["library"] = {"added": False, "why": _why}
+                        else:
+                            _row = _LB.add(entry=_ent)
+                            item["library"] = ({"added": True,
+                                                "cue": _row["cue"]}
+                                               if _row else
+                                               {"added": False, "why": "落盘失败"})
+                    except Exception as _le:      # noqa: BLE001 — 记账坏不撤落地
+                        item["library"] = {"added": False, "why": repr(_le)}
             else:
                 # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有
                 #   分数＋accept 拿真输入）。门没判过（blocked/rejected/
@@ -687,6 +708,20 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         }
     except Exception as _pe:      # noqa: BLE001 — Pareto 坏不掀轮
         _rep["pareto"] = {"error": repr(_pe)}
+    # ★ R446 · P4 改进库（观测）：落地即入库，这里只报规模。
+    #   ★★ 诚实：库**还没有被起草器读取** —— 起草仍走 rules.json 的 hint_code。
+    #   要让它真正参与"按 cue 选择性复用"，得把 select_family 喂进 propose 上下文。
+    try:
+        from dwc.organs import library as _LB
+        _lib = _LB.load()
+        _rep["library"] = {
+            "n_entries": len(_lib),
+            "families": sorted({_LB.family(str(r.get("cue") or ""))
+                                for r in _lib}),
+            "note": "只写不读：起草仍走 rules.json 的 hint_code",
+        }
+    except Exception as _le:      # noqa: BLE001 — 库坏不掀轮
+        _rep["library"] = {"error": repr(_le)}
     # ★ R442 · 成本归因（回溯）：本轮每任务平均 token + 与上次快照的走向。
     #   ★★ 诚实边界（R445 更正）：trial **确实会调 LLM**（peer held-out），
     #   但那部分是**评测开销**，两臂都要付，与候选规则的线上成本无关
