@@ -64,7 +64,7 @@
 <body>
 <header>
   <h1>DWC v2.0 · 成本感知的 Harness 自进化</h1>
-  <span class="sub">版本开发计划 · 规划中 · 已吸收 2 篇论文</span>
+  <span class="sub">版本开发计划 · 规划中 · 已吸收 3 篇论文</span>
   <nav>
     <a href="#s0">定位</a><a href="#s1">边界</a><a href="#s2">阶段</a><a href="#s3">P0–P3</a>
     <a href="#s4">论文协议</a><a href="#s5">KPI</a><a href="#s6">风险</a><a href="#s7">开工条件</a>
@@ -80,10 +80,10 @@
       <div class="n">19 个对象落地；首次全自动走完「簇→起草→沙箱→门→落地」</div></div>
     <div class="card"><div class="k">v2 要回答</div><div class="v warn">值不值</div>
       <div class="n">把「花多少钱」变成与「通过率」并列的一等目标</div></div>
-    <div class="card"><div class="k">论文池</div><div class="v vio">2 篇</div>
-      <div class="n">HarnessPro (2610.26770)<br>Harness² (2610.14224)</div></div>
-    <div class="card"><div class="k">开工门槛</div><div class="v">≥ 3 篇</div>
-      <div class="n">攒够论文池再统一动手</div></div>
+    <div class="card"><div class="k">论文池</div><div class="v vio">3 篇</div>
+      <div class="n">HarnessPro · Harness² · Cache Engineering</div></div>
+    <div class="card"><div class="k">开工门槛</div><div class="v ok">已满足</div>
+      <div class="n">3 / 3 篇，待确认版本范围</div></div>
   </div>
   <div class="good note" style="margin-top:14px">
     <b>一句话：</b>v1 让 DWC 学会了自己改自己；v2 要让 DWC 学会<b>算账</b>——
@@ -300,6 +300,15 @@ pick   = argmin(J_m)
     <tr><td>选择性复用而非继承</td><td>P1-c 前置</td><td><span class="pill ok">✅</span></td><td><b>DWC 现在做反了</b></td></tr>
     <tr><td>并行递归 k=5</td><td>—</td><td><span class="pill bad">❌</span></td><td>成本 ×5，预算吃不下</td></tr>
     <tr><td>8 组件文件级重写</td><td>—</td><td><span class="pill bad">❌</span></td><td>会破坏 19 对象隔离</td></tr>
+    <tr><td rowspan="8">Cache Engineering<br><span style="color:var(--dim);font-size:12px">2610.28577</span></td>
+      <td>cached_tokens 三档计价</td><td>P0-a 补充</td><td><span class="pill ok">✅</span></td><td>两篇独立论文收敛</td></tr>
+    <tr><td>前缀失效诊断（trim=1.85×）</td><td>P0-b 补充</td><td><span class="pill ok">✅</span></td><td>DWC 每轮重建 prompt</td></tr>
+    <tr><td>上下文策略三元组</td><td>P2 扩展</td><td><span class="pill ok">✅</span></td><td>context_mgmt 只有一种形态</td></tr>
+    <tr><td>策略 RSI</td><td>P4 佐证</td><td><span class="pill ok">✅</span></td><td>第三份"进化策略"证据</td></tr>
+    <tr><td>Drop / Repos</td><td>—</td><td><span class="pill bad">❌</span></td><td>需自建 SGLang</td></tr>
+    <tr><td>Cache-as-Tool</td><td>—</td><td><span class="pill bad">❌</span></td><td>同上 + 新增工具面</td></tr>
+    <tr><td>位置编码解耦</td><td>—</td><td><span class="pill bad">❌</span></td><td>无 RoPE 控制权</td></tr>
+    <tr><td>serving 优化</td><td>—</td><td><span class="pill bad">❌</span></td><td>不拥有推理服务</td></tr>
   </table>
 
   <h3>采纳判定（四条全中才收）</h3>
@@ -339,6 +348,38 @@ pick   = argmin(J_m)
     <tr><td>记账引入延迟</td><td>每轮多一次解析</td><td>纯本地解析，无额外网络调用</td></tr>
     <tr><td>原文落盘撑爆磁盘</td><td>磁盘满</td><td>sha1 去重 + 单文件上限 + 保留 7 天</td></tr>
     <tr><td>三档维护成本</td><td>配置爆炸</td><td>三档共用对象定义，只差参数</td></tr>
+  </table>
+</section>
+
+<section id="s6b">
+  <h2>6b · 三篇论文的收敛结论</h2>
+  <div class="grid">
+    <div class="card"><div class="k">收敛点一</div><div class="v ok">成本一等</div>
+      <div class="n">HarnessPro 的 Pareto、Harness² 的 compute 前沿、Cache 的 −27.7%</div></div>
+    <div class="card"><div class="k">收敛点二</div><div class="v ok">进化策略</div>
+      <div class="n">三份独立证据：手写一次策略，不如让系统自己搜</div></div>
+    <div class="card"><div class="k">收敛点三</div><div class="v bad">前缀/继承</div>
+      <div class="n">三篇都警告：破坏前缀或继承旧产物会让收益转负</div></div>
+  </div>
+  <table style="margin-top:14px">
+    <tr><th>论文</th><th>证据</th></tr>
+    <tr><td>HarnessPro</td><td>阶段提醒追加到 tool result，不重写 system prompt</td></tr>
+    <tr><td>Harness²</td><td>直接编辑不看参考/探针/库 ⇒ 73.4→63.2（−10.2）</td></tr>
+    <tr><td>Cache Engineering</td><td>trim 改前缀 ⇒ 成本 <b>1.85×</b></td></tr>
+  </table>
+  <div class="danger note">
+    <b>DWC 同时踩了三条：</b>
+    ① 每轮重建整串 prompt（前缀必变）
+    ② <code>propose</code> 继承上轮 <code>p.code</code>
+    ③ compaction 滑动窗口 + 摘要<br><br>
+    不是三个独立小问题，是同一个根因：<b>DWC 的上下文是"重新渲染"的，不是"累积"的。</b>
+  </div>
+  <h3>因此 P0 的实际顺序</h3>
+  <table>
+    <tr><th>顺序</th><th>动作</th><th>理由</th></tr>
+    <tr><td><b>P0-0</b></td><td>量一次「开 compaction vs 关 compaction」的成本</td><td>如果 trim 真是 1.85×，DWC 现在就在做负收益的事</td></tr>
+    <tr><td>P0-a</td><td>token 记账（含 cached 三档）</td><td>没有它，P0-0 都量不出来</td></tr>
+    <tr><td>P0-b</td><td>输出压缩 + 前缀稳定性度量</td><td>把"重新渲染"改成"稳定前缀 + 追加"</td></tr>
   </table>
 </section>
 
