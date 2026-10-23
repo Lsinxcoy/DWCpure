@@ -66,12 +66,12 @@ v1 让 DWC 学会了自己改自己；v2 要让 DWC 学会**算账**——把「
 
 ```
 P0-a 成本记账 ──┐
-                ├─→ P1-b 双目标 fitness ─→ P2 任务路由 ─→ P3 三档 Pareto
+                ├─→ P1-b 双目标 fitness ─→ P1-c 对比探针 ─→ P2 任务选档 ─→ P3 三档 Pareto ─→ P4 改进库
 P0-b 输出可回溯 ─┘         ↑
                     P1-a 三段预算
 ```
 
-依赖关系：**P0-a 是一切的前提**（没有成本数据，P1-b/P2/P3 都无从比较）；P1-a 与 P1-b 可并行，但 P1-b 的验收依赖 P1-a 的成本数据。
+依赖关系：**P0-a 是一切的前提**（没有成本数据，P1-b/P2/P3 都无从比较）；P1-a 与 P1-b 可并行，但 P1-b 的验收依赖 P1-a 的成本数据；**P1-c 必须先纠正"继承式起草"**（见 §4 P1-c），否则 P4 的库没有意义。
 
 ---
 
@@ -212,7 +212,46 @@ scalar = scalar * (1 - cost_weight * normalized_cost_delta)   # 新增
 
 ---
 
-### P2 · 按任务选档（R443–R444）
+### P1-c · 对比式探针 + 纠正继承式起草（R443）
+
+**来源**：Harness²（arXiv 2610.14224）§2.2.1 + §2.3 + Figure 7。
+
+**目标**：把"只比分数"升级为"比行为"，并纠正 DWC 现在做反的一件事。
+
+**两个问题**
+
+| # | 现状 | 论文证据 | 要改成 |
+|---|---|---|---|
+| 1 | trial 只产出 `success/in_score/baseline_in`，**不比轨迹** | 对比式 Propose-Probe-Compose | 产出结构化行为对比：哪些失败模式消失了 / 未变 / 新增 |
+| 2 | `Mutator.propose` 把 `p.code` 当下轮**起草起点** = 继承 | 直接编辑不看参考/探针/库 ⇒ WB-code 73.4→**63.2**（−10.2）、WB-web 69.9→**65.0**（−4.9） | 下轮从基线起，只从库里按 cue **选择性**取用 |
+
+> 这是本版本最重要的一条修正：**DWC 现在的进化方式，正是论文实测会掉分的那种方式。**
+
+**Files**
+- Modify: `scripts/dwc_evo_round.py`（trial 增加 `contrast` 字段）
+- Modify: `src/dwc/organs/evolver.py`（`propose` 不再默认继承 `p.code`）
+- Create: `src/dwc/organs/contrast.py`（行为对比提取）
+- Create: `tests/test_r443_contrast.py`
+
+**对比结构**
+
+```python
+@dataclass
+class Contrast:
+    disappeared: list[str]   # 参考里有、候选里没有的失败模式
+    persisted:   list[str]   # 两边都有
+    introduced:  list[str]   # 候选新增的
+    evidence:    dict        # 每条判定的观测依据
+```
+
+**验收**
+- 同一任务跑参考与候选，产出非空 `Contrast`；三条列表之和 = 失败模式总数。
+- `propose` 在无库时**不得**读上一轮的 `p.code`（测试用哨兵值断言）。
+- 引入新失败模式的候选，即使分数略高也必须进 `introduced` 并被下游门看到。
+
+---
+
+### P2 · 按任务选档（R444–R445）
 
 **目标**：简单题别用牛刀，难题别省子弹。
 
@@ -245,7 +284,7 @@ scalar = scalar * (1 - cost_weight * normalized_cost_delta)   # 新增
 
 ---
 
-### P3 · 三档 Pareto（R445+）
+### P3 · 三档 Pareto（R446+）
 
 **目标**：一轮进化产出三套策略，部署时按预算选。
 
@@ -267,6 +306,45 @@ pick   = argmin(J_m)
 - 三档产物的 pass_rate 与 cost 满足 `lite.cost ≤ medium.cost ≤ heavy.cost`。
 - 三档都过 `PR ≥ PR(h0)` 地板。
 - 可单独启用某一档（不必三档一起上）。
+
+---
+
+### P4 · 改进库：让"改进器"自己进化（R447+）
+
+**来源**：Harness²（arXiv 2610.14224）§2.3 + `core/library.py`。
+
+**目标**：把 R438 #14 的 `meta_evolution`（只调一个旋钮）升级为**带经验的改进器**。
+
+**核心结构（照抄 `library.py` 的形态，不抄它的文件树）**
+
+```
+var/improver_library/<domain>/
+    INDEX.md                          # 索引：每条一行 cue
+    entries/<task_id>/
+        harness/                      # 采纳的完整产物（DWC 是规则+配置快照）
+        EXPERIENCE.md                 # cue / lesson / evidence / confidence
+```
+
+**四条硬规则（全部来自论文实测）**
+
+| # | 规则 | 论文依据 |
+|---|---|---|
+| 1 | **缺证据不入库**：`cue`/`lesson`/`evidence` 三项任一为空 ⇒ 不写（返回 None，不写半条） | `library.py:43-47` |
+| 2 | **防泄漏**：写库前断言产物里没有判据/评分；库只保留**当前任务之前**的条目 | `library.py:101-104,122-123` |
+| 3 | **选择性复用**：下轮从基线起，按 cue 从库取用，不自动继承 | §2.3 |
+| 4 | **库空时只能"恢复"不能"提升"**：k=1 的库只能把性能拉回基线；要增益必须积累到 k≥5 的探索量 | Figure 7 |
+
+**Files**
+- Create: `src/dwc/organs/improver_library.py`
+- Modify: `src/dwc/organs/meta_policy.py`（从"调旋钮"扩为"调旋钮 + 读库"）
+- Modify: `scripts/dwc_evo_round.py`（轮末写库、轮初读库）
+- Create: `tests/test_r447_library.py`
+
+**验收**
+- 缺 `evidence` 的条目写不进去（返回 None 且磁盘无变化）。
+- 含判据字样的产物被拒。
+- 第二轮起草的提示里出现第一轮的 `cue`（证明库被读到）。
+- 删掉库 ⇒ 性能回到基线（复现论文的 w/o library −3.1/−1.8）。
 
 ---
 
@@ -298,7 +376,15 @@ pick   = argmin(J_m)
 | 1 | 同上 | | 多候选并行 | — | ❌ | 日预算吃不下 |
 | 1 | 同上 | | label-free | — | ❌ | DWC 有真值，放弃是倒退 |
 | 1 | 同上 | | LLM 当裁判 | — | ❌ | 论文自证失败召回仅 41.7% |
-| 2 | （待填） | | | | | |
+| 2 | Harness² (2610.14224) | 2026 | 两层递归（执行+改进） | P4 | ✅ | R438 #14 只调一个旋钮，不是"改进器带库" |
+| 2 | 同上 | | 对比式 Propose-Probe-Compose | P1-c | ✅ | DWC 只比分数不比行为 |
+| 2 | 同上 | | 双候选作用域（通用/领域） | P2 扩展 | ✅ | DWC 不区分能力缺陷与领域知识 |
+| 2 | 同上 | | 改进库（全树 + EXPERIENCE.md） | P4 | ✅ | DWC 有 lessons/skills 但无捆绑 |
+| 2 | 同上 | | 证据门槛（cue/lesson/evidence 全非空） | P4 | ✅ | 与 DWC "不可复现不进候选" 同源，但更严 |
+| 2 | 同上 | | 选择性复用而非继承 | P1-c 前置 | ✅ | **DWC 现在做反了**，论文实测继承会掉分 |
+| 2 | 同上 | | 并行递归 k=5 | — | ❌ | 成本 ×5，日预算吃不下 |
+| 2 | 同上 | | 8 组件文件级重写 | — | ❌ | DWC 是配置/规则级，改文件树会破坏隔离 |
+| 3 | （待填） | | | | | |
 
 ### 5.3 判定规则
 
@@ -323,6 +409,8 @@ pick   = argmin(J_m)
 | 截断可回溯率 | 0% | **100%** | 截断处含可读路径 |
 | 三档可切换 | 无 | **有** | 三档各自可单独启用 |
 | 进化台账双指标 | 只有 score | **score + cost** | 每条台账 |
+| 行为对比 | 无 | **每轮有 Contrast** | `disappeared/persisted/introduced` 三列表非空 |
+| 改进库条目 | 0 | **≥ 10 条且全带 evidence** | `var/improver_library/*/entries/*/EXPERIENCE.md` |
 
 ---
 
@@ -357,7 +445,7 @@ pick   = argmin(J_m)
 
 本计划**不立即开工**，等满足以下条件后统一执行：
 
-1. 论文池 ≥ 3 篇（当前 1 篇：HarnessPro）。
+1. 论文池 ≥ 3 篇（当前 2 篇：HarnessPro、Harness²）。
 2. 每篇都已走完 §5.1 七步，台账登记完毕。
 3. 机制之间没有冲突（若有，先在本文件"冲突裁决"节写明二选一及理由）。
 4. 用户确认版本范围（尤其 P2/P3 是否纳入本版本）。
