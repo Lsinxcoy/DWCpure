@@ -1,7 +1,11 @@
 # DWC 运行时依赖（R228 — pip install -r requirements.txt）
+# ★ R审计-P0 · 补齐与 pyproject.toml 的声明一致性:
+#   pypdf（pyproject 有）· textual（pyproject optional [tui]，但测试无条件 import）
 PyYAML>=6.0
 psutil>=6.0
 requests>=2.31
 httpx>=0.27
+pypdf>=4.0
+textual>=1.0
 # 测试
 pytest>=8.0

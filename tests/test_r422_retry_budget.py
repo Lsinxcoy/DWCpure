@@ -22,6 +22,20 @@ sys.path.insert(0, os.path.join(
 
 from dwc.llm import client as CL  # noqa: E402
 
+# ★ R审计-P0 · 测试环境自足: R422 的重试额度测试必须真正打到网络层，
+#   而 LLMClient.configured = bool(base and key and model) —— 缺配置时
+#   complete() 直接短路返回, urlopen 一次都不调, 测试必失败。
+#   ⇒ 注入假配置（不与真实凭证冲突，configured 只要求三值非空）。
+_TEST_LLM_BASE = "http://127.0.0.1:9/"      # 必然连接拒绝的假端点
+_TEST_LLM_KEY = "test-key-not-real"
+_TEST_LLM_MODEL = "test-model"
+
+
+def _fake_llm_env(monkeypatch):
+    monkeypatch.setenv("DWC_LLM_BASE_URL", _TEST_LLM_BASE)
+    monkeypatch.setenv("DWC_LLM_API_KEY", _TEST_LLM_KEY)
+    monkeypatch.setenv("DWC_LLM_MODEL", _TEST_LLM_MODEL)
+
 
 def _always_502(monkeypatch):
     state = {"n": 0}
@@ -37,6 +51,7 @@ def _always_502(monkeypatch):
 
 
 def test_retry_budget_resets_between_calls(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★★ 核心：连续两次失败调用，**各自**都要有 3 发（初+2重试）。"""
     state = _always_502(monkeypatch)
     c = CL.LLMClient()
@@ -51,6 +66,7 @@ def test_retry_budget_resets_between_calls(monkeypatch):
 
 
 def test_third_call_still_has_budget(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★ 第三次调用同样有额度（防止"用一次就永久失效"）。"""
     state = _always_502(monkeypatch)
     c = CL.LLMClient()
@@ -60,6 +76,7 @@ def test_third_call_still_has_budget(monkeypatch):
 
 
 def test_4xx_still_no_retry(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★ 4xx 仍不重试（R36 语义不能被这次改动带坏）。"""
     state = {"n": 0}
 
@@ -77,6 +94,7 @@ def test_4xx_still_no_retry(monkeypatch):
 
 
 def test_recursive_retry_does_not_reset_counter(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★ 递归重试不得重置计数（否则会无限重试）。"""
     state = _always_502(monkeypatch)
     c = CL.LLMClient()
