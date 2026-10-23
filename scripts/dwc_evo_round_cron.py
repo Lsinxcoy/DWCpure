@@ -15,11 +15,24 @@ import sys
 
 
 def _prod_root() -> str:
+    """生产数据根 —— 必须与 **agent 写库的根**一致。
+
+    ★★★ R437 · 旧实现无条件返回 `~/.dwc`，而 agent 用 `find_root()/var`。
+      实测：`~/.dwc/var/dwc_prod.sqlite` 最后写入 **10-17 09:11**，
+      只有 68 条 failure_sig；仓库 `var/` 的库 **10-23 08:49**，2053 条。
+      ⇒ 每日进化轮读的是 6 天前的库，所以恒 `n_clusters: 0`。
+
+      现在：仓库根有库就用仓库根（与 agent 同源），没有才回退旧 .dwc。
+    """
+    root = _code_root()
+    if os.path.exists(os.path.join(root, "var", "dwc_prod.sqlite")):
+        return root
     home = os.path.expanduser("~")
     p = os.path.join(home, ".dwc")
-    if not os.path.isdir(p):
-        raise RuntimeError("生产 .dwc 不在 %s" % p)
-    return p
+    if os.path.isdir(p):
+        return p
+    raise RuntimeError("找不到生产库：%s/var 与 %s 都没有 dwc_prod.sqlite"
+                       % (root, p))
 
 
 def _code_root() -> str:
@@ -79,7 +92,10 @@ def main() -> int:
             judge, llm, t, pa, code=code),
         apply=False,
         rules_path=os.path.join(prod, "config", "anchors", "rules.json"),
-        fn_of=lambda r: "average", task_of=lambda r: "code_fix_007",
+        # ★★★ R437 · 任务名/函数名不再由这里硬编码 —— `collect_unmapped`
+        #   从 memory_node.payload 读真实 task（表本身没有 task 列），
+        #   fn 从锚点 checks 反查。这里只保留兜底（读不到时为空）。
+        fn_of=lambda r: "", task_of=lambda r: "",
         # ★ B3 · 火力转攻生产生效：库里混入 reasoning sigs 也排后，
         #   code_fix 簇先吃 max_clusters 预算（验证便宜 u 大好验）。
         priority_prefixes=("code_fix",),
@@ -94,6 +110,38 @@ def main() -> int:
         # ★ R309-⑦ · epoch ledger（默认开；--no-resume 关）。
         ledger_path=os.path.join(prod, "var", "evo_round_ledger.jsonl"),
         resume=not _a.no_resume)
+    # ★★★ R437 · 行为车道落盘：这些失败不进 evolver（没有代码可修），
+    #   但也**不许静默丢** —— 落队列，交给提示词/技能/工具反馈那条车道。
+    try:
+        _beh = rep.get("behavior_sigs") or []
+        if _beh:
+            import time as _tm
+            _q = os.path.join(prod, "var", "behavior_queue.jsonl")
+            _seen = set()
+            try:
+                with open(_q, encoding="utf-8") as _fq:
+                    for _ln in _fq:
+                        try:
+                            _seen.add(json.loads(_ln).get("key"))
+                        except Exception:
+                            pass
+            except OSError:
+                pass
+            _n_new = 0
+            with open(_q, "a", encoding="utf-8") as _fq:
+                for _s in _beh:
+                    _k = "%s:%s:%s" % (_s.get("task"), _s.get("c"), _s.get("q"))
+                    if _k in _seen:
+                        continue
+                    _seen.add(_k)
+                    _fq.write(json.dumps({"key": _k, "sig": _s,
+                                          "ts": _tm.time()},
+                                         ensure_ascii=False) + "\n")
+                    _n_new += 1
+            rep["behavior_queued"] = _n_new
+            rep["behavior_queue_total"] = len(_seen)
+    except Exception as _e:  # noqa: BLE001 — 队列坏不掀轮
+        rep["behavior_queue_error"] = repr(_e)
     # ★ N1 · 执行侧 sigs 归 agent_quality 回路：有被分流的 llm_asserted
     #   sigs ⇒ 写 inbox 任务（去重），让 resident agent 重做（R329 转单
     #   的自动版；不静默吞掉）。
@@ -120,11 +168,16 @@ def main() -> int:
             except OSError:
                 pass
             # 读 db 取 distinct task
+            # ★★★ R437 · 表里没有 task 列（旧 SQL 恒报 no such column）——
+            #   真实任务名在 memory_node.payload 里。
             import sqlite3 as _sq
             _con = _sq.connect(db)
             _tasks = [r[0] for r in _con.execute(
-                "SELECT DISTINCT task FROM failure_sig "
-                "WHERE m LIKE 'llm_asserted%'").fetchall()]
+                "SELECT DISTINCT json_extract(n.payload,'$.task') AS task "
+                "FROM failure_sig f JOIN memory_node n "
+                "  ON n.node_id = f.node_id "
+                "WHERE json_extract(n.payload,'$.task') IS NOT NULL"
+            ).fetchall() if r[0]]
             _con.close()
             for _t in _tasks:
                 _tid = "evo_auto_%s" % (_t,)

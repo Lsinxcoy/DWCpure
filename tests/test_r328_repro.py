@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
-"""★ R328 · trial 复现力分流（R327 live 实证：63 条 llm_asserted sigs，
-trial 全满分 —— 生产挂的是 agent 执行侧自断言，trial 跑的是 judge
-verifier，两条线；evo 只吃 verifier 可复现簇）。
+"""★ R328 → **R437 重锚** · 进化输入分流。
 
-锁：
-1. 默认：llm_asserted* 不进簇（执行侧归 agent_quality 回路）。
-2. reproducible_only=False：全收老路（预算自负）。
-3. 正常 m：默认保留（分流只剔执行侧）。
-4. run_round 透传：默认 True 过滤；False 全收。
+★★★ 为什么重锚（不是删测试）：
+    R328 当年按 `m.startswith("llm_asserted")` 判"能不能复现" —— 那是**猜**。
+    实测（2026-10-23，2053 条生产签名）：
+      · 2034 条全被这个前缀过滤掉；
+      · 其中 code_fix_002 的 `E_VALUE/wrong_magnitude` **确实能复现**
+        （破坏实现跑出来就是 wrong_magnitude），只是被前缀一刀切掉了。
+    ⇒ 旧锁把"错误口径"锁成了正确行为。R437 改成**实测**：
+      跑该任务的破坏实现，签名 (c,q) 对得上 ⇒ 代码车道；对不上 ⇒ 行为车道。
+
+锁（新口径）：
+1. 分流依据 = `probe_signatures(task)` 的实测结果，**不是** m 前缀。
+2. `llm_asserted*` 只要签名对得上，**允许**进代码车道（旧锁禁止）。
+3. 对不上的进 `filtered_out`（行为车道），不静默丢。
+4. `reproducible_only=False`：全收老路。
+5. `run_round` 透传不变。
 """
 import importlib.util
 import os
@@ -49,14 +57,29 @@ def _collect(mod, db, **kw):
         db, _Evolver(), lambda r: "f", lambda r: "t", **kw)
 
 
-def test_r328_filters_llm_asserted_by_default(tmp_path):
+def test_r437_lane_by_probe_not_prefix(tmp_path, monkeypatch):
+    """★★★ 同一种 m 前缀：签名对得上进代码道，对不上进行为道。"""
     mod = _load()
+    monkeypatch.setattr(mod, "probe_signatures", lambda t: {("E", "Q")})
     db = str(tmp_path / "t.sqlite")
     _mkdb(db, [("E", "Q", "llm_asserted:0.15", "n1"),
-               ("E", "Q", "M-normal", "n2")])
+               ("E", "Q2", "M-normal", "n2")])
+    beh = []
+    cls = _collect(mod, db, filtered_out=beh)
+    code_ids = [s["node_id"] for c in cls for s in c["sigs"]]
+    assert code_ids == ["n1"]
+    assert [s["node_id"] for s in beh] == ["n2"]
+
+
+def test_r437_llm_asserted_can_enter_code_lane(tmp_path, monkeypatch):
+    """★★★ 旧锁「llm_asserted 一律不进簇」被实测推翻 —— 能复现就进。"""
+    mod = _load()
+    monkeypatch.setattr(mod, "probe_signatures", lambda t: {("E", "Q")})
+    db = str(tmp_path / "t.sqlite")
+    _mkdb(db, [("E", "Q", "llm_asserted:0.15", "n1")])
     cls = _collect(mod, db)
     assert len(cls) == 1
-    assert cls[0]["sigs"][0]["node_id"] == "n2"
+    assert cls[0]["sigs"][0]["node_id"] == "n1"
 
 
 def test_r328_opt_out_keeps_all(tmp_path):
@@ -67,8 +90,11 @@ def test_r328_opt_out_keeps_all(tmp_path):
     assert len(cls) == 1
 
 
-def test_r328_run_round_plumbs_flag(tmp_path):
+def test_r437_run_round_plumbs_flag(tmp_path, monkeypatch):
     mod = _load()
+    # 合成 task "t" 不在锚点集里；这里要测的是「分流开关透传」，
+    # 所以把探针固定成空集（= 判为行为车道）。
+    monkeypatch.setattr(mod, "probe_signatures", lambda t: set())
     db = str(tmp_path / "t.sqlite")
     _mkdb(db, [("E", "Q", "llm_asserted:0.15", "n1")])
     rep = mod.run_round(db, _Evolver(), None, "ctx",

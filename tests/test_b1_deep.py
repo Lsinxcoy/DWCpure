@@ -60,6 +60,9 @@ def _run(tmp_path, task_of, **kw):
     db = str(tmp_path / "t.sqlite")
     _mkdb(db)
     mu = _Mu()
+    # ★ R437 · 本文件测的是「深挖过滤」这条管线，不是车道策略；
+    #   合成 task 在锚点集里没有破坏实现，关掉分流避免被误判成行为车道。
+    kw.setdefault("reproducible_only", False)
     rep = EVO.run_round(db, _Evolver(), mu, "ctx",
                         lambda task, patch, code=None: False,
                         False, rules_path="", max_attempts=1,

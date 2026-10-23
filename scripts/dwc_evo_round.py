@@ -12,6 +12,7 @@ import os
 import sqlite3
 import sys
 import time
+from typing import Any, Dict, Set
 
 
 def _code_root(start=None) -> str:
@@ -38,6 +39,59 @@ sys.path.insert(0, os.path.join(_code_root(), "src"))
 from dwc.organs.evolver import Evolver, LLMMutator, Mutator
 
 
+#: ★ R437 · 探针缓存（task → 该任务的破坏实现能跑出的 (c,q) 集合）。
+_PROBE_CACHE: Dict[str, Set[Any]] = {}
+
+
+def probe_signatures(task: str) -> Set[Any]:
+    """★★★ R437 · 跑该任务的**破坏实现**，返回它真实产生的 (c,q) 集合。
+
+    ★ 为什么要有这个：旧口径按 `m.startswith("llm_asserted")` 判断"能不能
+      复现"——那是**猜**，不是测。实测 `code_fix_002` 的破坏实现产生
+      `E_VALUE/wrong_magnitude`，而现场 811 条是 `E_NO_RESULT/abstained`
+      ⇒ 前者能复现、后者不能。前缀过滤把两者一起扔了。
+
+    ★ 判定：签名 (c,q) ∈ 返回集合 ⇒ 该失败是"代码 bug 引起的"，进代码车道；
+      否则 ⇒ 是 agent 执行侧的（弃答/答错），进行为车道。
+
+    ★ 跑挂（obs=None）⇒ 返回 `{"__crash__"}`：崩溃本身就是这个 bug 的表现。
+    ★ 无破坏实现 ⇒ 空集（该任务没有代码可修）。
+    ★ 任务**不在锚点集里** ⇒ 返回 `{"__unknown__"}`：无从判断，保持老行为
+      （合成/历史调用方传的 task 不在 dev.json 里，不能凭空判成行为车道）。
+    """
+    if task in _PROBE_CACHE:
+        return _PROBE_CACHE[task]
+    out: Set[Any] = set()
+    try:
+        root = _code_root()
+        with io.open(os.path.join(root, "config", "anchors", "broken_dev.json"),
+                     encoding="utf-8") as _fh:
+            broken = json.load(_fh)
+        with io.open(os.path.join(root, "config", "anchors", "dev.json"),
+                     encoding="utf-8") as _fh:
+            anchors = json.load(_fh)
+        if task not in anchors:
+            out.add("__unknown__")
+        impl = str((broken.get(task) or {}).get("broken_impl") or "")
+        if impl.strip():
+            from dwc.llm.executor import obs_skeleton
+            from dwc.llm.sandbox import run_code_observed
+            from dwc.organs.judge import Judge
+            obs = run_code_observed(impl, obs_skeleton(anchors, task))
+            if obs is None:
+                out.add("__crash__")
+            else:
+                v = Judge().evaluate(task, "dev",
+                                     observed={"observed": obs,
+                                               "★_executed": True})
+                for s in (getattr(v, "sigs", None) or []):
+                    out.add((str(s.get("c")), str(s.get("q"))))
+    except Exception:                    # noqa: BLE001 — 探针坏 ⇒ 保守当行为车道
+        out = set()
+    _PROBE_CACHE[task] = out
+    return out
+
+
 def collect_unmapped(db_path, evolver, fn_of, task_of,
                      priority_prefixes=None, task_filter=None,
                      reproducible_only=True,
@@ -60,24 +114,56 @@ def collect_unmapped(db_path, evolver, fn_of, task_of,
     """
     con = sqlite3.connect(db_path)
     try:
-        rows = con.execute(
-            "select c,q,m,node_id from failure_sig").fetchall()
+        # ★★★ R437 · 真实任务名在 memory_node.payload 里（表本身没有 task 列）。
+        #   改前：`select c,q,m,node_id from failure_sig` + cron 传常量 lambda
+        #   ⇒ 2034 条签名全被标成同一个任务，聚簇全糊在一起。
+        try:
+            rows = con.execute(
+                "select f.c, f.q, f.m, f.node_id, "
+                "       coalesce(json_extract(n.payload,'$.task'),'') "
+                "from failure_sig f "
+                "left join memory_node n on n.node_id = f.node_id").fetchall()
+        except sqlite3.OperationalError:
+            # 旧库/最小测试库没有 memory_node ⇒ 退回老查询（task 由调用方兜底）
+            rows = [tuple(r) + ("",) for r in con.execute(
+                "select c,q,m,node_id from failure_sig").fetchall()]
     finally:
         con.close()
-    sigs = [{"c": r[0], "q": r[1], "m": r[2],
-             "fn": fn_of(r), "task": task_of(r), "node_id": r[3]}
+    sigs = [{"c": r[0], "q": r[1], "m": r[2], "node_id": r[3],
+             "fn": fn_of(r),
+             # ★ 真实任务名优先取 payload；取不到才回退调用方兜底
+             "task": (str(r[4] or "").strip() or task_of(r))}
             for r in rows]
+    # ★ R437 · payload 不存 fn（实测 0/2034 有值）⇒ 从锚点 checks 反查。
+    #   查不到就留空（空 fn 只影响聚簇粒度，不影响正确性）。
+    _anchors: Dict[str, Any] = {}
+    try:
+        with io.open(os.path.join(_code_root(), "config", "anchors", "dev.json"),
+                     encoding="utf-8") as _fh:
+            _anchors = json.load(_fh)
+    except (OSError, ValueError):
+        _anchors = {}
+    for _s in sigs:
+        if not _s.get("fn"):
+            _ck = (_anchors.get(_s.get("task", "")) or {}).get("checks") or []
+            _s["fn"] = str((_ck[0] or {}).get("fn") or "") if _ck else ""
     if task_filter is not None:
         # ★ B1 · 独立深挖：只收目标 task（单独立簇，深挖一轮）。
         sigs = [s for s in sigs if s.get("task") == task_filter]
     if reproducible_only:
-        # ★ R328 · 分流：执行侧自断言 trial 复现不了，不进 evo 簇。
-        _filtered_nonrepro = [s for s in sigs
-                              if str(s.get("m", "") or "").startswith("llm_asserted")]
-        sigs = [s for s in sigs
-                if not str(s.get("m", "") or "").startswith("llm_asserted")]
+        # ★★★ R437 · 分流口径从"猜前缀"改成"实测签名"。
+        #   旧：m.startswith("llm_asserted") ⇒ 2034 条全扔（含真能复现的）。
+        #   新：跑该任务的破坏实现，看它能不能产出**同一种失败签名**；
+        #       能 ⇒ 代码车道（有代码可修）；不能 ⇒ 行为车道（agent 弃答/答错）。
+        _code_sigs, _behavior_sigs = [], []
+        for _s in sigs:
+            _probe = probe_signatures(str(_s.get("task", "") or ""))
+            _hit = (("__unknown__" in _probe) or ("__crash__" in _probe)
+                    or ((str(_s.get("c")), str(_s.get("q"))) in _probe))
+            (_code_sigs if _hit else _behavior_sigs).append(_s)
+        sigs = _code_sigs
         if filtered_out is not None:
-            filtered_out.extend(_filtered_nonrepro)
+            filtered_out.extend(_behavior_sigs)
     if not sigs:
         return []
     if use_archive_priors:
@@ -515,7 +601,12 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             _mech_advise = []
     _rep = {"n_clusters": len(clusters), "results": results,
             "not_wired": [], "mech_advise": _mech_advise,
-            "filtered_nonreproducible": len(_nonrepro)}
+            "filtered_nonreproducible": len(_nonrepro),
+            # ★ R437 · 两条车道分开报：代码车道进 evolver，行为车道进队列。
+            #   旧口径只有一个 filtered 数，看不出"被丢掉的是什么"。
+            "n_code_sigs": sum(len(_c.get("sigs") or []) for _c in clusters),
+            "n_behavior_sigs": len(_nonrepro),
+            "behavior_sigs": _nonrepro[:2000]}
     # ★ D2 · envelope 声明（companion：search cost 与 envelope 分开列）。
     #   trial_rounds＝本轮 trial 调用总数（attempts 求和）；by_mode＝trial
     #   mode 分布（按 results 行计末次 trial 的 mode；code 路＝LLM search

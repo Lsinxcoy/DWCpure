@@ -238,6 +238,15 @@ _REPO_SKIP_DIRS = {".git", ".cache", "var", "archive", "node_modules",
                    "repos"}
 _REPO_EXTS = (".py", ".yaml", ".yml", ".json", ".toml", ".md", ".jsonl")
 
+#: ★★★ R437 · **按文件名找**时不能跳过 `var` / `archive`。
+#:   现场（全池 2 轮）：某 code-locate 题问「var 下的运行时文件名」，
+#:   `find_files` 返回 `TOTAL 0` —— 文件明明在 `var/`，但
+#:   `_REPO_SKIP_DIRS` 把 `var` 排除了。模型据此连续两次给出不存在的
+#:   文件名，被幻觉闸拦下，答案变成「未能给出有效答案…」。
+#:   内容检索仍要跳过（`var/` 有几万行运行时日志，会淹没代码）；
+#:   但**按名找文件**是 O(目录项)，没有噪声问题。
+_FIND_SKIP_DIRS = _REPO_SKIP_DIRS - {"var", "archive"}
+
 
 def _repo_text() -> str:
     """懒加载仓库文本索引（给"这个名字到底存不存在"用）。"""
@@ -299,7 +308,10 @@ _REPO_FILES_CACHE: Optional[set] = None
 #: 任务在**问文件名**（才做存在性校验；写文件类任务会提到尚不存在的文件名）
 _FILE_Q_RE = re.compile(r"(文件名|哪个文件|什么文件|入口文件|脚本名|叫什么)")
 _FILE_TOKEN_RE = re.compile(
-    r"[\w\-./\\]+\.(?:py|md|json|jsonl|ya?ml|toml|txt|cfg|ini)")
+    # ★ R437 · 长后缀必须排前面并加 \b：`(?:py|md|json|jsonl…)` 会让
+    #   `dwc_pairs.jsonl` 只匹配到 `.json`（尾部 l 被丢掉）⇒ 存在性校验
+    #   把真实文件判成幻觉。
+    r"[\w\-./\\]+\.(?:jsonl|json|ya?ml|toml|py|md|txt|cfg|ini)\b")
 
 
 def _repo_files() -> set:
@@ -311,8 +323,11 @@ def _repo_files() -> set:
         os.path.dirname(os.path.abspath(__file__)))))
     names = set()
     for dp, dn, fn in os.walk(root):
+        # ★ R437 · 用 `_FIND_SKIP_DIRS`（不排 var/archive）—— 存在性校验要
+        #   和 `find_files` 的可见范围一致：agent 能找到的文件，就不能判成
+        #   "不存在"。旧实现用 `_REPO_SKIP_DIRS`，把 var/ 下的真实文件判成幻觉。
         dn[:] = [d for d in dn
-                 if d not in _REPO_SKIP_DIRS and not d.startswith(".")]
+                 if d not in _FIND_SKIP_DIRS and not d.startswith(".")]
         for f in fn:
             names.add(f.lower())
     _REPO_FILES_CACHE = names
@@ -777,7 +792,7 @@ _TOOL_TO_OP = {
 _FIND_PY = (
     "import os,sys,fnmatch\n"
     "root=sys.argv[1]; pat=sys.argv[2]; ic=sys.argv[3]=='1'\n"
-    "skip=" + repr(_REPO_SKIP_DIRS) + "\n"
+    "skip=" + repr(_FIND_SKIP_DIRS) + "\n"
     "n=0\n"
     "for d,ds,fs in os.walk(root):\n"
     "    ds[:]=[x for x in ds if x not in skip]\n"
@@ -830,6 +845,14 @@ _SEARCH_PY = (
     "for x in defs[:20]: print(x)\n"
     "print('=== REFERENCES (%d) ===' % len(refs))\n"
     "for x in refs[:30]: print(x)\n"
+    # ★★★ R437 · 0/0 必须给方向，不能让模型把"搜不到"当成"不存在"。
+    #   现场（全池 2 轮）：某 read-fact 题问 env 开关名，模型搜了多词短语 ⇒
+    #   `DEFINITIONS (0) / REFERENCES (0)` ⇒ 它写下「检索结果均为 0/0」
+    #   后放弃，或编一个名字。实际符号就在仓库里，只是它的检索词太长。
+    #   ★ 这不是给答案：只是告诉它"换个搜法"，不透露任何标识符。
+    "if not defs and not refs:\n"
+    "    print('=== 0 命中（不等于不存在）===')\n"
+    "    print('本工具按子串匹配：换更短的词根 / 换目录重搜，或改用 find_files 按文件名找。')\n"
     # ★★★ R430 · **检索词过泛**时给出"更长标识符"候选。
     #   现场（某 read-fact 题）：问"记忆修订的新节点用哪个保留键链回旧节点"，模型搜
     #   `prev` ⇒ 77 条引用、0 条定义 ⇒ 它把泛命中里的裸词当成了结果。
@@ -1649,11 +1672,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                         "run_command / list_dir / search_code / final_answer），"
                         "不要输出任何正文说明。" % task)
                     continue
-                return {"task": task, "task_id": sid,
-                        "status": "incomplete", "rounds": rnd,
-                        "why": "原生工具模式下模型只输出正文、未调用任何工具"
-                               "（重试 1 次后仍如此）—— 未执行",
-                        "actions_log": log}
+                # ★★★ R437 · **不再判死** —— 落到下面 R380 的纯文本处理。
+                #   理由与 R380 同一条：**格式不该把正确答案一起扔掉**。
+                #   R383 的两道护栏仍然生效（声称做过动作但零动作 / 拒绝执行）。
+                #   现场：全池 2 轮 208 次里 4 次；工具修复后复测 3 单里 2 单
+                #   命中此路径（都是"只答文件名"的短问句，模型直接写正文）。
+                pass
             # ★★★ R380 · 纯文本答案**不许判死**。
             #   现场（2026-10-20 09:40 跑批）：8 单失败里 7 单的 `why`
             #   就是答案本身（`prev_node_id` / `dwc_pairs.jsonl` /
@@ -1684,6 +1708,24 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                             "status": "incomplete", "rounds": rnd,
                             "why": "模型拒绝执行（%r）—— 未完成任务" % _ref,
                             "actions_log": log}
+                # ★★★ R437 · 纯文本路径也要过**幻觉文件名闸** ——
+                #   否则「不调工具直接写正文」会成为绕过 R419 的后门：
+                #   模型可以编一个不存在的文件名而不被打回。
+                if qa_mode:
+                    # ★ R437 · 闸本身坏了不许炸单，但必须留痕（G7）
+                    _pg_fail = [0]
+                    try:
+                        if _phantom_file_gate(task, _raw):
+                            return {"task": task, "task_id": sid,
+                                    "status": "incomplete", "rounds": rnd,
+                                    "answer": "（未能给出有效答案：给出仓库中"
+                                              "不存在的文件名，判为幻觉，不予采信）",
+                                    "artifacts": [], "actions_log": log}
+                    except Exception as _ge:        # noqa: BLE001
+                        _pg_fail[0] += 1
+                        import sys as _sys
+                        _sys.stderr.write("phantom gate 失败×%d: %s\n"
+                                          % (_pg_fail[0], _ge))
                 return {"task": task, "task_id": sid,
                         "status": "done", "rounds": rnd,
                         "answer": _raw.strip(),

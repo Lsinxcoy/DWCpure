@@ -59,6 +59,8 @@ def _run(tasks, task_of, tmp_path, **kw):
     def _task_of(r):
         return by_task.get(r[0], r[0])
 
+    # ★ R437 · 本文件测优序，不测车道策略；合成 task 关掉分流。
+    kw.setdefault("reproducible_only", False)
     return EVO.collect_unmapped(db, _Evolver([]), _fn_of, _task_of, **kw)
 
 
