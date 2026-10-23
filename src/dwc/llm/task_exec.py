@@ -33,6 +33,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from dwc.foundation.paths import find_root
+from dwc.llm import tool_raw
 ROOT = find_root()
 WORK = os.path.join(ROOT, "var", "inbox_work")
 #: 危险命令黑名单（子串匹配; run 动作的护栏之一 — 不是完备沙箱, 是护栏）
@@ -634,7 +635,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                                 capture_output=True, text=True, timeout=60,
                                 encoding="utf-8", errors="replace")
             return {"ok": r0.returncode == 0, "rc": r0.returncode,
-                    "stdout": (r0.stdout or "")[:4000],
+                    "stdout": tool_raw.clip(r0.stdout or "", limit=4000),
                     "stderr": (r0.stderr or "")[:1000],
                     "confirmed_by_human": ask}
         if ask:
@@ -648,7 +649,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                                     timeout=60, encoding="utf-8",
                                     errors="replace")
                 return {"ok": r0.returncode == 0, "rc": r0.returncode,
-                        "stdout": (r0.stdout or "")[:4000],
+                        "stdout": tool_raw.clip(r0.stdout or "", limit=4000),
                         "stderr": (r0.stderr or "")[:1000],
                         "confirmed_by_human": ask}
             raise TaskExecError(
@@ -659,7 +660,7 @@ def _do_action(op: str, args: Dict[str, Any]) -> Dict[str, Any]:
                                capture_output=True, text=True, timeout=60,
                                encoding="utf-8", errors="replace")
             return {"ok": r.returncode == 0, "rc": r.returncode,
-                    "out": (r.stdout or "")[:6000],
+                    "out": tool_raw.clip(r.stdout or "", limit=6000),
                     "err": (r.stderr or "")[:1500]}
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "timeout 60s"}
@@ -2332,7 +2333,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                   "请继续（下一步 op）"
                   % (task, prefix,
                      json.dumps(recent, ensure_ascii=False)[:1200],
-                     json.dumps(obs, ensure_ascii=False)[:6000]))
+                     tool_raw.clip(json.dumps(obs, ensure_ascii=False), limit=6000)))
     _fail = {"status": "incomplete", "why": "达轮数上限未 final",
              "actions_log": log}
     if retry_on_fail and _depth == 0:
