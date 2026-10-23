@@ -192,10 +192,15 @@ if len(text) > output_max_chars:
 
 **为什么改了**（实测得出，不是偷懒）：
 
-> 候选规则的 trial 是**纯 Python 沙箱**（`run_code_observed`），不调 LLM。
-> 规则的真实成本只在 agent 真正跑任务时才产生。
-> 所以"候选成本"在 trial 期**根本不存在** —— 写一个 `cost_measured` 门只会
-> 要么恒假（永远 blocked）、要么恒真（放水）。两者都是假门。
+> ~~候选规则的 trial 不调 LLM~~ ← **这句话在 R445 被更正**：trial 确实会调 LLM
+> （`_peer_held_out_code`，code 路与 agent 路都调）。
+>
+> 但更正要害不在这里：那部分是 **评测开销** —— 两臂都要付、`max_tokens` 固定、
+> prompt 只差一个 `hint_code` ⇒ 它衡量的是"评测花了多少"，**不是"这条规则上线后多贵"**。
+> 拿它当 `no_cost_regression` 的输入，就是拿噪声当信号。
+>
+> 所以结论不变：**候选成本在 trial 期测不出来**，`cost_measured` 门只会
+> 恒假或恒真。两者都是假门。
 
 **实际落地**：回溯归因。
 
@@ -322,30 +327,43 @@ scripts/dwc_evo_round.py:768   if (hint_code or "").strip():  # 拼进 peer prom
 - 上下文三元组（trigger/selector/reposition）**未落地**：DWC 的压缩路径只有一条，
   拆成可进化对象要先有"多形态"才谈得上选择。留到 P4。
 
-### P3 · 三档 Pareto（R446+）
+### P3 · 三档 Pareto（R445）· 只落地到"可观测"，不接管 landing
 
-**目标**：一轮进化产出三套策略，部署时按预算选。
+**原计划**：一轮产出 lite/medium/heavy 三套策略，部署时按预算选。
 
-**Files**
-- Create: `src/dwc/organs/pareto.py`（归一化 + 加权平方距离）
-- Modify: `scripts/dwc_evo_round.py`（产出三档而非单条）
-- Modify: `config/evolution.yaml`（`modes: {lite: [1,2], medium: [1,1], heavy: [2,1]}`，必填）
-- Create: `tests/test_r445_pareto.py`
+**为什么没接管决策**（两条都是硬事实）：
 
-**选择**
-```python
-d_perf = (P_max - P) / (P_max - P_min)
-d_cost = (C - C_min) / (C_max - C_min)
-J_m    = a_m * d_perf**2 + b_m * d_cost**2
-pick   = argmin(J_m)
+1. **DWC 一轮只有一个成功候选**。`dwc_evo_round.py:512-518` 的循环是
+   `if _ok is True or _att >= _pool_n: break` —— 试到过就停。
+   一个点的 Pareto 前沿必然只有一个点，选谁都一样。
+2. **DWC 只有一种部署形态**（`auto_apply: true`）。
+   没有"按预算挑档"的部署位，三档权重没有作用对象。
+
+**实际落地**
+
+| 组件 | 内容 |
+|---|---|
+| `src/dwc/organs/pareto.py` | `non_dominated(points)` + `select(points, mode)`，三档权重 `J = a·d_perf² + b·d_cost²` |
+| `scripts/dwc_evo_round.py` | 每次 trial 前后量 `_usage_total()` 差值 → `trial_tokens`；报告出 `pareto` 块 |
+| `tests/test_r445_pareto.py` | 12 条 |
+
+**三条纪律（都有测试锁定）**
+- **成本缺失 ≠ 0**：缺成本的候选不参与（0 会被选成"最便宜"）。
+- **成本全等 ⇒ 退化为最高分**：与现状完全一致，不许因为算法把好候选选掉。
+- **没有可测点 ⇒ `select` 返回 None**：调用方保持原行为。
+
+**报告里长什么样**
+```json
+"pareto": {"n_candidates": 1, "front": ["P_xxx"],
+           "lite": "P_xxx", "medium": "P_xxx", "heavy": "P_xxx",
+           "note": "观测项，不接管 landing：…"}
 ```
 
-**验收**
-- 三档产物的 pass_rate 与 cost 满足 `lite.cost ≤ medium.cost ≤ heavy.cost`。
-- 三档都过 `PR ≥ PR(h0)` 地板。
-- 可单独启用某一档（不必三档一起上）。
+**要让它真正起作用，还缺什么**
+- 多候选并行（需日预算 96/80 支持，当前红线禁）
+- 或者一个**能测规则线上成本**的通道（生产 A/B 跨天，不是 trial）
 
----
+在此之前它是**数据结构的准备**，不是决策机制。诚实记账。
 
 ### P4 · 改进库：让"改进器"自己进化（R447+）
 

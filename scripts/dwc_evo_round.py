@@ -508,7 +508,10 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 break
             item["drafted"] = True
             item["proposal_id"] = p.proposal_id
+            _u0 = _usage_total()
             t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
+            # ★ R445 · 这次 trial 烧的 token（评测开销，不是规则成本 —— 见 pareto.py）
+            item["trial_tokens"] = max(0, _usage_total() - _u0)
             # ★ D4-③ assess 段（试跑＋门判：候选→真分；真伪由门＋held_out 定）。
             item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
             # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
@@ -658,9 +661,37 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         #   旧文案"未记 token"已不成立，留着就是幻影声明。
         "tokens": "见 cost_attribution（var/llm_usage.jsonl 按 task 聚合）",
         "search_cost": "另列：by_mode.code＝LLM search 面；其余零 search"}
+    # ★ R445 · P3 Pareto（观测）：把本轮候选按 (分数, trial token) 放到前沿上。
+    #   ★★ 诚实：DWC 一轮只留**一个**成功候选（试到过就 break）⇒ 前沿必然只有一个点，
+    #   这一步今天不改变任何决策。它的价值是**把数据结构备好**：
+    #   等多候选并行那天（需预算支持），select() 才真的有得选。
+    try:
+        from dwc.organs import pareto as _PA
+        _pts = []
+        for _r in results:
+            _t = _r.get("trial")
+            _sc = _t.get("in_score") if isinstance(_t, dict) else None
+            _tk = _r.get("trial_tokens")
+            if _sc is None or _tk is None:
+                continue
+            _pts.append({"name": str(_r.get("proposal_id") or _r.get("key") or ""),
+                         "score": _sc, "cost": _tk})
+        _rep["pareto"] = {
+            "n_candidates": len(_pts),
+            "front": _PA.non_dominated(_pts),
+            "lite": (_PA.select(_pts, "lite") or {}).get("name"),
+            "medium": (_PA.select(_pts, "medium") or {}).get("name"),
+            "heavy": (_PA.select(_pts, "heavy") or {}).get("name"),
+            "note": ("观测项，不接管 landing：一轮只有一个成功候选，前沿必然单点；"
+                     "且 trial_tokens 是评测开销、不是规则线上成本"),
+        }
+    except Exception as _pe:      # noqa: BLE001 — Pareto 坏不掀轮
+        _rep["pareto"] = {"error": repr(_pe)}
     # ★ R442 · 成本归因（回溯）：本轮每任务平均 token + 与上次快照的走向。
-    #   ★★ 诚实边界：候选规则的 trial 是纯 Python 沙箱、不调 LLM
-    #   ⇒ 这里量的是**生产**成本，不是候选成本。没有数据 ⇒ None（不猜 0）。
+    #   ★★ 诚实边界（R445 更正）：trial **确实会调 LLM**（peer held-out），
+    #   但那部分是**评测开销**，两臂都要付，与候选规则的线上成本无关
+    #   ⇒ 不能拿它当"候选成本"。这里量的是**生产**成本（按 task_id 聚合）。
+    #   没有数据 ⇒ None（不猜 0）。
     try:
         from dwc.organs import cost_attribution as _ca
         _snap = _ca.snapshot(note="evo_round")
@@ -784,6 +815,28 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
         return None
     except Exception:                               # noqa: BLE001 — 坏不断试跑
         return None
+
+
+def _usage_total() -> int:
+    """当前用量日志的 prompt+completion 总和（trial 前后差值 = 这次 trial 烧的）。"""
+    try:
+        from dwc.llm import cost as _c
+        import io as _io
+        n = 0
+        with _io.open(_c.usage_log_path(), encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                n += int(r.get("prompt_tokens") or 0)
+                n += int(r.get("completion_tokens") or 0)
+        return n
+    except Exception:      # noqa: BLE001 — 记账坏不许掀轮
+        return 0
 
 
 def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
