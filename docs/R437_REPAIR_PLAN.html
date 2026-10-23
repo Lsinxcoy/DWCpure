@@ -1,0 +1,544 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R437 修复方案与执行结果</title><style>
+:root{--bg:#0d1117;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--yel:#d29922}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:36px 40px 20px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#161b22,#0d1117)}
+h1{margin:0 0 8px;font-size:26px}
+.sub{color:var(--dim);font-size:13px}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;align-self:flex-start;width:250px;flex:0 0 250px;padding:24px 16px;border-right:1px solid var(--bd);max-height:100vh;overflow:auto}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;border-left:2px solid transparent}
+nav a:hover{color:var(--fg);background:#1c2128;border-left-color:var(--acc)}
+main{flex:1;min-width:0;padding:24px 40px 80px}
+h2{margin:38px 0 14px;font-size:20px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+h3{margin:26px 0 10px;font-size:16px;color:var(--acc)}
+p,li{color:#c9d1d9}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;font-weight:600}
+tr:nth-child(even) td{background:#11161d}
+code{background:#1c2128;padding:2px 6px;border-radius:4px;font-size:12.5px;color:#ffa657;font-family:Consolas,monospace}
+pre{background:#0b0f14;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow:auto}
+pre code{background:none;color:#c9d1d9;padding:0}
+blockquote{border-left:3px solid var(--yel);margin:14px 0;padding:6px 14px;background:#161b22;color:var(--dim)}
+strong{color:#fff}
+</style></head><body><header><h1>R437 · 进化系统修复方案与执行结果</h1><div class="sub">代码级方案 + 逐条验收 · 2026-10-23</div></header><div class="wrap"><nav><a href="#s0">一、根因（三层，逐层可证）</a><a href="#s1">二、目标架构：两条车道</a><a href="#s2">三、精确改动清单</a><a href="#s3">四、验收标准（跑完必须逐条核）</a><a href="#s4">五、后续（本次不做，方案先定）</a><a href="#s5">六、回滚</a><a href="#s6">七、执行结果（2026-10-23 09:45）</a></nav><main><h1>R437 修复方案（代码级）</h1>
+<blockquote>
+<p>基于 <code>docs/R437_EVOLUTION_MAP.md</code> 的审计结论。本文档是<strong>执行依据</strong>：
+每条改动给出文件、函数、改动前后代码、验收判据。不写"优化一下"这种话。</p>
+</blockquote>
+<hr />
+<h2 id="s0">一、根因（三层，逐层可证）</h2>
+<h3>第一层：归因断了</h3>
+<p><code>collect_unmapped</code> 读 <code>failure_sig</code> 表：</p>
+<pre><code class="language-sql">select c,q,m,node_id from failure_sig
+</code></pre>
+<p>这张表<strong>没有 task 列</strong>（<code>PRAGMA table_info</code> = <code>[c,q,m,node_id]</code>）。
+于是 cron 用两个<strong>常量 lambda</strong> 补齐：</p>
+<pre><code class="language-python">fn_of=lambda r: &quot;average&quot;, task_of=lambda r: &quot;code_fix_007&quot;,
+</code></pre>
+<p>⇒ <strong>2034 条签名全部被标成同一个任务</strong>。
+而真实任务名就在 <code>memory_node.payload</code> 里（<code>json_extract</code> 已验证：2034/2034 都有）。</p>
+<h3>第二层：分流口径是猜的</h3>
+<pre><code class="language-python">if reproducible_only:
+    _filtered_nonrepro = [s for s in sigs if s[&quot;m&quot;].startswith(&quot;llm_asserted&quot;)]
+    sigs = [s for s in sigs if not s[&quot;m&quot;].startswith(&quot;llm_asserted&quot;)]
+</code></pre>
+<p>"可复现"是按<strong>字符串前缀</strong>猜的，不是测的。实测：</p>
+<table>
+<thead>
+<tr>
+<th>任务</th>
+<th>破坏实现跑出来的签名</th>
+<th>现场签名</th>
+<th>能复现？</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>code_fix_001</code></td>
+<td><code>E_VALUE/wrong_magnitude</code></td>
+<td><code>E_NO_RESULT/abstained</code></td>
+<td>✗</td>
+</tr>
+<tr>
+<td><code>code_fix_002</code></td>
+<td><code>E_VALUE/wrong_magnitude</code></td>
+<td><code>E_NO_RESULT/abstained</code> ×811</td>
+<td>✗</td>
+</tr>
+<tr>
+<td><code>code_fix_002</code></td>
+<td><code>E_VALUE/wrong_magnitude</code></td>
+<td><code>E_VALUE/wrong_magnitude</code> ×2</td>
+<td><strong>✓</strong></td>
+</tr>
+<tr>
+<td><code>code_fix_004</code></td>
+<td><code>E_OFF_BY_ONE</code> + <code>E_VALUE</code></td>
+<td>待测</td>
+<td>部分</td>
+</tr>
+<tr>
+<td><code>code_fix_005</code></td>
+<td><code>E_FALSE_POSITIVE</code></td>
+<td>待测</td>
+<td>部分</td>
+</tr>
+</tbody>
+</table>
+<p>⇒ 前缀过滤把 <strong>2034 条全扔了</strong>，其中至少<strong>有几条真能复现</strong>。</p>
+<h3>第三层：任务面不相交</h3>
+<ul>
+<li>进化系统设计面向 <code>config/anchors/broken_dev.json</code>（<code>code_fix_001-006</code> + <code>reasoning_*</code>），<strong>有破坏实现可修</strong>。</li>
+<li>生产 agent 跑的是 <code>config/eval_tasks.jsonl</code>（52 单：rf/cl/rv/an/wr/hs）。</li>
+<li>两者的交集：<strong>只有 code_fix 系列的题号被 agent 跑到</strong>（实测 payload：009/002/007/008/004/005/003）。</li>
+<li>而生产失败里 <strong>811/848 是 <code>E_NO_RESULT/abstained_or_missing</code></strong> —— agent 弃答，<strong>不是代码 bug</strong>，修 broken_impl 治不了。</li>
+</ul>
+<p>⇒ 结论：<strong>必须分两条车道</strong>，不能用一套 evolver 吃两种失败。</p>
+<hr />
+<h3>第四层（执行中发现的真凶）：两个数据库</h3>
+<p><code>dwc_evo_round_cron.py</code> 的 <code>_prod_root()</code> 无条件返回 <code>~/.dwc</code>，而 agent 写的是
+<strong>仓库</strong> <code>var/dwc_prod.sqlite</code>：</p>
+<table>
+<thead>
+<tr>
+<th>库</th>
+<th>最后写入</th>
+<th>failure_sig</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.dwc/var/dwc_prod.sqlite</code>（cron 读）</td>
+<td><strong>10-17 09:11</strong></td>
+<td><strong>68</strong></td>
+</tr>
+<tr>
+<td><code>E:/Divine Wisdom Core/var/dwc_prod.sqlite</code>（agent 写）</td>
+<td><strong>10-23 08:49</strong></td>
+<td><strong>2053</strong></td>
+</tr>
+</tbody>
+</table>
+<p>⇒ 每日进化轮读的是 <strong>6 天前的库</strong>。这就是 <code>n_clusters: 0</code> 的第一原因，
+比"过滤太狠"更根本。</p>
+<p><strong>修法</strong>：<code>_prod_root()</code> 优先返回仓库根（与 agent 同源），没有库才回退 <code>~/.dwc</code>。</p>
+<hr />
+<h2 id="s1">二、目标架构：两条车道</h2>
+<pre><code>failure_sig（真实 task 从 payload 读）
+        │
+        ├─ 实测探针：broken_impl 跑同一题，签名 (c,q) 是否一致？
+        │
+        ├── 一致 ──→ 【代码车道】有破坏实现可修
+        │              → 聚簇 → propose → trial（沙箱，确定性）→ 六门 → 落地 rules.json
+        │
+        └── 不一致/无实现 ──→ 【行为车道】agent 弃答/答错
+                               → var/behavior_queue.jsonl（append-only，按 key 去重）
+                               → 提示词/技能/工具反馈 候选 → A/B（R434-R436 已有）
+</code></pre>
+<p><strong>关键原则</strong>：车道归属由<strong>实测签名匹配</strong>决定，不由 <code>m</code> 前缀决定，也不由任务名决定。</p>
+<hr />
+<h2 id="s2">三、精确改动清单</h2>
+<h3>改动 1 · 归因：从 payload 读真实 task（<code>scripts/dwc_evo_round.py</code>）</h3>
+<p><strong>函数</strong>：<code>collect_unmapped</code>（第 41 行）</p>
+<p>改动前：</p>
+<pre><code class="language-python">con = sqlite3.connect(db_path)
+try:
+    rows = con.execute(
+        &quot;select c,q,m,node_id from failure_sig&quot;).fetchall()
+finally:
+    con.close()
+sigs = [{&quot;c&quot;: r[0], &quot;q&quot;: r[1], &quot;m&quot;: r[2],
+         &quot;fn&quot;: fn_of(r), &quot;task&quot;: task_of(r), &quot;node_id&quot;: r[3]}
+        for r in rows]
+</code></pre>
+<p>改动后：</p>
+<pre><code class="language-python">con = sqlite3.connect(db_path)
+try:
+    rows = con.execute(
+        &quot;select f.c, f.q, f.m, f.node_id, &quot;
+        &quot;       coalesce(json_extract(n.payload,'$.task'),'') &quot;
+        &quot;from failure_sig f &quot;
+        &quot;left join memory_node n on n.node_id = f.node_id&quot;).fetchall()
+finally:
+    con.close()
+sigs = [{&quot;c&quot;: r[0], &quot;q&quot;: r[1], &quot;m&quot;: r[2], &quot;node_id&quot;: r[3],
+         &quot;fn&quot;: fn_of(r),
+         # ★ R437 · 真实任务名优先取 payload；表里没有 task 列
+         &quot;task&quot;: (str(r[4] or &quot;&quot;).strip() or task_of(r))}
+        for r in rows]
+</code></pre>
+<p><strong><code>fn</code> 的补法</strong>（同一个函数内，聚簇前）：</p>
+<pre><code class="language-python"># ★ R437 · payload 不存 fn（实测 0/2034 有值）⇒ 从锚点 checks 反查；
+#   查不到就留空（空 fn 只影响聚簇粒度，不影响正确性）。
+try:
+    _anchors = json.load(io.open(os.path.join(_code_root(), &quot;config&quot;, &quot;anchors&quot;,
+                                              &quot;dev.json&quot;), encoding=&quot;utf-8&quot;))
+except Exception:
+    _anchors = {}
+for _s in sigs:
+    if not _s.get(&quot;fn&quot;):
+        _c = (_anchors.get(_s[&quot;task&quot;]) or {}).get(&quot;checks&quot;) or []
+        _s[&quot;fn&quot;] = str((_c[0] or {}).get(&quot;fn&quot;) or &quot;&quot;) if _c else &quot;&quot;
+</code></pre>
+<h3>改动 2 · 车道判定：实测探针（<code>scripts/dwc_evo_round.py</code>）</h3>
+<p><strong>新增函数</strong>（放在 <code>collect_unmapped</code> 之前）：</p>
+<pre><code class="language-python">_PROBE_CACHE: Dict[str, Any] = {}
+
+def probe_signatures(task: str) -&gt; set:
+    &quot;&quot;&quot;★ R437 · 跑该任务的**破坏实现**，返回它真实产生的 (c,q) 集合。
+
+    这是&quot;可复现&quot;的唯一判据：不是看 m 前缀，而是看破坏实现能不能
+    跑出同一种失败。跑挂（obs=None）⇒ 返回 {&quot;__crash__&quot;}（也算可复现，
+    因为崩溃本身就是这个 bug 的表现）。
+    无破坏实现 ⇒ 空集（该任务没有代码可修）。
+    &quot;&quot;&quot;
+    if task in _PROBE_CACHE:
+        return _PROBE_CACHE[task]
+    out = set()
+    try:
+        root = _code_root()
+        b = json.load(io.open(os.path.join(root, &quot;config&quot;, &quot;anchors&quot;,
+                                           &quot;broken_dev.json&quot;), encoding=&quot;utf-8&quot;))
+        a = json.load(io.open(os.path.join(root, &quot;config&quot;, &quot;anchors&quot;,
+                                           &quot;dev.json&quot;), encoding=&quot;utf-8&quot;))
+        impl = str((b.get(task) or {}).get(&quot;broken_impl&quot;) or &quot;&quot;)
+        if impl.strip():
+            from dwc.llm.sandbox import run_code_observed
+            from dwc.llm.executor import obs_skeleton
+            from dwc.organs.judge import Judge
+            obs = run_code_observed(impl, obs_skeleton(a, task))
+            if obs is None:
+                out.add(&quot;__crash__&quot;)
+            else:
+                v = Judge().evaluate(task, &quot;dev&quot;,
+                                     observed={&quot;observed&quot;: obs,
+                                               &quot;★_executed&quot;: True})
+                for s in (getattr(v, &quot;sigs&quot;, None) or []):
+                    out.add((str(s.get(&quot;c&quot;)), str(s.get(&quot;q&quot;))))
+    except Exception:
+        out = set()
+    _PROBE_CACHE[task] = out
+    return out
+</code></pre>
+<p><strong>分流逻辑</strong>（替换原来的前缀过滤）：</p>
+<pre><code class="language-python">if reproducible_only:
+    _code, _behavior = [], []
+    for _s in sigs:
+        _probe = probe_signatures(_s.get(&quot;task&quot;, &quot;&quot;))
+        if (str(_s.get(&quot;c&quot;)), str(_s.get(&quot;q&quot;))) in _probe or &quot;__crash__&quot; in _probe:
+            _code.append(_s)
+        else:
+            _behavior.append(_s)
+    sigs = _code
+    if filtered_out is not None:
+        filtered_out.extend(_behavior)
+</code></pre>
+<h3>改动 3 · cron 去掉常量 lambda（<code>scripts/dwc_evo_round_cron.py</code>）</h3>
+<p>改动前（第 82 行）：</p>
+<pre><code class="language-python">fn_of=lambda r: &quot;average&quot;, task_of=lambda r: &quot;code_fix_007&quot;,
+</code></pre>
+<p>改动后：</p>
+<pre><code class="language-python"># ★ R437 · 真实任务名由 collect_unmapped 从 payload 读；这里只做兜底
+fn_of=lambda r: &quot;&quot;, task_of=lambda r: &quot;&quot;,
+</code></pre>
+<h3>改动 4 · 修 N1 路由 SQL（<code>scripts/dwc_evo_round_cron.py</code>）</h3>
+<p>改动前（第 125 行）：</p>
+<pre><code class="language-python">_tasks = [r[0] for r in _con.execute(
+    &quot;SELECT DISTINCT task FROM failure_sig &quot;
+    &quot;WHERE m LIKE 'llm_asserted%'&quot;).fetchall()]
+</code></pre>
+<p>改动后：</p>
+<pre><code class="language-python">_tasks = [r[0] for r in _con.execute(
+    &quot;SELECT DISTINCT json_extract(n.payload,'$.task') AS task &quot;
+    &quot;FROM failure_sig f JOIN memory_node n ON n.node_id = f.node_id &quot;
+    &quot;WHERE json_extract(n.payload,'$.task') IS NOT NULL&quot;).fetchall()]
+</code></pre>
+<h3>改动 5 · 行为车道落盘（<code>scripts/dwc_evo_round_cron.py</code>）</h3>
+<p><code>run_round</code> 返回后追加：</p>
+<pre><code class="language-python"># ★ R437 · 行为车道：不进 evolver，但**不许静默丢**
+_beh = rep.get(&quot;behavior_sigs&quot;) or []
+if _beh:
+    _q = os.path.join(prod, &quot;var&quot;, &quot;behavior_queue.jsonl&quot;)
+    _seen = set()
+    try:
+        for _ln in open(_q, encoding=&quot;utf-8&quot;):
+            try:
+                _seen.add(json.loads(_ln).get(&quot;key&quot;))
+            except Exception:
+                pass
+    except OSError:
+        pass
+    _n_new = 0
+    with open(_q, &quot;a&quot;, encoding=&quot;utf-8&quot;) as _f:
+        for _s in _beh:
+            _k = &quot;%s:%s:%s&quot; % (_s.get(&quot;task&quot;), _s.get(&quot;c&quot;), _s.get(&quot;q&quot;))
+            if _k in _seen:
+                continue
+            _seen.add(_k)
+            _f.write(json.dumps({&quot;key&quot;: _k, &quot;sig&quot;: _s,
+                                 &quot;ts&quot;: time.time()}, ensure_ascii=False) + &quot;\n&quot;)
+            _n_new += 1
+    rep[&quot;behavior_queued&quot;] = _n_new
+</code></pre>
+<p><code>run_round</code> 需把 <code>filtered_out</code> 以 <code>behavior_sigs</code> 字段返回（改动 6）。</p>
+<h3>改动 6 · <code>run_round</code> 返回车道统计（<code>scripts/dwc_evo_round.py</code>）</h3>
+<p>改动前：</p>
+<pre><code class="language-python">    return {&quot;clusters&quot;: clusters, &quot;results&quot;: results, ...}
+</code></pre>
+<p>改动后（在返回体加三项）：</p>
+<pre><code class="language-python">        &quot;n_code_sigs&quot;: len([s for s in clusters for _ in s[&quot;sigs&quot;]]),
+        &quot;n_behavior_sigs&quot;: len(_nonrepro),
+        &quot;behavior_sigs&quot;: _nonrepro[:2000],   # 上限防报告爆
+</code></pre>
+<h3>改动 7 · 测试（<code>tests/test_r437_lane_split.py</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>测试</th>
+<th>断言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test_task_read_from_payload</code></td>
+<td>造 2 条不同 task 的 sig，<code>collect_unmapped</code> 归因不串</td>
+</tr>
+<tr>
+<td><code>test_probe_matches_real_signature</code></td>
+<td><code>probe_signatures("code_fix_002")</code> 含 <code>("E_VALUE","wrong_magnitude")</code></td>
+</tr>
+<tr>
+<td><code>test_behavior_sig_goes_to_behavior_lane</code></td>
+<td><code>E_NO_RESULT/abstained_or_missing</code> 进 behavior</td>
+</tr>
+<tr>
+<td><code>test_code_sig_stays_in_evolver</code></td>
+<td><code>E_VALUE/wrong_magnitude</code> + code_fix_002 进 code</td>
+</tr>
+<tr>
+<td><code>test_n1_sql_uses_payload</code></td>
+<td>源码不含 <code>DISTINCT task FROM failure_sig</code></td>
+</tr>
+<tr>
+<td><code>test_no_hardcoded_task_lambda</code></td>
+<td>cron 源码不含 <code>"code_fix_007"</code> 常量 lambda</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s3">四、验收标准（跑完必须逐条核）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>判据</th>
+<th>改前</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>归因正确</td>
+<td>2034 条全 <code>code_fix_007</code></td>
+<td>分布 ≥3 种 task</td>
+</tr>
+<tr>
+<td>2</td>
+<td>代码车道有输入</td>
+<td><code>n_clusters: 0</code></td>
+<td><code>n_clusters ≥ 1</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>行为车道不丢</td>
+<td>68 条被静默过滤</td>
+<td><code>behavior_queued &gt; 0</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>SQL 无错</td>
+<td><code>no such column: task</code></td>
+<td>无该错误</td>
+</tr>
+<tr>
+<td>5</td>
+<td>试跑真跑</td>
+<td><code>trial_rounds: 0</code></td>
+<td><code>trial_rounds ≥ 1</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>回归</td>
+<td>2645 passed</td>
+<td>全绿</td>
+</tr>
+</tbody>
+</table>
+<p><strong>第 5 条是这次修复的"活证据"</strong>：trial_rounds 从 0 变正，说明管道真的通了。</p>
+<hr />
+<h2 id="s4">五、后续（本次不做，方案先定）</h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>内容</th>
+<th>前置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td><code>config/anchors/rules.json</code> 建空骨架 + cron <code>--apply</code>（默认关）手动跑一轮</td>
+<td>P0 验收通过</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>行为车道接 R434 三件套：队列 → 候选 → smoke A/B → 全池</td>
+<td>P0 行为队列有数据</td>
+</tr>
+<tr>
+<td>P3</td>
+<td><code>promote_lessons()</code> 接进每日轮</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P4</td>
+<td><code>Loop</code>（<code>build_round_fn</code>）复活或归档：接真实 <code>Target</code> 跑通一轮</td>
+<td>P1 落地链路验证</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s5">六、回滚</h2>
+<p>改动集中在 3 个文件、5 处函数。回滚 = <code>git revert &lt;本次提交&gt;</code>。
+不涉及 schema 变更（用 <code>json_extract</code> 读现有 payload），不写生产数据文件。</p>
+<hr />
+<h2 id="s6">七、执行结果（2026-10-23 09:45）</h2>
+<h3>已改（P0 全部）</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>改动</th>
+<th>文件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>task 从 <code>memory_node.payload</code> 读（<code>json_extract</code>），<code>fn</code> 从锚点 checks 反查</td>
+<td><code>scripts/dwc_evo_round.py::collect_unmapped</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>分流从「m 前缀猜测」改为「实测探针」<code>probe_signatures()</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>3</td>
+<td>报告新增 <code>n_code_sigs</code> / <code>n_behavior_sigs</code> / <code>behavior_sigs</code></td>
+<td><code>run_round</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>_prod_root()</code> 改为与 agent 同源（仓库根优先）</td>
+<td><code>scripts/dwc_evo_round_cron.py</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>行为车道落盘 <code>var/behavior_queue.jsonl</code>（按 key 去重）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>6</td>
+<td>N1 路由 SQL 改 <code>json_extract</code>（旧 SQL 恒报 no such column）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>_FILE_TOKEN_RE</code> 长后缀优先 + <code>\b</code>（<code>.jsonl</code> 被截成 <code>.json</code> 的 bug）</td>
+<td><code>src/dwc/llm/task_exec.py</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>_repo_files()</code> 改用 <code>_FIND_SKIP_DIRS</code>（var/ 下真实文件不再被判幻觉）</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<h3>验收（逐条对照第四节）</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>判据</th>
+<th>改前</th>
+<th>改后</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>归因</td>
+<td>2034 条全 <code>code_fix_007</code></td>
+<td>7 种 task（009/002/007/008/004/005/003）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>2</td>
+<td>代码车道</td>
+<td><code>n_clusters: 0</code></td>
+<td><strong><code>n_clusters: 1</code></strong>（<code>E_VALUE:wrong_magnitude:fibonacci</code>，5 条）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>3</td>
+<td>行为车道</td>
+<td>68 条静默丢</td>
+<td><code>n_behavior_sigs: 2036</code>，落队列</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>4</td>
+<td>SQL</td>
+<td><code>no such column: task</code></td>
+<td>无该错误</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>5</td>
+<td>试跑真跑</td>
+<td><code>trial_rounds: 0</code></td>
+<td><strong><code>trial_rounds: 1</code>，<code>success: true</code>，<code>in_score: 1.0</code>，<code>held_out: 1.0</code></strong></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>6</td>
+<td>回归</td>
+<td>2645 passed</td>
+<td><strong>2660 passed / 1 已知抖动</strong>（<code>test_r243_input</code> 单跑 5 passed）</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h3>现场证据（<code>var/evo_test_r437c.log</code>）</h3>
+<pre><code class="language-json">{&quot;n_clusters&quot;: 1,
+ &quot;results&quot;: [{&quot;key&quot;: &quot;E_VALUE:wrong_magnitude:fibonacci&quot;, &quot;n&quot;: 5,
+              &quot;drafted&quot;: true,
+              &quot;trial&quot;: {&quot;success&quot;: true, &quot;in_score&quot;: 1.0, &quot;held_out&quot;: 1.0,
+                        &quot;mode&quot;: &quot;code&quot;, &quot;activated&quot;: true},
+              &quot;landed&quot;: false}],
+ &quot;n_code_sigs&quot;: 5, &quot;n_behavior_sigs&quot;: 5}
+</code></pre>
+<p><code>landed: false</code> 是 <code>apply=False</code> 的预期结果 —— <strong>落地属 P1</strong>。</p>
+<h3>已知遗留（下一轮）</h3>
+<ol>
+<li><strong>起草随机性</strong>：同一簇第一次起草的 code 过不了沙箱（<code>沙箱跑挂/缺函数</code>），
+   第二次成功。沙箱失败应当触发<strong>重起草</strong>，而不是直接记 <code>ok=false</code>。</li>
+<li><strong><code>landed</code> 仍恒 false</strong>：<code>apply=False</code> 硬编码 + <code>config/anchors/rules.json</code> 不存在（P1）。</li>
+<li><strong>行为车道的消费者还没写</strong>：队列已有数据，但没有程序把它变成候选（P2）。</li>
+</ol></main></div></body></html>
