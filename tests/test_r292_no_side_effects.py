@@ -42,7 +42,12 @@ def test_r292_learned_path_isolated():
 
 
 def test_r292_land_adopted_never_touches_prod_rules():
-    """★★★ ② 端到端：_land_adopted 落地后生产 rules.json learned 仍空。"""
+    """★★★ ② 端到端：_land_adopted 不许改动生产 rules.json（**字节不变**）。
+
+    ★ R438 重锚：旧断言要求 `learned == {}` —— 那是"生产永远没学到东西"的
+      假设；R438 起生产真的会落规则（当前 1 条 fibonacci）。
+      正确判据是"本测试没改它"，不是"它必须是空的"。
+    """
     from dwc.organs.evolver import Evolver, Mutator, Proposal
     p = Proposal(proposal_id="P_r292",
                  failure_signature={"c": "E_X", "q": "q", "m": "m"},
@@ -51,16 +56,19 @@ def test_r292_land_adopted_never_touches_prod_rules():
                  dimension="D7", target_layer="assets")
     p.state = "adopted_not_implemented"
     _before = set(Mutator.RULES)
+    _prod_p = os.path.join(ROOT, "config", "anchors", "rules.json")
+    _before_bytes = (io.open(_prod_p, "rb").read()
+                     if os.path.exists(_prod_p) else None)
     try:
         Evolver()._land_adopted(p)
     finally:
         for _k in set(Mutator.RULES) - _before:
             del Mutator.RULES[_k]
     prod_path = os.path.join(ROOT, "config", "anchors", "rules.json")
-    if os.path.exists(prod_path):
-        prod = json.load(io.open(prod_path, encoding="utf-8"))
-        assert prod.get("learned", {}) == {}, prod.get("learned")
-    # ★ 缺席即空 learned（R276 起的正常态：gitignored 运行时文件，不在即无学到条目）
+    _now = (io.open(prod_path, "rb").read() if os.path.exists(prod_path)
+            else None)
+    assert _now == _before_bytes, "★ 测试改了生产 rules.json"
+    # ★ 缺席也合法（gitignored 运行时文件）—— 但"存在"与"被改"必须可区分
 
 
 def test_r292_tracked_snapshot_roundtrip(tmp_path):
