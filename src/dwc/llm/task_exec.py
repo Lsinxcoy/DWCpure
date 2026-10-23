@@ -33,6 +33,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from dwc.foundation.paths import find_root
+from dwc.llm import budget as _budget
 from dwc.llm import tool_raw
 ROOT = find_root()
 WORK = os.path.join(ROOT, "var", "inbox_work")
@@ -738,6 +739,26 @@ def _policy(component: str, key: str, default: Any) -> Any:
         import sys as _s
         _s.stderr.write("策略读取失败 %s.%s: %r\n" % (component, key, exc))
         return default
+
+
+def tool_budget() -> _budget.ToolBudget:
+    """★ R441 · 三段式工具预算（context_mgmt 维度，可被进化改写）。
+
+    坏值/坏文件 ⇒ 退回模块默认（`_policy` 已留痕）；返回前统一 `normalized()`，
+    保证 economy ≤ strict ≤ finalize（倒序配置不许把阶段语义倒过来）。
+    """
+    def _g(key: str, default: int) -> int:
+        try:
+            return int(_policy("context_mgmt", key, default))
+        except Exception:      # noqa: BLE001 — 预算坏不拦任务（_policy 已留痕）
+            return default
+
+    return _budget.ToolBudget(
+        economy_after=_g("budget_economy_after", 6),
+        strict_after=_g("budget_strict_after", 10),
+        finalize_after=_g("budget_finalize_after", NATIVE_TOOLS_MAX_ROUNDS),
+        reminder_every=_g("budget_reminder_every", 3),
+    ).normalized()
 
 
 def read_default_lines() -> int:
@@ -1657,6 +1678,13 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             _force_final = True
             _ff_pending[0] = False
         if _use_native_tools():
+            # ★ R441 · 三段式预算：先按当前轮次取阶段与提醒
+            _tb = tool_budget()
+            _stage = _budget.stage_of(rnd, _tb)
+            _rem = _budget.reminder(rnd, _tb)
+            if _rem:
+                # ★ 只追加，不重写 —— 提醒是给"这一轮的观测"加的，不是换系统提示
+                prompt = prompt + "\n\n" + _rem
             _rep_cnt: dict = {}
             for e in log or []:
                 if isinstance(e, dict) and e.get("phase") == "obs":
@@ -1664,15 +1692,21 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _rep_cnt[_k] = _rep_cnt.get(_k, 0) + 1
             _max_rep = max(_rep_cnt.values()) if _rep_cnt else 0
             if (_max_rep >= NATIVE_TOOLS_REPEAT_LIMIT
-                    or rnd >= NATIVE_TOOLS_MAX_ROUNDS):
+                    or _stage == "finalize"):
                 # ★ 追加而不是覆盖 —— qa_mode 的取证上限提示要保留
                 #   （覆盖会让两套收敛信号互相抵消，test_r301f 抓到过）
-                prompt = (prompt + "\n\n★ 停止收集/执行。同一动作已重复 %d 次"
-                          "（本轮第 %d 轮），继续重复不会得到新信息。\n"
+                # ★ R441 · 两种触发原因必须说清（否则"重复 1 次"是假话）
+                if _stage == "finalize":
+                    _why = ("★ 工具预算已用完（第 %d 轮），停止收集/执行。"
+                            % (rnd,))
+                else:
+                    _why = ("★ 停止收集/执行。同一动作已重复 %d 次"
+                            "（本轮第 %d 轮），继续重复不会得到新信息。"
+                            % (_max_rep, rnd))
+                prompt = (prompt + "\n\n" + _why + "\n"
                           "**现在立即调用 final_answer** 提交你目前掌握的最佳答案"
                           "（answer≥10 字中文）。不要再调用 read_file / "
-                          "run_command / search_code。"
-                          % (_max_rep, rnd))
+                          "run_command / search_code。")
                 # ★★★ R396 · 光靠提示词不够 —— 现场（21:35 全池）模型
                 #   已经 read 到答案（`read memory.py ok=True`）却继续重复
                 #   同一搜索 3 次，直到复读熔断判 incomplete。
