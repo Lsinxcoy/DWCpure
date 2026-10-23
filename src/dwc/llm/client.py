@@ -61,6 +61,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from . import cost
+
 #: ★ 配置来源（优先级从高到低）: 环境变量 → config/llm.json
 #:   ★★ 为什么不去读宿主（Hermes）的配置:
 #     ① 那是**别的系统的凭证**，越权取用不是"复用"
@@ -300,6 +302,28 @@ class LLMClient:
         self.n_ok = 0
         self.n_fail = 0
         self.n_retries = 0
+        #: ★ R439 · 价目表（只读一次；文件缺失 ⇒ {} ⇒ cost_usd=None）
+        #:   不在每次调用时读盘：LLM 调用已经是瓶颈，不再加 I/O。
+        self._pricing: Dict[str, Any] = cost.load_pricing()
+
+    # ── token 记账（R439 · P0-a）───────────────────────────
+
+    def _attach_usage(self, meta: Dict[str, Any],
+                      data: Any = None) -> Dict[str, Any]:
+        """把 usage 记进 meta 并落盘（旁路，失败不影响调用）。
+
+        ★ 没有 usage ⇒ meta 里**不出现** usage 键（不是 0）。
+        ★ 未知模型 ⇒ 有 usage 但没有 cost_usd。
+        """
+        u = cost.from_response(data) if data is not None else None
+        if u is None:
+            return meta
+        meta["usage"] = u.as_dict()
+        c = cost.cost_usd(self._model, u, self._pricing)
+        if c is not None:
+            meta["cost_usd"] = c
+        cost.record(self._model, u, c)
+        return meta
 
     # ── 凭证护栏（纪律①）─────────────────────────────────
 
@@ -519,10 +543,11 @@ class LLMClient:
                 self.n_ok += 1
                 self._attempts = 0
                 return LLMResult(ok=True, text="", source="llm",
-                                 meta={"model": self._model,
-                                       "tool_calls": _tool_calls,
-                                       "finish_reason": finish,
-                                       "content_chars": 0})
+                                 meta=self._attach_usage(
+                                     {"model": self._model,
+                                      "tool_calls": _tool_calls,
+                                      "finish_reason": finish,
+                                      "content_chars": 0}, data))
             self.n_fail += 1
             if isinstance(rc, str) and rc.strip():
                 # 推理吃光 token ⇒ 如实报「只有推理，没有正文」，不冒充答案
@@ -542,9 +567,10 @@ class LLMClient:
         self.n_ok += 1
         self._attempts = 0      # ★ 成功后归零（下次调用从头数）
         return LLMResult(ok=True, text=text, source="llm",
-                         meta={"model": self._model,   # ★ model 名可记
-                               "n_chars": len(text),
-                               "finish_reason": finish})
+                         meta=self._attach_usage(
+                             {"model": self._model,   # ★ model 名可记
+                              "n_chars": len(text),
+                              "finish_reason": finish}, data))
 
     def complete_stream(self, prompt: str, *, system=None,
                         max_tokens: Optional[int] = None, json_mode: bool = False,
@@ -659,10 +685,14 @@ class LLMClient:
             if fb.ok:
                 self.n_ok += 1                  # 回退成功计入（账本仍如实）
                 return LLMResult(ok=True, text=fb.text, source="llm",
-                                 meta={"stream_fallback": True,
-                                       "fallback_reason": "%s: %s"
-                                       % (type(e).__name__, str(e)[:80]),
-                                       "n_chars": len(fb.text)})
+                                 meta=dict(
+                                     {"stream_fallback": True,
+                                      "fallback_reason": "%s: %s"
+                                      % (type(e).__name__, str(e)[:80]),
+                                      "n_chars": len(fb.text)},
+                                     # ★ R439 · 回退的那次已经记过账，这里只搬运，不重复记
+                                     **{k: v for k, v in fb.meta.items()
+                                        if k in ("usage", "cost_usd")}))
             return LLMResult(ok=False, source="error",
                              error="流式失败且回退失败: %s" % fb.error[:120],
                              meta={"stream_error": str(e)[:80]})
