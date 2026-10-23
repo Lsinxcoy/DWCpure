@@ -59,7 +59,8 @@ def test_auto_apply_parsed(tmp_path):
     p = tmp_path / "evo.yaml"
     p.write_text("version: 1\nevolution:\n  feed_from_terms: true\n"
                  "  max_sigs_per_term: 50\n  auto_apply: false\n"
-                 "  auto_apply_max_per_round: 2\n", encoding="utf-8")
+                 "  auto_apply_max_per_round: 2\n"
+                 "  prompt_evolve_weekday: -1\n", encoding="utf-8")
     cfg = load_evolution(str(p))
     assert cfg["auto_apply"] is False
     assert cfg["auto_apply_max_per_round"] == 2

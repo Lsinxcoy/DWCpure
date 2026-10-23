@@ -457,8 +457,15 @@ def load_evolution(path: str = EVOLUTION_PATH) -> Dict[str, Any]:
         raise DialError(
             "R438: evolution.auto_apply_max_per_round 须为 ≥1 整数, 实为 %r"
             % (cap,))
+    # ★ R438 · 提示词进化排程（-1=关；0..6 = tm_wday）
+    pwd = _need(ev, "prompt_evolve_weekday", "evolution.evolution")
+    if not isinstance(pwd, int) or isinstance(pwd, bool) or not (-1 <= pwd <= 6):
+        raise DialError(
+            "R438: evolution.prompt_evolve_weekday 须为 -1..6 的整数, 实为 %r"
+            % (pwd,))
     return {"feed_from_terms": feed, "max_sigs_per_term": mx,
-            "auto_apply": auto, "auto_apply_max_per_round": cap}
+            "auto_apply": auto, "auto_apply_max_per_round": cap,
+            "prompt_evolve_weekday": pwd}
 
 
 # ══════════════════════════════════════════════════════════

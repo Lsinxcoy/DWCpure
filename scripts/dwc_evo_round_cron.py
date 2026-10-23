@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 
 
 def _prod_root() -> str:
@@ -275,6 +276,20 @@ def main() -> int:
         rep["lessons_promoted"] = promote_lessons()
     except Exception as _e:  # noqa: BLE001 — 晋升坏不掀轮（留痕）
         rep["lessons_promoted"] = {"error": repr(_e)}
+    # ★ R438 · prompt 维度：按排程跑一次「已学规则→候选→A/B→晋升」
+    #   为什么按 weekday：A/B 要 stable/candidate 各跑一遍子集（1-4h），
+    #   每天跑会和当日进化轮抢 agent 并发。
+    try:
+        _pwd = int(_cfg.get("prompt_evolve_weekday", -1))
+        if _pwd >= 0 and time.localtime().tm_wday == _pwd:
+            from dwc_prompt_evolve import evolve as _prompt_evolve
+            rep["prompt_evolve"] = _prompt_evolve(promote=True)
+        else:
+            rep["prompt_evolve"] = {"outcome": "not_scheduled",
+                                    "weekday": int(time.localtime().tm_wday),
+                                    "configured": _pwd}
+    except Exception as _e:  # noqa: BLE001 — 提示词轮坏不掀当日进化轮
+        rep["prompt_evolve"] = {"error": repr(_e)}
     # ★ R438 · 统一进化台账（每条候选一行：落没落、为什么、备份在哪）
     rep["auto_apply"] = _apply
     rep["rules_loaded"] = _n_loaded

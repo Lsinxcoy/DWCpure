@@ -315,4 +315,5 @@ def test_validate_all_includes_retention():
     # 强化: 新键必须由校验器真产出（不是硬塞空 dict）
     # ★ R438 · 新增两个落地开关（auto_apply / auto_apply_max_per_round）
     assert set(v["evolution"]) == {"feed_from_terms", "max_sigs_per_term",
-                                   "auto_apply", "auto_apply_max_per_round"}
+                                   "auto_apply", "auto_apply_max_per_round",
+                                   "prompt_evolve_weekday"}
