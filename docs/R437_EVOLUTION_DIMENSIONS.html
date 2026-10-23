@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DWC 进化系统 · 维度全图</title><style>
+:root{--bg:#0d1117;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--meta:#a371f7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:34px 40px 18px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#161b22,#0d1117)}
+h1{margin:0 0 6px;font-size:25px}.sub{color:var(--dim);font-size:13px}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 40px 80px}
+h2{margin:36px 0 12px;font-size:19px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+h3{margin:22px 0 8px;font-size:15px;color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;font-weight:600}tr:nth-child(even) td{background:#11161d}
+code{background:#1c2128;padding:1px 5px;border-radius:4px;font-size:12px;color:#ffa657;font-family:Consolas,monospace}
+.dim{color:var(--dim);font-size:12.5px}
+.b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.b.ok{background:rgba(63,185,80,.15);color:var(--ok);border:1px solid rgba(63,185,80,.4)}
+.b.warn{background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4)}
+.b.bad{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+.b.meta{background:rgba(163,113,247,.15);color:var(--meta);border:1px solid rgba(163,113,247,.4)}
+.b.ro{background:rgba(139,148,158,.15);color:var(--dim);border:1px solid rgba(139,148,158,.4)}
+.kpi{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
+.card{flex:1;min-width:160px;background:#161b22;border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
+.card .n{font-size:26px;font-weight:700;color:var(--acc)}.card .l{color:var(--dim);font-size:12.5px;margin-top:2px}
+blockquote{border-left:3px solid var(--warn);margin:14px 0;padding:8px 14px;background:#161b22;color:#c9d1d9}
+</style></head><body>
+<header><h1>DWC 进化系统 · 维度全图</h1>
+<div class="sub">21 个进化对象 → 12 个可编辑组件 → 实际在跑的通路 · 全部带代码行号与活体计数</div></header>
+<div class="wrap">
+<div class="kpi">
+ <div class="card"><div class="n">21</div><div class="l">声明的进化对象</div></div>
+ <div class="card"><div class="n">12</div><div class="l">可编辑组件（evaluator / external_source 只读）</div></div>
+ <div class="card"><div class="n">5</div><div class="l">有实现的组件</div></div>
+ <div class="card"><div class="n">2</div><div class="l">生产真能改变行为的</div></div>
+</div>
+<blockquote>口径：<b>声明</b>来自 <code>EVOLUTION_OBJECTS_21</code>（evolver.py:164，K1 覆盖 21/21）；
+<b>可编辑</b>来自 <code>editable_vocab()</code>（evolver.py:254）；
+<b>在跑</b>来自生产调用点 + 落盘计数（2026-10-23 实测）。</blockquote>
+
+<h2>一、21 个进化对象</h2>
+<table><tr><th>对象</th><th>映射组件</th><th>状态</th><th>活体计数</th><th>说明</th></tr>
+<tr><td>标量参数/超参</td><td><code>config</code></td><td><span class="b warn">有实现·零调用</span></td><td>—</td><td class="dim">有 Target，无落盘文件</td></tr>
+<tr><td>策略</td><td><code>control_flow</code></td><td><span class="b ok">生产在跑</span></td><td>45 条提案</td><td class="dim">LLMMutator 起草</td></tr>
+<tr><td>技能</td><td><code>skill</code></td><td><span class="b warn">有实现·零调用</span></td><td>0</td><td class="dim">skill_evolve_from_sig 零调用</td></tr>
+<tr><td>记忆</td><td><code>memory</code></td><td><span class="b warn">有实现·零调用</span></td><td>1205 条 lessons</td><td class="dim">promote_lessons 零调用</td></tr>
+<tr><td>知识</td><td><code>memory †</code></td><td><span class="b warn">有实现·零调用</span></td><td>1205 条 lessons</td><td class="dim">同 memory</td></tr>
+<tr><td>代码</td><td><code>code</code></td><td><span class="b ok">生产在跑</span></td><td>2 簇 ok</td><td class="dim">沙箱试跑通过</td></tr>
+<tr><td>架构</td><td><code>architecture</code></td><td><span class="b meta">元层</span></td><td>0</td><td class="dim">可编辑，须人工批准</td></tr>
+<tr><td>提示词</td><td><code>prompt</code></td><td><span class="b ok">生产在跑</span></td><td>9 条 manifest</td><td class="dim">OTA 灰度 + A/B</td></tr>
+<tr><td>工具</td><td><code>client_tool</code></td><td><span class="b bad">仅词表·无实现</span></td><td>0</td><td class="dim">无 Target / 无实现</td></tr>
+<tr><td>协作</td><td><code>subagent</code></td><td><span class="b bad">仅词表·无实现</span></td><td>0</td><td class="dim">无 Target / 无实现</td></tr>
+<tr><td>上下文</td><td><code>context_mgmt</code></td><td><span class="b bad">仅词表·无实现</span></td><td>0</td><td class="dim">仅 1 处引用</td></tr>
+<tr><td>观测</td><td><code>output_plumbing †</code></td><td><span class="b bad">仅词表·无实现</span></td><td>0</td><td class="dim">**0 处引用**</td></tr>
+<tr><td>执行环境</td><td><code>config †</code></td><td><span class="b warn">有实现·零调用</span></td><td>—</td><td class="dim">同 config</td></tr>
+<tr><td>元进化</td><td><code>meta_evolution</code></td><td><span class="b meta">元层</span></td><td>0</td><td class="dim">可编辑，无 mutator</td></tr>
+<tr><td>评估器</td><td><code>evaluator</code></td><td><span class="b meta">元层</span></td><td>—</td><td class="dim">只读（G10 密封）</td></tr>
+<tr><td>控制/安全</td><td><code>control_flow †</code></td><td><span class="b ok">生产在跑</span></td><td>45 条提案</td><td class="dim">同策略</td></tr>
+<tr><td>模型选择</td><td><code>config †</code></td><td><span class="b warn">有实现·零调用</span></td><td>—</td><td class="dim">同 config</td></tr>
+<tr><td>训练桥</td><td><code>external_source †</code></td><td><span class="b bad">仅词表·无实现</span></td><td>—</td><td class="dim">只读（须 provenance）</td></tr>
+<tr><td>行为/工作流</td><td><code>control_flow †</code></td><td><span class="b ok">生产在跑</span></td><td>45 条提案</td><td class="dim">同策略</td></tr>
+<tr><td>外部机制源(GitHub)</td><td><code>external_source</code></td><td><span class="b ro">只读</span></td><td>—</td><td class="dim">只读登记</td></tr>
+<tr><td>外部机制源(论文)</td><td><code>external_source</code></td><td><span class="b ro">只读</span></td><td>—</td><td class="dim">只读登记</td></tr></table>
+
+<h2>二、12 个可编辑组件</h2>
+<table><tr><th>组件</th><th>实现（代码位置）</th><th>生产调用</th><th>落盘 / 计数</th><th>结论</th></tr>
+<tr><td><code>control_flow</code></td><td>LLMMutator.propose_from_cluster<br><code>evolver.py:2221</code></td><td>每日 cron → 沙箱试跑</td><td>45 提案 / 2 簇 ok</td><td>半活：landed=false</td></tr>
+<tr><td><code>prompt</code></td><td>prompt_ota + dwc_prompt_candidate / dwc_prompt_ab</td><td>手动（无驱动层）</td><td>9 条 manifest 全 v1</td><td>半活：候选被否</td></tr>
+<tr><td><code>config</code></td><td>_RuleTarget<br><code>loop.py:1336</code></td><td>零调用（Loop 不在生产）</td><td>rules.json **不存在**</td><td>断</td></tr>
+<tr><td><code>skill</code></td><td>skill_evolve_from_sig<br><code>evolver.py:1474</code></td><td>零调用</td><td>0</td><td>断</td></tr>
+<tr><td><code>memory</code></td><td>promote_lessons<br><code>agent_quality.py:212</code></td><td>零调用</td><td>1205 条只写不晋</td><td>断</td></tr>
+<tr><td><code>code</code></td><td>同 control_flow（代码补丁）</td><td>同 control_flow</td><td>2 簇 ok</td><td>半活</td></tr>
+<tr><td><code>architecture</code></td><td>无 mutator</td><td>—</td><td>0</td><td>无实现</td></tr>
+<tr><td><code>meta_evolution</code></td><td>无 mutator</td><td>—</td><td>0</td><td>无实现</td></tr>
+<tr><td><code>client_tool</code></td><td>无 Target</td><td>—</td><td>0</td><td>无实现</td></tr>
+<tr><td><code>subagent</code></td><td>无 Target</td><td>—</td><td>0</td><td>无实现</td></tr>
+<tr><td><code>context_mgmt</code></td><td>无 Target</td><td>—</td><td>0</td><td>无实现</td></tr>
+<tr><td><code>output_plumbing</code></td><td>无 Target</td><td>—</td><td>0（0 处引用）</td><td>无实现</td></tr></table>
+
+<h2>三、评测维度（fitness 六层）</h2>
+<table><tr><th>层</th><th>量什么</th><th>来源</th></tr>
+<tr><td><code>parse_ok</code></td><td>模型输出能否解析</td><td rowspan="3">落地层 REALIZATION_LEVELS</td></tr>
+<tr><td><code>apply_ok</code></td><td>补丁能否应用到目标</td></tr>
+<tr><td><code>syntax_ok</code></td><td>应用后能否通过语法</td></tr>
+<tr><td><code>f2p_ok</code></td><td>失败用例是否转绿</td><td rowspan="3">结果层 OUTCOME_LEVELS</td></tr>
+<tr><td><code>p2p_ok</code></td><td>已通过用例是否回退</td></tr>
+<tr><td><code>verifier_ok</code></td><td>判据是否认可</td></tr>
+</table>
+<p class="dim">定义在 <code>src/dwc/organs/benchmark_fitness.py:98</code>；<code>scalar = realization × outcome</code>。</p>
+
+<h2>四、新颖度奖励面（ν_t）</h2>
+<p>只有 5 个组件拿结构新颖度奖励（论文式15 + DWC 增补）：<code>client_tool</code> · <code>skill</code> · <code>memory</code> · <code>subagent</code> · <code>meta_evolution</code>。
+提示词 / 控制流 / 配置 / 输出管道 / 上下文管理 <b>不拿</b>（论文原话）。</p>
+<p class="dim">定义在 <code>evolver.py:226</code> <code>NOVELTY_ELIGIBLE</code>。</p>
+
+<h2>五、一句话结论</h2>
+<blockquote>声明了 <b>21 个进化对象 / 12 个可编辑组件</b>，
+但生产上真正能改变系统行为的只有 <b>2 个</b>：<code>control_flow</code>（半活：能起草、能试跑、不落地）
+和 <code>prompt</code>（半活：能生成候选、能 A/B、不自动晋升）。
+其余 10 个里，3 个「有实现但零调用」（skill / memory / config），5 个「只在词表里」，
+2 个「元层」。</blockquote>
+</div></body></html>
