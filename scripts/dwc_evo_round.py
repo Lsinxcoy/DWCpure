@@ -869,9 +869,9 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         from dwc.llm.sandbox import run_code_observed, SandboxError
         _mode = "code"
         _diag: Dict[str, Any] = {}
+        _skel = obs_skeleton(judge.anchors, task)
         try:
-            _obs = run_code_observed(
-                code, obs_skeleton(judge.anchors, task), diag=_diag)
+            _obs = run_code_observed(code, _skel, diag=_diag)
         except SandboxError as _se:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
@@ -891,12 +891,21 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         # ★ A3 · 小Δ熔断（code 路）：|Δ_in|<spread ⇒ 跳过 peer 验证，
         #   省出码+沙箱 LLM 预算；held_out=None ⇒ 门仍 blocked（门语义零改）。
         _fused, _d_in = _small_delta_fused(_cur, base)
+        # ★ R443 · 逐例对比（分数之外看得见"哪几例错了"）
+        try:
+            from dwc.organs import contrast as _CT
+            # ★ 期望值只能从 anchor 的 checks 取 —— 骨架里的 expected 是 None
+            _exp = _CT.expected_from_checks(
+                (judge.anchors.get(task) or {}).get("checks"))
+            _ct = _CT.from_observed(_skel, _obs, _exp)
+        except Exception as _ce:      # noqa: BLE001 — 对比坏不掀 trial
+            _ct = {"error": repr(_ce)}
         if _fused:
             return {"success": suc,                    "in_score": _cur,
                     "partial": _cur,
                     "baseline_in": base,
                     "baseline_ho": _base_ho, "held_out": None,
-                    "mode": _mode,
+                    "mode": _mode, "contrast": _ct,
                     "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
                                % (_d_in,)), "activated": True, "mechanism_ran": True}
         return {"success": suc,
@@ -911,7 +920,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 "held_out": _peer_held_out_code(
                     judge, llm, task, max_tokens=max_tokens,
                     hint_code=(code if suc is True else None)),
-                "mode": _mode, "activated": True}
+                "mode": _mode, "activated": True, "contrast": _ct}
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
     r = llm.complete(prompt, max_tokens=max_tokens)

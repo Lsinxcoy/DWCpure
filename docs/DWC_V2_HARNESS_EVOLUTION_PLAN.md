@@ -227,42 +227,44 @@ if len(text) > output_max_chars:
 
 ---
 
-### P1-c · 对比式探针 + 纠正继承式起草（R443）
+### P1-c · 逐例对比（R443）· 原计划"对比探针 + 纠正继承"的核实结果
 
-**来源**：Harness²（arXiv 2610.14224）§2.2.1 + §2.3 + Figure 7。
+**来源**：Harness²（arXiv 2610.14224）§2.2.1 + §2.3。
 
-**目标**：把"只比分数"升级为"比行为"，并纠正 DWC 现在做反的一件事。
+#### 第一半：对比探针 —— 只做到能诚实做到的那一半
 
-**两个问题**
+| 项 | 结果 |
+|---|---|
+| 做了什么 | `src/dwc/organs/contrast.py`：把 `in_score` 一个标量拆成 `n_cases / n_failed / failed[]`（每例的 fn/args/expected/actual） |
+| 为什么有价值 | "修好 3 例、弄坏 3 例"和"什么都没改"在分数上一样，但前者是**回归** —— 分数看不见 |
+| 诚实缺席 | `regressed: None` + 原因"anchor 不含原始实现" ⇒ **没有基线逐例结果**，不许编"消失/新增" |
+| 形态纪律 | 缺例/多例/坏形状 ⇒ `None`（fail-closed，不拿前面的例子蒙混） |
+| 数值等价 | 1 与 1.0 视为同值（模型常返回 1.0） |
 
-| # | 现状 | 论文证据 | 要改成 |
-|---|---|---|---|
-| 1 | trial 只产出 `success/in_score/baseline_in`，**不比轨迹** | 对比式 Propose-Probe-Compose | 产出结构化行为对比：哪些失败模式消失了 / 未变 / 新增 |
-| 2 | `Mutator.propose` 把 `p.code` 当下轮**起草起点** = 继承 | 直接编辑不看参考/探针/库 ⇒ WB-code 73.4→**63.2**（−10.2）、WB-web 69.9→**65.0**（−4.9） | 下轮从基线起，只从库里按 cue **选择性**取用 |
+#### 第二半：纠正"继承式起草" —— **核实后撤回**
 
-> 这是本版本最重要的一条修正：**DWC 现在的进化方式，正是论文实测会掉分的那种方式。**
+原判断来自 R438 的一句话笔记「`p.code` 复用为起草起点」。**逐行核实代码后不成立**：
 
-**Files**
-- Modify: `scripts/dwc_evo_round.py`（trial 增加 `contrast` 字段）
-- Modify: `src/dwc/organs/evolver.py`（`propose` 不再默认继承 `p.code`）
-- Create: `src/dwc/organs/contrast.py`（行为对比提取）
-- Create: `tests/test_r443_contrast.py`
-
-**对比结构**
-
-```python
-@dataclass
-class Contrast:
-    disappeared: list[str]   # 参考里有、候选里没有的失败模式
-    persisted:   list[str]   # 两边都有
-    introduced:  list[str]   # 候选新增的
-    evidence:    dict        # 每条判定的观测依据
+```
+scripts/dwc_evo_round.py:511   t = trial_fn(task, p.patch, p.code)
+scripts/dwc_evo_round.py:913   hint_code=(code if suc is True else None)
+scripts/dwc_evo_round.py:768   if (hint_code or "").strip():  # 拼进 peer prompt
 ```
 
-**验收**
-- 同一任务跑参考与候选，产出非空 `Contrast`；三条列表之和 = 失败模式总数。
-- `propose` 在无库时**不得**读上一轮的 `p.code`（测试用哨兵值断言）。
-- 引入新失败模式的候选，即使分数略高也必须进 `introduced` 并被下游门看到。
+- `p.code` 只在 **trial 成功**（`suc is True`）时才传给 peer；
+- 它进的是 peer 的 **翻译参考**（"已验证对的同族解，仅供翻译参考"），
+- 而 peer 函数名与 dev 函数名**不同**（R291-P4 Task4 的设计）。
+
+⇒ 这是**库式选择性复用**，不是 Harness² 反对的"继承上一轮定制 harness"。
+**该条修正撤回**，不写代码。
+
+> 教训：文档里的"复用为起草起点"是**概括**，不是代码事实。
+> 拿概括当依据去改代码，就是这次差点犯的错。
+
+#### Files（实际）
+- Create: `src/dwc/organs/contrast.py`
+- Modify: `scripts/dwc_evo_round.py`（trial 的 code 路带 `contrast`）
+- Create: `tests/test_r443_contrast.py`（8 条）
 
 ---
 
