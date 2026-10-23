@@ -173,3 +173,15 @@ def test_rollback_missing_key_is_loud(tmp_path):
     rules.write_text(json.dumps({"learned": {}}), encoding="utf-8")
     out = cron._rollback_key("nope", str(rules), str(tmp_path / "bk"))
     assert out["outcome"] == "not_found"
+
+
+def test_learned_path_isolated_from_production():
+    """★★ 守卫：测试进程的 LEARNED_PATH 绝不许指向生产 rules.json。
+
+    现场：一次全量跑完后 config/anchors/rules.json 消失。
+    只靠 fixture 里 monkeypatch 不够（有测试会把它 pin 回生产路径），
+    所以 conftest 在 import dwc 之前用 DWC_LEARNED_PATH 把真源指到 tmp。
+    """
+    from dwc.organs.evolver import Mutator
+    p = Mutator.LEARNED_PATH.replace("\\", "/")
+    assert not p.endswith("config/anchors/rules.json"), p

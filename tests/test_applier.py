@@ -762,11 +762,12 @@ def test_module_level_load_without_explicit_call(tmp_path):
         # ★ R292 总闸注记：本测要父子进程同读**真路径**（子进程 __file__
         #   算死真路径），总闸的 tmp 在此不适用 ⇒ 指回真路径（外层
         #   finally 用 old_path 恢复总闸态，不污染后续测试）。
-        import dwc.organs.evolver as _EV
-        Mutator.LEARNED_PATH = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.dirname(os.path.abspath(_EV.__file__))))),
-            "config", "anchors", "rules.json")
+        # ★ R438 · 改为 **tmp 真源**：本测要验的是「只 import 就加载」，
+        #   不是「生产路径」。旧写法把规则写进生产 config/anchors/rules.json
+        #   再删掉 —— 实测把生产落盘规则冲没了（一次全量后文件消失）。
+        #   父子进程用同一个 DWC_LEARNED_PATH 即可，语义不变。
+        _tmp_rules = str(tmp_path / "rules.json")
+        Mutator.LEARNED_PATH = _tmp_rules
         # ★★★★ R32 我第一版的写法**错了**:
         #   我 persist 到 tmp_path（测试进程内改的 LEARNED_PATH）
         #   ⇒ 而**子进程**的 LEARNED_PATH 是类定义时用 __file__ 算的
@@ -803,7 +804,9 @@ def test_module_level_load_without_explicit_call(tmp_path):
             r = _sp.run([_sys.executable, str(f),
                          _j.dumps(os.path.join(ROOT, "src"))],
                         capture_output=True, timeout=120,
-                        cwd=str(tmp_path))
+                        cwd=str(tmp_path),
+                        env={**os.environ,
+                             "DWC_LEARNED_PATH": _tmp_rules})
             out = r.stdout.decode("utf-8", "replace").strip()
             assert r.returncode == 0, \
                 "★ 子进程失败: %s" % r.stderr.decode("utf-8", "replace")[-300:]

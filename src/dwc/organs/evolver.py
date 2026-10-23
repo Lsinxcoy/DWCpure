@@ -1318,7 +1318,7 @@ class Mutator:
     #   ⇒ 而**固化产生的**规则落盘 —— 否则进程结束就丢
     #   ⇒⇒ ⇒★ 分开放的理由: 代码改动要走评审（G5），
     #     落盘的是**系统自己学的**（要能持久，且不改代码）
-    LEARNED_PATH = os.path.join(
+    LEARNED_PATH = os.environ.get("DWC_LEARNED_PATH") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))))),
         "config", "anchors", "rules.json")

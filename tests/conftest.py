@@ -43,6 +43,12 @@ atexit.register(shutil.rmtree, _DWC_TEST_VAR, ignore_errors=True)
 os.environ["DWC_PROMPT_FORCE_FILE"] = os.path.join(_DWC_TEST_VAR,
                                                    "prompt_force.json")
 
+# ★★★ R438 · 已学规则文件同样**绝不许**指向生产：
+#   现场：一次全量跑完后 config/anchors/rules.json 消失（被某个把
+#   LEARNED_PATH pin 回生产路径的测试连带删掉）。只靠 fixture 里
+#   monkeypatch 不够——必须在 import dwc 之前就把真源指到 tmp。
+os.environ["DWC_LEARNED_PATH"] = os.path.join(_DWC_TEST_VAR, "rules.json")
+
 
 @pytest.fixture(autouse=True)
 def _reset_process_global_state():
