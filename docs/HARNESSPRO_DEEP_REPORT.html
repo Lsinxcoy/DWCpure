@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HarnessPro 深度研读报告 · 对 DWC 的可借鉴性</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#101823; --panel2:#151f2b; --line:#22303f;
+    --fg:#dbe6f2; --dim:#8ba1b8; --acc:#4ea8ff; --ok:#3ddc97;
+    --bad:#ff5f6d; --warn:#ffc857; --vio:#b48bff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.7 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:9;background:rgba(10,14,19,.94);
+         backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+         padding:13px 26px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650}
+  header .sub{color:var(--dim);font-size:12.5px}
+  header nav{margin-left:auto;display:flex;gap:13px;flex-wrap:wrap}
+  header nav a{color:var(--dim);text-decoration:none;font-size:12.8px}
+  header nav a:hover{color:var(--acc)}
+  main{max-width:1120px;margin:0 auto;padding:26px}
+  section{margin:0 0 38px;scroll-margin-top:64px}
+  h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+     border-left:3px solid var(--acc);padding-left:10px;margin:0 0 16px}
+  h3{font-size:15.5px;margin:22px 0 10px;color:#e8f1fb}
+  p{margin:10px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card .k{color:var(--dim);font-size:11.8px;letter-spacing:.05em}
+  .card .v{font-size:25px;font-weight:700;margin-top:5px;font-family:var(--mono)}
+  .card .n{color:var(--dim);font-size:12.3px;margin-top:4px;line-height:1.55}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .vio{color:var(--vio)}
+  pre{background:#070b10;border:1px solid var(--line);border-radius:10px;
+      padding:13px 15px;overflow:auto;font-family:var(--mono);font-size:12.6px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;font-size:13.4px;margin:10px 0}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.3px;letter-spacing:.04em}
+  tr:hover td{background:rgba(78,168,255,.04)}
+  code{font-family:var(--mono);font-size:12.4px;background:#0c131b;padding:1.5px 5px;border-radius:5px}
+  .pill{display:inline-block;padding:1.5px 9px;border-radius:999px;font-size:11.4px;
+        border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .pill.ok{border-color:rgba(61,220,151,.42);color:var(--ok);background:rgba(61,220,151,.08)}
+  .pill.bad{border-color:rgba(255,95,109,.42);color:var(--bad);background:rgba(255,95,109,.08)}
+  .pill.warn{border-color:rgba(255,200,87,.42);color:var(--warn);background:rgba(255,200,87,.08)}
+  .pill.vio{border-color:rgba(180,139,255,.42);color:var(--vio);background:rgba(180,139,255,.08)}
+  .note{border-left:3px solid var(--warn);background:rgba(255,200,87,.06);
+        padding:11px 15px;border-radius:0 8px 8px 0;color:#e9d9b6;font-size:13.5px;margin:14px 0}
+  .danger{border-left-color:var(--bad);background:rgba(255,95,109,.07);color:#f3c8cd}
+  .good{border-left-color:var(--ok);background:rgba(61,220,151,.06);color:#c6f0de}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13.5px}
+  .kv .k{color:var(--dim)}
+  footer{color:var(--dim);font-size:12.4px;text-align:center;padding:30px;border-top:1px solid var(--line)}
+  .tag{font-family:var(--mono);font-size:11.5px;color:var(--vio)}
+  ul{margin:8px 0 8px 4px;padding-left:20px} li{margin:5px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>HarnessPro 深度研读 · 对 DWC 的可借鉴性</h1>
+  <span class="sub">arXiv 2610.26770v2 · 41 页 · 2026-10-19</span>
+  <nav>
+    <a href="#s0">结论</a><a href="#s1">概览</a><a href="#s2">方法</a><a href="#s3">证据</a>
+    <a href="#s4">代码</a><a href="#s5">口径审计</a><a href="#s6">DWC 借鉴</a>
+    <a href="#s7">局限</a><a href="#s8">引用</a>
+  </nav>
+</header>
+<main>
+
+<!-- ============ 0 ============ -->
+<section id="s0">
+  <h2>0 · 一句话结论</h2>
+  <div class="good note" style="font-size:14.5px">
+    <b>能学，而且学到的东西正好戳中 DWC 现在最缺的那一块：</b>
+    DWC 的进化系统只会优化「过不过」，HarnessPro 把「花多少钱」变成与通过率并列的一等目标，
+    并给出了一个可落地的三段式运行时预算机制。<br>
+    <b>但它不是"再做一个 R438"：</b>它的仓库<b>不含进化管线</b>（只有最终产物 + 评测 runner），
+    核心方法不可复现；而且它的多候选 × 多 epoch 预算，DWC 现在跑不起。
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <div class="card"><div class="k">论文成绩（TB2 · GPT-5.5）</div><div class="v ok">80.8%</div>
+      <div class="n">Heavy 模式，比 RHO 76.3% 高 <b>4.5pp</b>，成本 <b>-33.9%</b></div></div>
+    <div class="card"><div class="k">SWE-Bench Pro（Medium）</div><div class="v ok">79.0%</div>
+      <div class="n">与 RHO 80.0% 基本持平，成本 <b>$2.68 → $1.26（-53.0%）</b></div></div>
+    <div class="card"><div class="k">DWC 现状</div><div class="v warn">2 条</div>
+      <div class="n">rules.json 已学规则数；<b>零 token 记账、零成本目标</b></div></div>
+    <div class="card"><div class="k">仓库可复现性</div><div class="v bad">产物</div>
+      <div class="n">无 analyzer / planner / editor / test synth 代码</div></div>
+  </div>
+</section>
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2>1 · 论文概览</h2>
+  <div class="kv">
+    <div class="k">标题</div><div>HarnessPro: Recursive Harness Self-Improvement with Pareto Optimization for Performance-Cost Trade-offs</div>
+    <div class="k">作者</div><div>Zhuoshi Pan, ZhiYuan Feng, Yukuo Cen, Honglin Lin, Junru Lu, Zhongxia Chen, Shuo Yang, H. Vicky Zhao, Jie Tang</div>
+    <div class="k">机构</div><div>清华大学 · Z.AI · 上海交大 · 华威大学 · 快手 Kling AI</div>
+    <div class="k">状态</div><div>Under review，41 页 / 4 图 / 4 表，v2 于 2026-10-20</div>
+    <div class="k">代码</div><div><code>github.com/pzs19/HarnessPro</code> · MIT · 18 stars</div>
+    <div class="k">基准</div><div>Terminal-Bench 2（59 测）、SWE-Bench Pro（100 测）、ProgramBench（100 测）</div>
+    <div class="k">模型</div><div>GPT-5.5 × Codex 0.147.0；GLM-5.2 × Claude Code 2.1.231</div>
+  </div>
+
+  <h3>术语表</h3>
+  <table>
+    <tr><th>术语</th><th>含义</th><th>DWC 里的对应物</th></tr>
+    <tr><td><b>Harness</b></td><td>管理模型与环境交互的软件运行时层：指令、工具/技能、上下文与记忆、hooks、验证策略</td><td><code>src/dwc/llm/task_exec.py</code> + <code>agent_quality.py</code> + <code>organs/*</code></td></tr>
+    <tr><td><b>RSI</b></td><td>Recursive Self-Improvement：用历史轨迹诊断 → 改 harness → 再跑</td><td>R438 的 <code>dwc_evo_round.py</code> 主循环</td></tr>
+    <tr><td><b>Label-free</b></td><td>不使用 ground truth / 官方测试 / grader，只用 LLM 生成的测试</td><td>DWC 相反：有真实评测池（53/54）</td></tr>
+    <tr><td><b>Coreset</b></td><td>DPP 选出的 10 题训练子集，平衡难度与多样性</td><td>DWC 的 <code>DEV_POOL</code>（16 题，人工固定）</td></tr>
+    <tr><td><b>Profile</b></td><td>一档执行配置：推理力度 + 三段工具预算</td><td>DWC 无（全局 <code>reasoning_effort</code> + 固定 <code>max_rounds</code>）</td></tr>
+    <tr><td><b>Pareto 三档</b></td><td>lite / medium / heavy，按归一化加权平方距离选代表</td><td>DWC 无（每轮只落 1 条规则）</td></tr>
+    <tr><td><b>CoP</b></td><td>Cost-of-Pass：总成本 ÷ 成功任务数</td><td>DWC 无</td></tr>
+  </table>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2>2 · 方法拆解</h2>
+
+  <h3>2.1 优化目标（式 1）</h3>
+<pre>min  ( −PR(h),  C(h) )
+h∈H
+s.t. PR(h) ≥ PR(h₀)        ← 性能地板，不许为了省钱牺牲正确性</pre>
+  <p>两个目标：通过率 <code>PR</code>、平均每任务成本 <code>C</code>。延迟只作辅助指标（服务器负载波动大）。</p>
+
+  <h3>2.2 一轮的三段式（Algorithm 1）</h3>
+  <table>
+    <tr><th>阶段</th><th>做什么</th><th>关键细节</th></tr>
+    <tr><td><b>Stage 1 · 诊断</b></td><td>每个候选 × 每题跑 <b>G=3</b> 次独立 rollout，Analyzer 联合看 3 条轨迹</td>
+      <td>输出三元组：问题 / 对性能与成本的影响 / 证据（<b>文件名 + 行号区间</b>）。跨题合并后 &gt;64K token 就摘要</td></tr>
+    <tr><td><b>Stage 2 · 起草</b></td><td>每个候选 × <b>3 个计划</b>（I1 省钱 / I2 平衡 / I3 性能），Editor 在<b>独立 workspace</b> 实现并 git commit</td>
+      <td>Planner 能看到<b>候选间 diff</b>，识别"哪个机制有效、哪个是剩余瓶颈"；验证/测试集对它隐藏</td></tr>
+    <tr><td><b>Stage 3 · 评估与选择</b></td><td>固定测试集 S(x) 上评一遍 → 过滤（低于地板 / 被 Pareto 支配）→ 三档选代表</td>
+      <td>最多留 3 个；只用验证集指标，测试集全程不碰</td></tr>
+  </table>
+
+  <h3>2.3 选择规则（式 8–9）</h3>
+<pre>d_perf(h) = (P_max − PR(h)) / (P_max − P_min)
+d_cost(h) = (C(h) − C_min) / (C_max − C_min)
+J_m(h)    = α_m · d_perf² + β_m · d_cost²
+
+(lite, medium, heavy) 的 (α, β) = (1,2) / (1,1) / (2,1)</pre>
+  <p>本质是<b>归一化后的加权欧氏距离</b>——先把两个量纲不同的指标压到 [0,1]，再按部署偏好加权。
+  比"取 top-k"更稳：不会被某一个指标的绝对尺度主导。</p>
+
+  <h3>2.4 测试合成器（这是论文最硬的一处实证）</h3>
+  <div class="grid">
+    <div class="card"><div class="k">LLM 当裁判 · 失败召回</div><div class="v bad">41.7%</div>
+      <div class="n">官方 Fail 中，只认出 41.7%；<b>58.3% 被误判为通过</b></div></div>
+    <div class="card"><div class="k">生成测试 · 失败召回</div><div class="v ok">83.3%</div>
+      <div class="n">同一批任务，<b>+41.7pp</b></div></div>
+  </div>
+  <div class="note danger">
+    <b>对 DWC 的直接警告：</b>DWC 的 judge 现在产出的签名是 <code>m="llm_asserted:0.15"</code>
+    ——这正是论文实测"过度乐观"的那条路线。论文用混淆矩阵证明：LLM 自评会把<b>有缺陷的实现判成成功</b>。
+  </div>
+
+  <h3>2.5 进化后的 harness 长什么样（§5.3）</h3>
+  <p>论文明确否认了"靠压上下文或提高推理力度"的简单解释，实际机制是四件事的协同：</p>
+  <ul>
+    <li><b>按任务描述选 profile</b>：每个 profile 指定推理力度 + 工具调用预算</li>
+    <li><b>运行时 hook 强制预算</b>：Medium 在 TB2 上是「14 次提醒并行、26 次收敛、44 次阻断」</li>
+    <li><b>提醒追加到工具结果</b>，不改 system prompt —— <b>保住 cache 前缀</b></li>
+    <li><b>工具输出压缩（RTK）+ 精简指令</b>，减少重复日志与冗余输入</li>
+  </ul>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2>3 · 证据（硬数字）</h2>
+
+  <h3>3.1 主表（GPT-5.5 × Codex）</h3>
+  <table>
+    <tr><th>方法</th><th>TB2 通过率</th><th>TB2 成本</th><th>SWE-Pro 通过率</th><th>SWE-Pro 成本</th><th>ProgramBench 通过率</th><th>成本</th></tr>
+    <tr><td>Vanilla</td><td>69.5</td><td>$0.89</td><td>59.0</td><td>$1.88</td><td>60.3</td><td>$2.65</td></tr>
+    <tr><td>RHO</td><td>76.3</td><td>$1.09</td><td>80.0</td><td>$2.68</td><td>68.8</td><td>$3.59</td></tr>
+    <tr><td>RHO + Iteration</td><td>76.3</td><td>$0.82</td><td>80.0</td><td>$1.90</td><td>68.3</td><td>$3.13</td></tr>
+    <tr><td><b>HP-Lite</b></td><td>72.9±1.7</td><td><b>$0.43</b></td><td>72.3±0.6</td><td><b>$0.80</b></td><td>64.3±0.04</td><td><b>$2.18</b></td></tr>
+    <tr><td><b>HP-Medium</b></td><td>76.3±1.7</td><td>$0.56</td><td>79.0±1.0</td><td><b>$1.26</b></td><td>67.9±0.47</td><td>$2.90</td></tr>
+    <tr><td><b>HP-Heavy</b></td><td><b>80.8±1.0</b></td><td>$0.72</td><td><b>80.7±0.6</b></td><td>$1.97</td><td><b>69.6±1.03</b></td><td>$2.95</td></tr>
+  </table>
+  <div class="note">
+    <b>必须同时看的两个数：</b>Heavy 在 TB2 上比 RHO 高 4.5pp 且便宜 33.9%；
+    但 SWE-Pro 上 Heavy(80.7) 只比 RHO(80.0) 高 0.7pp，而 <b>Medium(79.0) 反而低 1pp</b>。
+    论文摘要只报"平均 +2.0pp / −26.1%"，这个均值掩盖了逐基准的异质性。
+  </div>
+
+  <h3>3.2 消融（Table 3）</h3>
+  <table>
+    <tr><th>配置</th><th>TB2 P / C / CoP</th><th>SWE-Pro P / C / CoP</th><th>读法</th></tr>
+    <tr><td>HP-Medium 完整</td><td>76.3 / 0.56 / 0.73</td><td>79.0 / 1.26 / 1.59</td><td>基线</td></tr>
+    <tr><td>w/o planner</td><td>74.6 / 0.61 / 0.82</td><td><b>73.0</b> / 1.42 / 1.95</td><td>SWE 掉 <b>6pp</b>，成本还涨</td></tr>
+    <tr><td>w/o test synthesizer</td><td>72.9 / 0.82 / 1.12</td><td><b>69.0</b> / 1.37 / 1.99</td><td>SWE 掉 <b>10pp</b>，最狠</td></tr>
+    <tr><td>RHO + 动态路由</td><td>76.3 / 0.92 / 1.21</td><td>76.0 / 2.13 / 2.80</td><td>省钱但掉性能</td></tr>
+    <tr><td>RHO + 预算 hook</td><td>76.3 / 0.92 / 1.21</td><td>75.0 / 1.75 / 2.33</td><td>省钱但掉性能</td></tr>
+    <tr><td>RHO + 统一低推理</td><td>62.7 / 0.45 / 0.72</td><td>59.0 / 1.08 / 1.83</td><td><b>省一半钱，性能崩 14pp</b></td></tr>
+  </table>
+  <p><b>最关键的消融结论：</b>把 HarnessPro 的<b>单个机制</b>（动态路由 / 预算 hook）搬到 RHO 上，
+  都是"省钱但掉分"；只有<b>机制组合 + 每轮重新诊断</b>才同时赢。这否定了"抄一个 hook 就完事"的想法。</p>
+
+  <h3>3.3 进化动态（§5.4）</h3>
+  <table>
+    <tr><th>基准</th><th>Epoch 1</th><th>Epoch 2</th><th>Epoch 3</th><th>观察</th></tr>
+    <tr><td>TB2 Heavy</td><td>74.6% / $0.91</td><td>—</td><td>80.8% / $0.72</td><td>两个指标同向改善</td></tr>
+    <tr><td>SWE-Pro Medium</td><td>70.0% / $1.57</td><td>77.0% / <b>$1.66</b></td><td>79.0% / $1.26</td><td><b>第 2 轮是"涨分也涨价"，第 3 轮才双赢</b></td></tr>
+  </table>
+  <div class="note">
+    这条对 DWC 特别重要：<b>递归不是每轮都单调改进</b>。
+    SWE-Pro 的 Medium 在第 2 轮出现了 pass↑ 但 cost↑ 的中间态。
+    如果 DWC 用"单轮必须双赢"当门，就会把这种"先贵后便宜"的路径提前掐死。
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2>4 · 代码审读</h2>
+  <div class="grid">
+    <div class="card"><div class="k">Python 行数（不含 third_party）</div><div class="v">23,383</div><div class="n">src 54 文件 / scripts 9 / tests 2</div></div>
+    <div class="card"><div class="k">harness 产物</div><div class="v">49</div><div class="n">3 基准 × 3 档 × 5 文件</div></div>
+    <div class="card"><div class="k">测试函数（静态计数）</div><div class="v warn">12</div><div class="n">2 个文件，<b>本次未执行</b></div></div>
+    <div class="card"><div class="k">进化管线代码</div><div class="v bad">0</div><div class="n">grep analyzer/planner/editor 无命中</div></div>
+  </div>
+
+  <h3>4.1 每个 harness 的五个文件</h3>
+  <table>
+    <tr><th>文件</th><th>行数</th><th>作用</th></tr>
+    <tr><td><code>runtime/policy.json</code></td><td>89</td><td>版本、默认档、session_context（长指令）、codex 配置、工具输出限额、5 个 profile 阈值、分类器配置</td></tr>
+    <tr><td><code>runtime/hook.py</code></td><td>396</td><td>SessionStart / PreToolUse / PostToolUse 三个事件；<b>纯 stdlib</b></td></tr>
+    <tr><td><code>runtime/model_instructions.md</code></td><td>11</td><td>精简后的模型指令（对应"减少冗余 prompt"）</td></tr>
+    <tr><td><code>runtime/profile_rubric.md</code></td><td>142</td><td>分类器的判定规则：5 档 + 证据规则 + 顺序门</td></tr>
+    <tr><td><code>README.md</code></td><td>15</td><td>该档的定位与相对 Medium 的差异</td></tr>
+  </table>
+
+  <h3>4.2 policy.json 的关键常量（TB2-Heavy 实测值）</h3>
+<pre>"tool_output": { "history_token_limit": 900, "max_chars": 4000,
+                 "head_chars": 2400, "tail_chars": 900, "rtk_enabled": true }
+
+"profiles": {
+  "compact":  { "reasoning_effort":"low",    economy:4,  strict:8,  finalize:14, reminder_every:3 },
+  "lean":     { "reasoning_effort":"medium", economy:10, strict:22, finalize:36, reminder_every:4 },
+  "standard": { "reasoning_effort":"high",   economy:18, strict:38, finalize:60, reminder_every:8 },
+  "deep":     { "reasoning_effort":"high",   economy:20, strict:42, finalize:68, reminder_every:8 },
+  "research": { "reasoning_effort":"high",   economy:16, strict:36, finalize:60, reminder_every:8 }
+}
+
+"classifier": { "model":"gpt-5.5", "reasoning_effort":"medium",
+                "timeout_s":120, "max_attempts":3,
+                "max_output_tokens":2048, "max_task_chars":24000,
+                "fallback_profile":"standard" }</pre>
+
+  <h3>4.3 hook.py 的实际强制逻辑</h3>
+<pre>PreToolUse:
+  count = _increment_tool_count(control_state)      # 文件计数，跨进程
+  if count > finalize_after_tools:
+      → permissionDecision = "deny"                  # 硬阻断
+  ctx = _stage_context(count, selection)             # economy / strict 提醒
+  updated_input = _rtk_rewrite(payload) if Bash      # 命令改写
+  → additionalContext = ctx                          # 追加，不改 system prompt
+
+PostToolUse:
+  if len(output) > max_chars:
+      raw 原文写 .rho_runtime/raw/<tool_use_id>.json   # ★ 可回溯
+      compact = head(2400) + tail(900)
+      注入提示 "Full raw result: <path>. Read only a targeted range..."</pre>
+  <div class="note good">
+    <b>这段代码是整篇论文最值得直接抄的部分。</b>三个设计决定都很硬：
+    (1) 计数落文件而非内存 → 跨 hook 进程可用；
+    (2) 提醒走 <code>additionalContext</code> 追加，<b>不重写前缀</b> → prompt cache 不失效；
+    (3) 截断但<b>原文落盘 + 给出路径</b> → 需要细节时可定向回读，不是真的丢信息。
+  </div>
+
+  <h3>4.4 声称 vs 实现</h3>
+  <table>
+    <tr><th>论文声称</th><th>仓库现状</th><th>判定</th></tr>
+    <tr><td>多智能体框架（Analyzer / Planner / Editor / TestSynth）</td><td>无任何对应代码</td><td><span class="pill bad">不可复现</span></td></tr>
+    <tr><td>DPP coreset 选择</td><td>只有 <code>splits/*-test.txt</code>，无选择脚本</td><td><span class="pill bad">缺失</span></td></tr>
+    <tr><td>三档 Pareto 选择（式 8–9）</td><td>无选择器；只有最终选中的 9 个 harness</td><td><span class="pill bad">缺失</span></td></tr>
+    <tr><td>运行时预算强制</td><td><code>hook.py</code> 完整实现</td><td><span class="pill ok">已实现</span></td></tr>
+    <tr><td>profile 分类器</td><td><code>policy.json</code> + <code>profile_rubric.md</code> 完整</td><td><span class="pill ok">已实现</span></td></tr>
+    <tr><td>工具输出压缩 + 原文落盘</td><td><code>_post_tool_use</code> 完整</td><td><span class="pill ok">已实现</span></td></tr>
+    <tr><td>评测可复现</td><td>3 个 runner（4,162 / 3,231 / 1,638 行）+ Docker</td><td><span class="pill ok">已实现</span></td></tr>
+  </table>
+  <div class="note danger">
+    <b>一句话：仓库是"产物发布"，不是"方法发布"。</b>
+    README 自己也写了 "This release contains the selected harness artifacts"。
+    想复现论文的进化过程，<b>拿不到</b>；但想借它的运行时机制，<b>代码全在</b>。
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2>5 · 报告口径审计</h2>
+  <table>
+    <tr><th>口径问题</th><th>细节</th><th>影响</th></tr>
+    <tr><td>摘要均值掩盖异质性</td><td>"平均 +2.0pp / −26.1%" 跨三基准；SWE-Pro 上 Heavy 只 +0.7pp，Medium <b>−1.0pp</b></td><td>不能理解成"每处都更好"</td></tr>
+    <tr><td>重复次数不一致</td><td>TB2/SWE 三次取均值±std；ProgramBench 只有两次</td><td>ProgramBench 的 std 参考价值低</td></tr>
+    <tr><td>中间 epoch 的测试集指标</td><td>Figure 4 画了中间 epoch 的 test 指标，但注明"仅可视化，未用于过滤/选择"</td><td>看着像在 test 上调参，实际没有；但读者容易误读</td></tr>
+    <tr><td>成本口径</td><td>按公开价 × token 数；GPT-5.5 用 short-context 档（&lt;272K）</td><td>换供应商/换折扣，结论会变</td></tr>
+    <tr><td>模型档位</td><td>GPT-5.5 默认 high reasoning；GLM-5.2 在 TB2/SWE 默认 max，ProgramBench 降到 high</td><td>GLM 那一栏的起点不是"同等力度"</td></tr>
+    <tr><td>基础设施失败</td><td>"excluded and retried"</td><td>重试次数未报，成本可能被低估</td></tr>
+  </table>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2>6 · DWC 能学到什么（核心）</h2>
+
+  <h3>6.1 先说结论：HarnessPro 的 harness 定义 ≈ DWC 的 R438 十九对象</h3>
+  <table>
+    <tr><th>HarnessPro 的 harness 组成</th><th>DWC R438 对应维度</th><th>状态</th></tr>
+    <tr><td>instructions</td><td><code>prompt</code>（manifest + A/B）</td><td><span class="pill ok">已落地</span></td></tr>
+    <tr><td>tools &amp; skills</td><td><code>client_tool</code> / <code>skill</code></td><td><span class="pill ok">已落地</span></td></tr>
+    <tr><td>context &amp; memory</td><td><code>memory</code> / <code>context_mgmt</code></td><td><span class="pill ok">已落地</span></td></tr>
+    <tr><td>hooks</td><td><code>control_flow</code></td><td><span class="pill warn">半具备</span></td></tr>
+    <tr><td>verification policies</td><td><code>evaluator</code>（只读）</td><td><span class="pill warn">只读</span></td></tr>
+    <tr><td><b>cost</b></td><td><b>无</b></td><td><span class="pill bad">缺失</span></td></tr>
+  </table>
+  <p>结构上 DWC 比 HarnessPro 更细（19 个对象 vs 5 类），但<b>少了一个正交维度：成本</b>。
+  这不是"少一个功能"，而是<b>少一个目标函数</b>——只有一个目标时，Pareto 无从谈起。</p>
+
+  <h3>6.2 六条可借鉴项（按性价比排序）</h3>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">① 加 token 记账（前置条件，必须先做）</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td><code>LLMClient</code> 不解析 <code>usage</code>；生产日志的 <code>cost</code> 字段是<b>评分</b>不是钱；全库 grep <code>total_tokens</code> 零命中</td></tr>
+    <tr><td>借鉴</td><td>每次 <code>complete()</code> 记录 <code>prompt_tokens / completion_tokens / cached_tokens</code>，按模型价目折算</td></tr>
+    <tr><td>落点</td><td><code>src/dwc/llm/client.py</code> 的 <code>LLMResult</code> 加字段 → <code>var/task_scores.jsonl</code> 加列</td></tr>
+    <tr><td>成本</td><td>小（~50 行 + 一处写盘）</td></tr>
+    <tr><td>价值</td><td><b>极高</b>：没有它，后面五条全都做不了；也是"热力学智能"里 I_δ 量化的数据基础</td></tr>
+  </table>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">② 三段式工具预算 + 阶段提醒（最可直接抄）</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td><code>NATIVE_TOOLS_MAX_ROUNDS = 15</code> 硬上限；<code>max_rounds=999</code>（JSON 路径）；<b>全程无阶段提示</b></td></tr>
+    <tr><td>借鉴</td><td>economy(提醒省着用) → strict(停止发散) → finalize(<b>硬阻断</b>)，按任务复杂度选档</td></tr>
+    <tr><td>落点</td><td><code>task_exec.py</code> 的原生工具循环（<code>for rnd in range(1, max_rounds+1)</code> 附近）</td></tr>
+    <tr><td>成本</td><td>小（~80 行）；不引入新依赖</td></tr>
+    <tr><td>红线</td><td>提醒必须<b>追加到 tool result</b>，不能改 system prompt —— 否则 cache 前缀失效，反而更贵</td></tr>
+  </table>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">③ 工具输出压缩 + 原文落盘</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td><code>read_default_lines=200</code> / <code>output_max_chars</code> —— <b>截断即丢失</b>，模型想看全文只能重读</td></tr>
+    <tr><td>借鉴</td><td>head 2400 + tail 900，原文写 <code>var/tool_raw/&lt;id&gt;.json</code>，提示"需要细节读该路径的指定区间"</td></tr>
+    <tr><td>落点</td><td><code>task_exec.py</code> 的 <code>_cap_answer</code> / 工具返回处</td></tr>
+    <tr><td>成本</td><td>小（~40 行）</td></tr>
+  </table>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">④ 按任务特征路由 profile（而非全局 reasoning_effort）</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td><code>reasoning_effort</code> 是<b>全局配置</b>（生产 <code>none</code>）；R411 实测"档位越高越差"，于是干脆全关</td></tr>
+    <tr><td>借鉴</td><td>不是"全局开高"，而是<b>按任务选档</b>：简单题 low + 小预算，难题 high + 大预算</td></tr>
+    <tr><td>落点</td><td><code>LLMExecutorFactory</code>（已按 anchor 类型路由 9 个 behavior）→ 扩展为"类型 + 复杂度"双维路由</td></tr>
+    <tr><td>成本</td><td>中（需要分类器 + 评测验证）</td></tr>
+    <tr><td>注意</td><td>论文消融证明：<b>只加路由不加预算 hook，会掉分</b>（RHO+动态路由 80.0→76.0）。必须成对引入</td></tr>
+  </table>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">⑤ 三档 Pareto 输出（lite / medium / heavy）</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td>每轮 <code>auto_apply_max_per_round: 1</code>，只落一条规则；没有"多档策略"概念</td></tr>
+    <tr><td>借鉴</td><td>同一轮产出 3 套 profile 参数（省钱/平衡/性能），部署时按预算选</td></tr>
+    <tr><td>前提</td><td><b>必须先有 ①</b>（成本指标）；否则三档没有可比较的第二维</td></tr>
+    <tr><td>成本</td><td>中高</td></tr>
+    <tr><td>优先级</td><td><span class="pill warn">P2</span> 先把 ①③ 做完再谈</td></tr>
+  </table>
+
+  <h4 style="color:#8fd4ff;margin:20px 0 8px">⑥ 用"固定测试集"替代 LLM 自评（论文已给出反例）</h4>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>DWC 现状</td><td>judge 产出 <code>llm_asserted:%r</code>；trial 用 <code>obs_skeleton</code>（<b>真实观测值</b>）——这一半已经比论文强</td></tr>
+    <tr><td>借鉴</td><td>把 judge 的"我认为失败"换成"用固定用例复现失败"；不能复现的签名不进候选（DWC 已有 <code>filtered_nonreproducible=2093</code>）</td></tr>
+    <tr><td>判断</td><td><b>这条 DWC 已经做对了一半</b>：2093 条不可复现签名被正确挡在候选之外。剩下要改的是 judge 自身的 <code>llm_asserted</code> 措辞</td></tr>
+  </table>
+
+  <h3>6.3 明确不该照搬的四条（红线）</h3>
+  <table>
+    <tr><th>不要抄</th><th>为什么</th></tr>
+    <tr><td><b>多候选并行（每轮 3 计划 × G=3 rollout）</b></td><td>DWC 日预算 96 次 / 80 分；论文一轮就是 10 题 × 3 rollout × 3 候选 = 90 次调用，<b>一轮吃光一天</b></td></tr>
+    <tr><td><b>label-free（放弃 ground truth）</b></td><td>DWC 有真实评测池（池 A 53/54 = 98.1%），主动放弃真值是<b>倒退</b>。论文是被迫 label-free（官方测试不可见）</td></tr>
+    <tr><td><b>全 harness 重写</b></td><td>论文允许 Editor 改任意组件；DWC 的 19 对象已按维度隔离，全放开会破坏结构完整性（你反复强调过的）</td></tr>
+    <tr><td><b>用 CoP 当唯一 fitness</b></td><td>CoP = 总成本 ÷ 成功数，成功数为 0 时发散；DWC 现在的失败样本少，这个指标会噪声爆炸</td></tr>
+  </table>
+
+  <h3>6.4 建议的落地顺序</h3>
+  <table>
+    <tr><th>阶段</th><th>动作</th><th>前置</th><th>预计</th></tr>
+    <tr><td><b>P0</b></td><td>① token 记账 + 成本字段进 <code>task_scores.jsonl</code></td><td>无</td><td>1 轮</td></tr>
+    <tr><td><b>P0</b></td><td>③ 工具输出压缩 + 原文落盘</td><td>无</td><td>1 轮</td></tr>
+    <tr><td><b>P1</b></td><td>② 三段式预算 + 阶段提醒（先用固定档，不接分类器）</td><td>① 有数据可对比</td><td>1–2 轮</td></tr>
+    <tr><td><b>P1</b></td><td>把 cost 进 fitness，作为与 pass_rate 并列的第二目标</td><td>①</td><td>1 轮</td></tr>
+    <tr><td><b>P2</b></td><td>④ 任务特征 → profile 路由（必须先有 ②）</td><td>② + 分类器评测</td><td>2–3 轮</td></tr>
+    <tr><td><b>P3</b></td><td>⑤ 三档 Pareto 选择</td><td>①④ + 足够样本量</td><td>3+ 轮</td></tr>
+  </table>
+  <div class="note good">
+    <b>最省力、最高回报的一步是 ①+③，一轮能做完，且立刻让 DWC 从"只有一个目标"变成"有两个目标"。</b>
+    ② 是第二步，也是论文里最可直接抄的代码（<code>hook.py</code> 396 行，纯 stdlib）。
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2>7 · 诚实边界（本报告没做什么）</h2>
+  <table>
+    <tr><th>项</th><th>状态</th></tr>
+    <tr><td>复现论文实验</td><td><b>未做</b>。需要 GPT-5.5/GLM-5.2 + Docker + 三个基准数据集，成本远超本地能力</td></tr>
+    <tr><td>跑仓库测试</td><td><b>未做</b>。12 个测试函数是 <code>grep</code> 静态计数，未执行</td></tr>
+    <tr><td>仓库代码审读深度</td><td><code>hook.py</code> / <code>policy.json</code> / <code>profile_rubric.md</code> 全读；<code>harness_runtime.py</code>(1,322 行) 与三个 runner(9,000+ 行) 只读类/函数签名</td></tr>
+    <tr><td>数字来源</td><td>全部来自 PDF 正文 Table 2/3 与 §5.4，未二次计算</td></tr>
+    <tr><td>DWC 侧证据</td><td><code>task_exec.py</code> / <code>client.py</code> / <code>evo_targets.py</code> 的 grep 与行号，均为静态代码事实</td></tr>
+  </table>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2>8 · 引用</h2>
+<pre>@article{pan2026harnesspro,
+  title   = {HarnessPro: Recursive Harness Self-Improvement with Pareto
+             Optimization for Performance-Cost Trade-offs},
+  author  = {Pan, Zhuoshi and Feng, ZhiYuan and Cen, Yukuo and Lin, Honglin
+             and Lu, Junru and Chen, Zhongxia and Yang, Shuo
+             and Zhao, H. Vicky and Tang, Jie},
+  journal = {arXiv preprint arXiv:2610.26770},
+  year    = {2026}
+}</pre>
+  <p style="color:var(--dim);font-size:13px">
+    关键引文：RHO（Pan et al., 2026a）· AHE（Lin et al., 2026）· SkillMOO（Gong et al., 2026a）·
+    RTK（Szymkowiak, 2026）· DPP（Kulesza &amp; Taskar, 2012）·
+    归一化加权平方距离（Marler &amp; Arora, 2004）
+  </p>
+</section>
+
+<footer>
+  DWC 研读报告 · HarnessPro (arXiv 2610.26770v2) · 生成于 2026-10-24<br>
+  论文 41 页全读 · 仓库 23,383 行 Python 静态清点 · 未做实验复现，数字均引自论文
+</footer>
+</main>
+</body>
+</html>
