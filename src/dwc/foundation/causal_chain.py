@@ -176,6 +176,13 @@ class CausalChainStore:
                 (chain_id, recorded_at or ""))
         else:
             col = STAGE_ID_COLUMN[stage]
+            # ★ R审计-P2 · 列名白名单纵深防御（B608）: col 必须来自内部
+            #   STAGE_ID_COLUMN 表的非 None 值（该表是本文件常量，永不接受
+            #   外部输入；此断言防未来改动引入用户可控列名）。
+            _VALID_COLS = {v for v in STAGE_ID_COLUMN.values() if v}
+            if col not in _VALID_COLS:
+                raise ValueError("非法链列名 %r（白名单: %s）"
+                                 % (col, sorted(_VALID_COLS)))
             self._conn.execute(
                 "UPDATE chain SET %s=? WHERE chain_id=?" % col,
                 (ref_id, chain_id))

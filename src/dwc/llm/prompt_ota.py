@@ -176,7 +176,7 @@ def _ver(name: str, manifest: dict[str, Any], key: str) -> str | None:
     stable, cand, pct = m.get("stable"), m.get("candidate"), m.get("pct", 0)
     try:
         if cand and pct and key:
-            h = int(hashlib.md5(key.encode("utf-8")).hexdigest(), 16) % 100
+            h = int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16) % 100
             if h < int(pct):
                 return cand
     except Exception:

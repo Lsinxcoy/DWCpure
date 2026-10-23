@@ -201,7 +201,7 @@ def _args_snapshot(step: dict[str, Any], limit: int = 200) -> str:
     if not d:
         return ""
     raw = json.dumps(d, ensure_ascii=False, sort_keys=True, default=str)
-    d["_h"] = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    d["_h"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
     s = json.dumps(d, ensure_ascii=False, default=str)
     if len(s) <= limit:
         return s
@@ -2252,7 +2252,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         import hashlib as _hl
         _tgt_sig = str(step.get("path") or step.get("cmd")
                        or step.get("task") or "")[:160]
-        _sig = "%s|%s|%s" % (op, _tgt_sig, _hl.sha1(
+        _sig = "%s|%s|%s" % (op, _tgt_sig, _hl.sha256(
             json.dumps(obs, ensure_ascii=False, sort_keys=True)
             .encode("utf-8", "replace")).hexdigest()[:12])
         dup_sigs.append(_sig)

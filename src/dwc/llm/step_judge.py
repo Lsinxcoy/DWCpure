@@ -133,7 +133,7 @@ def _sig_args(step: dict[str, Any]) -> str:
             #   同样 sort_keys ⇒ 两处指纹才会相等（否则历史与当前永不匹配）
             _payload = {k: step.get(k) for k in ("offset", "limit", "cmd")
                         if step.get(k) is not None}
-            extra = "h=%s" % hashlib.sha1(
+            extra = "h=%s" % hashlib.sha256(
                 json.dumps(_payload, ensure_ascii=False,
                            sort_keys=True, default=str).encode("utf-8")
             ).hexdigest()[:12]
@@ -394,4 +394,4 @@ def step_signature(step: dict[str, Any]) -> str:
     """修订签名（revision.py signature 纪律 — 连续同签名 ⇒ fallback）。"""
     core = json.dumps({k: v for k, v in step.items() if k != "analysis"},
                       sort_keys=True, ensure_ascii=False)
-    return hashlib.sha1(core.encode("utf-8", "replace")).hexdigest()[:16]
+    return hashlib.sha256(core.encode("utf-8", "replace")).hexdigest()[:16]

@@ -282,7 +282,7 @@ def memory_snapshot_hash() -> str:
     """
     if not os.path.exists(LESSONS):
         return "empty"
-    h = hashlib.md5()
+    h = hashlib.sha256()
     with open(LESSONS, "rb") as fh:
         h.update(fh.read())
     names: list = []
