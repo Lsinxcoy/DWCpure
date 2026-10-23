@@ -268,49 +268,59 @@ scripts/dwc_evo_round.py:768   if (hint_code or "").strip():  # 拼进 peer prom
 
 ---
 
-### P2 · 按任务选档（R444–R445）
+### P2 · 按任务选档（R444）· 原计划的"高预算档"被硬上限证伪
 
 **目标**：简单题别用牛刀，难题别省子弹。
 
-**Files**
-- Create: `src/dwc/llm/profile.py`（profile 定义 + 选择器）
-- Create: `src/dwc/llm/profile_rules.py`（规则优先，无 LLM 依赖）
-- Modify: `src/dwc/llm/task_exec.py`（按 profile 取 `reasoning_effort` 与预算）
-- Create: `tests/test_r443_profile.py`
+**原计划 vs 实际**
 
-**五档（借 HarnessPro，但阈值由 DWC 实测确定）**
+| 项 | 原计划 | 实际 | 原因 |
+|---|---|---|---|
+| 五档预算 | economy/strict/finalize 最高到 68 | 最高 15 | **循环硬上限就是 `NATIVE_TOOLS_MAX_ROUNDS=15`**（`task_exec.py:1148`）。写 68 是承诺一个永远不会到来的轮次 —— 幻影预算 |
+| deep/research 用 `low` | 论文形状 | **全部 `None`（继承全局）** | R411 实测「推理档越高越差」；改推理力度必须走 A/B，不许在路由里夹带 |
+| 两个文件（profile + profile_rules） | 分层 | 合成一个 `profile.py` | 规则只有 5 条，拆两文件是空壳分层 |
 
-| profile | 推理力度 | economy | strict | finalize |
-|---|---|---|---|---|
-| compact | none | 4 | 8 | 14 |
-| lean | none | 10 | 22 | 36 |
-| standard | none | 18 | 38 | 60 |
-| deep | low | 20 | 42 | 68 |
-| research | low | 16 | 36 | 60 |
+**五档（实际）**
 
-> 注意：DWC 的 R411 实测「推理档越高越差」，所以这里**不照抄论文的 high**，而是以 `none` 为基线，只在 deep/research 上试 `low`，并由 A/B 决定。
+| profile | 推理力度 | economy | strict | finalize | 触发条件 |
+|---|---|---|---|---|---|
+| compact | 继承 | 3 | 5 | 8 | ≤40 字且无多交付物标记 |
+| lean | 继承 | 5 | 8 | 12 | ≤120 字 |
+| standard | 继承 | 6 | 10 | 15 | 兜底（= R441 默认，零行为变化） |
+| deep | 继承 | 8 | 12 | 15 | 含审计/重构/架构/调用链… 或 >600 字 |
+| research | 继承 | 8 | 12 | 15 | 含调研/检索/搜索/论文… |
 
-**选择器**
-- 第一层：**规则**（任务长度、是否含代码块、是否需要多文件、是否有明确 oracle）→ 覆盖 ≥ 80% 流量。
-- 第二层：规则无法判定 ⇒ 默认 `standard`（**不许**为了"智能"引入 LLM 分类器作为默认路径）。
+> `standard` 的 6/10/15 与 R441 的模块默认**完全相同** ⇒ 未命中任何规则时行为零变化。
 
-**上下文策略三元组（来自 Cache Engineering）**
+**优先级（关键设计）**
 
-DWC 的 `context_mgmt` 现在只有一种硬编码形态（留最近 2 轮 + 摘要）。借论文的三段分解，让它变成可进化的策略对象：
+```
+进化改过的值  >  profile 先验  >  模块默认
+```
 
-| 组件 | 含义 | DWC 可选项 |
-|---|---|---|
-| `trigger` | 何时压缩 | 轮数 / token 数 / 连续失败数 |
-| `selector` | 压哪些 | 旧工具响应 / 证伪轮 / 重复读同一文件的轮 |
-| `reposition` | 何时重整 | 压缩后是否重建摘要、是否重排 |
+用 `_MISSING` 哨兵区分"策略里没这个键"与"策略把它设成了默认值"。
+否则进化一旦写过 `6`，就永远盖住 profile —— 学习器被先验锁死。
 
-**验收**
-- 规则覆盖率 ≥ 80%（统计日志）。
-- 池 A 不退化。
-- 单任务平均成本下降 ≥ 15%（相对 P1 基线）。
-- 三元组能独立开关，且关掉后行为回到 P1 基线（可回滚）。
+**选择器**：纯规则，5 条，**命中率 100%**（`standard` 兜底）。
+不引 LLM 分类器：用模型做确定性判断是反模式（贵、不稳、不可解释）。
 
----
+**Files（实际）**
+- Create: `src/dwc/llm/profile.py`（`Profile` / `PROFILES` / `choose` / `explain`）
+- Modify: `src/dwc/llm/client.py`（`complete(..., reasoning_effort=None)` 按调用覆盖）
+- Modify: `src/dwc/llm/task_exec.py`（`tool_budget(profile)` + `execute_user_task` 选档）
+- Create: `tests/test_r444_profile.py`（16 条）
+
+**验收（已达成）**
+- 五档 `economy ≤ strict ≤ finalize`，且 `finalize ≤ 15`。
+- 无 profile 时 `tool_budget()` 仍是 6/10/15（R441 行为不变）。
+- 进化值能盖住 profile（有测试）。
+- 客户端按调用覆盖 `reasoning_effort`（本地 HTTP 服务抓 body 验证）。
+
+**没做的（诚实记账）**
+- **没有测量"选档是否真的省了钱/提了分"** —— 需要真实任务 A/B，属 P3。
+  本步只保证机制存在且不改变默认行为。
+- 上下文三元组（trigger/selector/reposition）**未落地**：DWC 的压缩路径只有一条，
+  拆成可进化对象要先有"多形态"才谈得上选择。留到 P4。
 
 ### P3 · 三档 Pareto（R446+）
 

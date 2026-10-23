@@ -741,23 +741,42 @@ def _policy(component: str, key: str, default: Any) -> Any:
         return default
 
 
-def tool_budget() -> _budget.ToolBudget:
-    """★ R441 · 三段式工具预算（context_mgmt 维度，可被进化改写）。
+_MISSING = object()
 
-    坏值/坏文件 ⇒ 退回模块默认（`_policy` 已留痕）；返回前统一 `normalized()`，
-    保证 economy ≤ strict ≤ finalize（倒序配置不许把阶段语义倒过来）。
+
+def tool_budget(profile: Any = None) -> _budget.ToolBudget:
+    """★ R441 · 三段式工具预算；★ R444 起可按 profile 给先验。
+
+    优先级：**进化改过的值 > profile 先验 > 模块默认**。
+    （`_MISSING` 哨兵用来区分"策略里没有这个键"与"策略把它设成了默认值"，
+     否则进化一旦写过 6 就永远盖住 profile。）
+
+    坏值/坏文件 ⇒ 退回先验（`_policy` 已留痕）；返回前统一 `normalized()`。
     """
-    def _g(key: str, default: int) -> int:
+    base = (profile.budget if profile is not None
+            else _budget.ToolBudget(economy_after=6, strict_after=10,
+                                    finalize_after=NATIVE_TOOLS_MAX_ROUNDS,
+                                    reminder_every=3))
+
+    def _g(key: str, fallback: int) -> int:
         try:
-            return int(_policy("context_mgmt", key, default))
+            v = _policy("context_mgmt", key, _MISSING)
         except Exception:      # noqa: BLE001 — 预算坏不拦任务（_policy 已留痕）
-            return default
+            return fallback
+        if v is _MISSING:
+            return fallback          # 没被进化改过 ⇒ 用档位给的
+        try:
+            return int(v)
+        except Exception:      # noqa: BLE001 — 坏值退回先验
+            return fallback
 
     return _budget.ToolBudget(
-        economy_after=_g("budget_economy_after", 6),
-        strict_after=_g("budget_strict_after", 10),
-        finalize_after=_g("budget_finalize_after", NATIVE_TOOLS_MAX_ROUNDS),
-        reminder_every=_g("budget_reminder_every", 3),
+        economy_after=_g("budget_economy_after", base.economy_after),
+        strict_after=_g("budget_strict_after", base.strict_after),
+        # ★ 硬上限只有 15：任何档位都不许承诺更多（否则是幻影预算）
+        finalize_after=min(NATIVE_TOOLS_MAX_ROUNDS,
+                           _g("budget_finalize_after", base.finalize_after)),
+        reminder_every=_g("budget_reminder_every", base.reminder_every),
     ).normalized()
 
 
@@ -1504,6 +1523,9 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
     返回报告 dict: {task_id?/task, status, rounds, answer, artifacts,
     actions_log, why} — status ∈ {done, incomplete}。
     """
+    # ★ R444 · 按任务选档（规则优先；只调**预算**，不改推理力度 —— R411 实测越高越差）
+    from dwc.llm import profile as _profile
+    _prof = _profile.choose(task)
     # ★★★ R385 · 原生工具模式硬上限（某 read-fact 题 实测 140 轮 / 625 秒 / 空答案）。
     #   `max_rounds=999` 是给 JSON 路径的历史宽松值；原生工具会死循环。
     if _use_native_tools() and max_rounds > NATIVE_TOOLS_MAX_ROUNDS:
@@ -1679,7 +1701,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
             _ff_pending[0] = False
         if _use_native_tools():
             # ★ R441 · 三段式预算：先按当前轮次取阶段与提醒
-            _tb = tool_budget()
+            _tb = tool_budget(_prof)
             _stage = _budget.stage_of(rnd, _tb)
             _rem = _budget.reminder(rnd, _tb)
             if _rem:

@@ -382,6 +382,7 @@ class LLMClient:
                  images: Optional[List[str]] = None,
                  tools: Optional[List[dict]] = None,
                  tool_choice: Optional[str] = None,
+                 reasoning_effort: Optional[str] = None,
                  _retry: bool = False) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
@@ -437,8 +438,11 @@ class LLMClient:
             if tool_choice:
                 body["tool_choice"] = tool_choice
         # ★ R377 · 推理强度（配了才发；未配不猜端点支持什么）
-        if getattr(self, "reasoning_effort", ""):
-            body["reasoning_effort"] = self.reasoning_effort
+        # ★ R444 · 按调用覆盖（profile 路由用）；不传则用实例值，行为不变
+        _re = (str(reasoning_effort).strip() if reasoning_effort is not None
+               else getattr(self, "reasoning_effort", ""))
+        if _re:
+            body["reasoning_effort"] = _re
 
         self.n_calls += 1
         # ★★★ R422 · **每次调用重置重试计数** ——
