@@ -1,0 +1,362 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DWC 进化系统全图 · R437 审计</title><style>
+:root{--bg:#0d1117;--card:#161b22;--bd:#30363d;--fg:#e6edf3;--dim:#8b949e;--acc:#58a6ff;--red:#f85149;--grn:#3fb950;--yel:#d29922}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:36px 40px 20px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#161b22,#0d1117)}
+h1{margin:0 0 8px;font-size:26px;letter-spacing:.5px}
+.sub{color:var(--dim);font-size:13px}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;align-self:flex-start;width:250px;flex:0 0 250px;padding:24px 16px;border-right:1px solid var(--bd);max-height:100vh;overflow:auto}
+nav a{display:block;color:var(--dim);text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;border-left:2px solid transparent}
+nav a:hover{color:var(--fg);background:#1c2128;border-left-color:var(--acc)}
+main{flex:1;min-width:0;padding:24px 40px 80px}
+h2{margin:38px 0 14px;font-size:20px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+h3{margin:26px 0 10px;font-size:16px;color:var(--acc)}
+p,li{color:#c9d1d9}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#1c2128;color:var(--fg);font-weight:600}
+tr:nth-child(even) td{background:#11161d}
+code{background:#1c2128;padding:2px 6px;border-radius:4px;font-size:12.5px;color:#ffa657;font-family:Consolas,monospace}
+pre{background:#0b0f14;border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow:auto}
+pre code{background:none;color:#c9d1d9;padding:0}
+blockquote{border-left:3px solid var(--yel);margin:14px 0;padding:6px 14px;background:#161b22;color:var(--dim)}
+strong{color:#fff}
+</style></head><body><header><h1>DWC 进化系统全图</h1><div class="sub">R437 审计 · 2026-10-23 · 静态调用面 + 运行时台账 + cron 真实输出</div></header><div class="wrap"><nav><a href="#s0">一、结论先行</a><a href="#s1">二、进化对象（动作空间）</a><a href="#s2">三、四条通路逐条核实</a><a href="#s3">四、断点清单（10 条，全部有证据）</a><a href="#s4">五、生产上"进化"实际在做什么</a><a href="#s5">六、修复优先级（建议）</a><a href="#s6">七、验证方法（修完后怎么证明真的通了）</a></nav><main><h1>DWC 进化系统全图（R437 审计）</h1>
+<blockquote>
+<p>审计时间 2026-10-23 09:00。方法：静态调用面统计（<code>src/</code> <code>scripts/</code> <code>tests/</code> 全量符号计数）+ 运行时台账（<code>var/evo_proposals.jsonl</code>、<code>var/dwc_lessons.jsonl</code>、<code>var/dwc_prod.sqlite</code>）+ cron 真实输出。
+结论以<strong>代码与数据</strong>为准，不以注释/文档自述为准。</p>
+</blockquote>
+<hr />
+<h2 id="s0">一、结论先行</h2>
+<p>代码里存在 <strong>4 条"进化"通路</strong>。其中：</p>
+<ul>
+<li><strong>1 条完整闭环，但只在测试里跑</strong>（生产零调用）</li>
+<li><strong>1 条每天定时跑，但输入被过滤成 0</strong>（结构性空转）</li>
+<li><strong>1 条只有加载器，没有变异/选择</strong>（提示词）</li>
+<li><strong>1 条只记录不晋升</strong>（lessons）</li>
+</ul>
+<p><strong>当前生产上没有任何一条通路会改变系统行为。</strong></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>通路</th>
+<th>输入</th>
+<th>变异</th>
+<th>评估</th>
+<th>落地</th>
+<th>触发</th>
+<th>真实状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>live term loop<br><code>src/dwc/harness/loop.py</code></td>
+<td>judge 失败签名</td>
+<td><code>evolver.diagnose</code> → <code>propose</code></td>
+<td><code>_trial_run</code> + replay</td>
+<td>六门 + <code>applier</code></td>
+<td>每 term</td>
+<td><strong>未接线</strong>：<code>build_round_fn</code> 生产零调用；落地 target 是内存 box</td>
+</tr>
+<tr>
+<td>2</td>
+<td>daily evo round<br><code>scripts/dwc_evo_round_cron.py</code></td>
+<td><code>failure_sig</code> 表</td>
+<td><code>Mutator</code> / <code>LLMMutator</code></td>
+<td><code>_real_trial</code></td>
+<td><code>apply=False</code> 硬编码</td>
+<td>cron 04:00</td>
+<td><strong>空转</strong>：2034 条签名 100% 被过滤</td>
+</tr>
+<tr>
+<td>3</td>
+<td>prompt OTA<br><code>src/dwc/llm/prompt_ota.py</code></td>
+<td>无</td>
+<td>手工脚本</td>
+<td>手工 A/B</td>
+<td>手工 promote</td>
+<td>无</td>
+<td><strong>只加载</strong>：manifest 9 条全 <code>pct: 0</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>lessons<br><code>src/dwc/agent_quality.py</code></td>
+<td>任务失败</td>
+<td><code>record_lesson</code></td>
+<td><code>score_lesson_quality</code></td>
+<td><code>promote_lessons</code></td>
+<td>失败即写</td>
+<td><strong>只写不晋升</strong>：<code>promote_lessons</code> 生产零调用</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s1">二、进化对象（动作空间）</h2>
+<p><code>evolver.editable_vocab()</code> 返回 <strong>12 类</strong>组件：</p>
+<pre><code>architecture, client_tool, code, config, context_mgmt, control_flow,
+memory, meta_evolution, output_plumbing, prompt, skill, subagent
+</code></pre>
+<p><code>k1_coverage()</code>：21 个盘点项全覆盖，<strong>7 项归属有争议</strong>（知识→memory、观测→output_plumbing、
+执行环境→config、控制/安全→control_flow、模型选择→config、训练桥→external_source、
+行为/工作流→control_flow）。</p>
+<p><strong>关键澄清</strong>：词表里的 <code>prompt</code> <strong>不是</strong> <code>prompts/*.md</code> 系统提示词，而是"文本/答案面"。
+证据：<code>RULES</code> 表里 10 条 <code>component="prompt"</code> 的 patch 全是 <code>reasoning_001</code> /
+<code>reproduce_001</code> 这类演示任务的<strong>答案文本</strong>（<code>evolver.py:1779-1882</code>）。</p>
+<p><strong>约束</strong>：<code>Proposal._assert_single_change()</code> 强制"一处干预"（target + patch 只能一处），
+否则任何测量都无法归因。</p>
+<hr />
+<h2 id="s2">三、四条通路逐条核实</h2>
+<h3>通路 1 · live term loop（完整闭环，未接线）</h3>
+<p><code>harness/loop.py</code> 的 <code>Loop.round()</code> 是一条完整链路：</p>
+<pre><code>judge 失败签名 → evolver.diagnose → proposals
+  → _trial_run（合成 patch 后复判）
+  → replay 选择（argmax，不劣于 current 才继续）
+  → gate_all（六门）
+  → run_round(applier=..., target=_MemoryTarget())
+  → landed = bool(res.landing)
+</code></pre>
+<p><strong>但生产不跑它</strong>：</p>
+<ul>
+<li><code>build_round_fn</code>（唯一构造入口）在 <code>src/</code> <code>scripts/</code> <strong>只有定义本身</strong>，测试里 1 处。</li>
+<li>落地 target 是 <code>_MemoryTarget</code>（<code>loop.py:1364</code>），注释原文：
+  "循环本身只证明『落地链路在轮里真跑过』⇒ 用内存 target（不写脏盘）"。</li>
+<li>真正的可写面 <code>_RulesTarget</code>（<code>loop.py:1337</code>）<strong>全仓库零引用</strong>。</li>
+</ul>
+<p>⇒ 这条通路的能力是真的，但它是一条<strong>演示链路</strong>。</p>
+<h3>通路 2 · daily evo round（每天跑，输入恒空）</h3>
+<p>cron <code>DWC evo收尾每日</code>（<code>0 4 * * *</code>，<code>last_status: ok</code>，已完成 8 次）调用
+<code>dwc_evo_round_cron.py</code>：</p>
+<pre><code>diagnose（collect_unmapped）→ propose（propose_from_cluster）
+  → assess（_real_trial：真 LLM + 真 judge）
+  → apply=False
+</code></pre>
+<p><strong>2026-10-23 04:01 的真实输出</strong>：</p>
+<pre><code class="language-json">{ &quot;n_clusters&quot;: 0, &quot;results&quot;: [], &quot;trial_rounds&quot;: 0,
+  &quot;filtered_nonreproducible&quot;: 68,
+  &quot;triage&quot;: {&quot;total&quot;: 0, &quot;landed&quot;: 0} }
+</code></pre>
+<p><code>filtered_nonreproducible: 68</code> 说明签名全被 <code>reproducible_only</code> 分流掉了。
+查库：</p>
+<pre><code>failure_sig 总行 2034 | m LIKE 'llm_asserted%' 2034 | 可复现 0
+</code></pre>
+<p><strong>2034 / 2034 全部是 <code>llm_asserted*</code></strong>。而 <code>collect_unmapped</code> 的过滤条件是：</p>
+<pre><code class="language-python">_filtered_nonrepro = [s for s in sigs if s[&quot;m&quot;].startswith(&quot;llm_asserted&quot;)]
+sigs = [s for s in sigs if not s[&quot;m&quot;].startswith(&quot;llm_asserted&quot;)]
+</code></pre>
+<p>⇒ 过滤后 <strong>0 条</strong> ⇒ 0 簇 ⇒ 0 试跑 ⇒ 0 落地。<strong>每天都是空转。</strong></p>
+<p>根因链：<code>judge.py:1041/1071</code> 产出的每条失配签名都是 <code>m="llm_asserted:%r"</code>。
+R328 的设计意图是"执行侧自断言归 agent_quality 回路，evo 只吃 verifier 可复现簇"——
+但<strong>判据从未产出可复现簇</strong>，于是 evolver 永远收不到输入。</p>
+<p>另有一处 SQL 缺陷（同一份 cron 输出）：</p>
+<pre><code>N1 route warn: OperationalError('no such column: task')
+</code></pre>
+<p><code>dwc_evo_round_cron.py:126</code> 查询 <code>SELECT DISTINCT task FROM failure_sig</code>，而该表只有
+<code>(c, q, m, node_id)</code> 四列 —— <strong>这条把执行侧失败路由回 agent 的通道从未成功执行过</strong>。</p>
+<h3>通路 3 · prompt OTA（只有加载器）</h3>
+<ul>
+<li>加载面：<code>core.py</code> / <code>executor.py</code> / <code>task_exec.py</code> / <code>candidates.py</code> / <code>evolver.py</code> / <code>planner.py</code> 共 6 处接入，生产在用。</li>
+<li>变异面：<code>scripts/dwc_prompt_candidate.py</code> —— 生产引用仅来自 <code>dwc_prompt_ab.py</code>。</li>
+<li>评估面：<code>scripts/dwc_prompt_ab.py</code> —— 生产零外部引用。</li>
+<li>选择面：<code>--promote</code> 手工参数。</li>
+<li><code>prompts/manifest.json</code> 9 条全部 <code>{"stable": "v1", "candidate": null, "pct": 0}</code>。</li>
+</ul>
+<p>⇒ 灰度机制存在，但<strong>从来没有人设置过 candidate</strong>。</p>
+<h3>通路 4 · lessons（只写不晋升）</h3>
+<p><code>agent_quality.py</code> 有完整生命周期：</p>
+<pre><code>record_lesson → score_lesson_quality → promote_lessons(use_threshold=5)
+  → touch_lessons → lesson_contrast
+</code></pre>
+<p>台账：<code>var/dwc_lessons.jsonl</code> <strong>1205 条</strong>，字段含 <code>tier</code> / <code>use_count</code> / <code>utility</code> / <code>quality</code>。</p>
+<p>但调用面：</p>
+<table>
+<thead>
+<tr>
+<th>函数</th>
+<th>生产调用点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>record_lesson</code></td>
+<td>agent_quality 自身（chat）、<code>dwc_bench.py</code>、<code>dwc_nightbench.py</code></td>
+</tr>
+<tr>
+<td><code>touch_lessons</code></td>
+<td>agent_quality 检索命中时</td>
+</tr>
+<tr>
+<td><code>lesson_contrast</code></td>
+<td>agent_quality 检索时</td>
+</tr>
+<tr>
+<td><strong><code>promote_lessons</code></strong></td>
+<td><strong>零</strong>（只有定义 + 1 个测试）</td>
+</tr>
+</tbody>
+</table>
+<p>⇒ 教训会被写入、被检索、被注入，但<strong>永远不会晋级</strong>，<code>tier</code> 字段形同虚设。</p>
+<hr />
+<h2 id="s3">四、断点清单（10 条，全部有证据）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>断点</th>
+<th>证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>完整闭环生产零调用</td>
+<td><code>build_round_fn</code> 仅 <code>loop.py</code> 定义 + 1 测试</td>
+</tr>
+<tr>
+<td>2</td>
+<td>可写面从未使用</td>
+<td><code>_RulesTarget</code> 全仓库 <strong>0</strong> 引用</td>
+</tr>
+<tr>
+<td>3</td>
+<td>每日轮永不落地</td>
+<td><code>dwc_evo_round_cron.py:80</code> <code>apply=False</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>落地目标不存在</td>
+<td><code>config/anchors/rules.json</code> <strong>文件不存在</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>胜者选择未接线</td>
+<td><code>select_winner</code> 只在注释/字符串里被提到</td>
+</tr>
+<tr>
+<td>6</td>
+<td>候选归档未接线</td>
+<td><code>promote_archived</code> / <code>archive_candidate</code> 生产仅定义</td>
+</tr>
+<tr>
+<td>7</td>
+<td>技能进化未接线</td>
+<td><code>skill_evolve_from_sig</code> 生产仅定义</td>
+</tr>
+<tr>
+<td>8</td>
+<td>教训晋升未接线</td>
+<td><code>promote_lessons</code> 生产仅定义</td>
+</tr>
+<tr>
+<td>9</td>
+<td>提示词闭环未接线</td>
+<td><code>dwc_prompt_ab</code> 生产引用仅来自自身</td>
+</tr>
+<tr>
+<td>10</td>
+<td>执行侧路由 SQL 坏</td>
+<td><code>no such column: task</code>（表只有 4 列）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s4">五、生产上"进化"实际在做什么</h2>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>频率</th>
+<th>产出</th>
+<th>是否改变行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run_term</code> 失败 → <code>evolver.diagnose</code></td>
+<td>每 term</td>
+<td>写 <code>var/evo_proposals.jsonl</code>（1094 unmapped + 45 proposals）</td>
+<td><strong>否</strong></td>
+</tr>
+<tr>
+<td>daily evo round</td>
+<td>每天 04:00</td>
+<td>0 簇报告</td>
+<td><strong>否</strong></td>
+</tr>
+<tr>
+<td><code>record_lesson</code></td>
+<td>每次失败</td>
+<td><code>dwc_lessons.jsonl</code>（1205 条）</td>
+<td>间接（注入 prompt）</td>
+</tr>
+<tr>
+<td>anchor drift watch</td>
+<td>每 2h</td>
+<td>告警</td>
+<td><strong>否</strong></td>
+</tr>
+<tr>
+<td>prompt OTA</td>
+<td>每单</td>
+<td>读 manifest，全 <code>pct: 0</code></td>
+<td><strong>否</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>45 条 proposal 的结局</strong>：只被写进台账，没有任何一条进入 trial / gate / 落地。
+台账里连 <code>state</code> 字段都没有 —— 无法回答"它后来怎么了"。</p>
+<hr />
+<h2 id="s5">六、修复优先级（建议）</h2>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>修什么</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0</strong></td>
+<td>让通路 2 有输入：判据产出<strong>可复现</strong>签名（或把 <code>llm_asserted</code> 之外的签名单独入库）</td>
+<td>没有输入，后面全是空转；这是唯一的"零号问题"</td>
+</tr>
+<tr>
+<td><strong>P0</strong></td>
+<td>修 <code>SELECT DISTINCT task</code> 的 SQL</td>
+<td>执行侧失败回流的唯一通道，从未跑通</td>
+</tr>
+<tr>
+<td><strong>P1</strong></td>
+<td>建 <code>config/anchors/rules.json</code> + 给 cron 加 <code>--apply</code>（默认仍 False，先手动跑一轮验证）</td>
+<td>让"能落地"这件事至少被证明一次</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td>把 <code>promote_lessons</code> 接进每日轮</td>
+<td>1205 条教训有 tier 字段却永不晋级</td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>prompt 作为第 13 个组件接进通路 2（复用 R434 三件套）</td>
+<td>提示词进化才有归宿</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td>通路 1 复活或归档</td>
+<td>按"僵尸先复活不删"铁律：先接一个真实 Target，跑一轮 e2e 证明</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="s6">七、验证方法（修完后怎么证明真的通了）</h2>
+<ol>
+<li><strong>输入侧</strong>：<code>select count(*) from failure_sig where m not like 'llm_asserted%'</code> &gt; 0</li>
+<li><strong>诊断侧</strong>：daily round 报告 <code>n_clusters &gt; 0</code></li>
+<li><strong>试跑侧</strong>：<code>trial_rounds &gt; 0</code> 且 <code>envelope.by_mode</code> 非空</li>
+<li><strong>落地侧</strong>：<code>config/anchors/rules.json</code> 出现新键，且 <code>git diff</code> 可见</li>
+<li><strong>行为侧</strong>：落地前后同一 anchor 的 pass_rate 有可测差异（且过噪声带）</li>
+</ol>
+<p>任一步为 0，就说明链路仍断在该处 —— 不许用"报告里有数字"代替"行为变了"。</p></main></div></body></html>
