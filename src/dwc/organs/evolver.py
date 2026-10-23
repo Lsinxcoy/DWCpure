@@ -2060,6 +2060,8 @@ class Mutator:
         return Proposal(proposal_id=pid, failure_signature=full,
                         component=rule["component"], target=rule["target"],
                         patch=rule["patch"], rationale=rule["rationale"],
+                        # ★ R438 · 学到并通过试跑的实现随规则复用
+                        code=rule.get("code"),
                         dimension=rule.get("dimension"),
                         target_layer=(rule.get("target_layer")
                                       or layer_of(rule["component"])))
@@ -2621,6 +2623,10 @@ class Evolver:
             "m": _sig.get("m", ""),
             "m_source": _sig.get("m_source", "rule"),
             "patch": p.patch, "rationale": p.rationale,
+            # ★ R438 · code 维度：学到并通过试跑的实现**随规则一起落盘**，
+            #   下次同签名再出现时 propose 直接把它当起点（改前 p.code
+            #   试跑完就丢，同一任务每次都从零起草）。
+            "code": p.code,
             # ★ C3 · provenance 落盘（供 withdraw 撤回审计）。
             # ★ R335 · temporal scope（survey §4.1.1：何时生效/作用域/回滚触发）。
             "provenance": {"task": _sig.get("fn", ""),

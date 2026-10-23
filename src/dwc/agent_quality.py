@@ -21,7 +21,10 @@ from typing import Any, Dict, List
 
 from dwc.foundation.paths import find_root
 ROOT = find_root()
-VAR = os.path.join(ROOT, "var")
+# ★ R438 · 尊重 DWC_VAR_DIR（与 agent_rpc 同口径）。
+#   现场：本模块写死 <repo>/var ⇒ 测试里每个任务都去读**生产** 1205 条教训
+#   并 touch 改写它（既拖慢全量 4 倍，又污染生产 use_count）。
+VAR = os.environ.get("DWC_VAR_DIR") or os.path.join(ROOT, "var")
 LESSONS = os.path.join(VAR, "dwc_lessons.jsonl")
 LESSONS_ARCHIVE = os.path.join(VAR, "dwc_lessons_archive.jsonl")
 # ★ R266B · 任务知识（信源/论文/发现）检索 — lessons 同族管线
@@ -135,9 +138,21 @@ def score_lesson_quality(detail: str, history: list) -> dict:
             "quality": q, "verdict": verdict}
 
 
+#: ★ R438 · 教训表 mtime 缓存（sources_context 现在每单都读 ⇒ 1205 行
+#   重复解析会成为任务路径的热点；文件被 touch_lessons 改写 ⇒ mtime 变 ⇒ 重读）
+_LESSONS_CACHE: Dict[str, Any] = {"key": None, "rows": []}
+
+
 def load_lessons() -> List[Dict[str, Any]]:
-    if not os.path.exists(LESSONS):
+    try:
+        _st = os.stat(LESSONS)
+        _key = (LESSONS, _st.st_mtime, _st.st_size)
+    except OSError:
+        _LESSONS_CACHE["key"] = None
+        _LESSONS_CACHE["rows"] = []
         return []
+    if _LESSONS_CACHE.get("key") == _key:
+        return list(_LESSONS_CACHE["rows"])
     out = []
     for ln in open(LESSONS, encoding="utf-8").read().splitlines():
         if ln.strip():
@@ -152,7 +167,9 @@ def load_lessons() -> List[Dict[str, Any]]:
             row.setdefault("tier", "short")
             row.setdefault("quality", 0.5)
             out.append(row)
-    return out
+    _LESSONS_CACHE["key"] = _key
+    _LESSONS_CACHE["rows"] = out
+    return list(out)
 
 
 def touch_lessons(ids: list) -> int:
@@ -578,8 +595,9 @@ def _sources_off() -> bool:
             return True
         here = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))          # src/dwc/agent_quality.py
+        # ★ R438 · 与 VAR 同源（改前算成 src/dwc/var，生产永远找不到开关）
         var = (os.environ.get("DWC_VAR_DIR") or "").strip() \
-            or os.path.join(here, "var")
+            or VAR
         return os.path.exists(os.path.join(var, "sources_off"))
     except Exception:
         return False
