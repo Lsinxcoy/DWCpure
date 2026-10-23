@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWC v2.0 · 成本感知的 Harness 自进化 · 版本开发计划</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#101823; --panel2:#151f2b; --line:#22303f;
+    --fg:#dbe6f2; --dim:#8ba1b8; --acc:#4ea8ff; --ok:#3ddc97;
+    --bad:#ff5f6d; --warn:#ffc857; --vio:#b48bff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.7 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:9;background:rgba(10,14,19,.94);
+         backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+         padding:13px 26px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650}
+  header .sub{color:var(--dim);font-size:12.5px}
+  header nav{margin-left:auto;display:flex;gap:13px;flex-wrap:wrap}
+  header nav a{color:var(--dim);text-decoration:none;font-size:12.8px}
+  header nav a:hover{color:var(--acc)}
+  main{max-width:1120px;margin:0 auto;padding:26px}
+  section{margin:0 0 38px;scroll-margin-top:64px}
+  h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+     border-left:3px solid var(--acc);padding-left:10px;margin:0 0 16px}
+  h3{font-size:15.5px;margin:22px 0 10px;color:#e8f1fb}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card .k{color:var(--dim);font-size:11.8px;letter-spacing:.05em}
+  .card .v{font-size:24px;font-weight:700;margin-top:5px;font-family:var(--mono)}
+  .card .n{color:var(--dim);font-size:12.3px;margin-top:4px;line-height:1.55}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .vio{color:var(--vio)}
+  pre{background:#070b10;border:1px solid var(--line);border-radius:10px;
+      padding:13px 15px;overflow:auto;font-family:var(--mono);font-size:12.6px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;font-size:13.4px;margin:10px 0}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.3px;letter-spacing:.04em}
+  tr:hover td{background:rgba(78,168,255,.04)}
+  code{font-family:var(--mono);font-size:12.4px;background:#0c131b;padding:1.5px 5px;border-radius:5px}
+  .pill{display:inline-block;padding:1.5px 9px;border-radius:999px;font-size:11.4px;
+        border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .pill.ok{border-color:rgba(61,220,151,.42);color:var(--ok);background:rgba(61,220,151,.08)}
+  .pill.bad{border-color:rgba(255,95,109,.42);color:var(--bad);background:rgba(255,95,109,.08)}
+  .pill.warn{border-color:rgba(255,200,87,.42);color:var(--warn);background:rgba(255,200,87,.08)}
+  .pill.vio{border-color:rgba(180,139,255,.42);color:var(--vio);background:rgba(180,139,255,.08)}
+  .note{border-left:3px solid var(--warn);background:rgba(255,200,87,.06);
+        padding:11px 15px;border-radius:0 8px 8px 0;color:#e9d9b6;font-size:13.5px;margin:14px 0}
+  .danger{border-left-color:var(--bad);background:rgba(255,95,109,.07);color:#f3c8cd}
+  .good{border-left-color:var(--ok);background:rgba(61,220,151,.06);color:#c6f0de}
+  .flow{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:14px 0}
+  .node{flex:1 1 150px;background:var(--panel2);border:1px solid var(--line);
+        border-radius:10px;padding:12px 14px;text-align:center}
+  .node .t{font-family:var(--mono);font-size:12px;color:var(--acc)}
+  .node .d{font-size:13px;margin-top:5px}
+  .node .s{font-size:11.5px;color:var(--dim);margin-top:4px}
+  .arrow{align-self:center;color:var(--dim);font-size:18px}
+  footer{color:var(--dim);font-size:12.4px;text-align:center;padding:30px;border-top:1px solid var(--line)}
+  ul{margin:8px 0 8px 4px;padding-left:20px} li{margin:5px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>DWC v2.0 · 成本感知的 Harness 自进化</h1>
+  <span class="sub">版本开发计划 · 规划中</span>
+  <nav>
+    <a href="#s0">定位</a><a href="#s1">边界</a><a href="#s2">阶段</a><a href="#s3">P0–P3</a>
+    <a href="#s4">论文协议</a><a href="#s5">KPI</a><a href="#s6">风险</a><a href="#s7">开工条件</a>
+  </nav>
+</header>
+<main>
+
+<!-- 0 -->
+<section id="s0">
+  <h2>0 · 版本定位</h2>
+  <div class="grid">
+    <div class="card"><div class="k">v1（R438）回答了</div><div class="v ok">能不能</div>
+      <div class="n">19 个对象落地；首次全自动走完「簇→起草→沙箱→门→落地」</div></div>
+    <div class="card"><div class="k">v2 要回答</div><div class="v warn">值不值</div>
+      <div class="n">把「花多少钱」变成与「通过率」并列的一等目标</div></div>
+    <div class="card"><div class="k">首个来源</div><div class="v vio">1 篇</div>
+      <div class="n">HarnessPro (arXiv 2610.26770)</div></div>
+    <div class="card"><div class="k">开工门槛</div><div class="v">≥ 3 篇</div>
+      <div class="n">攒够论文池再统一动手</div></div>
+  </div>
+  <div class="good note" style="margin-top:14px">
+    <b>一句话：</b>v1 让 DWC 学会了自己改自己；v2 要让 DWC 学会<b>算账</b>——
+    在<b>不掉分</b>的前提下持续降本。
+  </div>
+</section>
+
+<!-- 1 -->
+<section id="s1">
+  <h2>1 · 版本边界</h2>
+  <h3>做（六项能力）</h3>
+  <table>
+    <tr><th>#</th><th>能力</th><th>一句话验收</th></tr>
+    <tr><td>V2-1</td><td>成本可观测</td><td>每次调用都有 token 记账，可按任务/按轮汇总美元成本</td></tr>
+    <tr><td>V2-2</td><td>输出可回溯</td><td>截断后原文落盘，模型可按路径定向回读</td></tr>
+    <tr><td>V2-3</td><td>预算可约束</td><td>economy→strict→finalize 三段，finalize 后硬阻断</td></tr>
+    <tr><td>V2-4</td><td>双目标进化</td><td>fitness 同时含 pass_rate 与 cost，任一退化即 reject</td></tr>
+    <tr><td>V2-5</td><td>按任务选档</td><td>按任务特征选 profile，而非全局一个值</td></tr>
+    <tr><td>V2-6</td><td>三档产物</td><td>一轮进化产出 lite / medium / heavy 三套策略</td></tr>
+  </table>
+
+  <h3>不做（红线）</h3>
+  <table>
+    <tr><th>不做</th><th>理由</th></tr>
+    <tr><td>label-free（放弃 ground truth）</td><td>DWC 有真实评测池 53/54 = 98.1%，放弃真值是倒退</td></tr>
+    <tr><td>多候选并行（3 计划 × G=3）</td><td>一轮 90 次调用会吃光日预算（96/80）</td></tr>
+    <tr><td>全 harness 重写</td><td>19 对象已按维度隔离，全放开破坏结构完整性</td></tr>
+    <tr><td>CoP 当唯一 fitness</td><td>成功数为 0 时发散；DWC 失败样本少，噪声爆炸</td></tr>
+    <tr><td>引入重型依赖</td><td>预算/压缩/路由全部用 stdlib + 现有依赖</td></tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2>2 · 阶段与依赖</h2>
+  <div class="flow">
+    <div class="node"><div class="t">P0-a</div><div class="d">成本记账</div><div class="s">R439 · 一切的前提</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="t">P1-b</div><div class="d">双目标 fitness</div><div class="s">R442</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="t">P2</div><div class="d">任务选档</div><div class="s">R443–R444</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><div class="t">P3</div><div class="d">三档 Pareto</div><div class="s">R445+</div></div>
+  </div>
+  <div class="flow">
+    <div class="node"><div class="t">P0-b</div><div class="d">输出可回溯</div><div class="s">R440 · 独立可做</div></div>
+    <div class="arrow">↘</div>
+    <div class="node"><div class="t">P1-a</div><div class="d">三段预算</div><div class="s">R441 · 与 P1-b 可并行</div></div>
+  </div>
+  <div class="note">
+    <b>关键依赖：</b>没有 P0-a 的成本数据，P1-b / P2 / P3 都无从比较——
+    它们优化的第二个目标根本不存在。
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2>3 · 阶段详规</h2>
+
+  <h3>P0-a · 成本记账（R439）</h3>
+  <table>
+    <tr><th>项</th><th>内容</th></tr>
+    <tr><td>改</td><td><code>src/dwc/llm/client.py</code>（<code>LLMResult.meta</code> 已存在，直接复用）</td></tr>
+    <tr><td>新</td><td><code>src/dwc/llm/cost.py</code>（价目表 + 折算）</td></tr>
+    <tr><td>改</td><td><code>src/dwc/llm/task_exec.py</code>（usage 写进任务结果）</td></tr>
+    <tr><td>新</td><td><code>tests/test_r439_cost.py</code></td></tr>
+  </table>
+<pre>@dataclass(frozen=True)
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+    cached_tokens: int = 0
+
+def parse_usage(data: dict) -> Optional[Usage]:
+    """缺失/畸形 ⇒ None（不许猜 0）。"""
+
+def cost_usd(model: str, u: Usage, pricing: dict) -> Optional[float]:
+    """模型不在价目表 ⇒ None（不许拿别的模型价格兜底）。"""</pre>
+  <p><b>验收：</b>池 A 跑完每行含 <code>tokens</code> 与 <code>cost_usd</code>；无 usage ⇒ <code>null</code> + <code>usage_missing: true</code>。</p>
+
+  <h3>P0-b · 输出可回溯（R440）</h3>
+<pre>if len(text) &gt; output_max_chars:
+    path = var/tool_raw/&lt;sha1[:16]&gt;.json      # 原子写
+    return head(N) + "\n…[truncated %d chars; full: %s]\n" + tail(M)</pre>
+  <table>
+    <tr><th>验收</th><th>细节</th></tr>
+    <tr><td>超限</td><td>模型看到路径；路径可读回完整原文</td></tr>
+    <tr><td>未超限</td><td><b>不落盘</b>（不许把每次输出都写成文件）</td></tr>
+    <tr><td>重复内容</td><td>sha1 去重，路径相同不重复写</td></tr>
+  </table>
+
+  <h3>P1-a · 三段式预算（R441）</h3>
+  <table>
+    <tr><th>阶段</th><th>触发</th><th>行为</th></tr>
+    <tr><td>economy</td><td>计数 ≥ 18</td><td>提醒：批量独立检查、别重复读、别叙述过程</td></tr>
+    <tr><td>strict</td><td>计数 ≥ 38，每 8 次重复</td><td>提醒：停止发散，只查与当前失败直接相关的证据</td></tr>
+    <tr><td>finalize</td><td>计数 &gt; 60</td><td><b>拒绝新工具调用</b>，要求基于现有证据给最终答案</td></tr>
+  </table>
+  <div class="note danger">
+    <b>硬性红线：</b>提醒只能追加到<b>工具结果</b>，不许重写 system prompt——
+    否则 prompt cache 前缀失效，越省越贵。
+  </div>
+
+  <h3>P1-b · 双目标 fitness（R442）</h3>
+<pre>scalar = realization * outcome                                  # 现有
+scalar = scalar * (1 - cost_weight * normalized_cost_delta)     # 新增</pre>
+  <table>
+    <tr><th>新门</th><th>判据</th></tr>
+    <tr><td><code>cost_measured</code></td><td>本轮所有候选都有 <code>cost_usd</code>，否则 fail-closed</td></tr>
+    <tr><td><code>no_cost_regression</code></td><td><code>cost(cand) ≤ cost(base) × (1 + tolerance)</code></td></tr>
+  </table>
+  <p><b>验收：</b>「分数不变但成本翻倍」必须 reject；「+2pp 且成本 +5%」在 tolerance 内可 accept。</p>
+
+  <h3>P2 · 按任务选档（R443–R444）</h3>
+  <table>
+    <tr><th>profile</th><th>推理力度</th><th>economy</th><th>strict</th><th>finalize</th></tr>
+    <tr><td>compact</td><td>none</td><td>4</td><td>8</td><td>14</td></tr>
+    <tr><td>lean</td><td>none</td><td>10</td><td>22</td><td>36</td></tr>
+    <tr><td>standard</td><td>none</td><td>18</td><td>38</td><td>60</td></tr>
+    <tr><td>deep</td><td>low</td><td>20</td><td>42</td><td>68</td></tr>
+    <tr><td>research</td><td>low</td><td>16</td><td>36</td><td>60</td></tr>
+  </table>
+  <div class="note">
+    <b>不照抄论文的 high：</b>DWC 的 R411 实测「推理档越高越差」，所以以 <code>none</code> 为基线，
+    只在 deep/research 试 <code>low</code>，由 A/B 决定。<br>
+    <b>选择器两层：</b>规则优先（覆盖 ≥80% 流量）→ 无法判定则默认 <code>standard</code>，
+    <b>不引入 LLM 分类器作为默认路径</b>。
+  </div>
+
+  <h3>P3 · 三档 Pareto（R445+）</h3>
+<pre>d_perf = (P_max - P) / (P_max - P_min)
+d_cost = (C - C_min) / (C_max - C_min)
+J_m    = a_m * d_perf² + b_m * d_cost²
+pick   = argmin(J_m)
+
+(lite, medium, heavy) 的 (a, b) = (1,2) / (1,1) / (2,1)</pre>
+  <p><b>验收：</b>三档成本单调（lite ≤ medium ≤ heavy）；三档都过 <code>PR ≥ PR(h0)</code> 地板；可单独启用某一档。</p>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2>4 · 论文接入协议</h2>
+  <p>要"攒几篇论文一起动手"，每篇必须走同一条流水线，否则会退化成拍脑袋堆功能。</p>
+  <table>
+    <tr><th>步</th><th>动作</th><th>产物</th></tr>
+    <tr><td>1</td><td>全文精读（正文 + 附录口径）</td><td>研读报告 HTML</td></tr>
+    <tr><td>2</td><td>提取机制清单（一条一行）</td><td>机制表</td></tr>
+    <tr><td>3</td><td>映射到 DWC 19 对象</td><td>映射表（命中/未命中）</td></tr>
+    <tr><td>4</td><td>判定可复现性</td><td>可复现 / 仅产物 / 不可复现</td></tr>
+    <tr><td>5</td><td>定阶段</td><td>P0–P3 或新增 P4</td></tr>
+    <tr><td>6</td><td>写验收</td><td>可失败的测试</td></tr>
+    <tr><td>7</td><td>登记台账</td><td>下表</td></tr>
+  </table>
+
+  <h3>论文台账（当前 1 篇）</h3>
+  <table>
+    <tr><th>论文</th><th>机制</th><th>阶段</th><th>采纳</th><th>理由</th></tr>
+    <tr><td rowspan="8">HarnessPro<br><span style="color:var(--dim);font-size:12px">2610.26770</span></td>
+      <td>成本作为一等目标</td><td>P0-a / P1-b</td><td><span class="pill ok">✅</span></td><td>DWC 零成本度量，缺口最大</td></tr>
+    <tr><td>三段式工具预算</td><td>P1-a</td><td><span class="pill ok">✅</span></td><td>最可直接抄，纯 stdlib</td></tr>
+    <tr><td>输出压缩 + 原文落盘</td><td>P0-b</td><td><span class="pill ok">✅</span></td><td>DWC 截断即丢信息</td></tr>
+    <tr><td>profile 路由</td><td>P2</td><td><span class="pill ok">✅</span></td><td>阈值须按 DWC 实测重定</td></tr>
+    <tr><td>三档 Pareto</td><td>P3</td><td><span class="pill ok">✅</span></td><td>需先有成本指标</td></tr>
+    <tr><td>多候选并行</td><td>—</td><td><span class="pill bad">❌</span></td><td>日预算吃不下</td></tr>
+    <tr><td>label-free</td><td>—</td><td><span class="pill bad">❌</span></td><td>DWC 有真值，放弃是倒退</td></tr>
+    <tr><td>LLM 当裁判</td><td>—</td><td><span class="pill bad">❌</span></td><td>论文自证失败召回仅 41.7%</td></tr>
+  </table>
+
+  <h3>采纳判定（四条全中才收）</h3>
+  <table>
+    <tr><th>#</th><th>条件</th><th>不满足怎么办</th></tr>
+    <tr><td>1</td><td><b>缺口真实</b>：DWC 确实没有，不是"有但没接"</td><td>记"拒绝"</td></tr>
+    <tr><td>2</td><td><b>可落地</b>：有明确落点文件，不引入重型依赖</td><td>记"拒绝"</td></tr>
+    <tr><td>3</td><td><b>可验证</b>：能写出一个会失败的测试</td><td>记"拒绝"</td></tr>
+    <tr><td>4</td><td><b>不破坏结构</b>：不要求放开 19 对象隔离</td><td>记"拒绝"</td></tr>
+  </table>
+  <div class="note danger">任一不满足 ⇒ 记入台账并写明理由，<b>不许静默丢弃</b>。</div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2>5 · 版本 KPI</h2>
+  <table>
+    <tr><th>指标</th><th>基线（v1 / R438）</th><th>v2 目标</th><th>测法</th></tr>
+    <tr><td>成本可见率</td><td class="bad">0%</td><td class="ok">100%</td><td>有 usage 的调用 / 总调用</td></tr>
+    <tr><td>池 A 通过率</td><td>98.1%（53/54）</td><td class="ok">≥ 98.1%</td><td>两轮均值</td></tr>
+    <tr><td>单任务平均成本</td><td class="warn">未知</td><td class="ok">−15%</td><td>相对 P1 基线</td></tr>
+    <tr><td>工具调用数</td><td class="warn">未知</td><td class="ok">−20%</td><td>平均每任务</td></tr>
+    <tr><td>截断可回溯率</td><td class="bad">0%</td><td class="ok">100%</td><td>截断处含可读路径</td></tr>
+    <tr><td>三档可切换</td><td class="bad">无</td><td class="ok">有</td><td>三档各自可单独启用</td></tr>
+    <tr><td>台账双指标</td><td>只有 score</td><td class="ok">score + cost</td><td>每条台账</td></tr>
+  </table>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2>6 · 风险与对策</h2>
+  <table>
+    <tr><th>风险</th><th>后果</th><th>对策</th></tr>
+    <tr><td>成本噪声大（单次 ±20%）</td><td>误判"变贵了"</td><td>两轮均值 + 极差；单轮结论不引用</td></tr>
+    <tr><td>预算过紧掉分</td><td>通过率跌破地板</td><td><code>PR ≥ PR(h0)</code> 硬地板；finalize 后仍允许作答</td></tr>
+    <tr><td>分类器误判</td><td>难题被分到 compact</td><td>规则优先；无法判定 ⇒ 默认 standard</td></tr>
+    <tr><td>记账引入延迟</td><td>每轮多一次解析</td><td>纯本地解析，无额外网络调用</td></tr>
+    <tr><td>原文落盘撑爆磁盘</td><td>磁盘满</td><td>sha1 去重 + 单文件上限 + 保留 7 天</td></tr>
+    <tr><td>三档维护成本</td><td>配置爆炸</td><td>三档共用对象定义，只差参数</td></tr>
+  </table>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2>7 · 开工条件</h2>
+  <div class="grid">
+    <div class="card"><div class="k">条件 1</div><div class="v">≥ 3 篇</div><div class="n">论文池（当前 1 篇）</div></div>
+    <div class="card"><div class="k">条件 2</div><div class="v">7 步</div><div class="n">每篇都走完接入协议</div></div>
+    <div class="card"><div class="k">条件 3</div><div class="v">0 冲突</div><div class="n">机制冲突须先裁决</div></div>
+    <div class="card"><div class="k">条件 4</div><div class="v">确认</div><div class="n">用户确认版本范围</div></div>
+  </div>
+
+  <h3>与既有路线的关系</h3>
+  <table>
+    <tr><th>既有</th><th>关系</th></tr>
+    <tr><td>R438 十九对象</td><td>不改对象划分，只在既有对象上增加"成本"维度</td></tr>
+    <tr><td><code>auto_apply_max_per_round: 1</code></td><td>P1-b 之后仍保留，避免一轮落太多</td></tr>
+    <tr><td>热力学智能 / I_δ</td><td>成本数据是 I_δ 量化的基础输入，P0-a 完成后才可能真正进 fitness</td></tr>
+    <tr><td>进化双锚（thermo / 北极星）</td><td>不改锚，只给 thermo 锚提供成本信号</td></tr>
+  </table>
+
+  <div class="note">
+    本计划为<b>版本级规划</b>。各阶段开工前需再产出对应的 R 轮实现计划
+    （含逐任务 TDD 步骤、精确文件行号、可失败测试）。
+  </div>
+</section>
+
+<footer>
+  DWC v2.0 · 成本感知的 Harness 自进化 · 版本开发计划<br>
+  首个来源：HarnessPro (arXiv 2610.26770v2) · 规划于 2026-10-24
+</footer>
+</main>
+</body>
+</html>
