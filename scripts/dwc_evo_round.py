@@ -852,9 +852,10 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     if code and _cat == "code_repair":
         from dwc.llm.sandbox import run_code_observed, SandboxError
         _mode = "code"
+        _diag: Dict[str, Any] = {}
         try:
             _obs = run_code_observed(
-                code, obs_skeleton(judge.anchors, task))
+                code, obs_skeleton(judge.anchors, task), diag=_diag)
         except SandboxError as _se:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
@@ -862,7 +863,9 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         if _obs is None:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
-                    "reason": "沙箱跑挂/缺函数（fail-closed）", "activated": False}
+                    "reason": "沙箱跑挂/缺函数（fail-closed）：%s"
+                              % (_diag.get("error") or "缺函数或超时",),
+                    "activated": False}
         suc = judge.evaluate(task, "dev",
                              observed={"observed": _obs,
                                        "★_executed": True}).success

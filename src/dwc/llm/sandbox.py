@@ -90,17 +90,26 @@ def _run(code: str, skel: Dict[str, List[List[Any]]],
 
 
 def run_code_observed(code: str, skel: Dict[str, List[List[Any]]],
-                      timeout: float = 5.0) -> Optional[Dict[str, Any]]:
+                      timeout: float = 5.0,
+                      diag: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """LLM 代码→沙箱真跑→observed（与 judge.evaluate 同形态）。
 
     恶意⇒抛 SandboxError；缺函数/跑挂/超时⇒None（trial 侧判未评价）。
+
+    ★ R438 · diag：把线程内的失败原因（语法错/执行错/函数跑挂）带出来。
+      改前 out["error"] 写完就丢 ⇒ 调用方只能报"沙箱跑挂"，
+      与"缺函数""超时"不可区分（违反"降级必须可区分"）。
     """
     out: Dict[str, Any] = {}
     t = threading.Thread(target=_run, args=(code, skel, out), daemon=True)
     t.start()
     t.join(timeout)
     if t.is_alive():
+        if diag is not None:
+            diag["error"] = "超时 %.1fs" % (timeout,)
         return None  # ★ 超时⇒None（线程 daemon，随进程收尸）
+    if diag is not None:
+        diag.update(out)
     if out.get("sandbox_error"):
         raise SandboxError(out["sandbox_error"])
     return out.get("observed")

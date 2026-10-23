@@ -64,3 +64,24 @@ def test_r295_sandbox_raises_quota_sixth():
     with pytest.raises(SandboxError):
         run_code_observed("def average(xs):\n    return eval('0.15')\n",
                           {"average": [[[0.1, 0.2], None]]})
+
+
+def test_diag_reports_why_none():
+    """★ R438 · None 必须能说清为什么：缺函数 / 执行错 / 超时三者可区分。
+
+    改前 out["error"] 写完就丢，调用方只能报"沙箱跑挂"。
+    """
+    from dwc.llm.sandbox import run_code_observed
+    skel = {"f": [[[1], 1]]}
+
+    d1 = {}
+    assert run_code_observed("def g(x):\n    return x\n", skel, diag=d1) is None
+    assert d1 == {} or "error" not in d1          # 缺函数：无 error，靠 observed 缺失判
+
+    d2 = {}
+    assert run_code_observed("def f(x):\n    return 1/0\n", skel, diag=d2) is None
+    assert "跑挂" in d2.get("error", "")
+
+    d3 = {}
+    assert run_code_observed("def f(x)\n    return x\n", skel, diag=d3) is None
+    assert "语法错" in d3.get("error", "")
