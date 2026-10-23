@@ -75,7 +75,11 @@ def test_d2_envelope_bool(tmp_path):
     assert rep["results"][0]["attempts"] == 3
     assert env["by_mode"] == {"legacy_bool": 1}
     assert "unmeasured" in env["llm_calls"]
-    assert "unmeasured" in env["tokens"]
+    # ★ R439/R442 重锚（行为变了，断言跟着变）：
+    #   token 现在**真的记了**（var/llm_usage.jsonl → cost_attribution）。
+    #   旧断言要求出现 "unmeasured"，那等于把一句已变成假话的文案锁死。
+    assert "unmeasured" not in env["tokens"]
+    assert "cost_attribution" in env["tokens"]
     assert "另列" in env["search_cost"]
 
 
