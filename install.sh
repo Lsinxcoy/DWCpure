@@ -8,7 +8,11 @@ set -euo pipefail
 # ===== bootstrap（R250）: 一条命令安装, 免手动 clone =====
 #   curl -fsSL https://raw.githubusercontent.com/Lsinxcoy/divine-wisdom-core/master/install.sh | bash
 #   脚本模式: $0 所在目录即仓库; curl|bash: 自动 clone/pull 到 ~/.dwc
-REPO_URL="https://github.com/Lsinxcoy/divine-wisdom-core.git"
+REPO_URL="${DWC_REPO_URL:-https://github.com/Lsinxcoy/divine-wisdom-core.git}"
+# ★ R审计-P2 · DWC_REPO_URL 环境变量可覆盖自更新/安装源仓库：
+#   开发分支（divine-wisdom-core-pure）机器上设
+#   `export DWC_REPO_URL=https://github.com/Lsinxcoy/divine-wisdom-core-pure.git`
+#   即指向自己的开发线；未设默认仍指向原仓库（发布语义不变）。
 DEST="${DWC_HOME:-$HOME/.dwc}"
 SELF_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 if [ -n "${SELF_DIR:-}" ] && [ -f "$SELF_DIR/pyproject.toml" ]; then

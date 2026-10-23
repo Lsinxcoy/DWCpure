@@ -119,3 +119,8 @@ archive/direction_ledger.jsonl
 
 # R205 · 生产运行落盘（库与台账不是代码, 绝不入库）
 var/
+
+# R审计-P2 · 运行台账/备份残片绝不入库（防复发）
+artifacts_probe*/
+archiveknowledge3_R*.json
+archive/*.bak_*
