@@ -1131,6 +1131,15 @@ class Proposal:
                 "component=%r 不在 𝒦∪𝒦_meta 内（2609.24972 式12 ∪ "
                 "COMPONENT_VOCABULARY §2.1）: %s"
                 % (self.component, _cc[0][:70]))
+        # ★ R438 · 只读组件必须在**构造时**就拒（G10 密封）
+        #   现场：editable_vocab() 只用于新颖度候选池，从不做校验 ⇒
+        #   直接构造 component='evaluator' 的 Proposal 会被**接受**
+        #   ⇒ "不可编辑"只是文档承诺，不是代码事实。
+        if str(self.component or "") not in editable_vocab():
+            raise EvolverError(
+                "component=%r 不可编辑（只读：评估器/训练桥；"
+                "可编辑集=%r）" % (self.component,
+                                   sorted(editable_vocab())))
         # ★★★★ K2: component ↔ target_layer 必须一致（§四①）
         #   ★★ R37 我第一版直接对 `target_layer=""` 跑 K2 ⇒
         #     所有**没声明**第 2 字段的构造全炸（19 个测试红）

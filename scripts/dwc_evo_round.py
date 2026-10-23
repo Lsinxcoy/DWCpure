@@ -569,15 +569,24 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             if "delta_ho" in _ad:  # ★ R291-P4 Task 2 · 真 Δ_ho 透出（门判的）
                 item["delta_ho"] = _ad["delta_ho"]
             if _ad.get("decision") == "adopted_not_implemented":
-                # ★ R291-P4 Task 2 · 门判过⇒置第五态再落地（_land_adopted
-                #   前置要 p.state；置态=记录门判结果，不编造）。
-                p.state = "adopted_not_implemented"
-                # ★ C3 · provenance：admission 轮用 ledger_date（轮日期口径）。
-                # ★ D4-④ admit 段（过门→RULES 落地；门没过不落地 R291 已删）。
-                item["backup"] = evolver._land_adopted(
-                    p, admission_round=ledger_date)
-                item["landed"] = True
-                _n_landed += 1
+                # ★ R438 · 架构类提案**不许自动落**（系统层改动须人工批准）
+                if p.component == "architecture":
+                    from dwc.organs.arch_queue import enqueue as _aq_enq
+                    item["arch"] = _aq_enq(p.component, p.target,
+                                           p.patch, p.rationale)
+                    item["adopt"] = "queued_for_approval"
+                    item["reason"] = ("架构类提案已入人工审批队列"
+                                      "（var/architecture_queue.jsonl）")
+                else:
+                    # ★ R291-P4 Task 2 · 门判过⇒置第五态再落地（_land_adopted
+                    #   前置要 p.state；置态=记录门判结果，不编造）。
+                    p.state = "adopted_not_implemented"
+                    # ★ C3 · provenance：admission 轮用 ledger_date（轮日期口径）。
+                    # ★ D4-④ admit 段（过门→RULES 落地；门没过不落地 R291 已删）。
+                    item["backup"] = evolver._land_adopted(
+                        p, admission_round=ledger_date)
+                    item["landed"] = True
+                    _n_landed += 1
             else:
                 # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有
                 #   分数＋accept 拿真输入）。门没判过（blocked/rejected/

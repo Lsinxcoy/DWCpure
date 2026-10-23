@@ -290,6 +290,28 @@ def main() -> int:
                                     "configured": _pwd}
     except Exception as _e:  # noqa: BLE001 — 提示词轮坏不掀当日进化轮
         rep["prompt_evolve"] = {"error": repr(_e)}
+    # ★ R438 · meta_evolution：按压力调整**进化自己的旋钮**（带 3 天冷却）
+    try:
+        from dwc.organs import meta_policy as _MP
+        _st_p = os.path.join(prod, "var", "meta_evolution.json")
+        _last = 0.0
+        try:
+            with open(_st_p, encoding="utf-8") as _f:
+                _last = float(json.load(_f).get("ts", 0) or 0)
+        except (OSError, ValueError):
+            _last = 0.0
+        _adj = _MP.propose(rep, _cfg, last_ts=_last)
+        if _adj:
+            _MP.apply(_adj["key"], _adj["new"],
+                      path=os.path.join(prod, "config", "evolution.yaml"))
+            _adj["ts"] = time.time()
+            with open(_st_p, "w", encoding="utf-8") as _f:
+                json.dump(_adj, _f, ensure_ascii=False)
+            rep["meta_evolution"] = _adj
+        else:
+            rep["meta_evolution"] = {"outcome": "no_pressure"}
+    except Exception as _e:  # noqa: BLE001 — 元进化坏不掀当日轮（留痕）
+        rep["meta_evolution"] = {"error": repr(_e)}
     # ★ R438 · 统一进化台账（每条候选一行：落没落、为什么、备份在哪）
     rep["auto_apply"] = _apply
     rep["rules_loaded"] = _n_loaded
