@@ -186,33 +186,44 @@ if len(text) > output_max_chars:
 
 ---
 
-### P1-b · 双目标 fitness（R442）
+### P1-b · 成本归因（R442）· 原计划"双目标 fitness"的诚实改写
 
-**目标**：进化不再只看"过不过"，还要看"贵不贵"。
+**原计划**：`scalar = realization × outcome × (1 − cost_weight × Δcost)`，加 `no_cost_regression` 门。
 
-**Files**
-- Modify: `src/dwc/organs/evolver.py`（fitness 计算）
-- Modify: `scripts/dwc_evo_round.py`（新增门 `no_cost_regression`）
-- Modify: `config/evolution.yaml`（新增 `cost_weight`，必填）
-- Create: `tests/test_r442_dual_objective.py`
+**为什么改了**（实测得出，不是偷懒）：
 
-**fitness**
-```python
-scalar = realization * outcome          # 现有
-scalar = scalar * (1 - cost_weight * normalized_cost_delta)   # 新增
-```
+> 候选规则的 trial 是**纯 Python 沙箱**（`run_code_observed`），不调 LLM。
+> 规则的真实成本只在 agent 真正跑任务时才产生。
+> 所以"候选成本"在 trial 期**根本不存在** —— 写一个 `cost_measured` 门只会
+> 要么恒假（永远 blocked）、要么恒真（放水）。两者都是假门。
 
-**新门**
+**实际落地**：回溯归因。
 
-| 门 | 判据 |
+| 组件 | 内容 |
 |---|---|
-| `cost_measured` | 本轮所有候选都有 `cost_usd`，否则 fail-closed |
-| `no_cost_regression` | `cost(candidate) ≤ cost(baseline) * (1 + tolerance)` |
+| `cost.set_tag / clear_tag` | 任务期间的所有 LLM 调用记到该 task_id 名下（线程本地） |
+| `scripts/dwc_agent.py` | 接单前后 set/clear（try/finally） |
+| `src/dwc/organs/cost_attribution.py` | `per_task` / `mean_tokens_per_task` / `snapshot`（增量）/ `trend` |
+| `scripts/dwc_evo_round.py` | 每轮写 `var/cost_ledger.jsonl` 快照，报告里出 `cost_attribution` 块 |
 
-**验收**
-- 构造"分数不变但成本翻倍"的候选 ⇒ 必须 reject。
-- 构造"分数 +2pp、成本 +5%"（在 tolerance 内）⇒ 可 accept。
-- 台账每条同时含 `score` 与 `cost_usd`。
+**验收（已达成）**
+- 坏行容错：半截 JSON 跳过，不掀轮。
+- 无标签不归因：宁可少算，不可错算。
+- 无数据 ⇒ `mean_total=None`（不是 0）。
+- 快照增量：只统计上次快照之后的任务，否则历史会抹平趋势。
+- 真实跑一轮：报告出现 `n_tasks=0 / mean_total=null / trend=unknown`（当前确实没数据）。
+
+**仍缺的（留给 P2）**
+- 候选级成本门需要"用候选规则真跑 N 个任务"，这是有成本的实验。
+  P2 有了 profile 候选（成本差异大、易测）时再上，那时它才是**可判**的。
+- 在此之前，成本只作**观测**与**落地后回溯告警**，不做假门。
+
+**Files（实际）**
+- Create: `src/dwc/organs/cost_attribution.py`
+- Modify: `src/dwc/llm/cost.py`（tag）
+- Modify: `scripts/dwc_agent.py`（set/clear tag）
+- Modify: `scripts/dwc_evo_round.py`（快照 + 报告块）
+- Create: `tests/test_r442_cost_attribution.py`（12 条）
 
 ---
 

@@ -654,8 +654,24 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         "pool_N": _pool_n,  # ★ B4 · 候选池上限（Thm 3 Eq.8 的 N）
         "by_mode": _env_modes,
         "llm_calls": "unmeasured（llm 在 trial_fn 闭包内 — 另轮改契约）",
-        "tokens": "unmeasured（R42：DWC 未记 token）",
+        # ★ R439/R442 · token 现在**真的记了**（var/llm_usage.jsonl + cost_ledger）。
+        #   旧文案"未记 token"已不成立，留着就是幻影声明。
+        "tokens": "见 cost_attribution（var/llm_usage.jsonl 按 task 聚合）",
         "search_cost": "另列：by_mode.code＝LLM search 面；其余零 search"}
+    # ★ R442 · 成本归因（回溯）：本轮每任务平均 token + 与上次快照的走向。
+    #   ★★ 诚实边界：候选规则的 trial 是纯 Python 沙箱、不调 LLM
+    #   ⇒ 这里量的是**生产**成本，不是候选成本。没有数据 ⇒ None（不猜 0）。
+    try:
+        from dwc.organs import cost_attribution as _ca
+        _snap = _ca.snapshot(note="evo_round")
+        _rep["cost_attribution"] = {
+            "n_tasks": _snap.get("n_tasks"),
+            "mean_total": _snap.get("mean_total"),
+            "trend": _ca.trend(),
+            "scope": "回溯归因（生产任务）；候选 trial 是沙箱，不含 LLM 成本",
+        }
+    except Exception as _ce:      # noqa: BLE001 — 归因坏不掀轮
+        _rep["cost_attribution"] = {"error": repr(_ce)}
     # ★ R310-③ · triage 附报告（纯呈现，不改判定）。
     _rep["triage"] = triage_report(_rep)
     return _rep

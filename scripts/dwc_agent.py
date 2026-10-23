@@ -613,11 +613,17 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
             lc = lessons_context(str(item.get("task", "")))
             if lc:
                 ctx = (ctx + "\n" + lc) if ctx else lc
-            rep = _run_with_deadline(
-                lambda: execute_user_task(
-                    str(item.get("task", "")), llm=llm,
-                    ctx=ctx, task_id=item["id"]),
-                _TASK_TIMEOUT_S, str(item.get("task", "")))
+            # ★ R442 · 成本归因：这一单期间的所有 LLM 调用都记到它的 id 名下
+            from dwc.llm import cost as _cost
+            _cost.set_tag(str(item.get("id") or ""))
+            try:
+                rep = _run_with_deadline(
+                    lambda: execute_user_task(
+                        str(item.get("task", "")), llm=llm,
+                        ctx=ctx, task_id=item["id"]),
+                    _TASK_TIMEOUT_S, str(item.get("task", "")))
+            finally:
+                _cost.clear_tag()
     except Exception as exc:          # noqa: BLE001
         # ★ R398 · 执行抛异常也必须**停心跳**，否则标记永远是 running
         #   ⇒ 这一单既不会完成也不会被重取（比崩溃更糟）。

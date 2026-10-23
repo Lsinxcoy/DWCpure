@@ -32,6 +32,7 @@ import io
 import json
 import os
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -148,6 +149,25 @@ def load_pricing(path: Optional[str] = None) -> Dict[str, Any]:
     return p if isinstance(p, dict) else {}
 
 
+# ── 任务标签（R442 · 成本归因）──────────────────────────
+#: 线程本地：同进程里任务串行执行，线程本地足够；子任务继承父任务的标签。
+_TAG = threading.local()
+
+
+def set_tag(tag: str) -> None:
+    """给当前线程设任务标签（后续调用都记到它名下）。"""
+    _TAG.value = str(tag or "")
+
+
+def clear_tag() -> None:
+    """清掉标签（任务结束）。没有标签的调用**不归因到任何任务**。"""
+    _TAG.value = ""
+
+
+def current_tag() -> str:
+    return str(getattr(_TAG, "value", "") or "")
+
+
 def usage_log_path() -> str:
     """记账文件路径。测试靠 `DWC_USAGE_PATH` 指到 tmp（生产不设该 env）。"""
     p = os.environ.get("DWC_USAGE_PATH", "").strip()
@@ -177,8 +197,10 @@ def record(model: str, usage: Optional[Usage],
         "cached_tokens": usage.cached_tokens,
         "cost_usd": cost,          # ★ None 保留（不写成 0）
     }
-    if tag:
-        row["tag"] = tag
+    # ★ R442 · 显式 tag 优先；否则用当前线程的任务标签
+    _tag = tag or current_tag()
+    if _tag:
+        row["tag"] = _tag
     if extra:
         row.update(extra)
     try:
