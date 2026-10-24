@@ -757,6 +757,20 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         }
     except Exception as _ce:      # noqa: BLE001 — 归因坏不掀轮
         _rep["cost_attribution"] = {"error": repr(_ce)}
+    # ★ R449 · 规则版本成本轴：每条已落地规则按激活时刻切前后两段。
+    #   ★★ 这是**分段相关不是因果**（激活前后任务构成会变），每份结果自带 confound。
+    try:
+        from dwc.organs import cost_attribution as _ca2
+        from dwc.organs.evolver import Mutator as _Mu2
+        _rc: Dict[str, Any] = {}
+        for _rk, _rv in (_Mu2.RULES or {}).items():
+            if _rk in _Mu2.SEED_KEYS:
+                continue
+            _rc[_rk] = _ca2.by_rule_epoch(
+                (_rv or {}).get("activated_at"))
+        _rep["rule_cost"] = _rc
+    except Exception as _re:      # noqa: BLE001 — 成本轴坏不掀轮
+        _rep["rule_cost"] = {"error": repr(_re)}
     # ★ R310-③ · triage 附报告（纯呈现，不改判定）。
     _rep["triage"] = triage_report(_rep)
     return _rep

@@ -211,3 +211,50 @@ def by_profile(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         a["mean_total"] = (a["total_tokens"] / float(n)) if n else None
         del a["tasks"]
     return acc
+
+
+CONFOUND_NOTE = ("分段相关，非因果：规则激活前后任务构成可能变化；"
+                 "样本量小时 delta 主要是噪声")
+
+
+def by_rule_epoch(activated_at: Optional[float] = None,
+                  path: Optional[str] = None) -> Dict[str, Any]:
+    """按"规则激活时刻"把用量切成前后两段，各算每任务平均 token。
+
+    ★ 没有激活时刻 ⇒ 返回 status，**不猜**（拿 mtime 或今天顶替都是编）。
+    ★ 某一段没有任务 ⇒ mean_total=None（不是 0）。
+    ★ 永远带 confound 说明：这是相关，不是因果。
+    """
+    if activated_at is None:
+        return {"status": "no_activation_time", "confound": CONFOUND_NOTE}
+    try:
+        cut = float(activated_at)
+    except (TypeError, ValueError):
+        return {"status": "bad_activation_time", "confound": CONFOUND_NOTE}
+
+    before: Dict[str, int] = {}
+    after: Dict[str, int] = {}
+    for r in _rows(path or default_usage_path()):
+        try:
+            ts = float(r.get("ts") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        tot = _int(r.get("prompt_tokens")) + _int(r.get("completion_tokens"))
+        tag = str(r.get("tag") or "").strip()
+        if not tag:
+            continue              # ★ 无标签不归因（与 per_task 同口径）
+        bucket = before if ts < cut else after
+        bucket[tag] = bucket.get(tag, 0) + tot
+
+    def _stat(d: Dict[str, int]) -> Dict[str, Any]:
+        n = len(d)
+        return {"n_tasks": n,
+                "total_tokens": sum(d.values()),
+                "mean_total": (sum(d.values()) / float(n)) if n else None}
+
+    b, a = _stat(before), _stat(after)
+    delta = None
+    if b["mean_total"] is not None and a["mean_total"] is not None:
+        delta = a["mean_total"] - b["mean_total"]
+    return {"before": b, "after": a, "delta": delta,
+            "activated_at": cut, "confound": CONFOUND_NOTE}

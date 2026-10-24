@@ -2648,6 +2648,9 @@ class Evolver:
             "m": _sig.get("m", ""),
             "m_source": _sig.get("m_source", "rule"),
             "patch": p.patch, "rationale": p.rationale,
+            # ★ R449 · 激活时刻（成本轴的分段依据）。缺了它就永远只能
+            #   报 "no_activation_time" —— 不许拿 mtime 顶替。
+            "activated_at": time.time(),
             # ★ R438 · code 维度：学到并通过试跑的实现**随规则一起落盘**，
             #   下次同签名再出现时 propose 直接把它当起点（改前 p.code
             #   试跑完就丢，同一任务每次都从零起草）。
