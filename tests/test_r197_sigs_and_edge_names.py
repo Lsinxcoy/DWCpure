@@ -84,7 +84,10 @@ def test_dir_generate_sigs_backward_compatible():
     from dwc.harness.loop import Loop
     src = open(os.path.join(ROOT, "src", "dwc", "harness", "loop.py"),
                encoding="utf-8").read()
-    assert "sigs: Optional[List[Dict[str, str]]] = None" in src, (
+    # ★ R审计-P1 · 断言跟随 PEP585 现代化（ruff UP006/UP045 把
+    #   Optional[List[Dict[str, str]]] 规范为 list[dict[str, str]] | None）:
+    #   锁的是"默认 None 保留"的语义，不是键入法。
+    assert "sigs: list[dict[str, str]] | None = None" in src, (
         "_dir_generate 没留默认 None ⇒ 老调用方（测试）会 TypeError")
 
 
