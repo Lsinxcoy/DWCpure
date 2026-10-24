@@ -196,14 +196,21 @@ def test_file_config_whitelist_covers_new_keys():
 
 
 def test_file_config_keys_are_honored(monkeypatch, tmp_path):
-    """★★ 真写一份临时 llm.json ⇒ 键必须被读进 client。"""
+    """★★ 真写一份临时 llm.json ⇒ 键必须被读进 client。
+
+    ★ R审计-P0 · 测试环境自足: 仓库**只提交** config/llm.example.json
+      （llm.json 是 .gitignore 的本地真实配置, 任何机器上都不保证存在）。
+      原来硬读 config/llm.json ⇒ 新克隆仓库必红。改用 example 模板。
+    """
     import io as _io
+    src_cfg = os.path.join(ROOT, "config", "llm.example.json")
+    if not os.path.exists(src_cfg):
+        pytest.skip("仓库缺 config/llm.example.json —— 配置模板未提交")
     cfg = tmp_path / "llm.json"
-    cfg.write_text(_io.open(
-        os.path.join(ROOT, "config", "llm.json"), encoding="utf-8").read(),
-        encoding="utf-8")
+    cfg.write_text(_io.open(src_cfg, encoding="utf-8").read(),
+                   encoding="utf-8")
     data = json.loads(cfg.read_text(encoding="utf-8"))
     assert "max_tokens" in data, (
-        "仓库 config/llm.json 缺 max_tokens —— 本轮修法没落地到配置")
+        "仓库 config/llm.example.json 缺 max_tokens —— 本轮修法没落地到模板")
     assert "reasoning_effort" in data, (
-        "仓库 config/llm.json 缺 reasoning_effort —— 推理仍会吃光预算")
+        "仓库 config/llm.example.json 缺 reasoning_effort —— 推理仍会吃光预算")

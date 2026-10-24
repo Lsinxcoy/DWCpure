@@ -17,6 +17,18 @@ sys.path.insert(0, os.path.join(
 
 from dwc.llm import client as CL  # noqa: E402
 
+# ★ R审计-P0 · 测试环境自足: LLMClient.configured 需要 base/key/model 非空,
+#   缺配置时 complete 短路返回"未配置" ⇒ 重试路径测不到（与 r422 同款）。
+_TEST_BASE = "http://127.0.0.1:9/"
+_TEST_KEY = "test-key-not-real"
+_TEST_MODEL = "test-model"
+
+
+def _fake_llm_env(monkeypatch):
+    monkeypatch.setenv("DWC_LLM_BASE_URL", _TEST_BASE)
+    monkeypatch.setenv("DWC_LLM_API_KEY", _TEST_KEY)
+    monkeypatch.setenv("DWC_LLM_MODEL", _TEST_MODEL)
+
 
 def _ok_response(text="recovered"):
     import json
@@ -44,6 +56,7 @@ def _raise_502_then_ok(remaining_fail):
 
 
 def test_502_retries_then_recovers(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★★ 瞬时 502: 前两发 502 → 第三发救回（不判死）。"""
     fake, state = _raise_502_then_ok(2)
     monkeypatch.setattr(CL.urllib.request, "urlopen", fake)
@@ -55,6 +68,7 @@ def test_502_retries_then_recovers(monkeypatch):
 
 
 def test_404_no_retry(monkeypatch):
+    _fake_llm_env(monkeypatch)
     """★★ 4xx 立即返回（请求错, 重试必然再失败 — R36 语义保留）。"""
     state = {"n": 0}
     def fake(req, timeout=None):

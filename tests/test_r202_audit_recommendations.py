@@ -205,6 +205,7 @@ def test_drift_watch_no_heartbeat_on_second_tick_of_day():
     import json as _json
     import subprocess
     import time as _t
+    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     st_path = os.path.join(os.environ["LOCALAPPDATA"], "hermes", "scripts",
                            ".dwc_drift_watch_state.json")
     old = None

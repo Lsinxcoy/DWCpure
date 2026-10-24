@@ -42,9 +42,24 @@ def test_agent_python_prefers_venv():
         os.environ.pop("DWC_PY", None)
 
 
-def test_feishu_cfg_yaml_degraded():
-    """★★★ yaml 降级锁: 无 yaml 环境走正则解析且字段齐全（告警必达）。"""
+def test_feishu_cfg_yaml_degraded(tmp_path, monkeypatch):
+    """★★★ yaml 降级锁: 无 yaml 环境走正则解析且字段齐全（告警必达）。
+
+    ★ R审计-P0 · 测试环境自足: _feishu_cfg 读 `%LOCALAPPDATA%/hermes/config.yaml`
+      的真实生产配置 —— 本机 Hermes 未配 feishu 时字段全空, 测试必红
+      （且不该依赖宿主机的真实凭证）。⇒ 注入带完整 feishu 段的临时 config。
+    """
     import sys as _s
+    fake_cfg = tmp_path / "hermes" / "config.yaml"
+    fake_cfg.parent.mkdir(parents=True)
+    fake_cfg.write_text(
+        "feishu:\n"
+        "  app_id: cli_test_app_id\n"
+        "  app_secret: cli_test_secret_123\n"
+        "  home_channel_id: oc_test_channel\n"
+        "  home_channel_type: chat_id\n",
+        encoding="utf-8")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     m = _load()
     # 人为屏蔽 yaml
     sys.modules["yaml"] = None

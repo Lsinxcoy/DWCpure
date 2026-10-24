@@ -95,12 +95,17 @@ def test_plain_text_answer_is_accepted(work):
 
 
 def test_plain_text_answer_keeps_raw_for_audit(work):
-    """★ 原文要留在报告里（可审计：模型到底说了什么）。"""
-    llm = _FakeLLM(["dwc_pairs.jsonl"])
+    """★ 原文要留在报告里（可审计：模型到底说了什么）。
+
+    ★ R审计-P1 · 样本文件名换成仓库**真实存在**的 `config/eval_tasks.jsonl`：
+      R417 幻觉文件名闸会打回"仓库里不存在的文件名"（dwc_pairs.jsonl 恰好
+      不存在 ⇒ 测试锁"纯文本收下"却被幻觉闸正确拦截）。换真实文件保住意图。
+    """
+    llm = _FakeLLM(["config/eval_tasks.jsonl"])
     rep = T.execute_user_task("文件名？", llm=llm, task_id="t_audit")
     assert rep["status"] == "done"
     blob = json.dumps(rep, ensure_ascii=False)
-    assert "dwc_pairs.jsonl" in blob
+    assert "config/eval_tasks.jsonl" in blob
 
 
 def test_plain_text_multiline_answer(work):
