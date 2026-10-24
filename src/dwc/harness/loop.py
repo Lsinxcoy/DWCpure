@@ -411,13 +411,40 @@ class Loop:
         self.memory = mem
         return mem
 
-    def _remember_failure(self, tid: str, sigs: Any) -> int:
+    def _remember_failure(self, tid: str, sigs: Any, verdict: Any = None) -> int:
         """★ R276-① · 失败签名回灌 EXPERIENCE（judge→memory 的线）。
 
         未 attach ⇒ 0；缺 c/q/m 跳过（D6）；异常 stderr 留痕不阻断诊断。
+
+        ★★★ R审计-P2 · 补 scene / detail（记忆内容强化 — P0-1/2）:
+          现场实测: failure_sig 的 payload 只有 {c,q,m,task}，task 是任务 ID
+          ⇒ recall 路1 用自然语言场景词匹配 ⇒ **永不命中**
+          ⇒ 129 条失败签名只有 8 条被访问过（6.2%）。
+          修法（只补字段，不改语义）:
+            scene  = judge.anchors[tid]["prompt"]（任务描述原文 — 真实场景词）
+            detail = verdict.reason + diffs 摘要（judge 已产出的失败原因，
+                     此前没存进记忆 ⇒ dream 的 boundary 永远是"未知"）
+          ⇒ 不发明内容: 全部取自 judge 已有的真值面。
         """
         if self.memory is None:
             return 0
+        # ★ 场景词 + 失败原因（judge 真值面 — 缺则留空，不编）
+        scene = ""
+        detail = ""
+        try:
+            _anch = getattr(getattr(self, "judge", None), "anchors", None) or {}
+            scene = str((_anch.get(tid) or {}).get("prompt") or "")
+        except Exception:                            # noqa: BLE001
+            scene = ""
+        if verdict is not None:
+            _why = str(getattr(verdict, "reason", "") or "")
+            _diffs = getattr(verdict, "diffs", None) or []
+            _d0 = []
+            for _d in _diffs[:3]:
+                if isinstance(_d, dict):
+                    _d0.append("%s:%s" % (_d.get("check") or _d.get("fn") or "?",
+                                          _d.get("got", _d.get("why", "")))[:80])
+            detail = (_why + (" | " + "; ".join(_d0) if _d0 else ""))[:300]
         n = 0
         try:
             from dwc.organs.memory import MemoryKind
@@ -425,9 +452,12 @@ class Loop:
                 s = dict(s or {})
                 if not (s.get("c") and s.get("q") and s.get("m")):
                     continue
-                self.memory.remember(
-                    MemoryKind.FAILURE_SIGNATURE,
-                    {"c": s["c"], "q": s["q"], "m": s["m"], "task": tid})
+                _pl = {"c": s["c"], "q": s["q"], "m": s["m"], "task": tid}
+                if scene:
+                    _pl["scene"] = scene
+                if detail:
+                    _pl["detail"] = detail
+                self.memory.remember(MemoryKind.FAILURE_SIGNATURE, _pl)
                 n += 1
         except Exception as exc:                     # noqa: BLE001
             sys.stderr.write("evolve 回灌跳过: %s\n" % exc)
@@ -517,7 +547,7 @@ class Loop:
         #   · 旧行为: 单签名时 `sigs=[sig]` ⇒ 与旧 `[sig]` **等价**（回退保底）
         sig = dict(v.failure_signature or {})
         sigs = list(getattr(v, "sigs", None) or []) or [sig]
-        self._remember_failure(tid, sigs)  # ★ R276-① · 判败即记 EXPERIENCE
+        self._remember_failure(tid, sigs, v)  # ★ R276-① · 判败即记 EXPERIENCE
         try:
             proposals = self.evolver.diagnose(sigs).get("proposals", [])
         except Exception as exc:                    # noqa: BLE001

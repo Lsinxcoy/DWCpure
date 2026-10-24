@@ -1054,22 +1054,49 @@ class TermRunner:
 
         口径与 Loop._remember_failure 一致：success is False 才记
         （None 跳过 — Verdict 纪律）；D6 要 c/q/m；异常留痕返已记条数。
+
+        ★★★ R审计-P2 · 补 scene / detail（与 Loop._remember_failure 同款）:
+          scene  = judge.anchors[task_id]["prompt"]（任务描述 — 真实场景词）
+          detail = d["reason"] + diffs 摘要（judge 已产出的失败原因）
+          ⇒ 让 recall 路1（场景词）能命中，dream 的 boundary 不再是"未知"。
         """
         n = 0
         try:
             for d in ((verdict or {}).get("details") or []):
                 if not isinstance(d, dict) or d.get("success") is not False:
                     continue
+                _tid = d.get("task_id")
+                # ★ 场景词（judge 真值面 — 缺则留空，不编）
+                _scene = ""
+                try:
+                    _anch = getattr(self.judge, "anchors", None) or {}
+                    _scene = str((_anch.get(_tid) or {}).get("prompt") or "")
+                except Exception:                  # noqa: BLE001
+                    _scene = ""
+                # ★ 失败原因（reason + diffs 摘要）
+                _detail = str(d.get("reason") or "")[:200]
+                _diffs = d.get("diffs") or []
+                _d0 = []
+                for _df in _diffs[:3]:
+                    if isinstance(_df, dict):
+                        _d0.append("%s:%s" % (
+                            _df.get("check") or _df.get("fn") or "?",
+                            _df.get("got", _df.get("why", "")))[:80])
+                if _d0:
+                    _detail = (_detail + " | " + "; ".join(_d0))[:300]
                 sigs = list(d.get("sigs") or []) or [
                     d.get("failure_signature") or {}]
                 for s in sigs:
                     s = dict(s or {})
                     if not (s.get("c") and s.get("q") and s.get("m")):
                         continue
-                    self.memory.remember(
-                        MemoryKind.FAILURE_SIGNATURE,
-                        {"c": s["c"], "q": s["q"], "m": s["m"],
-                         "task": d.get("task_id")})
+                    _pl = {"c": s["c"], "q": s["q"], "m": s["m"],
+                           "task": _tid}
+                    if _scene:
+                        _pl["scene"] = _scene
+                    if _detail:
+                        _pl["detail"] = _detail
+                    self.memory.remember(MemoryKind.FAILURE_SIGNATURE, _pl)
                     n += 1
         except Exception as exc:                   # noqa: BLE001
             sys.stderr.write("回灌跳过: %s\n" % exc)

@@ -584,6 +584,47 @@ def _run_with_deadline(fn, timeout_s: float, task_text: str):
 _PARAM_DRIVER = None
 
 
+def _maybe_maintain(mem) -> None:
+    """★ R审计-P2 · P0-3 · maintain 管接线（每日一次记忆维护）。
+
+    ★★★ 为什么必须接:
+      MemoryKernel.maintain() 是七管里唯一执行「价值淘汰」的管
+      （三层判据: 未召回不处置 / 召回过但零效果→归档 / 唯一签名硬保护）。
+      但生产零调用 —— 机制建好了没人开（DWC 自批的"零引用"病）。
+    ★ 防抖: 24h 一次（marker 文件），不随 term 频率刷。
+    ★ 安全: maintain 只 archive 不 delete；held 占多数时会提示"该修 recall"。
+    """
+    marker = os.path.join(ROOT, "var", "dwc_last_maintain.json")
+    now = time.time()
+    try:
+        if os.path.exists(marker):
+            with open(marker, encoding="utf-8") as fh:
+                if now - float(json.load(fh).get("ts", 0)) < 86400:
+                    return
+    except (OSError, ValueError, TypeError):
+        pass
+    if mem is None:
+        return
+    try:
+        rep = mem.maintain()
+        _log({"event": "memory_maintain",
+              "n_evaluated": rep.get("n_evaluated"),
+              "n_held": rep.get("n_held"),
+              "n_archived": rep.get("n_archived"),
+              "n_protected": rep.get("n_protected"),
+              "hint": rep.get("hint")})
+        tmp = marker + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"ts": now,
+                       "rep": {k: rep.get(k) for k in
+                               ("n_evaluated", "n_held", "n_archived",
+                                "n_protected")}}, fh, ensure_ascii=False)
+        os.replace(tmp, marker)
+    except Exception as exc:            # noqa: BLE001 — 维护失败不拦 agent
+        _log({"event": "memory_maintain_error",
+              "error": "%s: %s" % (type(exc).__name__, exc)})
+
+
 def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
     from dwc.llm.task_exec import execute_user_task
@@ -1147,6 +1188,8 @@ def main(argv) -> int:
         # 日界滚动（次日自动复位计数）
         if _day["key"] != time.strftime("%Y-%m-%d"):
             _day.update(key=time.strftime("%Y-%m-%d"), terms=0, cost=0.0)
+        # ★ R审计-P2 · P0-3 · maintain 管接线（24h 防抖，价值淘汰真跑）
+        _maybe_maintain(getattr(d, "memory", None))
         # ★ R266C · 进化投单（每轮开头: 未派发论文 → 深读任务候选）
         maybe_dispatch_reading()
         # ── R209 · 收件箱已由 start_inbox_poller 独立消费（R382）──

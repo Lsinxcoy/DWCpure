@@ -1010,6 +1010,30 @@ def main() -> int:
             _pdr.run("context_mgmt"), ensure_ascii=False))
     except Exception as _pe2:            # noqa: BLE001 — 驱动坏不拦轮次
         print("param driver 未挂: %s" % (_pe2,))
+    # ★ R审计-P2 · P0-4 · MemoryKernel.dream 接线（失败聚簇→技能候选）
+    #   ★ 与 Core.dream（树级 V* 反刍）分工不同: 本处是**签名聚簇归纳**,
+    #     把 N 条同类失败凝成一条"以后怎么避免"的技能候选（D6/D7 的落点）。
+    #   ★ 只读: dream 不写节点、不改 access（沙箱语义）；采纳归 evolver。
+    try:
+        from dwc.organs.memory import MemoryKernel as _MK
+        _mk = _MK(db)
+        _cl: dict = {}
+        for _r in _mk._conn.execute("SELECT c,q,m FROM failure_sig"):
+            _k = (_r["c"], _r["q"], _r["m"])
+            _cl[_k] = _cl.get(_k, 0) + 1
+        _cands = []
+        for (_c, _q, _m) in _cl:
+            _d = _mk.dream(_c, _q, _m)
+            if _d.get("eligible"):
+                _cands.append({"c": _c, "q": _q, "m": _m,
+                               "n_members": _d.get("n_members"),
+                               "skill": _d.get("candidate_skill")})
+        _mk.close()
+        print("dream: %d 簇, %d 条技能候选" % (len(_cl), len(_cands)))
+        if _cands:
+            print(json.dumps(_cands[:5], ensure_ascii=False, indent=1)[:1200])
+    except Exception as _de:            # noqa: BLE001 — dream 坏不拦轮次
+        print("dream 未跑: %s: %s" % (type(_de).__name__, _de))
     return 0
 
 
