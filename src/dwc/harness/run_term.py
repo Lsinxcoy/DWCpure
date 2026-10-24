@@ -310,6 +310,9 @@ class TermReport:
     term_id: str
     chain_id: str
     started_at: float
+    #: ★ R456 · 本 term 判的是哪道题（判分面按它收窄观测集；
+    #:   空串 = 未知 ⇒ 回退全量，向后兼容自由文本调用）
+    task: str = ""
     #: ★ decision 环的 ref_id（各环 upstream 都指它）
     decision_ref: Optional[str] = None
     #: ★★ T3 的证据: term 自己写了哪些记忆 ⇒ 用于区分
@@ -558,7 +561,8 @@ class TermRunner:
         """
         cid = chain_id or ("CH_" + uuid.uuid4().hex[:10])
         tid = "T_" + uuid.uuid4().hex[:8]
-        rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time())
+        rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time(),
+                         task=task)   # ★ R456 · 判分面要知道这轮判哪道题
         self.cost.reset_term(task_id=task)   # T4: term 级 reset（R99: 传 task 标记新账）
 
         # ── 1. before 快照 ──
@@ -1083,7 +1087,14 @@ class TermRunner:
         # ── R126 · 真执行路径（executor 注入才启用）──
         if self.executor is not None:
             out: Dict[str, Dict] = {}
-            for tid, rec in self.judge.anchors.items():
+            # ★ R456 · 只跑当前题：全量判会把 6~20 次模型调用摊在每一轮上，
+            #   而且别的题的成败会混进本 term 的分数 —— 一轮一题才归得了因。
+            #   当前题不在 anchors（自由文本 / 老测试）⇒ 回退全量，行为不变。
+            _only = (getattr(rep, "task", "") or "").strip()
+            _tids = ([_only] if _only and _only in self.judge.anchors
+                     else list(self.judge.anchors))
+            for tid in _tids:
+                rec = self.judge.anchors.get(tid) or {}
                 if tid.startswith("_"):
                     continue
                 if rec.get("verifier_kind") != "behavior":

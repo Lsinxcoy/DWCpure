@@ -16,8 +16,10 @@
   · 退化崩塌: 曾经 pass>0.1 后连续 2 轮 <0.1 ⇒ 停 + 告警
   · 冻结门（人工）: var/dwc_agent_frozen 存在 ⇒ 优雅停（G3 frozen 设置方）
 
-★ 运行: python dwc_agent.py [--interval 600] [--steps 2] [--llm]
+★ 运行: python dwc_agent.py [--interval 600] [--steps 2] [--selfcheck]
       [--terms-per-day 96] [--budget-day 80]
+      ★ R456: 默认**真模型作答**（term 才有信号）。--selfcheck = 无模型自检，
+        跑参考答案自判，分数不进饱和判据，只用于排障。
       python dwc_agent.py --freeze / --unfreeze / --status
 """
 from __future__ import annotations
@@ -864,7 +866,9 @@ def _seed_recent(path: str, n: int = 30) -> list:
                 except ValueError:
                     continue
                 pr = r.get("pass_rate")
-                if pr is not None:
+                # ★ R456 · 只认真模型跑出来的 term（mode=llm）。
+                #   自检模式的 1.0 是参考答案自判，喂进饱和判据等于自己骗自己。
+                if pr is not None and r.get("mode") == "llm":
                     vals.append(float(pr))
     except OSError:
         return []
@@ -1136,7 +1140,17 @@ def main(argv) -> int:
     #   剩下 12 单全部变成 timeout（日志里看着像模型全崩）。
     #   每个 term 的 cost 是 1.0（合成计数，不是真钱），40 等于"每天 40 单"，
     #   连一轮全池都跑不完。要收紧成本请显式传 `--budget-day 40`。
-    use_llm = "--llm" in argv
+    # ★ R456 · 默认真模型：term 必须由模型作答，否则判分器只是在给参考答案
+    #   自己打分（实测 6 道 dev 题恒 1.0，供给题一律 executor_raised）。
+    #   自检（无模型）要显式 --selfcheck，且分数不进饱和判据。
+    use_llm = "--selfcheck" not in argv
+    # ★ R456 · 模式必须显式记账：selfcheck = 跑参考答案自判（无模型），
+    #   它的 1.0 不是"会做"，不许进饱和判据、不许喂难度阶梯。
+    MODE = "llm" if use_llm else "selfcheck"
+    if not use_llm:
+        sys.stderr.write(
+            "★ 自检模式：term 跑的是参考答案（无模型），分数不具信号意义；"
+            "要真跑请加 --llm\n")
     os.makedirs(VAR, exist_ok=True)
     # ★ R309-③ · 启动自检（只告警不拦；--no-selfcheck 可关）。
     if "--no-selfcheck" not in argv:
@@ -1192,10 +1206,16 @@ def main(argv) -> int:
         sys.stderr.write("已学规则加载失败: %r\n" % (_e,))
 
     d = DWC(depth_limit=3, max_nodes=50, budget=bpd, db_path=DB)
+    # ★ R453 · 供给队列接进来（L1/L2 的题在 var/task_queue.jsonl）
+    # ★ R456 · 顺序修正：先注入供给锚点，再建执行体 ——
+    #   LLMExecutorFactory 的 _enabled 读构造时的 anchors 快照，
+    #   先建后注入会让供给题一律 llm_not_enabled（永远判不了）。
+    _SUPPLY_IDS = _supply_sync(d)
     if use_llm:
         from dwc.llm.client import LLMClient
         from dwc.llm.executor import LLMExecutorFactory
-        d.executor = LLMExecutorFactory(LLMClient()).make(memory=d.memory)
+        d.executor = LLMExecutorFactory(
+            LLMClient(), anchors=d.judge.anchors).make(memory=d.memory)
     else:
         actor = Actor()
 
@@ -1206,8 +1226,6 @@ def main(argv) -> int:
                            verified=True)
         d.executor = exe
     d.runner.executor = d.executor
-    # ★ R453 · 供给队列接进来（L1/L2 的题在 var/task_queue.jsonl）
-    _SUPPLY_IDS = _supply_sync(d)
     _RECENT_PASS.extend(_seed_recent(os.path.join(ROOT, "var",
                                                   "dwc_prod_log.jsonl")))
     if _SUPPLY_IDS:
@@ -1226,6 +1244,7 @@ def main(argv) -> int:
     _load_state()
     _log({"event": "agent_started", "pid": os.getpid(),
           "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port,
+          "mode": MODE,
           "sel_terms": _day["terms"], "sel_used": len(_sel.get("used") or [])})
     # ★★★ R382 · 收件箱改**独立轮询线程**（秒级），不再等 term 间隙。
     #   现场：投单 13:47:29 → 接单 13:55:06（排队 7 分 37 秒），执行只用
@@ -1298,7 +1317,7 @@ def main(argv) -> int:
         _day["cost"] += cost
         _save_state()      # ★ R455 · 当日计数与选择态落盘（重启不失忆）
         ir = rep.iron_report or {}
-        _log({"agent_term": _day["terms"], "task": task,
+        _log({"agent_term": _day["terms"], "task": task, "mode": MODE,
               "pass_rate": pr, "cost": round(cost, 3),
               "advice_consumed": (rep.iwm_advice or {}).get("consumed_action"),
               "iron_block": ir.get("block"), "iron_warn": ir.get("warn"),
@@ -1310,7 +1329,9 @@ def main(argv) -> int:
         _heartbeat(status="alive", terms=_day["terms"],
                    last_task=task, pass_rate=pr)
         # ★ R453 · 饱和 ⇒ 造题（L1/L2，零 LLM）。队列变了就重新同步。
-        if pr is not None:
+        # ★ R456 · 只有真模型 term 才算数：自检模式的分数恒 1.0，
+        #   喂进去只会让阶梯一路升到顶（假饱和）。
+        if pr is not None and use_llm:
             _RECENT_PASS.append(float(pr))
             del _RECENT_PASS[:-30]
             _sup = _maybe_supply(d, _RECENT_PASS)
