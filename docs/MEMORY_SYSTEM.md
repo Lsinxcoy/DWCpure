@@ -325,3 +325,44 @@ Q3 淘汰三层判据 → ★ 甲（照用 §3 修法 3，三层顺序不可换�
    ② 第三层"稀有保护"是**独立的硬否决**，不是加权项 ⇒ 不能简化
    ③ 已落地并有 27 项测试（eviction_candidates 只出证据不删）
 ```
+
+---
+
+## 七、R审计-P2 · 记忆强化落地记录（2026-10-24）
+
+> 触发: 用户问「其它项目里找 DWCPURE 记忆系统强化方向」。对照 Prometheus-X /
+> Prometheus-Ultra-MultiTypeKB 实测（只借真接线部分，不抄设计文档）后执行 P0-P2。
+
+### 7.1 修了什么（按优先级）
+
+| 项 | 内容 | 落地位置 | 验证 |
+|---|---|---|---|
+| P0-1/2 | failure_sig 补 `scene`（judge.anchors 的 prompt 原文）+ `detail`（verdict.reason + diffs） | `loop.py:_remember_failure` / `run_term.py:_backfill_failures` | test_memory_p0 |
+| P0-3 | maintain 接线（24h 防抖 + 台账） | `dwc_agent.py:_maybe_maintain` | test_memory_p0 |
+| P0-4 | MemoryKernel.dream 接 evo_round（失败聚簇→技能候选） | `dwc_evo_round.py` 尾部 | 真跑输出 |
+| P1-5 | FTS5 trigram 全文索引（external content + 三 trigger） | `memory.py` SCHEMA + recall 路1 | test_memory_p1 |
+| P1-6 | Weibull 保留度做排序权重（**不做淘汰**） | `memory.py:retention_of` | test_memory_p1 |
+| P2-7 | learn 管（乘法门控 → 回写 importance） | `memory.py:learn` | test_memory_p2 |
+| P2-8 | MMR 多样性重排 + 4-tier 语义档位 | `memory.py:_mmr_rerank` / `tier_of` | test_memory_p2 |
+
+### 7.2 实测数据（改前 → 改后）
+
+```text
+失败签名召回: 129 条中 8 条被访问（6.2%）
+  → 存量 131 条里 66 条补上 scene（anchors 反查, 65 条任务 ID 不在 anchors ⇒ 留空不编）
+  → 完整任务文本召回: 命中 3 条（同任务历史失败可召回）
+  → ASCII 快查 sum_first_n: 命中 5 条（FTS）
+
+七管接线: remember ✅ / recall ✅ / reflect ✅ / evolve ✅ / dream ✅(P0-4) /
+         learn ✅(P2-7) / maintain ✅(P0-3)  ← 此前 learn 不存在、maintain/dream 零调用
+```
+
+### 7.3 诚实边界（不夸大）
+
+- **FTS5 trigram 对中文的局限**: 中文无分词 ⇒ 短语查询要求连续子串
+  ⇒ 中文查询仍走 SQL LIKE（语义与旧实现等价）；FTS 只加速纯 ASCII/标识符。
+  真正的语义召回需要 embedding —— DWC 目前**不引入模型依赖**，标注为未做。
+- **learn 参数未校准**: β=0.1 / τ=0.3 是借 Prometheus-X 的初值，
+  DWC 无实测支撑 ⇒ 返回值带 `params_status: initial_uncalibrated`。
+- **MMR λ=0.7**: 论文标准取值，同样标为初值；相似度用 2-gram Jaccard 近似。
+- **4-tier 不存列**: tier 由 kind 纯函数推导，避免与 WEIBULL_BY_KIND 冗余。
