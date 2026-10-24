@@ -149,7 +149,43 @@ scripts/dwc_evo_round_cron.py   ← 04:00 进化轮开头自动跑
 
 L3 实测产出率约 **1/3**（失败时补一次"禁止 while"的重问后从 0/3 提到 1/3）。
 
-## 9. 还没做的
+## 9. 选择状态持久化（R455 · 让造出来的题真的被跑到）
+
+**实测发现**：队列 15 道题，**只有 1 道跑过**（`fresh_range_sum` 跑了 3 次全 1.0），
+其余 14 道从未执行。
+
+**根因**（`scripts/dwc_agent.py`）：
+
+```python
+_sel = {"last": None, "streak": 0, "used": [], "cooldown": {}}
+_day = {"key": ..., "terms": 0, "cost": 0.0}
+...
+cand = pool[_day["terms"] % len(pool)]
+```
+
+两个都是**内存变量**，从不落盘。进程一重启 `terms` 归零 ⇒ 永远回到 `pool[0]`。
+当天重启 6 次 = 同一道题被喂了 6 遍。
+
+**修法**：
+
+| 件 | 说明 |
+|---|---|
+| `src/dwc/organs/selection_state.py` | `save/load` + `pick_with_supply` 纯函数 |
+| `var/agent_sel.json` | `{sel: {last,streak,used,cooldown}, day: {key,terms,cost}}` |
+| 落盘点 | `select_task()` 返回前 + 每个 term 计数后 |
+| 加载点 | `main()` 启动时 `_load_state()` |
+| 覆盖优先 | 队列里还有**从未跑过**的题 ⇒ 先跑它；全覆盖后回归正常轮转 |
+
+**跨天语义**：只重置 `terms`/`cost`，`used`/`cooldown` 保留 ——
+覆盖进度不能因过夜清零，否则第二天又从 `pool[0]` 开始。
+
+**坏文件语义**：返回默认值，绝不抛 —— 选择器不该因台账损坏停摆。
+
+**守卫的牙齿（变异验证）**：去掉 cooldown 过滤 / 去掉"已选保留" /
+去掉跨天判断 / 去掉坏文件兜底 / 去掉池外过滤 —— 五个变异各自让对应测试变红，
+还原后 12 passed。
+
+## 10. 还没做的
 
 | 项 | 说明 |
 |---|---|

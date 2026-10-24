@@ -63,6 +63,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
+from dwc.organs import selection_state as _SS               # noqa: E402  ★ R455
 
 _LOCK_FD = None  # ★ R297-混沌真修 · 锁 fd 进程持有（不关；死即放）
 
@@ -205,9 +206,15 @@ STUCK_LIMIT = 3
 
 #: 选择态（进程内）。last/streak = 连续计数；used = LRU 历史（最近在尾部）；
 #: cooldown = 卡住的任务 → 剩余让位轮数（逃逸后置为「池子扫完一圈」）。
+#: ★ R455 · 这两个字典会**落盘**（`var/agent_sel.json`）：
+#:   实测队列 15 道题只跑过 1 道 —— 因为进程一重启 `_day["terms"]` 归零，
+#:   选择永远回到 `pool[0]`。当天重启 6 次 = 同一道题被喂了 6 遍。
 _sel = {"last": None, "streak": 0, "used": [], "cooldown": {}}
 _day = {"key": time.strftime("%Y-%m-%d"), "terms": 0, "cost": 0.0}
 _stop = {"by": None}
+
+#: ★ R455 · 选择状态文件（重启不失忆）
+SEL_STATE_PATH = os.path.join(ROOT, "var", "agent_sel.json")
 
 #: ★★★ R382 · 收件箱互斥锁 —— 轮询线程与其它调用方并发读 INBOX 时，
 #:   "读到未处理 → 返回" 不是原子的 ⇒ 同一单会被取两次（重复投递）。
@@ -679,6 +686,20 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     return rep
 
 
+def _save_state() -> None:
+    """★ R455 · 选择状态落盘（每个 term 一次，文件很小）。"""
+    _SS.save(_sel, _day, SEL_STATE_PATH)
+
+
+def _load_state() -> None:
+    """★ R455 · 启动时恢复选择状态；跨天只清当日计数，覆盖进度保留。"""
+    s, d = _SS.load(SEL_STATE_PATH)
+    _sel.clear()
+    _sel.update(s)
+    _day.clear()
+    _day.update(d)
+
+
 def _note_used(tid: str) -> None:
     """记录一次选择（LRU：最近用过的挪到尾部）。"""
     used = _sel.setdefault("used", [])
@@ -713,9 +734,13 @@ def _tick_cooldown() -> None:
             del cd[k]
 
 
-def select_task(prev_rep, pool=None) -> str:
+def select_task(prev_rep, pool=None, supply=()) -> str:
     """★ agent 自主任务源: 上轮 next_task_source 优先（它的测量触发它的
     下一轮）; 无/空 ⇒ 池轮询（seed 语义）。
+
+    ★ R455 · 供给覆盖优先：队列里还有**从未跑过**的题 ⇒ 先跑它。
+      病根: 实测队列 15 道只跑过 1 道 —— `_day["terms"]` 重启归零，
+      选择永远回到 `pool[0]`，后面的题永远轮不到。
 
     ★★★ R375 · 逃逸阀: 同一任务**连续**选中超过 `STUCK_LIMIT` 次 ⇒ 强制
       切到池里最久没用过的任务，并让该任务**冷却一整圈**（直到池里其余
@@ -734,12 +759,15 @@ def select_task(prev_rep, pool=None) -> str:
     nodes = [t["node"] for t in tasks
              if t.get("kind") == "world_tree_action" and t.get("node")]
     cand = nodes[0] if nodes else pool[_day["terms"] % len(pool)]
+    # ★ R455 · 覆盖优先：队列里有没跑过的题就先跑它（全覆盖后回归正常轮转）
+    cand = _SS.pick_with_supply(cand, pool, supply, _sel.get("used", []), cd)
 
     if cand in cd:                      # 冷却中 ⇒ 让位（advice 不是强制令）
         cand = _lru_pick(pool, list(cd))
         _sel["last"] = cand
         _sel["streak"] = 1
         _note_used(cand)
+        _save_state()
         return cand
 
     if cand == _sel.get("last"):
@@ -757,6 +785,7 @@ def select_task(prev_rep, pool=None) -> str:
         _sel["streak"] = 1
 
     _note_used(cand)
+    _save_state()
     return cand
 
 
@@ -1193,8 +1222,11 @@ def main(argv) -> int:
     prev = None
     collapse = 0
     best_pass = 0.0
+    # ★ R455 · 恢复选择状态（重启不失忆：否则 `_day["terms"]` 归零 ⇒ 永远 pool[0]）
+    _load_state()
     _log({"event": "agent_started", "pid": os.getpid(),
-          "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port})
+          "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port,
+          "sel_terms": _day["terms"], "sel_used": len(_sel.get("used") or [])})
     # ★★★ R382 · 收件箱改**独立轮询线程**（秒级），不再等 term 间隙。
     #   现场：投单 13:47:29 → 接单 13:55:06（排队 7 分 37 秒），执行只用
     #   5 秒；一个 term 实测 ~10 分钟 ⇒ 52 单要跑 6 小时。
@@ -1249,7 +1281,8 @@ def main(argv) -> int:
         #   2 格，冷却会在池子扫完前就到期（逃逸保证被削弱）。
         #   有源码序测试锁（test_r375::test_select_task_after_monitor_skip）。
         # ★ R453 · 新题优先：供给队列的题排在池子前面 —— 它们才是新信号来源
-        task = select_task(prev, pool=tuple(_SUPPLY_IDS) + DEV_POOL)
+        task = select_task(prev, pool=tuple(_SUPPLY_IDS) + DEV_POOL,
+                           supply=tuple(_SUPPLY_IDS))
         globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
@@ -1263,6 +1296,7 @@ def main(argv) -> int:
         cost = float((rep.cost_after or {}).get("term_cost", 0.0) or 0.0)
         _day["terms"] += 1
         _day["cost"] += cost
+        _save_state()      # ★ R455 · 当日计数与选择态落盘（重启不失忆）
         ir = rep.iron_report or {}
         _log({"agent_term": _day["terms"], "task": task,
               "pass_rate": pr, "cost": round(cost, 3),
