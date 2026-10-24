@@ -70,6 +70,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 | 文档 | 内容 |
 |---|---|
 | [PROGRESS.md](docs/PROGRESS.md) | 轮次账 R1–R250（每轮一知识档 archive/knowledge3_R*.json） |
+| [DWC_PURE_2.0_DEVELOPMENT_PLAN.md](docs/DWC_PURE_2.0_DEVELOPMENT_PLAN.md) | **2.0 唯一开发计划入口** · 性能—成本双目标 · 范围已固化，论文积累期暂缓实现 |
 | [ARCHITECTURE_MAP.html](docs/ARCHITECTURE_MAP.html) | 架构图（浏览器打开） |
 | [DESIGN_RATIONALE.md](docs/DESIGN_RATIONALE.md) | 设计理据 · 与母巢的关系 · 九条实测陷阱 |
 | [PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md) | 生产运维手册 |
