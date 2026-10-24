@@ -168,6 +168,24 @@ def current_tag() -> str:
     return str(getattr(_TAG, "value", "") or "")
 
 
+# ★ R447 · 档位标签（与 tag 同构：线程本地，任务期间有效）。
+#   为什么要单独一列而不是拼进 tag：拼进去会毁掉按 task_id 的聚合。
+_PROFILE = threading.local()
+
+
+def set_profile(name: str) -> None:
+    """给当前线程设档位名（后续调用都记到它名下）。"""
+    _PROFILE.value = str(name or "")
+
+
+def clear_profile() -> None:
+    _PROFILE.value = ""
+
+
+def current_profile() -> str:
+    return str(getattr(_PROFILE, "value", "") or "")
+
+
 def usage_log_path() -> str:
     """记账文件路径。测试靠 `DWC_USAGE_PATH` 指到 tmp（生产不设该 env）。"""
     p = os.environ.get("DWC_USAGE_PATH", "").strip()
@@ -203,6 +221,10 @@ def record(model: str, usage: Optional[Usage],
         row["tag"] = _tag
     if extra:
         row.update(extra)
+    # ★ R447 · 档位：显式传入优先，否则用线程标签；都没有就不写这个键
+    _pf = str(row.get("profile") or current_profile()).strip()
+    if _pf:
+        row["profile"] = _pf
     try:
         path = usage_log_path()
         parent = os.path.dirname(path)

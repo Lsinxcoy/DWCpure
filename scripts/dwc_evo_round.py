@@ -461,6 +461,17 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 except Exception:
                     pass
                 _key = Mutator.key_for(cl["sigs"][0])
+                # ★ R447 · 同族经验注入：把库里**同族**的 lesson 拼进起草提示。
+                #   ★★ 只拼 lesson，绝不拼 code —— Harness² 实测继承实现会掉分
+                #   （WB-code 73.4→63.2）。经验可以借鉴，实现不能继承。
+                try:
+                    from dwc.organs import library as _LB
+                    _lh = _LB.hint_for(_key)
+                    if _lh:
+                        _hint = ((_hint or "") + _lh)
+                        item["hint_lessons"] = _lh.count("\n- ")
+                except Exception as _le:      # noqa: BLE001 — 经验注入坏不掀轮
+                    item["hint_lessons"] = "error: %r" % (_le,)
                 _op = "draft" if _key not in Mutator.RULES else "improve"
                 if str(_task).startswith("code_fix"):
                     _op = "debug" if _op == "improve" else _op
@@ -708,9 +719,15 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         }
     except Exception as _pe:      # noqa: BLE001 — Pareto 坏不掀轮
         _rep["pareto"] = {"error": repr(_pe)}
+    # ★ R448 · 上下文决策分布（trigger|selector → 次数 / 压缩比）
+    try:
+        from dwc.llm import context_log as _clog
+        _rep["context"] = _clog.summary()
+    except Exception as _ce:      # noqa: BLE001 — 留痕坏不掀轮
+        _rep["context"] = {"error": repr(_ce)}
     # ★ R446 · P4 改进库（观测）：落地即入库，这里只报规模。
-    #   ★★ 诚实：库**还没有被起草器读取** —— 起草仍走 rules.json 的 hint_code。
-    #   要让它真正参与"按 cue 选择性复用"，得把 select_family 喂进 propose 上下文。
+    #   ★ R447 起库**已接入起草**：hint_for() 的输出拼进 learned_hint
+    #   （只注 lesson，不注 code）。
     try:
         from dwc.organs import library as _LB
         _lib = _LB.load()
@@ -718,7 +735,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             "n_entries": len(_lib),
             "families": sorted({_LB.family(str(r.get("cue") or ""))
                                 for r in _lib}),
-            "note": "只写不读：起草仍走 rules.json 的 hint_code",
+            "note": "已接入起草：hint_for → learned_hint（只注 lesson）",
         }
     except Exception as _le:      # noqa: BLE001 — 库坏不掀轮
         _rep["library"] = {"error": repr(_le)}
@@ -734,7 +751,9 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
             "n_tasks": _snap.get("n_tasks"),
             "mean_total": _snap.get("mean_total"),
             "trend": _ca.trend(),
-            "scope": "回溯归因（生产任务）；候选 trial 是沙箱，不含 LLM 成本",
+            # ★ R447 · 按档位分布（哪档更省，跑几天才有结论）
+            "by_profile": _ca.by_profile(),
+            "scope": "回溯归因（生产任务）；trial 的 token 是评测开销，不是规则成本",
         }
     except Exception as _ce:      # noqa: BLE001 — 归因坏不掀轮
         _rep["cost_attribution"] = {"error": repr(_ce)}

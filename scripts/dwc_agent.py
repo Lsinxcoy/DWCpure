@@ -614,8 +614,11 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
             if lc:
                 ctx = (ctx + "\n" + lc) if ctx else lc
             # ★ R442 · 成本归因：这一单期间的所有 LLM 调用都记到它的 id 名下
+            # ★ R447 · 同时记档位（不拼进 tag —— 拼进去会毁掉按 task_id 聚合）
             from dwc.llm import cost as _cost
+            from dwc.llm import profile as _profile
             _cost.set_tag(str(item.get("id") or ""))
+            _cost.set_profile(_profile.choose(str(item.get("task", ""))).name)
             try:
                 rep = _run_with_deadline(
                     lambda: execute_user_task(
@@ -624,6 +627,7 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
                     _TASK_TIMEOUT_S, str(item.get("task", "")))
             finally:
                 _cost.clear_tag()
+                _cost.clear_profile()
     except Exception as exc:          # noqa: BLE001
         # ★ R398 · 执行抛异常也必须**停心跳**，否则标记永远是 running
         #   ⇒ 这一单既不会完成也不会被重取（比崩溃更糟）。

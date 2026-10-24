@@ -153,3 +153,24 @@ def has_cue(cue: str, path: Optional[str] = None) -> bool:
     """该 cue 是否已在库里（防双胞胎）。"""
     c = str(cue or "").strip()
     return any(str(r.get("cue") or "").strip() == c for r in load(path))
+
+
+def hint_for(cue: str, *, path: Optional[str] = None, limit: int = 3,
+             max_chars: int = 300, now: Optional[float] = None) -> str:
+    """把同族 lesson 拼成起草提示。**只拼 lesson，绝不拼 code。**
+
+    Harness² 实测"直接继承上一轮实现"会掉分（WB-code 73.4→63.2）——
+    经验可以借鉴，实现不能继承。
+
+    空库/无同族/全被 before() 过滤 ⇒ 返回 ""（调用方原样不动）。
+    """
+    rows = before(select_family(load(path), cue),
+                  time.time() if now is None else now)
+    lines = []
+    for r in rows[:max(1, int(limit))]:
+        t = str(r.get("lesson") or "").strip()
+        if t:
+            lines.append("- " + t[:max(1, int(max_chars))])
+    if not lines:
+        return ""
+    return "\n[同族经验]\n" + "\n".join(lines)

@@ -184,3 +184,30 @@ def trend(ledger_path: Optional[str] = None) -> Dict[str, Any]:
     elif delta < 0:
         direction = "down"
     return {"direction": direction, "delta": delta, "n": len(rows)}
+
+
+def by_profile(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """按**档位**聚合（R447）。无档位标签的行不参与（宁可少算，不可错算）。"""
+    acc: Dict[str, Dict[str, Any]] = {}
+    for r in _rows(path or default_usage_path()):
+        pf = str(r.get("profile") or "").strip()
+        if not pf:
+            continue
+        a = acc.setdefault(pf, {"calls": 0, "prompt_tokens": 0,
+                                "completion_tokens": 0, "total_tokens": 0,
+                                "tasks": []})
+        p = _int(r.get("prompt_tokens"))
+        c = _int(r.get("completion_tokens"))
+        a["calls"] += 1
+        a["prompt_tokens"] += p
+        a["completion_tokens"] += c
+        a["total_tokens"] += p + c
+        t = str(r.get("tag") or "").strip()
+        if t and t not in a["tasks"]:
+            a["tasks"].append(t)
+    for a in acc.values():
+        n = len(a["tasks"])
+        a["n_tasks"] = n
+        a["mean_total"] = (a["total_tokens"] / float(n)) if n else None
+        del a["tasks"]
+    return acc
