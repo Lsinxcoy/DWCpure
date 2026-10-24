@@ -524,13 +524,19 @@ class MemoryKernel:
         """
         import difflib
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        # ★ R457 · 显式身份键优先于模糊相似：生产者给了 src_key 就表示
+        #   "这是可精确判等的一条经验"——键不同即不同条，不许被模板化文本
+        #   的相似度（同一模板不同任务 ≈0.92）吞掉。
+        new_key = payload.get("src_key")
         rows = self._conn.execute(
             "SELECT node_id, payload FROM memory_node"
             " WHERE zone=? AND kind=? AND archived_at IS NULL",
             (Zone.EXPERIENCE.value, kind.value)).fetchall()
         for r in rows:
-            other = json.dumps(json.loads(r["payload"]),
-                               ensure_ascii=False, sort_keys=True)
+            other_d = json.loads(r["payload"])
+            if new_key and other_d.get("src_key") and other_d["src_key"] != new_key:
+                continue
+            other = json.dumps(other_d, ensure_ascii=False, sort_keys=True)
             if difflib.SequenceMatcher(None, blob, other).ratio() >= MERGE_TAU:
                 return r["node_id"]
         return None

@@ -108,15 +108,79 @@ def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
     return None
 
 
-def memory_text(memory: Any) -> str:
-    """把记忆库全部未归档 SKILL 工件渲染成文本（内容通道）。"""
+def _bigrams(s: str):
+    """中文没有空格分词 ⇒ 用 2-gram 集合算重叠（对中英混排都成立）。"""
+    t = "".join(ch for ch in (s or "") if not ch.isspace())
+    if len(t) <= 1:
+        return {t} if t else set()
+    return {t[i:i + 2] for i in range(len(t) - 1)}
+
+
+def memory_text(memory: Any, task: str = "", k: int = 5,
+                max_chars: int = 1800, min_cov: float = 0.45) -> str:
+    """按**当前任务**取最相关的 k 条 skill 做法（不是全量倾倒）。
+
+    ★ R457 · 旧实现把库里全部 SKILL 渲染进 prompt：实测 71 条 = 29,952 字符，
+      既贵又稀释信号。
+
+    ★ 相关性判据（实测标定，不是拍脑袋）：
+      以任务文本与 scene+method 的 2-gram 覆盖率 `cov = |命中| / |任务信息gram|`
+      为口径，先剔除在库里过于常见（df > 30%）的 gram（"的""函数"这类）。
+      实测：同一任务原文 cov=1.000 / 无关任务 cov=0.081
+      ⇒ 阈值 0.45 干净分开。命中不足 3 个信息 gram 一律不认。
+      **没有相关做法就返回空** —— 不拿无关经验凑数。
+    """
+    if memory is None or not str(task or "").strip():
+        return ""
     rows = memory._conn.execute(
         "SELECT payload FROM memory_node WHERE kind='skill'"
         " AND archived_at IS NULL").fetchall()
     if not rows:
         return ""
-    return "\n".join(json.dumps(json.loads(r["payload"]), ensure_ascii=False)
-                     for r in rows)
+    skills = []
+    for r in rows:
+        try:
+            d = json.loads(r["payload"])
+        except (ValueError, TypeError, KeyError, IndexError):
+            continue
+        skills.append((d, _bigrams("%s %s" % (d.get("scene") or "",
+                                              d.get("method") or ""))))
+    if not skills:
+        return ""
+    df = {}
+    for _d, b in skills:
+        for g in b:
+            df[g] = df.get(g, 0) + 1
+    n = len(skills)
+    tb = _bigrams(task)
+    info = {g for g in tb if df.get(g, 0) <= max(2, 0.3 * n)}
+    if len(info) < 3:
+        return ""
+    scored = []
+    for d, b in skills:
+        hit = info & b
+        if len(hit) < 3:
+            continue
+        cov = len(hit) / float(len(info))
+        if cov < min_cov:
+            continue
+        scored.append((cov, len(hit), json.dumps(d, ensure_ascii=False)))
+    if not scored:
+        return ""
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    out, total, seen = [], 0, set()
+    for _cov, _nh, s in scored:
+        if s in seen:
+            continue
+        s = s[:400]
+        if total + len(s) > max_chars:
+            break
+        out.append(s)
+        seen.add(s)
+        total += len(s)
+        if len(out) >= k:
+            break
+    return "\n".join(out)
 
 
 def build_observed_prompt(tid: str, skel: Dict[str, Any],
@@ -168,7 +232,9 @@ class LLMExecutorFactory:
                     "error_code": "llm_not_enabled"})
             self.stats["n_calls"] += 1
             skel = obs_skeleton(self.anchors, tid)
-            mtxt = memory_text(memory) if memory is not None else ""
+            # ★ R457 · 用**题目原文**召回相关做法（没有相关经验就为空）
+            _task_txt = (self.anchors.get(tid) or {}).get("prompt") or tid
+            mtxt = memory_text(memory, _task_txt) if memory is not None else ""
             prompt = build_observed_prompt(tid, skel, mtxt)
             try:
                 _sys_json = "只输出 JSON, 不解释。"

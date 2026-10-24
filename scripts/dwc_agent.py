@@ -66,6 +66,8 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
 from dwc.organs import selection_state as _SS               # noqa: E402  ★ R455
+from dwc.organs import skill_writer as _SW                  # noqa: E402  ★ R457
+from dwc.organs import task_recall as _TR                   # noqa: E402  ★ R457
 
 _LOCK_FD = None  # ★ R297-混沌真修 · 锁 fd 进程持有（不关；死即放）
 
@@ -736,7 +738,7 @@ def _tick_cooldown() -> None:
             del cd[k]
 
 
-def select_task(prev_rep, pool=None, supply=()) -> str:
+def select_task(prev_rep, pool=None, supply=(), stats=None) -> str:
     """★ agent 自主任务源: 上轮 next_task_source 优先（它的测量触发它的
     下一轮）; 无/空 ⇒ 池轮询（seed 语义）。
 
@@ -761,6 +763,11 @@ def select_task(prev_rep, pool=None, supply=()) -> str:
     nodes = [t["node"] for t in tasks
              if t.get("kind") == "world_tree_action" and t.get("node")]
     cand = nodes[0] if nodes else pool[_day["terms"] % len(pool)]
+    if not nodes:
+        # ★ R457 · 记忆参与选择：跑过且失败过的题最该再试（失败是唯一的学习
+        #   信号），其次没跑过（覆盖），最后 LRU。pick 返回空 ⇒ 回退轮转。
+        cand = (_TR.pick(pool, stats or {}, cd, _sel.get("used", []))
+                or pool[_day["terms"] % len(pool)])
     # ★ R455 · 覆盖优先：队列里有没跑过的题就先跑它（全覆盖后回归正常轮转）
     cand = _SS.pick_with_supply(cand, pool, supply, _sel.get("used", []), cd)
 
@@ -824,6 +831,8 @@ def _budget_check(terms_per_day: float, budget_day: float) -> bool:
 # ── ★ R453 · 任务供给（L1/L2，零 LLM）────────────────────────────
 #: 供给队列：与 DEV_POOL 并列的任务源（池子是代码，队列是数据）
 SUPPLY_PATH = os.path.join(ROOT, "var", "task_queue.jsonl")
+#: ★ R457 · 成功做法台账（905 条 success_pattern —— skill 记忆的来源）
+LESSONS_PATH = os.path.join(ROOT, "var", "dwc_lessons.jsonl")
 #: ★ R454 · 难度阶梯状态（饱和升 / 太难降，带 min_terms + cooldown 双闸）
 LEVEL_PATH = os.path.join(ROOT, "var", "supply_level.json")
 #: ★ R454 · L3 起草请求：tick 里不起草（会阻塞主循环 + 成本不可控），
@@ -831,6 +840,18 @@ LEVEL_PATH = os.path.join(ROOT, "var", "supply_level.json")
 ESCALATE_PATH = os.path.join(ROOT, "var", "supply_escalate.json")
 #: 最近 30 个 term 的通过率（饱和判据的输入）
 _RECENT_PASS: list = []
+#: ★ R457 · 记忆统计（每题失败签名数）—— 选择器读它，不再只按轮转
+_MEM_STATS: dict = {}
+
+
+def _refresh_mem_stats(d) -> dict:
+    """从记忆库重算"每题失败了几次"。一次全扫（5k 行，毫秒级）。"""
+    global _MEM_STATS
+    try:
+        _MEM_STATS = _TR.task_stats(d.memory)
+    except Exception as exc:              # noqa: BLE001 — 统计坏了不掀轮
+        sys.stderr.write("记忆统计失败（按无统计选任务）: %r\n" % (exc,))
+    return _MEM_STATS
 
 
 def _supply_sync(d) -> tuple:
@@ -1226,6 +1247,18 @@ def main(argv) -> int:
                            verified=True)
         d.executor = exe
     d.runner.executor = d.executor
+    # ★ R457 · 把 lessons 里的成功做法写进记忆 —— 生产 skill 一直是 0 条，
+    #   而 memory_text() 只读 skill ⇒ 模型 prompt 的"已知参考资料"恒空。
+    try:
+        _prom = _SW.promote_pending(d.memory, path=LESSONS_PATH)
+        print("skill 记忆：写入 %d / 重复 %d / 跳过 %d（库内共 %d 条）"
+              % (_prom["n_written"], _prom["n_dup"], _prom["n_skip"],
+                 _SW.skill_count(d.memory)), flush=True)
+        _log({"event": "skill_promoted", **_prom,
+              "skill_total": _SW.skill_count(d.memory)})
+    except Exception as _e:               # noqa: BLE001 — 记忆写入坏了不拦启动
+        sys.stderr.write("skill 记忆写入失败（不影响运行）: %r\n" % (_e,))
+    _refresh_mem_stats(d)                 # ★ R457 · 选择器读它
     _RECENT_PASS.extend(_seed_recent(os.path.join(ROOT, "var",
                                                   "dwc_prod_log.jsonl")))
     if _SUPPLY_IDS:
@@ -1301,7 +1334,7 @@ def main(argv) -> int:
         #   有源码序测试锁（test_r375::test_select_task_after_monitor_skip）。
         # ★ R453 · 新题优先：供给队列的题排在池子前面 —— 它们才是新信号来源
         task = select_task(prev, pool=tuple(_SUPPLY_IDS) + DEV_POOL,
-                           supply=tuple(_SUPPLY_IDS))
+                           supply=tuple(_SUPPLY_IDS), stats=_MEM_STATS)
         globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
@@ -1353,6 +1386,8 @@ def main(argv) -> int:
         if not (pr is not None and pr < 0.1 and best_pass > 0.1
                 and not bool(getattr(rep, "synthetic", False))):
             collapse = 0
+        # ★ R457 · 本轮失败签名已落库 ⇒ 让选择器看到它（下一轮据此选题）
+        _refresh_mem_stats(d)
         prev = rep
         if _stop["by"] is None:
             time.sleep(interval)
