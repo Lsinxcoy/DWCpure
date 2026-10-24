@@ -108,3 +108,18 @@ def test_agent_wires_state_and_supply():
     assert "_load_state()" in src, "启动时没加载选择状态"
     assert "pick_with_supply(" in src, "选择器没接供给覆盖"
     assert "supply=tuple(_SUPPLY_IDS)" in src, "select_task 没传供给题"
+
+
+def test_cron_copy_in_sync():
+    """★ cron 跑的是 %LOCALAPPDATA%/hermes/scripts 下的副本，不是仓库文件。
+    副本漂移 ⇒ 定时任务跑旧码，`cronjob list` 完全看不出来。"""
+    import hashlib
+    import pytest
+    repo = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "scripts", "supply_checkpoint.py")
+    copy = os.path.join(os.environ.get("LOCALAPPDATA", ""), "hermes", "scripts",
+                        "supply_checkpoint.py")
+    if not os.path.exists(copy):
+        pytest.skip("本机没有 cron 副本（非部署环境）")
+    h = lambda p: hashlib.md5(open(p, "rb").read()).hexdigest()
+    assert h(copy) == h(repo), "副本与仓库漂移 ⇒ cron 跑旧码（改动只算半改）"
