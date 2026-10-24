@@ -317,6 +317,10 @@ def _done_state() -> dict:
     返回 `{}` 的语义是"一条都没处理过"——这个默认值会让整个收件箱
     重跑一遍，代价极高。所以解析失败先重试 3 次，仍失败才空返回
     （并打 stderr，不许静默）。
+
+    ★ R审计-P1 · 文件**不存在**不是故障：还没有任何单子处理过，
+      `{}` 正是正确语义。FileNotFoundError 直接返回（0 次重试、
+      0 条 stderr —— 否则空收件箱每轮刷 3 次错误日志）。
     """
     last = None
     for _ in range(3):
@@ -329,12 +333,14 @@ def _done_state() -> dict:
                 continue
             v = json.loads(txt)
             return v if isinstance(v, dict) else {}
-        except Exception as exc:               # noqa: BLE001
+        except FileNotFoundError:
+            return {}                     # 常态：从没处理过单子
+        except Exception as exc:           # noqa: BLE001
             last = "%s: %s" % (type(exc).__name__, exc)
             time.sleep(0.05)
     try:
         sys.stderr.write("读 INBOX_DONE 失败（返回空）: %s\n" % last)
-    except Exception:                          # noqa: BLE001
+    except Exception:                      # noqa: BLE001
         pass
     return {}
 
