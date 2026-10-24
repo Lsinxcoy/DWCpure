@@ -612,7 +612,13 @@ def _maybe_maintain(mem) -> None:
               "n_held": rep.get("n_held"),
               "n_archived": rep.get("n_archived"),
               "n_protected": rep.get("n_protected"),
+              "effect_unfed": rep.get("effect_unfed"),
               "hint": rep.get("hint")})
+        # ★ 评估 0 条 ⇒ **不写 marker**（否则空跑一次锁死 24h 不重试）
+        if not rep.get("n_evaluated"):
+            _log({"event": "memory_maintain_empty",
+                  "why": "库内无未归档节点（不写 marker，下轮重试）"})
+            return
         tmp = marker + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump({"ts": now,

@@ -125,6 +125,24 @@ def test_maintain_guard_when_effect_unfed(mem):
     assert "effect" in rep["why_no_archive"]
 
 
+def test_maybe_maintain_empty_does_not_mark(tmp_path, monkeypatch):
+    """★ 评估 0 条 ⇒ 不写 marker（否则空跑一次锁死 24h）。"""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import importlib
+    import dwc_agent as A
+    importlib.reload(A)
+
+    class _EmptyMem:
+        def maintain(self):
+            return {"n_evaluated": 0, "n_held": 0, "n_archived": 0,
+                    "n_protected": 0, "hint": "empty"}
+
+    monkeypatch.setattr(A, "ROOT", str(tmp_path))
+    os.makedirs(tmp_path / "var", exist_ok=True)
+    A._maybe_maintain(_EmptyMem())
+    assert not (tmp_path / "var" / "dwc_last_maintain.json").exists()
+
+
 def test_maybe_maintain_24h_debounce(tmp_path, monkeypatch):
     """★ _maybe_maintain 24h 防抖（第二次调用不重复执行）。"""
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
