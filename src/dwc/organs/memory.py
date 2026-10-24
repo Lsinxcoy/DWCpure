@@ -156,6 +156,23 @@ def retention_of(node: "MemoryNode", now: float | None = None) -> float:
     except (OverflowError, ValueError):
         return 0.0
 
+
+#: ★ R审计-P2 · P2-8 · 4-tier 语义名（working/episodic/semantic/procedural）
+#:   ★ 不存列: tier 完全由 kind 决定，存列 = 与 WEIBULL_BY_KIND 冗余
+#:     （判据 S4: 冗余字段迟早飘 —— 用纯函数，单一真值源）
+_TIER_OF: dict[MemoryKind, str] = {
+    MemoryKind.TRACE: "working",
+    MemoryKind.WORKING_STATE: "working",
+    MemoryKind.FAILURE_SIGNATURE: "episodic",
+    MemoryKind.PROPOSAL: "semantic",
+    MemoryKind.SKILL: "procedural",
+}
+
+
+def tier_of(kind: MemoryKind) -> str:
+    """记忆种类的 4-tier 语义档位（与 WEIBULL_BY_KIND 同源）。"""
+    return _TIER_OF.get(kind, "semantic")
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_node (
     node_id      TEXT PRIMARY KEY,
@@ -168,7 +185,10 @@ CREATE TABLE IF NOT EXISTS memory_node (
     last_access  REAL,
     access_count INTEGER NOT NULL DEFAULT 0,
     effect_count INTEGER NOT NULL DEFAULT 0,
-    archived_at  REAL
+    archived_at  REAL,
+    -- ★ R审计-P2 · P2-7 · learn 管回写的"巩固权重"
+    --   ★ 不是自评分: 由 learn() 从实测 access/effect 推出（D7 同源）
+    importance   REAL NOT NULL DEFAULT 0.5
 );
 
 -- ★★★ 2026-10-05 schema 更正（测试抓到的设计缺陷）:
@@ -245,6 +265,9 @@ class MemoryNode:
     access_count: int = 0
     effect_count: int = 0
     archived_at: float | None = None
+    #: ★ R审计-P2 · P2-7 · learn 管回写的巩固权重（0.5=未学）
+    #:   ★ 不是自评分 — 由 learn() 从实测 access/effect 推出
+    importance: float = 0.5
 
     # ── D7 · 价值只能由实测推出 ──
     def used(self) -> bool:
@@ -289,6 +312,14 @@ class MemoryKernel:
         if db_path != ":memory:":
             self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
+        # ★ R审计-P2 · P2-7 · 老库迁移: memory_node 补 importance 列
+        #   （CREATE TABLE IF NOT EXISTS 不会改已有表 ⇒ 显式 ALTER）
+        _cols = [r[1] for r in self._conn.execute(
+            "PRAGMA table_info(memory_node)").fetchall()]
+        if "importance" not in _cols:
+            self._conn.execute(
+                "ALTER TABLE memory_node ADD COLUMN importance REAL"
+                " NOT NULL DEFAULT 0.5")
         # ★ R审计-P2 · P1-5 · FTS5 external-content 索引补齐:
         #   已有行（老库）不会自动进 FTS ⇒ 启动时 rebuild 一次（幂等）。
         #   ★ 209 条 <10ms；万级库首次会慢一次，之后靠 trigger 增量同步。
@@ -375,7 +406,8 @@ class MemoryKernel:
             payload=json.loads(d["payload"]), chain_id=d["chain_id"],
             created_at=d["created_at"], last_access=d["last_access"],
             access_count=d["access_count"],
-            effect_count=d["effect_count"], archived_at=d["archived_at"])
+            effect_count=d["effect_count"], archived_at=d["archived_at"],
+            importance=float(d.get("importance") or 0.5))
 
     def recall(self, node_id: str) -> MemoryNode:
         """召回一条记忆（Tube.RECALL）。★ 这次召回本身**就是 D7 的证据**。
@@ -583,17 +615,65 @@ class MemoryKernel:
 
         if not score:
             return []
-        # ★ 重力排序 = RRF 分 × Weibull 保留度权重，access_count 为次键
+        # ★ 重力排序 = RRF 分 × Weibull 保留度 × importance 权重，access_count 次键
         #   ★ P1-6: retention ∈ (0,1] 做乘性权重（0.5~1.0 区间），
         #     让"旧且未被使用"的记忆排后面 —— 只影响排序，不删任何东西
+        #   ★ P2-7: importance（learn 回写）同样乘性（0.75~1.25 温和区间）
         _now = time.time()
         ordered = sorted(
             score.items(),
             key=lambda kv: (kv[1] * (0.5 + 0.5 * retention_of(
-                pool[kv[0]], _now)), pool[kv[0]].access_count),
+                pool[kv[0]], _now)) * (0.75 + 0.5 * float(
+                    pool[kv[0]].importance)), pool[kv[0]].access_count),
             reverse=True)
-        self._note_retrieved([nid for nid, _ in ordered[:k]])
-        return [pool[nid] for nid, _ in ordered[:k]]
+        # ★ P2-8 · MMR 多样性重排（同任务多条 trace 不再占满 top-k）
+        _top = self._mmr_rerank(ordered, pool, k)
+        self._note_retrieved([nid for nid, _ in _top])
+        return [pool[nid] for nid, _ in _top]
+
+    # ══════════════════════════════════════════════
+    # ★ R审计-P2 · P2-8 · MMR 多样性重排（无 embedding 的诚实近似）
+    # ══════════════════════════════════════════════
+    @staticmethod
+    def _token_set(node: MemoryNode) -> set[str]:
+        """payload 文本的 2-gram 字符集（中文友好；替代 embedding）。"""
+        txt = json.dumps(node.payload, ensure_ascii=False)
+        return {txt[i:i + 2] for i in range(max(0, len(txt) - 1))}
+
+    def _mmr_rerank(self, ordered: list[tuple[str, float]],
+                    pool: dict[str, MemoryNode], k: int,
+                    lambda_param: float = 0.7) -> list[tuple[str, float]]:
+        """★ MMR（Maximal Marginal Relevance）多样性重排。
+
+        ★★★ 为什么需要:
+          RRF 只按相关性排 ⇒ 同任务的多条 trace（step_0 反复出现）会占满
+          top-k ⇒ 召回变成"同一件事说三遍"（实测 trace 80 条里 step_0 最多）。
+        ★ 相似度 = 2-gram Jaccard（无 embedding — 诚实近似，不引模型依赖）
+        ★ λ=0.7: 相关性为主、多样性为辅（MMR 论文标准取值，标为初值）
+        """
+        if len(ordered) <= 1 or k <= 0:
+            return ordered
+        _mx = max((s for _, s in ordered), default=0.0) or 1.0
+        norm = {nid: s / _mx for nid, s in ordered}
+        cand = [nid for nid, _ in ordered]
+        toks = {nid: self._token_set(pool[nid]) for nid in cand}
+        picked: list[str] = []
+        while cand and len(picked) < k:
+            best, best_v = None, -1e9
+            for nid in cand:
+                sim = 0.0
+                for p in picked:
+                    a, b = toks[nid], toks[p]
+                    u = len(a | b)
+                    if u:
+                        sim = max(sim, len(a & b) / u)
+                v = lambda_param * norm[nid] - (1 - lambda_param) * sim
+                if v > best_v:
+                    best, best_v = nid, v
+            picked.append(best)
+            cand.remove(best)
+        smap = dict(ordered)
+        return [(nid, smap[nid]) for nid in picked]
 
     def recall_many(self, scene: str, terms: list[str] | None = None,
                    k: int = 5) -> list[MemoryNode]:
@@ -821,6 +901,82 @@ class MemoryKernel:
                      "recall 管要修，不是记忆该删"
                      % (len(held), len(archived), len(protected))),
         }
+
+    # ══════════════════════════════════════════════
+    # ★ R审计-P2 · P2-7 · learn 管（乘法门控巩固 → 回写 importance）
+    # ══════════════════════════════════════════════
+    #: learn 的门控参数（★ 待校准 — 借鉴 Prometheus-X DopamineWriteGate，
+    #:   数值没有 DWC 自己的实测支撑，标为初值；改它只需改这里）
+    LEARN_BETA = 0.1
+    LEARN_UTILITY_TAU = 0.3
+
+    def learn(self, node_ids: list[str] | None = None,
+              beta: float | None = None) -> dict[str, Any]:
+        """★ learn 管: 把「被使用」的实测事实巩固成 importance 权重。
+
+        ★★★ 为什么需要它:
+          七管里 learn 是唯一"巩固"管 —— 母巢原文: 「对每条记忆做
+          effect×surprise 巩固, 回写 store 的 importance（记忆真的变
+          '更重要'）, 而非返回常量」。DWC 此前 learn 不存在（core.py
+          自认 not_dispatched）⇒ 记忆价值只停留在 access 计数。
+
+        ★ 公式（乘法门控 — 零效用 ⇒ 零巩固）:
+            utility  = min(1, 0.3×access + 0.7×effect)   # 效果权重更高
+            surprise = 1/(1+同签名簇大小-1)              # 越稀有越意外
+            score    = indicator(utility≥τ) × (utility × (surprise+β))
+            importance = 0.5 + 0.5×score                 # 基线 0.5
+        ★ LongMINT 教训（Prometheus-X 引）: 76.8% insert bias ⇒ 必须门控。
+        ★ 只回写 importance 列；importance 变化才 UPDATE（少触发 FTS 重写）。
+        """
+        beta = self.LEARN_BETA if beta is None else float(beta)
+        tau = self.LEARN_UTILITY_TAU
+        if node_ids is None:
+            rows = self._conn.execute(
+                "SELECT node_id FROM memory_node"
+                " WHERE archived_at IS NULL").fetchall()
+            node_ids = [r["node_id"] for r in rows]
+        n_updated = 0
+        n_gated = 0
+        items = []
+        for nid in node_ids:
+            try:
+                n = self.get(nid)
+            except MemoryError:
+                continue
+            utility = min(1.0, 0.3 * n.access_count + 0.7 * n.effect_count)
+            # surprise: 失败签名按簇大小；其他 kind 无簇概念 ⇒ 0.5 中性
+            surprise = 0.5
+            if n.kind is MemoryKind.FAILURE_SIGNATURE:
+                _c, _q, _m = (n.payload.get("c"), n.payload.get("q"),
+                              n.payload.get("m"))
+                if _c and _q and _m:
+                    _same = self._conn.execute(
+                        "SELECT COUNT(*) AS n FROM failure_sig"
+                        " WHERE c=? AND q=? AND m=?",
+                        (_c, _q, _m)).fetchone()["n"]
+                    surprise = 1.0 / (1.0 + max(0, int(_same) - 1))
+            gated = utility < tau
+            if gated:
+                imp = 0.5
+                n_gated += 1
+            else:
+                score = min(1.0, utility * (surprise + beta))
+                imp = round(0.5 + 0.5 * score, 4)
+                n_updated += 1
+            if abs(float(n.importance) - imp) > 1e-9:
+                self._conn.execute(
+                    "UPDATE memory_node SET importance=? WHERE node_id=?",
+                    (imp, nid))
+            items.append({"node_id": nid, "utility": round(utility, 3),
+                          "surprise": round(surprise, 3),
+                          "importance": imp, "gated": gated})
+        self._conn.commit()
+        return {"n_total": len(node_ids), "n_updated": n_updated,
+                "n_gated": n_gated,
+                "beta": beta, "tau": tau,
+                # ★ 诚实标注: 参数是初值，未经 DWC 实测校准
+                "params_status": "initial_uncalibrated",
+                "items": items}
 
     # ══════════════════════════════════════════════
     # ★ R258 · 后向修订（ReHarness 2610.12668 §3.2）
