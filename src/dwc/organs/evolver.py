@@ -2286,9 +2286,17 @@ class LLMMutator:
                            task_id=str(s0.get("task", "")))
         prompt = self._prompt(sigs, context, want_code=want_code,
                               learned_hint=learned_hint)
+        # ★ R450 · 成本归因：生产里唯一真正调 LLM 的就是这里（agent 默认 --llm 关）。
+        #   标签用任务名，档位用 profile.choose —— 这样 by_profile / by_rule_epoch
+        #   才有数据可算，而不是永远空表。
+        from dwc.llm import cost as _cost
+        from dwc.llm import profile as _profile
+        _ctag = str(s0.get("task") or s0.get("fn") or "evo")
+        _cprof = _profile.choose(_ctag).name
         reasons: List[str] = []
         for _ in range(max(1, max_attempts)):
-            text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
+            with _cost.attribution(tag=_ctag, profile=_cprof):
+                text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
             if not isinstance(text, str):
                 text = str(text)
             entry = self._extract(text)

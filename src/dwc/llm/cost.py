@@ -32,6 +32,7 @@ import io
 import json
 import os
 import sys
+import contextlib
 import threading
 import time
 from dataclasses import dataclass
@@ -184,6 +185,26 @@ def clear_profile() -> None:
 
 def current_profile() -> str:
     return str(getattr(_PROFILE, "value", "") or "")
+
+
+@contextlib.contextmanager
+def attribution(tag: Optional[str] = None, profile: Optional[str] = None):
+    """★ R450 · 把"这次调用属于谁"圈进 with 块，**进出必还原**。
+
+    为什么必须还原：起草一轮会连着调多次 LLM，异常一旦漏标签，
+    下一次调用就会记到上一个任务名下 —— 归因数据会被污染且看不出来。
+    None 表示"这一项不动"。
+    """
+    _t, _p = current_tag(), current_profile()
+    if tag is not None:
+        set_tag(tag)
+    if profile is not None:
+        set_profile(profile)
+    try:
+        yield
+    finally:
+        set_tag(_t)
+        set_profile(_p)
 
 
 def usage_log_path() -> str:

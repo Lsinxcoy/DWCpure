@@ -1070,7 +1070,12 @@ def main(argv) -> int:
     try:
         from dwc.organs.evolver import Mutator as _Mu
         _n_learned = _Mu.ensure_loaded()
-        print("已学规则加载：%d 条" % (_n_learned,), flush=True)
+        # ★ 报"内存中共几条"，不是"本次新增几条" —— 幂等守卫会让第二次调用返回 0，
+        #   旧文案"已学规则加载：0 条"读起来像加载失败（实测规则其实已就位）。
+        _n_total = len([_k for _k in _Mu.RULES
+                        if _k not in getattr(_Mu, "SEED_KEYS", frozenset())])
+        print("已学规则：本次新增 %d 条 / 内存中共 %d 条"
+              % (_n_learned, _n_total), flush=True)
     except Exception as _e:  # noqa: BLE001 — 加载坏不拦启动，但必须留痕
         sys.stderr.write("已学规则加载失败: %r\n" % (_e,))
 
