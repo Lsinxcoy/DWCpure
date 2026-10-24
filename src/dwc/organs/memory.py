@@ -39,6 +39,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 import sqlite3
 import time
 import uuid
@@ -119,6 +121,41 @@ EXPERIENCE_REQUIREMENTS = {
 #:   ★ 数值: PAHF 有 τ 机制、值未核 ⇒ 初值 0.90 待校准（β 同款纪律）。
 MERGE_TAU = 0.90
 
+# ══════════════════════════════════════════════════════════
+# ★ R审计-P2 · P1-6 · Weibull 保留度（只做排序权重，**不做淘汰**）
+# ══════════════════════════════════════════════════════════
+#: CJK 检测（recall 路1 分流: 含中文 ⇒ LIKE；纯 ASCII ⇒ FTS5 trigram）
+_CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
+#: 按记忆种类的 Weibull 参数 (λ 天, k 形状) — 借鉴 Prometheus-X/MnemosyneV3
+#:   working 快忘 / episodic 中 / semantic 慢 / procedural 几乎不忘
+#: ★ 为什么只做权重不做淘汰: MEMORY_SYSTEM §三 修法3 明确「淘汰规则必须基于
+#:   价值而非年龄」—— 母巢的 weibull_expired 空转（淘汰对象 98.8% access=0）
+#:   正是年龄淘汰的反面教材。这里只让"旧记忆排序靠后"，不删任何东西。
+WEIBULL_BY_KIND: dict[MemoryKind, tuple[float, float]] = {
+    MemoryKind.TRACE: (7.0, 1.5),            # working: 痕迹快忘
+    MemoryKind.WORKING_STATE: (7.0, 1.5),    # working
+    MemoryKind.FAILURE_SIGNATURE: (30.0, 1.2),   # episodic: 失败经验中速
+    MemoryKind.SKILL: (365.0, 0.5),          # procedural: 技能几乎不忘
+    MemoryKind.PROPOSAL: (180.0, 0.8),       # semantic: 提案慢忘
+}
+
+
+def retention_of(node: "MemoryNode", now: float | None = None) -> float:
+    """Weibull 保留度 P = exp(-(t/λ)^k)，t = 距创建的**天数**。
+
+    ★ 返回值 ∈ (0,1]: 1.0=刚写, 0=极旧。只用于 recall 排序权重。
+    ★ 未知 kind ⇒ 保守取 semantic 参数（不发明新档）。
+    """
+    lam, k = WEIBULL_BY_KIND.get(node.kind, (180.0, 0.8))
+    if lam <= 0:
+        return 1.0
+    age_days = max(0.0, ((now if now is not None else time.time())
+                         - (node.created_at or 0.0)) / 86400.0)
+    try:
+        return math.exp(-((age_days / lam) ** k))
+    except (OverflowError, ValueError):
+        return 0.0
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_node (
     node_id      TEXT PRIMARY KEY,
@@ -152,10 +189,35 @@ CREATE INDEX IF NOT EXISTS ix_node_zone    ON memory_node(zone);
 CREATE INDEX IF NOT EXISTS ix_node_chain   ON memory_node(chain_id);
 CREATE INDEX IF NOT EXISTS ix_node_kind    ON memory_node(kind);
 CREATE INDEX IF NOT EXISTS ix_sig_cluster  ON failure_sig(c, q, m);
--- ★ ix_sig_lookup 已删: 测试实测发现 SQLite 优先选 PRIMARY KEY/UNIQUE
---   自带的 sqlite_autoindex ⇒ 我建的这条索引是死重量
---   （判据 S4 的同款纪律: grep 不到真实使用点 ⇒ 该删）。
---   ⇒ 聚类查询靠 ix_sig_cluster（建在 (c,q,m) 上，与 node_id 主键不冲突）
+
+-- ★★★ R审计-P2 · P1-5 · FTS5 全文索引（trigram 分词 — 中文子串友好）
+--   现场: recall 路1 是**全表 in 子串扫**（O(n×len)），209 条时无感，
+--   上千条后每步 term 都扫会拖垮。FTS5 是 SQLite 原生（零依赖）。
+--   ★ external content 模式: 索引不复制正文，靠 trigger 同步（省一半空间）
+--   ★ trigram: 中文按三字窗口切 ⇒ "函数中"/"off-by-one" 都能子串命中
+--     （unicode61 按词切，中文会退化成单字，不适合）
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+    payload,
+    content='memory_node',
+    content_rowid='rowid',
+    tokenize='trigram'
+);
+
+-- 同步 trigger（INSERT / DELETE / UPDATE 三路 — 漏一路索引就飘）
+CREATE TRIGGER IF NOT EXISTS memory_fts_ai AFTER INSERT ON memory_node BEGIN
+    INSERT INTO memory_fts(rowid, payload) VALUES (new.rowid, new.payload);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_fts_ad AFTER DELETE ON memory_node BEGIN
+    INSERT INTO memory_fts(memory_fts, rowid, payload)
+    VALUES ('delete', old.rowid, old.payload);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_fts_au AFTER UPDATE ON memory_node BEGIN
+    INSERT INTO memory_fts(memory_fts, rowid, payload)
+    VALUES ('delete', old.rowid, old.payload);
+    INSERT INTO memory_fts(rowid, payload) VALUES (new.rowid, new.payload);
+END;
 """
 
 
@@ -227,6 +289,17 @@ class MemoryKernel:
         if db_path != ":memory:":
             self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
+        # ★ R审计-P2 · P1-5 · FTS5 external-content 索引补齐:
+        #   已有行（老库）不会自动进 FTS ⇒ 启动时 rebuild 一次（幂等）。
+        #   ★ 209 条 <10ms；万级库首次会慢一次，之后靠 trigger 增量同步。
+        try:
+            self._conn.execute(
+                "INSERT INTO memory_fts(memory_fts) VALUES('rebuild')")
+        except sqlite3.OperationalError as exc:
+            # ★ G7: 不许静默 —— FTS 不可用必须留痕（检索会退回全表扫）
+            import sys as _sys
+            _sys.stderr.write("memory_fts rebuild 失败（检索将退化）: %s\n"
+                              % exc)
         self._conn.commit()
         self._retrieved: list[str] = []   # ★ R258 检索留痕（修订候选集）
 
@@ -426,20 +499,51 @@ class MemoryKernel:
         for n in self._all_nodes():
             pool[n.node_id] = n
 
-        # ── 路1 · 场景词 ──
+        # ── 路1 · 场景词（FTS5 trigram 全文 — 替代全表子串扫）──
+        # ★★★ R审计-P2 · P1-5: 原实现是 O(n×len) 全表 `in` 扫（209 条无感，
+        #   上千条后每步 term 都扫会拖垮）。FTS5 是 SQLite 原生索引。
+        #   trigram 分词 ⇒ 中文子串（"函数中"）与英文（"off-by-one"）都命中。
+        #   ★ 查询串 <3 字符 trigram 不索引 ⇒ 自动跳过（不报错）。
         scene_norm = (scene or "").strip()
-        route1 = []
-        if scene_norm:
-            for n in pool.values():
-                blob = "%s %s" % (n.payload.get("scene", ""),
-                                  json.dumps(n.payload, ensure_ascii=False))
-                if scene_norm in blob:
-                    route1.append(n.node_id)
-            for t in terms:
-                for n in pool.values():
-                    if t in json.dumps(n.payload, ensure_ascii=False):
-                        if n.node_id not in route1:
-                            route1.append(n.node_id)
+        route1: list[str] = []
+        _qs = ([scene_norm] if scene_norm else []) + list(terms)
+        # ★ 分流（语义与旧实现一致，只是把 ASCII 部分交给索引）:
+        #   · 纯 ASCII 且 ≥3 字符 ⇒ FTS5 trigram（sum_first_n / off-by-one 快查）
+        #   · 含 CJK 或 <3 字符 ⇒ SQL LIKE（中文无分词，trigram 短语要求
+        #     连续子串 ⇒ 中文概括词与原文不连续，只能子串匹配）
+        #   ★ 两者都是"连续子串"语义 —— 与旧 `scene in blob` 等价，不改变召回集合
+        _phr = []
+        _short = []
+        for _q in _qs:
+            _s = str(_q)
+            if not _s:
+                continue
+            if len(_s) >= 3 and not _CJK.search(_s):
+                _phr.append('"%s"' % _s.replace('"', '""'))
+            else:
+                _short.append(_s)
+        if _phr:
+            try:
+                rows = self._conn.execute(
+                    "SELECT m.node_id FROM memory_fts f"
+                    " JOIN memory_node m ON m.rowid = f.rowid"
+                    " WHERE memory_fts MATCH ? AND m.archived_at IS NULL"
+                    " ORDER BY rank LIMIT 200",
+                    (" OR ".join(_phr),)).fetchall()
+                route1 = [r["node_id"] for r in rows]
+            except sqlite3.OperationalError as exc:
+                # ★ G7: FTS 查询失败不许静默（会退化成无路1）
+                import sys as _sys
+                _sys.stderr.write("FTS 路1 查询失败（退化为空）: %s\n" % exc)
+                route1 = []
+        for _q in _short:
+            _rows = self._conn.execute(
+                "SELECT node_id FROM memory_node"
+                " WHERE payload LIKE ? AND archived_at IS NULL LIMIT 200",
+                ("%" + _q + "%",)).fetchall()
+            for _r in _rows:
+                if _r["node_id"] not in route1:
+                    route1.append(_r["node_id"])
 
         # ── 路2 · 同机制/同因果角色的失败签名 ──
         route2 = [n.node_id for n in pool.values()
@@ -479,10 +583,14 @@ class MemoryKernel:
 
         if not score:
             return []
-        # ★ 重力排序 = RRF 分为主键，access_count 为次键
+        # ★ 重力排序 = RRF 分 × Weibull 保留度权重，access_count 为次键
+        #   ★ P1-6: retention ∈ (0,1] 做乘性权重（0.5~1.0 区间），
+        #     让"旧且未被使用"的记忆排后面 —— 只影响排序，不删任何东西
+        _now = time.time()
         ordered = sorted(
             score.items(),
-            key=lambda kv: (kv[1], pool[kv[0]].access_count),
+            key=lambda kv: (kv[1] * (0.5 + 0.5 * retention_of(
+                pool[kv[0]], _now)), pool[kv[0]].access_count),
             reverse=True)
         self._note_retrieved([nid for nid, _ in ordered[:k]])
         return [pool[nid] for nid, _ in ordered[:k]]
