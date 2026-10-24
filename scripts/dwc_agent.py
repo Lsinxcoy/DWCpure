@@ -793,6 +793,11 @@ def _budget_check(terms_per_day: float, budget_day: float) -> bool:
 # ── ★ R453 · 任务供给（L1/L2，零 LLM）────────────────────────────
 #: 供给队列：与 DEV_POOL 并列的任务源（池子是代码，队列是数据）
 SUPPLY_PATH = os.path.join(ROOT, "var", "task_queue.jsonl")
+#: ★ R454 · 难度阶梯状态（饱和升 / 太难降，带 min_terms + cooldown 双闸）
+LEVEL_PATH = os.path.join(ROOT, "var", "supply_level.json")
+#: ★ R454 · L3 起草请求：tick 里不起草（会阻塞主循环 + 成本不可控），
+#:          写请求给带 LLM 的入口（scripts/supply_l3.py）消费
+ESCALATE_PATH = os.path.join(ROOT, "var", "supply_escalate.json")
 #: 最近 30 个 term 的通过率（饱和判据的输入）
 _RECENT_PASS: list = []
 
@@ -838,24 +843,34 @@ def _seed_recent(path: str, n: int = 30) -> list:
 
 
 def _maybe_supply(d, recent) -> dict:
-    """饱和 ⇒ 造题（L1 参数扰动 + L2 fresh），队列够长就不造。
+    """饱和 ⇒ 造题；并按难度阶梯决定造哪一级。
 
     ★ 为什么在饱和时才造：没饱和说明还有不会做的题，加难度只会掩盖问题。
+    ★ 为什么 L3 只写请求不起草：agent 的 tick 里不能调 LLM
+      （阻塞主循环 + 成本不可控），起草交给 `scripts/supply_l3.py`。
     """
     from dwc.organs import task_supply as _TS
     sat = _TS.saturation([{"pass_rate": p} for p in recent])
-    if not sat.get("saturated"):
-        return {"generated": 0, "why": "not_saturated", **sat}
-    if len(_TS.load_queue(SUPPLY_PATH)) >= 8:
-        return {"generated": 0, "why": "queue_full", **sat}
-    tasks = list(_TS.from_fresh(
-        os.path.join(ROOT, "config", "anchors", "fresh.json")))
+    st = _TS.step_level(sat, path=LEVEL_PATH)
+    lvl = int(st["level"])
+    out = {"generated": 0, "level": lvl, "level_changed": bool(st["changed"]),
+           "level_why": st.get("why", ""), **sat}
+    plan = _TS.plan_batch(lvl, sat, len(_TS.load_queue(SUPPLY_PATH)))
+    if plan["action"] == "none":
+        return {**out, "why": plan["why"]}
+    if plan["action"] == "escalate":
+        _TS.request_escalation(2, why=plan["why"], path=ESCALATE_PATH)
+        return {**out, "why": "escalation_requested"}
+    tasks = []
+    if plan["with_fresh"]:
+        tasks += list(_TS.from_fresh(
+            os.path.join(ROOT, "config", "anchors", "fresh.json")))
     for tid in DEV_POOL:
         a = d.judge.anchors.get(tid)
         if isinstance(a, dict):
             tasks += _TS.perturb(tid, a, seed=int(time.time()) // 86400, n=1)
     n = _TS.admit(tasks, SUPPLY_PATH)
-    return {"generated": n, "why": "saturated", **sat}
+    return {**out, "generated": n, "why": "saturated"}
 
 
 def _maybe_skip(prev_ok, item, skips):
@@ -1265,6 +1280,9 @@ def main(argv) -> int:
             _RECENT_PASS.append(float(pr))
             del _RECENT_PASS[:-30]
             _sup = _maybe_supply(d, _RECENT_PASS)
+            if _sup.get("level_changed"):
+                _log({"event": "supply_level", "level": _sup.get("level"),
+                      "why": _sup.get("level_why")})
             if _sup.get("generated"):
                 _log({"event": "supply_generated", **_sup})
                 _SUPPLY_IDS = _supply_sync(d)

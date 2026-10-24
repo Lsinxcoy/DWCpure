@@ -49,6 +49,14 @@ SOLVED_MIN_ATTEMPTS = 2
 TTL_S = 14 * 86400
 
 SATURATION_WINDOW = 30
+#: 难度阶梯状态（每个 term 更新一次）
+LEVEL_REL = "var/supply_level.json"
+#: L3 起草请求（agent 不在 tick 里起草 ⇒ 写请求给带 LLM 的入口消费）
+ESCALATE_REL = "var/supply_escalate.json"
+#: 升/降级前必须先在同一级上真跑过这么多轮 —— 否则窗口里还是上一级的成绩，会一路窜到 L3
+MIN_TERMS_PER_LEVEL = 3
+#: 每级最短停留时间（秒）
+LEVEL_COOLDOWN_S = 2 * 3600
 SATURATION_PASS = 0.95
 RELAX_PASS = 0.60
 
@@ -265,24 +273,34 @@ def generate_family(llm: Callable[[str], str], *, seed: int = 0,
         _fail("bad_spec")
         return None
     fn = str(spec["fn"])
-    try:
+    obs_a = [(x, run(str(spec["impl"]), fn, x)) for x in _L3_INPUTS]
+    need = max(1, int(min_agree))
+    agree: List[Tuple[Any, Any]] = []
+    for attempt in range(2):
+        # ★ 第二次重问只在**失败后**发生：LLM 常写 while（沙箱拒），
+        #   补一句显式禁令比整轮重来便宜（+1 次调用 vs +2 次）。
         _ask2 = (_L3_IMPL_HEAD + "函数名：" + fn
                  + "\n题面：" + str(spec.get("prompt") or ""))
-        impl_b = _extract_code(llm(_ask2))
-    except Exception as exc:          # noqa: BLE001
-        _fail("llm_error_impl:%r" % (exc,))
-        return None
-    if "def " not in impl_b:
-        _fail("no_def_in_second_impl")
-        return None
-    agree: List[Tuple[Any, Any]] = []
-    for x in _L3_INPUTS:
-        oka, va = run(str(spec["impl"]), fn, x)
-        okb, vb = run(impl_b, fn, x)
-        if oka and okb and va == vb:
-            agree.append((x, va))
-    if len(agree) < max(1, int(min_agree)):
-        _fail("agree=%d<%d" % (len(agree), max(1, int(min_agree))))
+        if attempt:
+            _ask2 += "\n★ 注意：只能用 for 循环，**禁止 while**。"
+        try:
+            impl_b = _extract_code(llm(_ask2))
+        except Exception as exc:      # noqa: BLE001
+            _fail("llm_error_impl:%r" % (exc,))
+            return None
+        if "def " not in impl_b:
+            continue
+        agree = []
+        for x, (oka, va) in obs_a:
+            if not oka:
+                continue
+            okb, vb = run(impl_b, fn, x)
+            if okb and vb == va:
+                agree.append((x, va))
+        if len(agree) >= need:
+            break
+    if len(agree) < need:
+        _fail("agree=%d<%d" % (len(agree), need))
         return None
     checks = [{"fn": fn, "args": repr(x), "expected": repr(v)} for x, v in agree]
     tid = "supply_%s_%s" % (fn, hashlib.sha1(
@@ -428,3 +446,131 @@ def next_level(current: int, sat: Dict[str, Any]) -> int:
     if sat.get("mean") is not None and float(sat["mean"]) <= RELAX_PASS and cur > 0:
         return cur - 1
     return cur
+
+
+def plan_batch(level: int, sat: Dict[str, Any], queue_len: int,
+               queue_full: int = 8) -> Dict[str, Any]:
+    """★ 纯决策：这一轮该干什么（不碰磁盘、不调 LLM，可单测）。
+
+    返回 `{action: none|generate|escalate, why, with_fresh}`。
+    """
+    lvl = max(0, min(3, int(level)))
+    if not sat.get("saturated"):
+        return {"action": "none", "why": "not_saturated", "with_fresh": False}
+    if int(queue_len) >= int(queue_full):
+        # ★ 队列还有一堆没跑的题 ⇒ 先跑完再说，L3 也一样（不然只会堆题）
+        return {"action": "none", "why": "queue_full", "with_fresh": False}
+    if lvl >= 3:
+        # L3 只能在带 LLM 的入口起草 ⇒ tick 只写请求
+        return {"action": "escalate", "why": "saturated_at_L3",
+                "with_fresh": False}
+    return {"action": "generate", "why": "saturated",
+            "with_fresh": lvl >= 2}
+
+
+# ── 难度阶梯状态 ────────────────────────────────────────────────
+
+def load_level(path: Optional[str] = None) -> Dict[str, Any]:
+    """读阶梯状态。文件缺失/坏 ⇒ 默认 level=1（坏文件不许掀翻调用方）。"""
+    p = path or LEVEL_REL
+    try:
+        with io.open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return {"level": 1, "since": 0.0, "terms": 0, "why": ""}
+    if not isinstance(d, dict):
+        return {"level": 1, "since": 0.0, "terms": 0, "why": ""}
+    try:
+        lv = max(0, min(3, int(d.get("level", 1))))
+    except (TypeError, ValueError):
+        lv = 1
+    return {"level": lv, "since": float(d.get("since") or 0.0),
+            "terms": int(d.get("terms") or 0), "why": str(d.get("why") or "")}
+
+
+def save_level(level: int, *, why: str = "", path: Optional[str] = None,
+               since: Optional[float] = None, terms: int = 0,
+               now: Optional[float] = None) -> Dict[str, Any]:
+    p = path or LEVEL_REL
+    t_now = time.time() if now is None else float(now)
+    st = {"level": max(0, min(3, int(level))),
+          "since": t_now if since is None else float(since),
+          "terms": max(0, int(terms)), "why": str(why or ""),
+          "updated_ts": t_now}
+    try:
+        parent = os.path.dirname(p)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent, exist_ok=True)
+        with io.open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(st, ensure_ascii=False) + "\n")
+    except OSError as e:              # noqa: BLE001 — 状态写不了不掀轮
+        sys.stderr.write("阶梯状态写盘失败: %r\n" % (e,))
+    return st
+
+
+def step_level(sat: Dict[str, Any], *, now: Optional[float] = None,
+               path: Optional[str] = None,
+               min_terms: int = MIN_TERMS_PER_LEVEL,
+               cooldown: float = LEVEL_COOLDOWN_S) -> Dict[str, Any]:
+    """每个 term 调一次：先攒够 `min_terms` 且过冷却，才许升/降。
+
+    返回 `{level, changed, terms, since, why}`；`changed` 只在本轮真变了时为 True。
+    """
+    p = path or LEVEL_REL
+    t_now = time.time() if now is None else float(now)
+    st = load_level(p)
+    cur = int(st["level"])
+    since = float(st["since"] or 0.0)
+    terms = int(st["terms"] or 0) + 1
+    ready = terms >= max(1, int(min_terms)) and (t_now - since) >= float(cooldown)
+    nxt = next_level(cur, sat) if ready else cur
+    if nxt != cur:
+        why = "saturated" if nxt > cur else "too_hard"
+        save_level(nxt, why=why, path=p, since=t_now, terms=0, now=t_now)
+        return {"level": nxt, "changed": True, "terms": 0,
+                "since": t_now, "why": why}
+    save_level(cur, why=st.get("why", ""), path=p, since=since,
+               terms=terms, now=t_now)
+    return {"level": cur, "changed": False, "terms": terms,
+            "since": since, "why": st.get("why", "")}
+
+
+# ── L3 起草请求（tick 里不起草）────────────────────────────────
+
+def request_escalation(n: int = 2, *, why: str = "",
+                       path: Optional[str] = None,
+                       now: Optional[float] = None) -> str:
+    """写一个"该出 L3 了"的请求。**不在 tick 里起草**：起草会阻塞主循环 + 成本不可控。"""
+    p = path or ESCALATE_REL
+    t_now = time.time() if now is None else float(now)
+    row = {"n": max(1, int(n)), "why": str(why or ""), "ts": t_now}
+    try:
+        parent = os.path.dirname(p)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent, exist_ok=True)
+        with io.open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as e:              # noqa: BLE001
+        sys.stderr.write("升级请求写盘失败: %r\n" % (e,))
+    return p
+
+
+def take_escalation(path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """读并**删除**请求（一次性）：不删的话每 tick 都会重复起草，烧钱。"""
+    p = path or ESCALATE_REL
+    try:
+        with io.open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    try:
+        os.remove(p)
+    except OSError as e:              # noqa: BLE001 — 删不掉就留着，但要留痕
+        sys.stderr.write("升级请求删除失败（下次会重复消费）: %r\n" % (e,))
+    if not isinstance(d, dict):
+        return None
+    try:
+        d["n"] = max(1, int(d.get("n") or 1))
+    except (TypeError, ValueError):
+        d["n"] = 1
+    return d

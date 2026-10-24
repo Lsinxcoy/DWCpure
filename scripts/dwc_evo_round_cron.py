@@ -122,6 +122,24 @@ def main() -> int:
     prod = _prod_root()
     rules_path = os.path.join(prod, "config", "anchors", "rules.json")
 
+    # ★ R454 · 先消费难度阶梯的 L3 请求：
+    #   agent 饱和到 L3 时**只写请求不起草**（tick 里不能调 LLM），
+    #   起草在本入口做 —— 这里本来就有 LLM 预算。
+    _esc = os.path.join(prod, "var", "supply_escalate.json")
+    if os.path.isfile(_esc):
+        import subprocess as _sp
+        try:
+            _r = _sp.run(
+                [sys.executable,
+                 os.path.join(_code_root(), "scripts", "supply_l3.py")],
+                capture_output=True, text=True, timeout=900)
+            print(json.dumps({"supply_l3_rc": _r.returncode,
+                              "supply_l3_out": (_r.stdout or "").strip()[-400:]},
+                             ensure_ascii=False), flush=True)
+        except Exception as _e:       # noqa: BLE001 — 供给失败不许挡住进化轮
+            print(json.dumps({"supply_l3_error": repr(_e)},
+                             ensure_ascii=False), flush=True)
+
     # ★ R438 · 回滚 / 还原：先处理，不必跑轮
     if _a.rollback or _a.restore:
         if _a.restore:
