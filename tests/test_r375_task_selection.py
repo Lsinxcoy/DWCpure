@@ -140,7 +140,7 @@ def test_select_task_after_monitor_skip():
     """
     src = open(A.__file__, encoding="utf-8").read()
     i_skip = src.index("_maybe_skip(prev is not None")
-    i_sel = src.index("task = select_task(prev)")
+    i_sel = src.index("task = select_task(prev,")   # ★ R453 重锚：多了 pool 参数
     assert i_sel > i_skip, (
         "select_task 必须在 monitor 跳过判定之后调用（当前 %d < %d）"
         % (i_sel, i_skip))

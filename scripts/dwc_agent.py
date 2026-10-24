@@ -790,6 +790,74 @@ def _budget_check(terms_per_day: float, budget_day: float) -> bool:
     return False
 
 
+# ── ★ R453 · 任务供给（L1/L2，零 LLM）────────────────────────────
+#: 供给队列：与 DEV_POOL 并列的任务源（池子是代码，队列是数据）
+SUPPLY_PATH = os.path.join(ROOT, "var", "task_queue.jsonl")
+#: 最近 30 个 term 的通过率（饱和判据的输入）
+_RECENT_PASS: list = []
+
+
+def _supply_sync(d) -> tuple:
+    """把队列里的题注入 judge.anchors（判分必须找得到），返回 id 元组。
+
+    ★ 只注入带 checks 的题：没有判据的题跑起来也判不了分，等于污染。
+    """
+    from dwc.organs import task_supply as _TS
+    ids = []
+    for t in _TS.load_queue(SUPPLY_PATH):
+        tid = str(t.get("task_id") or "")
+        a = t.get("anchor")
+        if not tid or not isinstance(a, dict) or not a.get("checks"):
+            continue
+        if tid not in d.judge.anchors:
+            d.judge.anchors[tid] = dict(a)
+        ids.append(tid)
+    return tuple(ids)
+
+
+def _seed_recent(path: str, n: int = 30) -> list:
+    """★ R453 · 从台账尾部取最近 n 个 term 的 pass_rate（重启后判据不失忆）。"""
+    vals: list = []
+    try:
+        import io as _io
+        with _io.open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or '"agent_term"' not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                pr = r.get("pass_rate")
+                if pr is not None:
+                    vals.append(float(pr))
+    except OSError:
+        return []
+    return vals[-n:]
+
+
+def _maybe_supply(d, recent) -> dict:
+    """饱和 ⇒ 造题（L1 参数扰动 + L2 fresh），队列够长就不造。
+
+    ★ 为什么在饱和时才造：没饱和说明还有不会做的题，加难度只会掩盖问题。
+    """
+    from dwc.organs import task_supply as _TS
+    sat = _TS.saturation([{"pass_rate": p} for p in recent])
+    if not sat.get("saturated"):
+        return {"generated": 0, "why": "not_saturated", **sat}
+    if len(_TS.load_queue(SUPPLY_PATH)) >= 8:
+        return {"generated": 0, "why": "queue_full", **sat}
+    tasks = list(_TS.from_fresh(
+        os.path.join(ROOT, "config", "anchors", "fresh.json")))
+    for tid in DEV_POOL:
+        a = d.judge.anchors.get(tid)
+        if isinstance(a, dict):
+            tasks += _TS.perturb(tid, a, seed=int(time.time()) // 86400, n=1)
+    n = _TS.admit(tasks, SUPPLY_PATH)
+    return {"generated": n, "why": "saturated", **sat}
+
+
 def _maybe_skip(prev_ok, item, skips):
     """★ R305 · monitor 接线（纯函数：有委托/上轮失败/连跳≥2 ⇒ 跑；否则跳过串）。
 
@@ -1094,6 +1162,12 @@ def main(argv) -> int:
                            verified=True)
         d.executor = exe
     d.runner.executor = d.executor
+    # ★ R453 · 供给队列接进来（L1/L2 的题在 var/task_queue.jsonl）
+    _SUPPLY_IDS = _supply_sync(d)
+    _RECENT_PASS.extend(_seed_recent(os.path.join(ROOT, "var",
+                                                  "dwc_prod_log.jsonl")))
+    if _SUPPLY_IDS:
+        print("供给队列：%d 道（与池子并列）" % len(_SUPPLY_IDS), flush=True)
 
     def _sig(signum, _frame):          # 优雅停: SIGINT/SIGTERM
         _log({"event": "agent_stopped", "by": "signal%d" % signum})
@@ -1159,7 +1233,8 @@ def main(argv) -> int:
         #   interval=90 时 5 分钟里 2 次跳过 + 2 个 term，选择态空转了
         #   2 格，冷却会在池子扫完前就到期（逃逸保证被削弱）。
         #   有源码序测试锁（test_r375::test_select_task_after_monitor_skip）。
-        task = select_task(prev)
+        # ★ R453 · 新题优先：供给队列的题排在池子前面 —— 它们才是新信号来源
+        task = select_task(prev, pool=tuple(_SUPPLY_IDS) + DEV_POOL)
         globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
@@ -1185,6 +1260,14 @@ def main(argv) -> int:
                        (rep.next_task_source or {}).get("tasks", [])]})
         _heartbeat(status="alive", terms=_day["terms"],
                    last_task=task, pass_rate=pr)
+        # ★ R453 · 饱和 ⇒ 造题（L1/L2，零 LLM）。队列变了就重新同步。
+        if pr is not None:
+            _RECENT_PASS.append(float(pr))
+            del _RECENT_PASS[:-30]
+            _sup = _maybe_supply(d, _RECENT_PASS)
+            if _sup.get("generated"):
+                _log({"event": "supply_generated", **_sup})
+                _SUPPLY_IDS = _supply_sync(d)
         if pr is not None and pr > best_pass:
             best_pass = pr
         triggered, collapse = collapse_triggered(
