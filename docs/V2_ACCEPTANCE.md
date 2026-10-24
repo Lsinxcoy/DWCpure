@@ -323,6 +323,34 @@ n_kept, n_compressed, falsified, before_chars, after_chars}`。
 | `E_VALUE:wrong_magnitude:fibonacci` | 2026-10-23 10:44 |
 | `E_VALUE:wrong_magnitude:average` | 2026-10-23 23:40 |
 
-实测一轮：两条规则前后两段均 `n_tasks=0 / mean_total=null` ——
-生产用量还没有带 tag 的行，因为**真身仍是旧码**（`set_tag` 是 R442 才加的）。
-通道已就位，等 agent 重启后开始积累。
+实测一轮：两条规则前后两段均 `n_tasks=0 / mean_total=null`。
+
+> **⚠ 这里先前写错过一次，已更正**：当时归因为"真身仍是旧码，重启就好"。
+> 重启后才发现真因 —— **生产 agent 根本不调 LLM**
+> （`dwc_agent.py:1027` `use_llm = "--llm" in argv`，启动台账 `use_llm:false`）。
+> 所以 R442 把 `set_tag` 接在 agent 路径上，等于接在一条死路上。
+> 见 §13.5。
+
+### 13.5 归因接到真实调用点（R450）
+
+重启 agent 后核到的三件事：
+
+| 发现 | 证据 |
+|---|---|
+| 生产 agent **不调 LLM** | `use_llm = "--llm" in argv`（`:1027`）；台账 `use_llm: false` |
+| 用量日志 **0 行带 tag** | `var/llm_usage.jsonl` 51 行，tag=0 / profile=0 |
+| 真正调 LLM 的是进化轮起草 | 51 行全部落在 04:00–04:54（cron evo job） |
+
+修法：把归因挪到**调用发生的地方**，而不是"以为会调的地方"。
+
+```
+cost.attribution(tag, profile)   # 上下文管理器，进出必还原（异常也还原）
+  └─ evolver.propose_from_cluster 包住 self.llm(prompt)
+       tag = 任务名 / profile = profile.choose(task).name
+```
+
+顺带修一处误导文案：`已学规则加载：0 条` → `已学规则：本次新增 0 条 / 内存中共 2 条`
+（幂等守卫让第二次调用返回 0，旧文案读起来像加载失败；实测 2 条规则都在内存里）。
+
+**教训（写进纪律）**：接线前先确认那条路**真的会被走**。
+"代码里有 set_tag" ≠ "生产会执行 set_tag"。
