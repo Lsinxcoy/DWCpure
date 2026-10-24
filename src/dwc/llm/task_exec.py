@@ -721,13 +721,22 @@ def _policy(component: str, key: str, default: Any) -> Any:
     try:
         from dwc.organs import evo_targets as ET
         p = ET.path_of(component)
+        # ★ R审计-P1 · 缓存失效信号 = **内容哈希**（彻底摆脱时间戳）:
+        #   Windows 上背靠背写入时 getmtime float 秒 / st_mtime_ns 都可能
+        #   完全相同（实测 21/50、19/50 失败）—— 时间戳粒度不可靠；
+        #   且 mtime+size 双键也挡不住同字节数改写（333→120 同 26 字节）。
+        #   策略文件极小（几百字节），每次读+hash 代价可忽略；
+        #   内容一变哈希即变 ⇒ 「产物变了下一轮生效」语义精确成立。
+        import hashlib as _hl
         try:
-            mt = os.path.getmtime(p)
+            with open(p, "rb") as _fh:
+                _raw = _fh.read()
         except OSError:
             return default
-        ck = component + "|" + str(mt)
+        ck = component + "|" + _hl.sha256(_raw).hexdigest()
         hit = _POLICY_CACHE.get(ck)
         if hit is None:
+            # 解析用 ET.read（同源口径，不复制判据）——读两次小文件可接受
             hit = ET.read(component)
             _POLICY_CACHE.clear()
             _POLICY_CACHE[ck] = hit
