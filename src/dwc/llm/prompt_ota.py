@@ -141,20 +141,24 @@ def _forced(name: str) -> str | None:
     """
     import json as _js
     import os as _os
+    import hashlib as _hl
     p = _force_path()
     try:
-        st = _os.stat(p)
+        raw = open(p, encoding="utf-8").read()
     except OSError:
         return None
-    if _FORCE.get("mtime") == st.st_mtime_ns:
+    # ★ R审计-P1 · 缓存失效信号 = 内容哈希（替代 st_mtime_ns）:
+    #   Windows 背靠背写入时 mtime_ns 可能完全相同（实测 35/100 撞车）
+    #   ⇒ 钉版本改了文件却不生效 = A/B 归因错。内容一变哈希即变。
+    ck = _hl.sha256(raw.encode("utf-8")).hexdigest()
+    if _FORCE.get("mtime") == ck:
         return (_FORCE.get("map") or {}).get(name)
     try:
-        raw = open(p, encoding="utf-8").read()
         m = _js.loads(raw)
         if not isinstance(m, dict):
             raise ValueError("force file 必须是 {name: ver}")
         _FORCE["map"] = {str(k): str(v) for k, v in m.items() if v}
-        _FORCE["mtime"] = st.st_mtime_ns
+        _FORCE["mtime"] = ck
     except Exception:
         note_miss()
         return None
