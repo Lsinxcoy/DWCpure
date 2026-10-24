@@ -423,11 +423,37 @@ class MemoryKernel:
         self._conn.commit()
         return self.get(node_id)
 
-    def record_effect(self, node_id: str) -> MemoryNode:
-        """记录"这条记忆改变过行为"。★ §三 修法 2 的判据。"""
+    def record_effect(self, node_id: str, source: str = "") -> MemoryNode:
+        """记录"这条记忆改变过行为"。★ §三 修法 2 的判据。
+
+        ★★★ R审计-P2 · 边界3 · source 参数（诚实标注来源）:
+          · "" / "explicit" — 调用方明确知道"这条记忆导致了行为改变"（最强）
+          · "inferred_by_step_success" — **推断**: 本 term 召回了这条历史记忆
+            且 term 判分通过 ⇒ 推断它参与了成功（不是因果证明）。
+          ★ 两者都计入 effect_count（maintain 第 2 层需要它），但 source
+            落进 node payload 的 `_effect_sources`，可审计、可撤回。
+        """
         self._conn.execute(
             "UPDATE memory_node SET effect_count=effect_count+1"
             " WHERE node_id=?", (node_id,))
+        if source:
+            # ★ 来源留痕（不改变 effect 语义，只让"推断的"可区分）
+            try:
+                _row = self._conn.execute(
+                    "SELECT payload FROM memory_node WHERE node_id=?",
+                    (node_id,)).fetchone()
+                if _row is not None:
+                    _pl = json.loads(_row["payload"] or "{}")
+                    _srcs = list(_pl.get("_effect_sources") or [])
+                    _srcs.append(source)
+                    _pl["_effect_sources"] = _srcs[-5:]   # 只留最近 5 条
+                    self._conn.execute(
+                        "UPDATE memory_node SET payload=? WHERE node_id=?",
+                        (json.dumps(_pl, ensure_ascii=False), node_id))
+            except (ValueError, sqlite3.Error) as exc:
+                # ★ G7: 来源留痕失败不静默（effect 本身已记，不丢账）
+                import sys as _sys
+                _sys.stderr.write("record_effect 来源留痕失败: %s\n" % exc)
         self._conn.commit()
         return self.get(node_id)
 

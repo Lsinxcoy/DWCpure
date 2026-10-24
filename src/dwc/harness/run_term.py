@@ -435,6 +435,9 @@ class TermRunner:
         self.judge = judge
         #: R126 · 执行体（None = 保持 R25 自造观测路径, 零破坏）
         self.executor = executor
+        #: ★ R审计-P2 · 边界3 · 本 term 召回过的**历史**记忆节点
+        #:   （非本步新写；term 判分通过 ⇒ 推断它们参与了成功 ⇒ effect+1）
+        self._term_hist: list[str] = []
         #: R60 · 环节⑥ 的任务源（可选注入，与 judge 同款纪律）——
         #: 没注入 ⇒ _next_task_source 不含世界树任务（不假装有）
         self.world_model = world_model
@@ -562,6 +565,7 @@ class TermRunner:
         cid = chain_id or ("CH_" + uuid.uuid4().hex[:10])
         tid = "T_" + uuid.uuid4().hex[:8]
         rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time())
+        self._term_hist = []          # ★ 边界3 · 本 term 历史召回清空
         self.cost.reset_term(task_id=task)   # T4: term 级 reset（R99: 传 task 标记新账）
 
         # ── 1. before 快照 ──
@@ -876,6 +880,11 @@ class TermRunner:
         hits = self.memory.recall_many(task, ["step_%d" % i], k=3)
         n_hits = len(hits)
         used = any(h.node_id == node for h in hits)
+        # ★ R审计-P2 · 边界3 · 累积**历史**召回（非本步新写）——
+        #   term 判分通过时给它们记 effect（推断来源，可审计）
+        for _h in hits:
+            if _h.node_id != node:
+                self._term_hist.append(_h.node_id)
 
         # ── 记忆写入是否真成功（零副作用检测: 读回校验）──
         ok = self.memory.get(node) is not None
@@ -982,6 +991,39 @@ class TermRunner:
             rep.judgement = verdict
             rep.score_delta = verdict.get("pass_rate")
             rep.evo_backfilled = self._backfill_failures(verdict)
+            # ★ R审计-P2 · 边界3 · effect 回写（保守: 历史召回 + term 成功）
+            #   ★ 语义: "本 term 召回了这些历史记忆，且 term 判分全过"
+            #     ⇒ **推断**它们参与了成功（不是因果证明）⇒ source 标注
+            #   ★ 对照台账: 召回组 vs 未召回组的成功率 —— 后续校准用
+            _pr3 = verdict.get("pass_rate")
+            _ok3 = (_pr3 == 1.0)
+            _hist3 = list(dict.fromkeys(self._term_hist))   # 去重保序
+            _n_eff3 = 0
+            if _ok3 and _hist3:
+                for _nid in _hist3:
+                    try:
+                        self.memory.record_effect(
+                            _nid, source="inferred_by_step_success")
+                        _n_eff3 += 1
+                    except Exception as exc:            # noqa: BLE001
+                        sys.stderr.write("effect 回写跳过 %s: %s\n"
+                                         % (_nid, exc))
+            try:
+                if self.db_path and self.db_path != ":memory:":
+                    _ab = os.path.join(
+                        os.path.dirname(os.path.abspath(self.db_path)),
+                        "effect_ablation.jsonl")
+                    with open(_ab, "a", encoding="utf-8") as _fh:
+                        _fh.write(json.dumps({
+                            "ts": time.time(), "term": rep.term_id,
+                            "task": str(task)[:120],
+                            "n_hist": len(self._term_hist),
+                            "n_hist_unique": len(_hist3),
+                            "success": _ok3, "pass_rate": _pr3,
+                            "n_effect": _n_eff3}, ensure_ascii=False) + "\n")
+            except OSError as exc:
+                # ★ G7: 对照台账写失败不许静默
+                sys.stderr.write("effect 对照台账写失败: %s\n" % exc)
             try:  # ★ R277 · verdict 落盘可观测（坏了留痕不阻断本轮）
                 _m0 = ""
                 for _d in ((verdict or {}).get("details") or []):
