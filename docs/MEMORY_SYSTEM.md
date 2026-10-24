@@ -366,3 +366,29 @@ Q3 淘汰三层判据 → ★ 甲（照用 §3 修法 3，三层顺序不可换�
   DWC 无实测支撑 ⇒ 返回值带 `params_status: initial_uncalibrated`。
 - **MMR λ=0.7**: 论文标准取值，同样标为初值；相似度用 2-gram Jaccard 近似。
 - **4-tier 不存列**: tier 由 kind 纯函数推导，避免与 WEIBULL_BY_KIND 冗余。
+
+### 7.4 边界解决方案（R审计-P2 后续 · 2026-10-24）
+
+| 边界 | 解法 | 状态 |
+|---|---|---|
+| 中文语义召回 | **三级兜底**: 路1 FTS/LIKE → 路1c 2-gram 计分 → 路1d LLM 查询扩展 | ✅ 已落地 |
+| effect_count 空 | run_term 保守接线（历史召回 + term 成功 ⇒ effect+1，source=inferred）；对照台账 `var/effect_ablation.jsonl` | ✅ 已落地 |
+| learn 参数校准 | `scripts/calibrate_learn.py` 网格搜索（判据 = importance 分档与 effect 命中率单调性） | ✅ 脚本就绪，**等数据**（门槛 30 条 effect） |
+
+**三级召回的分工（实测依据）**:
+```
+路1  FTS(trigram) / LIKE   → 连续子串（同任务完整文本、ASCII 标识符）
+路1c 中文 2-gram 计分      → 概括词 vs 原文不连续（"修复求和函数"→"修复 sum_first_n 函数"）
+路1d LLM 查询扩展          → 同义不同词（"计算总和" → ["sum", ...]）
+```
+- 1c 只在路1 空时跑（避免每步全表扫），库 >5000 条跳过并留痕
+- 1d 只在全空时调 LLM，8s 超时 + 24h 缓存，只用于查询不写记忆
+
+**effect 的诚实语义**: `inferred_by_step_success` 是**推断**不是因果证明
+（"召回了且 term 成功" ≠ "因为它才成功"）。对照台账记录每 term 的
+`n_hist / success / n_effect`，后续用召回组 vs 未召回组的成功率差异验证；
+无差异则撤回接线。
+
+**maintain 开归档的条件**: effect 样本 ≥10 条（<10 视为判据不可信，
+一律 held）。这是现场教训——effect 接线后只跑 1 个 term 就开归档会误伤
+86 条"还没来得及记 effect"的 trace。
