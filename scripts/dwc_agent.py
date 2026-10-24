@@ -580,6 +580,10 @@ def _run_with_deadline(fn, timeout_s: float, task_text: str):
                               "why": "任务体无返回"}
 
 
+#: ★ R审计-P2 · 参数进化驱动器实例（main() 赋值；inbox/term 两路判定共用）
+_PARAM_DRIVER = None
+
+
 def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
     from dwc.llm.task_exec import execute_user_task
@@ -669,6 +673,24 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     _log({"user_task": item["id"], "status": rep["status"],
           "rounds": rep.get("rounds"),
           "why": rep.get("why", "")[:120]})
+    # ★ R审计-P2 · 参数进化驱动判定（inbox 任务经 task_exec read ⇒ 信号已入窗口）
+    #   有压力 ⇒ 有界调参 + 台账；无压力/防抖内 ⇒ 跳过留痕（不打扰）。
+    if _PARAM_DRIVER is not None:
+        try:
+            _pd = _PARAM_DRIVER.run("context_mgmt")
+            if _pd.get("decision") == "adjusted":
+                _log({"event": "param_evolved",
+                      "component": _pd.get("component"),
+                      "key": _pd.get("key"),
+                      "before": _pd.get("before"),
+                      "after": _pd.get("after")})
+            elif _pd.get("decision") not in ("skipped_no_signal",):
+                _log({"event": "param_driver", **{k: _pd.get(k)
+                      for k in ("component", "key", "decision",
+                                "reason")}})
+        except Exception as _pde:      # noqa: BLE001 — 驱动坏不拦任务
+            _log({"event": "param_driver_error",
+                  "error": "%s: %s" % (type(_pde).__name__, _pde)})
     _feishu_notify("✅ DWC 任务完成（%s）\n%s" % (item["id"], rep.get("answer", "")[:400])
                    if rep["status"] == "done" else
                    "⚠️ DWC 任务未完成（%s）\n原因: %s" % (item["id"], rep.get("why", "")))
@@ -1091,12 +1113,13 @@ def main(argv) -> int:
     #   agent 进程挂）+ 每轮 term 后判一次参数压力（有据调参/台账三态）。
     try:
         from dwc.organs.evo_driver import EvoParamDriver as _ParamDrv
-        _param_drv = _ParamDrv()
+        global _PARAM_DRIVER
+        _PARAM_DRIVER = _ParamDrv()
         from dwc.llm import task_exec as _te
-        _te._OBS_SINK = _param_drv.observe_read
+        _te._OBS_SINK = _PARAM_DRIVER.observe_read
         print("参数进化驱动器已挂（信号: read 截断观测）", flush=True)
     except Exception as _pe:           # noqa: BLE001 — 驱动坏不拦 agent，留痕
-        _param_drv = None
+        _PARAM_DRIVER = None
         sys.stderr.write("参数进化驱动器挂载失败: %r\n" % (_pe,))
 
     def _sig(signum, _frame):          # 优雅停: SIGINT/SIGTERM
@@ -1178,9 +1201,9 @@ def main(argv) -> int:
                        (rep.next_task_source or {}).get("tasks", [])]})
         # ★ R审计-P2 · 参数进化驱动判定（term 内 read 截断观测已累积）
         #   有压力 ⇒ 有界调参 + 台账三态；无压力/防抖内 ⇒ 跳过留痕。
-        if _param_drv is not None:
+        if _PARAM_DRIVER is not None:
             try:
-                _pd = _param_drv.run("context_mgmt")
+                _pd = _PARAM_DRIVER.run("context_mgmt")
                 if _pd.get("decision") == "adjusted":
                     _log({"event": "param_evolved",
                           "component": _pd.get("component"),

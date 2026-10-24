@@ -57,6 +57,8 @@ READING = os.path.join(os.environ.get("DWC_VAR_DIR")
                        or os.path.join(ROOT, "var"), "dwc_reading_list.jsonl")
 _PAIRS_FAIL = 0   # ★ G7: 修订对落盘失败计数（不静默）
 PAIRS_PATH = ""   # ★ 测试隔离钩子（空=默认; conftest 设 env 时落到 tmp）
+#: ★ R审计-P2 · 参数进化信号通道（默认 None 零开销；agent 进程挂 driver 才收）
+_OBS_SINK = None
 
 
 def _ask_level(cmd_joined: str) -> str | None:
