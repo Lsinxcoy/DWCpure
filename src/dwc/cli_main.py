@@ -56,7 +56,15 @@ def _stop_agent() -> int:
         print("agent 未运行（无 pid 文件）")
         return 1
     try:
-        pid = int(json.load(open(pf, encoding="utf-8")).get("pid", 0))
+        # ★ R审计-P2 · pid 文件有两种历史形态: 纯数字 或 {"pid": N}
+        #   （现场: 纯数字时 json.load 返回 int ⇒ .get() AttributeError
+        #    ⇒ stop 静默失败 ⇒ 旧进程残留 + 新进程抢锁）
+        raw = open(pf, encoding="utf-8").read().strip()
+        try:
+            _j = json.loads(raw)
+            pid = int(_j.get("pid", 0)) if isinstance(_j, dict) else int(_j)
+        except (ValueError, TypeError):
+            pid = int(raw or 0)
     except (ValueError, OSError):
         pid = 0
     try:

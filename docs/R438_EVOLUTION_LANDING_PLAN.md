@@ -54,11 +54,15 @@
 - **产物注册表**：`src/dwc/organs/evo_targets.py`
   `TARGETS: Dict[str, TargetSpec]`，每项含
   `path / schema / read / merge / trial / rollback`。
-- **驱动器**：`src/dwc/organs/evo_driver.py`
-  `run_component_round(component, signals)`，与 `dwc_evo_round.py` 共用
-  `ProposalGate` + `Evolver.accept`。
+- **驱动器**：`src/dwc/organs/evo_driver.py` ✅ **已落地（R审计-P2）**
+  `EvoParamDriver.observe_read()` + `.run(component)`，与 `dwc_evo_round.py`
+  共用 `ET.apply`（原子写+备份+读回）+ 台账。诚实边界：**只接有真实产线
+  信号的参数**（当前 `context_mgmt.read_default_lines` ← read 截断观测）；
+  无信号的组件（client_tool/config/subagent）保持只读——不发明信号（G2）。
+  真实环境验收: read 截断率 100% → 200→250 → 消费者立即读到 250 → 24h 防抖。
 - **台账**：`var/evolution_ledger.jsonl`，每行
-  `{ts, component, key, decision, before_hash, after_hash, backup, trial}`。
+  `{ts, component, key, decision, before, after, backup, reason}`，
+  decision ∈ {adjusted, skipped_no_signal, skipped_cooldown, error}（G7 三态）。
 
 **为什么统一**：11 套独立轮子 = 11 套 bug + 11 种台账口径（R426 同族教训）。
 
