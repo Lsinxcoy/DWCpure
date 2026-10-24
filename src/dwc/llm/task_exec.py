@@ -2385,6 +2385,22 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                     _mark))
             prefix = "前情摘要（更早轮次已压缩; ✗证伪轮的结论不可用）: " \
                 + " → ".join(bits) + "\n"
+            # ★ R448 · 上下文决策留痕（只记计数与长度，不记正文）
+            #   现在只有一种形态（trigger=rounds / selector=all_older）；
+            #   记下来才有依据判断"换 selector 是否更好"。
+            try:
+                from dwc.llm import context_log as _clog
+                _clog.record(
+                    round=(int(recent[-1].get("round") or 0) if recent else 0),
+                    trigger="rounds", selector="all_older", reposition=False,
+                    n_kept=len(recent), n_compressed=len(older),
+                    falsified=sum(1 for e in older
+                                  if _okmap.get(e.get("round")) is False),
+                    before_chars=len(json.dumps(older, ensure_ascii=False)),
+                    after_chars=len(prefix))
+            except Exception as _ce:      # noqa: BLE001 — 留痕坏不掀任务
+                import sys as _s
+                _s.stderr.write("上下文留痕失败: %r\n" % (_ce,))
         prompt = ("任务: %s\n%s最近轮次: %s\n上一步动作观察(JSON): %s\n"
                   "请继续（下一步 op）"
                   % (task, prefix,
