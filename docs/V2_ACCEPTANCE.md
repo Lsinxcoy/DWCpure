@@ -248,10 +248,58 @@ Harness² 四条硬规则 → DWC：
 
 ## 12. 没做完的（明确记账，不装作完成）
 
+> **R447/R448 更新**：缺口 1（库复用）、缺口 3（档位归因）、缺口 4（上下文可观测）
+> 已在 R447–R448 补齐，见 §13。下表只剩真正没做完的。
+
 | 项 | 缺什么 | 为什么现在不做 |
 |---|---|---|
 | 候选级成本门 | 需要"用候选真跑任务"的测量通道 | trial 成本是评测开销；生产 A/B 跨天 |
-| 选档的收益验证 | 真实任务 A/B | 需日预算，当前红线禁多候选并行 |
-| 库的复用 | `select_family` 喂进 `propose` 上下文 | 另一轮的事；且 k=2 远不够 |
-| 上下文三元组 | trigger/selector/reposition 多形态 | DWC 压缩路径只有一条，没得选 |
+| 选档的收益验证 | 需要 ≥3 天带档位的生产用量 | 数据还没攒出来（归因已就位，等流量） |
+| 上下文三元组进化 | 需要 selector 的第二个形态 + 对照数据 | 先有了分布（R448）才知道该 A/B 哪两个 |
 | `cost_usd` | mcgrox 价目 | 不知道就不编，用 token 当代理 |
+
+---
+
+## 13. 缺口补齐（R447–R448）
+
+### 13.1 缺口1 · 库复用（R447）
+
+`library.hint_for(cue)` → `"\n[同族经验]\n- …"` → 拼进 `learned_hint` →
+流进 `propose_from_cluster` 的起草提示。
+
+| 纪律 | 实现 |
+|---|---|
+| **只注 lesson，绝不注 code** | `hint_for` 只读 `lesson` 字段（有测试锁死 `code` 不出现） |
+| 最多 3 条 / 每条 300 字 | `limit=3, max_chars=300` |
+| 防未来泄漏 | `before(rows, now)` |
+
+实测：`hint_for("E_VALUE:wrong_magnitude:average")` → 430 字、2 条；
+异族 cue → `""`。
+
+### 13.2 缺口3 · 档位归因（R447）
+
+`cost.set_profile()` / `record()` 写 `row["profile"]`；`by_profile()` 聚合。
+**不拼进 tag**（拼进去会毁掉按 task_id 的聚合）。
+
+报告字段：`cost_attribution.by_profile = {档位: {calls, tokens, n_tasks, mean_total}}`。
+当前 `{}` —— 还没有带档位的生产用量，如实为空。
+
+### 13.3 缺口4 · 上下文可观测（R448）
+
+`llm/context_log.py`：每次压缩写 `{round, trigger, selector, reposition,
+n_kept, n_compressed, falsified, before_chars, after_chars}`。
+只记计数与长度，**不记正文**。
+
+**实测压缩率（真实 4 轮任务）**：
+
+| round | before | after | 比例 |
+|---|---|---|---|
+| 3 | 758 | 70 | 9.2% |
+| 4 | 1536 | 91 | 5.9% |
+| 5 | 2345 | 172 | 7.3% |
+| 6 | 3221 | 275 | 8.5% |
+
+⇒ 前情摘要只剩原文的 **6–9%**（压缩 ~92%）。
+
+> 这个数把风险定位说清了：P0-0 已证明 DWC 没有缓存收益可失去，
+> 所以压缩的风险从来不是 token 成本，而是**信息损失**。现在它第一次被量化。
