@@ -1086,6 +1086,19 @@ def main(argv) -> int:
         d.executor = exe
     d.runner.executor = d.executor
 
+    # ★ R审计-P2 · 产物参数进化驱动器（R438-P1 补全）:
+    #   挂信号通道（task_exec read 截断观测，默认 None 零开销，只在
+    #   agent 进程挂）+ 每轮 term 后判一次参数压力（有据调参/台账三态）。
+    try:
+        from dwc.organs.evo_driver import EvoParamDriver as _ParamDrv
+        _param_drv = _ParamDrv()
+        from dwc.llm import task_exec as _te
+        _te._OBS_SINK = _param_drv.observe_read
+        print("参数进化驱动器已挂（信号: read 截断观测）", flush=True)
+    except Exception as _pe:           # noqa: BLE001 — 驱动坏不拦 agent，留痕
+        _param_drv = None
+        sys.stderr.write("参数进化驱动器挂载失败: %r\n" % (_pe,))
+
     def _sig(signum, _frame):          # 优雅停: SIGINT/SIGTERM
         _log({"event": "agent_stopped", "by": "signal%d" % signum})
         _stop["by"] = "signal"
@@ -1163,6 +1176,24 @@ def main(argv) -> int:
               "evo_feed": rep.evo_feed,
               "next": [t.get("kind") for t in
                        (rep.next_task_source or {}).get("tasks", [])]})
+        # ★ R审计-P2 · 参数进化驱动判定（term 内 read 截断观测已累积）
+        #   有压力 ⇒ 有界调参 + 台账三态；无压力/防抖内 ⇒ 跳过留痕。
+        if _param_drv is not None:
+            try:
+                _pd = _param_drv.run("context_mgmt")
+                if _pd.get("decision") == "adjusted":
+                    _log({"event": "param_evolved",
+                          "component": _pd.get("component"),
+                          "key": _pd.get("key"),
+                          "before": _pd.get("before"),
+                          "after": _pd.get("after")})
+                elif _pd.get("decision") not in ("skipped_no_signal",):
+                    _log({"event": "param_driver", **{k: _pd.get(k)
+                          for k in ("component", "key", "decision",
+                                    "reason")}})
+            except Exception as _pde:    # noqa: BLE001 — 驱动坏不拦主循环
+                _log({"event": "param_driver_error",
+                      "error": "%s: %s" % (type(_pde).__name__, _pde)})
         _heartbeat(status="alive", terms=_day["terms"],
                    last_task=task, pass_rate=pr)
         if pr is not None and pr > best_pass:

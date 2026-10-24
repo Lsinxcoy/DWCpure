@@ -1001,6 +1001,15 @@ def main() -> int:
             _ep.mark_consumed(_prop_path, _landed)
         print("consumed: %d/%d 簇已落地并标记"
               % (len(_landed), len(_clusters)))
+    # ★ R审计-P2 · 参数进化驱动（进化轮结束也判一次: trial 期间的
+    #   read 截断观测同样算压力信号；无信号/防抖内 ⇒ 台账跳过，不打扰）
+    try:
+        from dwc.organs.evo_driver import EvoParamDriver as _ParamDrvR
+        _pdr = _ParamDrvR()
+        print("param driver: %s" % json.dumps(
+            _pdr.run("context_mgmt"), ensure_ascii=False))
+    except Exception as _pe2:            # noqa: BLE001 — 驱动坏不拦轮次
+        print("param driver 未挂: %s" % (_pe2,))
     return 0
 
 

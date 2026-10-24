@@ -568,6 +568,17 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
             out["hint"] = ("文件共 %d 行, 本段只到第 %d 行 — 继续读后面: "
                            "同 path + offset=%d"
                            % (n, off + len(seg), off + len(seg)))
+        # ★ R审计-P2 · 参数进化信号通道（零侵入）: 可选的 _OBS_SINK 回调
+        #   （默认 None，dwc_evo_round/daemon 挂 EvoParamDriver.observe_read 才收）。
+        #   只透传 truncated/n_lines —— 信号真实、字段最小，不携带文件内容。
+        _sink = globals().get("_OBS_SINK")
+        if _sink is not None:
+            try:
+                _sink({"op": "read", "truncated": bool(truncated),
+                       "n_lines": int(n), "offset": int(off),
+                       "returned": len(seg)})
+            except Exception:                    # noqa: BLE001 — 信号坏不拦任务
+                pass
         return out
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
