@@ -337,8 +337,10 @@ class TermReport:
     measure4: Dict[str, Any] = field(default_factory=dict)
     #: ★ R152 · 门组链（V2 §5.4 六门三态; verdict=blocked ⇒ 不许落地）
     gate_chain: Dict[str, Any] = field(default_factory=dict)
-    #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
+    #: ★ R25: judge 的真实判定（未注入 judge 时为 None）
     judgement: Optional[Dict[str, Any]] = None
+    #: ★ R458 · 本轮写进记忆的 skill 节点（None = 没写）
+    skill_written: Optional[str] = None
     #: ★ judge 给的通过率（None = 未评价或未判）
     score_delta: Optional[float] = None
     #: ★ Phase 1.2 · 是否为自造观测（executor 未注入 ⇒ 合成, 不代表真实能力）
@@ -981,6 +983,21 @@ class TermRunner:
             rep.judgement = verdict
             rep.score_delta = verdict.get("pass_rate")
             rep.evo_backfilled = self._backfill_failures(verdict)
+            # ★ R458 · 判分通过 + 模型自述做法 ⇒ 写成 skill。
+            #   失败只留 failure_sig（错在哪）；成功若不记，记忆里永远只有
+            #   负样本，函数类题目的召回就一直是空的。
+            try:
+                _det = [d for d in (verdict.get("details") or [])
+                        if d.get("task_id") == rep.task]
+                _m = (obs.get(rep.task) or {}).get("★method") or ""
+                if _det and _det[0].get("success") is True and _m:
+                    from dwc.organs import skill_writer as _SW
+                    rep.skill_written = _SW.from_term(
+                        self.memory, rep.task,
+                        (self.judge.anchors.get(rep.task) or {}).get("prompt", ""),
+                        _m, passed=True)
+            except Exception as exc:                  # noqa: BLE001
+                sys.stderr.write("skill 写入跳过: %s\n" % exc)
             try:  # ★ R277 · verdict 落盘可观测（坏了留痕不阻断本轮）
                 _m0 = ""
                 for _d in ((verdict or {}).get("details") or []):
@@ -1112,6 +1129,9 @@ class TermRunner:
                         "error_code", "no_observed")}
                     continue
                 out[tid] = {"observed": det["observed"], "★_executed": True}
+                # ★ R458 · 模型自述的做法（判分通过后才会变成 skill）
+                if det.get("method"):
+                    out[tid]["★method"] = det["method"]
             return out
         # ── R25 自造路径（executor 未注入 ⇒ 原样行为）──
         out = {}

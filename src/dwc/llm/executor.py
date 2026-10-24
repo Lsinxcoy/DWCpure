@@ -108,6 +108,37 @@ def parse_llm_observed(raw: str, skeleton: Dict[str, List[List[Any]]]
     return None
 
 
+def parse_method(raw: str) -> str:
+    """★ R458 · 从同一份回复里抽 `_method`（模型自述的做法）。
+
+    没有 ⇒ 空串（不猜、不补）。这是**自述**，不是验证过的方法：
+    只有判分通过时才允许写进记忆，且 payload 标 `m_source=llm_self_report`。
+    """
+    if not raw or not raw.strip():
+        return ""
+    text = re.sub(r"```(?:json)?", "", raw.strip())
+    cands = [m.group(0) for m in re.finditer(r"\{[^{}]*\}", text)]
+    greedy = re.search(r"\{.*\}", text, re.S)
+    if greedy:
+        cands.append(greedy.group(0))
+    for blob in reversed(cands):
+        if not blob:
+            continue
+        parsed = None
+        for dec in (json.loads, ast.literal_eval):
+            try:
+                parsed = dec(blob)
+                break
+            except Exception:                  # noqa: BLE001 — 换下一个候选
+                continue
+        if not isinstance(parsed, dict):
+            continue
+        v = parsed.get("_method") or parsed.get("method")
+        if isinstance(v, str) and v.strip():
+            return v.strip()[:200]
+    return ""
+
+
 def _bigrams(s: str):
     """中文没有空格分词 ⇒ 用 2-gram 集合算重叠（对中英混排都成立）。"""
     t = "".join(ch for ch in (s or "") if not ch.isspace())
@@ -189,6 +220,9 @@ def build_observed_prompt(tid: str, skel: Dict[str, Any],
     会把 skeleton 原样抄回，None 不换值 ⇒ observed 残疾 ⇒ m 残疾）。
 
     三条硬指令: 只输出最终 JSON / 每个值必须是具体值 / 不许留 null。
+    ★ R458 · 加 `_method`：模型顺带说出"怎么算的"。成功时这条就是
+      skill 记忆的 method —— 否则 term 只产失败签名，永远学不到做法。
+      它是**自述**（m_source=llm_self_report），只在判分通过时才落库。
     """
     return (
         "任务 %s 的观测需要返回 observed, 形态如下（fn -> "
@@ -196,7 +230,9 @@ def build_observed_prompt(tid: str, skel: Dict[str, Any],
         "已知参考资料（skill 工件, 可能有用）:\n%s\n"
         "只输出最终 JSON 对象（只有 observed 的内容，不要解释，"
         "不要重复上面的形态示例）。每个 observed_value 都必须是"
-        "具体值 —— 不许留 null：不确定的填你认为最可能正确的值。"
+        "具体值 —— 不许留 null：不确定的填你认为最可能正确的值。\n"
+        "并在同一对象里加一个键 \"_method\"，值为一句话（≤80 字）"
+        "说明你是怎么得到这些值的（用了什么公式/步骤）。"
         % (tid, json.dumps(skel, ensure_ascii=False), mt or "（无）"))
 
 
@@ -260,5 +296,6 @@ class LLMExecutorFactory:
                     "error_code": "llm_parse_failed"})
             self.stats["n_parsed"] += 1
             return Receipt(ok=True, verified=True,
-                           detail={"observed": observed})
+                           detail={"observed": observed,
+                                   "method": parse_method(res.text)})
         return _exec

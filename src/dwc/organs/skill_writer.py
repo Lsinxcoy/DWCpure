@@ -164,6 +164,41 @@ def promote_pending(memory: Any, path: Optional[str] = None,
     return out
 
 
+#: 模型自述的做法：不是验证过的方法，只在判分通过时才落库
+_METHOD_SOURCE = "llm_self_report"
+
+
+def from_term(memory: Any, task: str, prompt: str, method: str,
+              passed: bool, quality: Optional[float] = None) -> Optional[str]:
+    """★ R458 · term 判分**通过** ⇒ 把模型自述的做法写成 SKILL。
+
+    为什么需要：term 失败只写 failure_sig（"错在哪"），成功却什么都不写
+    ⇒ 记忆里永远只有负样本，函数类题目召回恒空。
+
+    为什么只在通过时写：`method` 是模型自述（未验证）；只有它给出的答案
+    被判分器判为正确，这条"怎么做"才至少有**一次实证**背书。
+    payload 带 `m_source=llm_self_report` —— 读者能看出它不是人工核定的。
+    """
+    if not passed or not str(method or "").strip():
+        return None
+    scene = _clip(prompt or task, 400)
+    m = _clip(method, 800)
+    if len(scene) < 4 or len(m) < 4:
+        return None
+    payload = {
+        "scene": scene,
+        "method": m,
+        "boundary": "term_pass:%s" % _clip(task, 80),
+        "invalid_conditions": "任务不是「%s」时不适用" % scene[:60],
+        "recovery_strategies": _RECOVERY,
+        "src_key": src_key(scene, m),
+        "task_id": _clip(task, 80),
+        "m_source": _METHOD_SOURCE,
+        "quality": quality,
+    }
+    return memory.remember(MemoryKind.SKILL, payload)
+
+
 def skill_count(memory: Any) -> int:
     """生产核对用：库里 skill 节点数。"""
     try:

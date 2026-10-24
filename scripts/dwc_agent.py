@@ -1356,6 +1356,7 @@ def main(argv) -> int:
               "iron_block": ir.get("block"), "iron_warn": ir.get("warn"),
               "drift": (rep.drift or {}).get("gdi"),
               "synthetic": bool(getattr(rep, "synthetic", False)),
+              "skill": bool(getattr(rep, "skill_written", None)),
               "evo_feed": rep.evo_feed,
               "next": [t.get("kind") for t in
                        (rep.next_task_source or {}).get("tasks", [])]})
