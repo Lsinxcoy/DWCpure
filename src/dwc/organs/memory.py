@@ -875,8 +875,22 @@ class MemoryKernel:
           1) 从未召回 → **不处置**（可能是检索策略问题）
           2) 召回过但没改变行为 → 候选
           3) 稀有保护（唯一签名）→ **硬否决**
+
+        ★★★ R审计-P2 · 护栏（现场抓到的真风险）:
+          第 2 层依赖 effect_count>0，但 `record_effect` **零生产调用**
+          （inheritance.py 自陈"recall/record_effect 生产喂数未接线"）
+          ⇒ effect_count 全库为 0 ⇒ 判据把**所有被召回的节点**都判成
+            "召回过但零效果" ⇒ 误归档 79 条被使用的 trace（实测）。
+          ⇒★ 修法: effect 未喂数 ⇒ 第 2 层判据**不可用** ⇒ 一律 held
+            （不处置），并显式标注 effect_unfed（G7 不许静默）。
+          ⇒ 等 record_effect 真接线、effect_count 有真数据后，本护栏自动失效。
         """
         rows = self.eviction_candidates()
+        # ★ 护栏: 全库 effect 从未被记录 ⇒ 第 2 层不可用
+        _n_eff = self._conn.execute(
+            "SELECT COUNT(*) AS n FROM memory_node"
+            " WHERE effect_count > 0").fetchone()["n"]
+        _effect_unfed = (_n_eff == 0)
         held, archived, protected = [], [], []
         for r in rows:
             if r["rare_protected"]:
@@ -884,6 +898,10 @@ class MemoryKernel:
                 continue
             if r["access_count"] == 0:
                 held.append(r["node_id"])           # 第1层: 不处置
+                continue
+            if _effect_unfed:
+                # ★ 第2层判据不可用 ⇒ 不处置（宁可不淘汰，不许误伤）
+                held.append(r["node_id"])
                 continue
             archived.append(r["node_id"])           # 第2层: 归档
         for nid in archived:
@@ -896,9 +914,17 @@ class MemoryKernel:
             "protected_rare": protected,
             "n_held": len(held), "n_archived": len(archived),
             "n_protected": len(protected),
+            # ★ 诚实标注: effect 未喂数 ⇒ 归档层被护栏挡住
+            "effect_unfed": _effect_unfed,
+            "why_no_archive": ("effect_count 全库为 0（record_effect 未接线）"
+                               "⇒ 第2层判据不可用 ⇒ 不归档" if _effect_unfed
+                               else ""),
             # ★ 审计要点: held 占多数 ⇒ 那是检索策略的问题，不是记忆该删
-            "hint": ("held:%d archived:%d protected:%d —— held 占比高说明 "
-                     "recall 管要修，不是记忆该删"
+            "hint": (("held:%d archived:%d protected:%d"
+                      "（effect 未喂数 ⇒ 归档层未启用）"
+                      if _effect_unfed else
+                      "held:%d archived:%d protected:%d —— held 占比高说明 "
+                      "recall 管要修，不是记忆该删")
                      % (len(held), len(archived), len(protected))),
         }
 

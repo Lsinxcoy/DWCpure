@@ -473,7 +473,8 @@ def test_maintain_holds_never_recalled(mem):
     r = mem.maintain()
     assert r["n_held"] == 3 and r["n_archived"] == 0
     assert len(r["held_never_recalled"]) == 3
-    assert "recall 管要修" in r["hint"], "审计要点要指向检索而非记忆该删"
+    # ★ 审计要点必须指向"不是记忆该删"（effect 未喂数时提示语换成护栏说明）
+    assert ("recall 管要修" in r["hint"] or "effect 未喂数" in r["hint"])
 
 
 def test_maintain_protects_rare_signature(mem):

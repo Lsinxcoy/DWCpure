@@ -92,14 +92,37 @@ def test_maintain_protects_unique_signature(mem):
 
 
 def test_maintain_archives_used_no_effect(mem):
-    """★ maintain 第 2 层: 召回过但零效果 ⇒ 归档（非删除）。"""
+    """★ maintain 第 2 层: 召回过但零效果 ⇒ 归档（前提: effect 已喂数）。
+
+    ★ 现场教训: effect_count 全库为 0（record_effect 未接线）时，
+      护栏会把所有被召回的节点 held —— 所以本测试必须先喂一条 effect>0
+      证明 effect 机制在工作，否则测的是护栏不是第 2 层。
+    """
+    # 喂一条 effect>0（证明 effect 机制可用）
+    other = mem.remember(MemoryKind.TRACE, {"action": "step_1", "task": "t1"})
+    mem._conn.execute(
+        "UPDATE memory_node SET effect_count=1 WHERE node_id=?", (other,))
+    mem._conn.commit()
     nid = mem.remember(MemoryKind.TRACE, {"action": "step_0", "task": "t0"})
     # 召回一次（access+1, effect 仍 0）
     mem.recall_many("t0", ["step_0"], k=3)
     assert mem.get(nid).access_count > 0
     rep = mem.maintain()
+    assert rep["effect_unfed"] is False
     assert nid in rep["archived"]
     assert mem.get(nid).archived_at is not None      # 归档 ≠ 删除（行还在）
+
+
+def test_maintain_guard_when_effect_unfed(mem):
+    """★★ 护栏: effect 全库未喂数 ⇒ 不归档（宁可不淘汰，不许误伤）。"""
+    nid = mem.remember(MemoryKind.TRACE, {"action": "step_0", "task": "t0"})
+    mem.recall_many("t0", ["step_0"], k=3)     # access>0, effect=0
+    rep = mem.maintain()
+    assert rep["effect_unfed"] is True
+    assert rep["n_archived"] == 0
+    assert nid in rep["held_never_recalled"]
+    assert mem.get(nid).archived_at is None
+    assert "effect" in rep["why_no_archive"]
 
 
 def test_maybe_maintain_24h_debounce(tmp_path, monkeypatch):
