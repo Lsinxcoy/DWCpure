@@ -98,10 +98,12 @@ def test_maintain_archives_used_no_effect(mem):
       护栏会把所有被召回的节点 held —— 所以本测试必须先喂一条 effect>0
       证明 effect 机制在工作，否则测的是护栏不是第 2 层。
     """
-    # 喂一条 effect>0（证明 effect 机制可用）
-    other = mem.remember(MemoryKind.TRACE, {"action": "step_1", "task": "t1"})
-    mem._conn.execute(
-        "UPDATE memory_node SET effect_count=1 WHERE node_id=?", (other,))
+    # 喂 10 条 effect>0（越过样本门槛 <10 的护栏）
+    for _i in range(10):
+        _o = mem.remember(MemoryKind.TRACE,
+                          {"action": "x%d" % _i, "task": "t1"})
+        mem._conn.execute(
+            "UPDATE memory_node SET effect_count=1 WHERE node_id=?", (_o,))
     mem._conn.commit()
     nid = mem.remember(MemoryKind.TRACE, {"action": "step_0", "task": "t0"})
     # 召回一次（access+1, effect 仍 0）
@@ -166,3 +168,20 @@ def test_maybe_maintain_24h_debounce(tmp_path, monkeypatch):
     marker = tmp_path / "var" / "dwc_last_maintain.json"
     assert marker.exists()
     assert json.loads(marker.read_text(encoding="utf-8"))["rep"]["n_evaluated"] == 1
+
+def test_maintain_guard_when_effect_thin(mem):
+    """★★ 护栏: effect 样本 <10 ⇒ 归档层暂不启用（现场: 3 条就开归档会误伤）。"""
+    # 只喂 3 条 effect（<10）
+    for i in range(3):
+        n = mem.remember(MemoryKind.TRACE, {"action": "a%d" % i, "task": "t"})
+        mem._conn.execute(
+            "UPDATE memory_node SET effect_count=1 WHERE node_id=?", (n,))
+    mem._conn.commit()
+    # 再放一条 access>0 但 effect=0 的（本应归档，但样本不足 ⇒ held）
+    nid = mem.remember(MemoryKind.TRACE, {"action": "step_0", "task": "t0"})
+    mem.recall_many("t0", ["step_0"], k=3)
+    rep = mem.maintain()
+    assert rep["effect_thin"] is True
+    assert rep["n_effect_samples"] == 3
+    assert rep["n_archived"] == 0
+    assert nid in rep["held_never_recalled"]

@@ -131,3 +131,87 @@ def test_retention_only_weights_not_filters(mem):
     mem._conn.commit()
     hits = mem.recall_search("t0", ["step_0"], k=5)
     assert old in [h.node_id for h in hits]   # 仍在召回集合里
+
+def test_cjk_2gram_fallback(mem):
+    """★★ 边界1A · 中文 2-gram 兜底: 概括词召回不连续的原文。
+
+    "修复求和函数" 与 "修复 sum_first_n 函数对超大入参的处理" 不连续
+    ⇒ LIKE/trigram 都命中不了 ⇒ 2-gram 计分（命中"修复"+"函数"）兜底。
+    """
+    nid = mem.remember(MemoryKind.FAILURE_SIGNATURE, {
+        "c": "E_VALUE", "q": "wrong_magnitude", "m": "m",
+        "task": "code_fix_001",
+        "scene": "修复 sum_first_n 函数对超大入参的处理"})
+    hits = mem.recall_search("修复求和函数", None, k=5)
+    assert nid in [h.node_id for h in hits], "2-gram 兜底必须命中不连续的原文"
+
+
+def test_cjk_2gram_no_false_positive(mem):
+    """★ 2-gram 兜底不误报: 完全无关的查询仍返回空。"""
+    mem.remember(MemoryKind.FAILURE_SIGNATURE, {
+        "c": "E_VALUE", "q": "q", "m": "m", "task": "t",
+        "scene": "修复 sum_first_n 函数对超大入参的处理"})
+    hits = mem.recall_search("天气预报明天降雨概率", None, k=5)
+    assert hits == [], hits
+
+
+class _FakeLLM:
+    """假 LLMClient（configured + 返回固定扩展词）。"""
+
+    configured = True
+
+    def __init__(self, *a, **kw):
+        pass
+
+    def complete(self, prompt, **kw):
+        class _R:
+            ok = True
+            text = '["sum", "求和", "sum_first_n"]'
+        return _R()
+
+
+def test_llm_expand_fallback_hits(mem, monkeypatch):
+    """★★ 边界1B · LLM 扩展兜底: 同义不同词（"计算总和" → sum）能召回。"""
+    import dwc.llm.client as C
+    import dwc.organs.memory as M
+    monkeypatch.setattr(M, "_EXPAND_CACHE", {})
+    monkeypatch.setattr(C, "LLMClient", _FakeLLM)
+    nid = mem.remember(MemoryKind.FAILURE_SIGNATURE, {
+        "c": "E_VALUE", "q": "wrong_magnitude", "m": "m",
+        "task": "code_fix_001",
+        "scene": "修复 sum_first_n 函数对超大入参的处理"})
+    # "计算总和" 的 2-gram 在库里不存在 ⇒ 走到 LLM 扩展 ⇒ sum 命中
+    hits = mem.recall_search("计算总和", None, k=5)
+    assert nid in [h.node_id for h in hits], hits
+
+
+def test_llm_expand_cache(monkeypatch):
+    """★ 扩展结果缓存: 同查询 24h 内只调一次 LLM。"""
+    import dwc.llm.client as C
+    import dwc.organs.memory as M
+    calls = {"n": 0}
+
+    class _Counting(_FakeLLM):
+        def complete(self, prompt, **kw):
+            calls["n"] += 1
+            return super().complete(prompt, **kw)
+
+    monkeypatch.setattr(M, "_EXPAND_CACHE", {})
+    monkeypatch.setattr(C, "LLMClient", _Counting)
+    a = M._llm_expand("某个查询")
+    b = M._llm_expand("某个查询")
+    assert a == b and a
+    assert calls["n"] == 1
+
+
+def test_llm_expand_unconfigured_returns_empty(monkeypatch):
+    """★ 未配置 LLM ⇒ 返回空（不抛异常）。"""
+    import dwc.llm.client as C
+    import dwc.organs.memory as M
+
+    class _NoCfg(_FakeLLM):
+        configured = False
+
+    monkeypatch.setattr(M, "_EXPAND_CACHE", {})
+    monkeypatch.setattr(C, "LLMClient", _NoCfg)
+    assert M._llm_expand("x") == []

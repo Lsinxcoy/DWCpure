@@ -173,6 +173,55 @@ def tier_of(kind: MemoryKind) -> str:
     """记忆种类的 4-tier 语义档位（与 WEIBULL_BY_KIND 同源）。"""
     return _TIER_OF.get(kind, "semantic")
 
+
+#: ★ R审计-P2 · 边界1B · LLM 查询扩展缓存（进程级 — 同查询 24h 不重复调）
+_EXPAND_CACHE: dict[str, tuple[float, list[str]]] = {}
+_EXPAND_TTL = 86400.0
+#: 扩展调用超时（★ 生产 config/llm.json 是 120s ⇒ 必须显式压到 8s，
+#:   否则一次扩展会拖垮整个 term 循环）
+_EXPAND_TIMEOUT = 8.0
+
+
+def _llm_expand(scene: str) -> list[str]:
+    """★ 边界1B · LLM 查询扩展（召回全空时兜底）。
+
+    ★★★ 为什么需要: 中文 2-gram 能救"概括词 vs 原文不连续"，但救不了
+      **同义不同词**（"求和" vs "累加" / "sum"）。LLM 能把"求和"扩成
+      ["sum", "求和", "累加"] ⇒ 让 ASCII FTS 命中 sum_first_n。
+    ★ 诚实边界: LLM 可能编造不存在的标识符 —— 但只用于**查询**，
+      不写记忆 ⇒ 编错只是查不到，不污染库。
+    ★ 成本控制: 只在路1 全空时调用 + 24h 缓存 + 8s 超时。
+    """
+    now = time.time()
+    _hit = _EXPAND_CACHE.get(scene)
+    if _hit and now - _hit[0] < _EXPAND_TTL:
+        return list(_hit[1])
+    try:
+        from dwc.llm.client import LLMClient
+        llm = LLMClient(timeout=_EXPAND_TIMEOUT)
+        if not getattr(llm, "configured", False):
+            return []
+        res = llm.complete(
+            "把下面的中文任务描述拆成 3-8 个检索关键词（函数名/代码标识符/"
+            "错误类型/中文短语，尽量给出对应的英文标识符），只输出 JSON "
+            "数组，不要任何解释:\n" + scene[:300],
+            max_tokens=120)
+        if not res.ok:
+            return []
+        _m = re.search(r"\[.*\]", res.text or "", re.S)
+        if not _m:
+            return []
+        _arr = json.loads(_m.group(0))
+        words = [str(x).strip() for x in _arr if str(x).strip()][:8]
+        if words:
+            _EXPAND_CACHE[scene] = (now, words)
+        return words
+    except Exception as exc:        # noqa: BLE001 — 扩展失败只是少一路
+        import sys as _sys
+        _sys.stderr.write("LLM 查询扩展失败（跳过）: %s: %s\n"
+                          % (type(exc).__name__, exc))
+        return []
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memory_node (
     node_id      TEXT PRIMARY KEY,
@@ -603,6 +652,64 @@ class MemoryKernel:
                 if _r["node_id"] not in route1:
                     route1.append(_r["node_id"])
 
+        # ── 路1c · 中文 2-gram 计分（**兜底**: 仅当路1 空时）──
+        # ★★★ 现场: "修复求和函数" vs 原文"修复 sum_first_n 函数" ——
+        #   中间隔了标识符 ⇒ 不连续 ⇒ LIKE 命中不了、trigram 也要求连续。
+        #   拆成 2-gram 计分: 命中"修复"+"函数" ≥2 个 ⇒ 算相关（bm25 式计分）。
+        #   ★ 只在 route1 空时跑（避免每步 term 都全表扫）;
+        #   ★ 库 >5000 条时跳过并留痕（G7: 降级不许静默）。
+        if (not route1 and scene_norm and _CJK.search(scene_norm)
+                and len(scene_norm) >= 2):
+            _grams = [scene_norm[i:i + 2]
+                      for i in range(len(scene_norm) - 1)]
+            _total = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM memory_node"
+                " WHERE archived_at IS NULL").fetchone()["n"]
+            if _grams and _total <= 5000:
+                _rows = self._conn.execute(
+                    "SELECT node_id, payload FROM memory_node"
+                    " WHERE archived_at IS NULL").fetchall()
+                _scored = []
+                for _r in _rows:
+                    _blob = _r["payload"] or ""
+                    _n = sum(1 for _g in _grams if _g in _blob)
+                    if _n >= 2:
+                        _scored.append((_n, _r["node_id"]))
+                _scored.sort(reverse=True)
+                route1 = [_nid for _, _nid in _scored[:200]]
+            elif _grams:
+                import sys as _sys
+                _sys.stderr.write(
+                    "2-gram 兜底跳过: 库 %d 条 > 5000（性能护栏）\n" % _total)
+
+        # ── 路1d · LLM 查询扩展兜底（路1 仍空 + 中文）──
+        #   ★ 只在全空时调 LLM（8s 超时 + 24h 缓存）；不写记忆 ⇒ 编错不污染
+        if not route1 and scene_norm and _CJK.search(scene_norm):
+            for _w in _llm_expand(scene_norm):
+                if _CJK.search(_w) or len(_w) < 3:
+                    _rows = self._conn.execute(
+                        "SELECT node_id FROM memory_node"
+                        " WHERE payload LIKE ? AND archived_at IS NULL"
+                        " LIMIT 100", ("%" + _w + "%",)).fetchall()
+                    for _r in _rows:
+                        if _r["node_id"] not in route1:
+                            route1.append(_r["node_id"])
+                else:
+                    try:
+                        _rows = self._conn.execute(
+                            "SELECT m.node_id FROM memory_fts f"
+                            " JOIN memory_node m ON m.rowid = f.rowid"
+                            " WHERE memory_fts MATCH ?"
+                            " AND m.archived_at IS NULL LIMIT 100",
+                            ('"%s"' % _w.replace('"', '""'),)).fetchall()
+                        for _r in _rows:
+                            if _r["node_id"] not in route1:
+                                route1.append(_r["node_id"])
+                    except sqlite3.OperationalError as exc:
+                        import sys as _sys
+                        _sys.stderr.write("扩展词 FTS 失败 %r: %s\n"
+                                          % (_w, exc))
+
         # ── 路2 · 同机制/同因果角色的失败签名 ──
         route2 = [n.node_id for n in pool.values()
                   if n.kind is MemoryKind.FAILURE_SIGNATURE
@@ -912,11 +1019,16 @@ class MemoryKernel:
           ⇒ 等 record_effect 真接线、effect_count 有真数据后，本护栏自动失效。
         """
         rows = self.eviction_candidates()
-        # ★ 护栏: 全库 effect 从未被记录 ⇒ 第 2 层不可用
+        # ★ 护栏: effect 从未记录 ⇒ 第 2 层不可用；样本过少 ⇒ 同样不可用
+        #   ★ 为什么加"样本过少"档（现场教训）: effect 接线后只跑 1 个 term
+        #     就有 3 条 effect>0 ⇒ 若此时开归档，86 条"还没来得及记 effect"的
+        #     trace 会被误判为零效果。⇒ 至少 10 条 effect 样本才可信。
         _n_eff = self._conn.execute(
             "SELECT COUNT(*) AS n FROM memory_node"
             " WHERE effect_count > 0").fetchone()["n"]
         _effect_unfed = (_n_eff == 0)
+        _effect_thin = (0 < _n_eff < 10)
+        _no_archive = _effect_unfed or _effect_thin
         held, archived, protected = [], [], []
         for r in rows:
             if r["rare_protected"]:
@@ -925,8 +1037,8 @@ class MemoryKernel:
             if r["access_count"] == 0:
                 held.append(r["node_id"])           # 第1层: 不处置
                 continue
-            if _effect_unfed:
-                # ★ 第2层判据不可用 ⇒ 不处置（宁可不淘汰，不许误伤）
+            if _no_archive:
+                # ★ 第2层判据不可用/样本不足 ⇒ 不处置（宁可不淘汰，不许误伤）
                 held.append(r["node_id"])
                 continue
             archived.append(r["node_id"])           # 第2层: 归档
@@ -940,18 +1052,26 @@ class MemoryKernel:
             "protected_rare": protected,
             "n_held": len(held), "n_archived": len(archived),
             "n_protected": len(protected),
-            # ★ 诚实标注: effect 未喂数 ⇒ 归档层被护栏挡住
+            # ★ 诚实标注: effect 未喂数/样本不足 ⇒ 归档层被护栏挡住
             "effect_unfed": _effect_unfed,
+            "effect_thin": _effect_thin,
+            "n_effect_samples": _n_eff,
             "why_no_archive": ("effect_count 全库为 0（record_effect 未接线）"
                                "⇒ 第2层判据不可用 ⇒ 不归档" if _effect_unfed
-                               else ""),
+                               else ("effect 样本仅 %d 条 < 10 ⇒ 判据不可信"
+                                     " ⇒ 不归档" % _n_eff if _effect_thin
+                                     else "")),
             # ★ 审计要点: held 占多数 ⇒ 那是检索策略的问题，不是记忆该删
             "hint": (("held:%d archived:%d protected:%d"
                       "（effect 未喂数 ⇒ 归档层未启用）"
                       if _effect_unfed else
-                      "held:%d archived:%d protected:%d —— held 占比高说明 "
-                      "recall 管要修，不是记忆该删")
-                     % (len(held), len(archived), len(protected))),
+                      ("held:%d archived:%d protected:%d"
+                       "（effect 样本 %d < 10 ⇒ 归档层暂不启用）"
+                       if _effect_thin else
+                       "held:%d archived:%d protected:%d —— held 占比高说明 "
+                       "recall 管要修，不是记忆该删"))
+                     % ((len(held), len(archived), len(protected))
+                        + ((_n_eff,) if _effect_thin else ()))),
         }
 
     # ══════════════════════════════════════════════
