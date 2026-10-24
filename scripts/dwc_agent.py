@@ -1122,6 +1122,17 @@ def main(argv) -> int:
             _day.update(key=time.strftime("%Y-%m-%d"), terms=0, cost=0.0)
         # ★ R266C · 进化投单（每轮开头: 未派发论文 → 深读任务候选）
         maybe_dispatch_reading()
+        # ★ R451 · 规则热加载：盘上变了就重读（一次 stat，零 LLM 成本）。
+        #   为什么必须在 tick 里做：落地发生在**另一个进程**（04:00 cron），
+        #   而本进程只在 import/启动时加载一次 ⇒ 不重载就永远用旧规则，
+        #   落地等于没落（RSI 回路最后一米）。
+        try:
+            from dwc.organs.evolver import Mutator as _MuReload
+            _n_new = _MuReload.reload_if_changed()
+            if _n_new:
+                _log({"event": "rules_reloaded", "n_new": _n_new})
+        except Exception as _re:      # noqa: BLE001 — 热加载坏不掀 tick
+            _log({"event": "rules_reload_error", "error": repr(_re)})
         # ── R209 · 收件箱已由 start_inbox_poller 独立消费（R382）──
         #   主循环不再同步取单（否则与轮询线程抢单）。
         item = None

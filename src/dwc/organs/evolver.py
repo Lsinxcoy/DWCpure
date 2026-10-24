@@ -1961,6 +1961,32 @@ class Mutator:
         cls._loaded = True
         return cls.load_learned()
 
+    #: ★ R451 · 上次看到的 rules.json mtime（热加载判据；None=还没看过）
+    _mtime_seen = None
+
+    @classmethod
+    def reload_if_changed(cls) -> int:
+        """★ R451 · 盘上变了才重读，返回**新增**键数。
+
+        为什么需要：`Mutator` 只在 **import 时**加载一次（本模块末尾
+        `_MUTATOR_LOADED_AT_IMPORT`），而落地发生在另一个进程（04:00 cron）
+        ⇒ 落了等于没落，直到重启。这是 RSI 回路最后一米。
+
+        ★ 没变 ⇒ 0，只做一次 stat（每 tick 都调，必须便宜）。
+        ★ 变了但没新键 ⇒ 0 —— 规则只增不改，改内容不算新增，
+          谎报"加载了 N 条"会让日志失真。
+        ★ 文件坏 ⇒ 0 不抛，且把 mtime 记为已看过，避免每 tick 刷日志。
+        """
+        try:
+            _m = os.path.getmtime(cls.LEARNED_PATH)
+        except OSError:
+            return 0
+        if cls._mtime_seen == _m:
+            return 0
+        cls._mtime_seen = _m
+        cls._loaded = False
+        return cls.load_learned()
+
     @classmethod
     def reload_learned(cls) -> int:
         """★ R438 · 强制与盘对齐（只补缺失键；已有键不覆盖）。"""
