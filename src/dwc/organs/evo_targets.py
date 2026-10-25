@@ -46,10 +46,18 @@ def _p(rel: str) -> str:
 SPECS: dict[str, dict[str, Any]] = {
     "context_mgmt": {
         "path": "config/context_policy.json",
-        "consumer": "dwc.llm.task_exec（read 默认行数 / search 默认条数）",
-        "defaults": {"read_default_lines": 200, "search_limit": 60},
+        "consumer": "dwc.llm.task_exec（read 默认行数 / search 默认条数 / 三段工具预算）",
+        "defaults": {"read_default_lines": 200, "search_limit": 60,
+                     "budget_economy_after": 6, "budget_strict_after": 10,
+                     "budget_finalize_after": 15,
+                     "budget_reminder_every": 3},
         "schema": {"read_default_lines": (int, 20, 2000),
-                   "search_limit": (int, 10, 500)},
+                   "search_limit": (int, 10, 500),
+                   # ★ R441 · 三段工具预算（economy / strict / finalize）
+                   "budget_economy_after": (int, 2, 200),
+                   "budget_strict_after": (int, 2, 400),
+                   "budget_finalize_after": (int, 2, 400),
+                   "budget_reminder_every": (int, 1, 50)},
     },
     "client_tool": {
         "path": "config/tools_extra.json",

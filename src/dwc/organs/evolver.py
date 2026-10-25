@@ -1966,6 +1966,32 @@ class Mutator:
         cls._loaded = True
         return cls.load_learned()
 
+    #: ★ R451 · 上次看到的 rules.json mtime（热加载判据；None=还没看过）
+    _mtime_seen = None
+
+    @classmethod
+    def reload_if_changed(cls) -> int:
+        """★ R451 · 盘上变了才重读，返回**新增**键数。
+
+        为什么需要：`Mutator` 只在 **import 时**加载一次（本模块末尾
+        `_MUTATOR_LOADED_AT_IMPORT`），而落地发生在另一个进程（04:00 cron）
+        ⇒ 落了等于没落，直到重启。这是 RSI 回路最后一米。
+
+        ★ 没变 ⇒ 0，只做一次 stat（每 tick 都调，必须便宜）。
+        ★ 变了但没新键 ⇒ 0 —— 规则只增不改，改内容不算新增，
+          谎报"加载了 N 条"会让日志失真。
+        ★ 文件坏 ⇒ 0 不抛，且把 mtime 记为已看过，避免每 tick 刷日志。
+        """
+        try:
+            _m = os.path.getmtime(cls.LEARNED_PATH)
+        except OSError:
+            return 0
+        if cls._mtime_seen == _m:
+            return 0
+        cls._mtime_seen = _m
+        cls._loaded = False
+        return cls.load_learned()
+
     @classmethod
     def reload_learned(cls) -> int:
         """★ R438 · 强制与盘对齐（只补缺失键；已有键不覆盖）。"""
@@ -2290,9 +2316,15 @@ class LLMMutator:
                            task_id=str(s0.get("task", "")))
         prompt = self._prompt(sigs, context, want_code=want_code,
                               learned_hint=learned_hint)
+        # ★ R450 · 成本归因：生产里唯一真正调 LLM 的就是这里（agent 默认 --llm 关）。
+        from dwc.llm import cost as _cost
+        from dwc.llm import profile as _profile
+        _ctag = str(s0.get("task") or s0.get("fn") or "evo")
+        _cprof = _profile.choose(_ctag).name
         reasons: list[str] = []
         for _ in range(max(1, max_attempts)):
-            text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
+            with _cost.attribution(tag=_ctag, profile=_cprof):
+                text = self.llm(prompt)  # ★ 抛异常 ⇒ 上抛（大声）
             if not isinstance(text, str):
                 text = str(text)
             entry = self._extract(text)
@@ -2652,6 +2684,9 @@ class Evolver:
             "m": _sig.get("m", ""),
             "m_source": _sig.get("m_source", "rule"),
             "patch": p.patch, "rationale": p.rationale,
+            # ★ R449 · 激活时刻（成本轴的分段依据）。缺了它就永远只能
+            #   报 "no_activation_time" —— 不许拿 mtime 顶替。
+            "activated_at": time.time(),
             # ★ R438 · code 维度：学到并通过试跑的实现**随规则一起落盘**，
             #   下次同签名再出现时 propose 直接把它当起点（改前 p.code
             #   试跑完就丢，同一任务每次都从零起草）。

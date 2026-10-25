@@ -92,20 +92,26 @@ def _attempt_meta(meta: dict[str, Any], *, call_id: str, parent_call_id: str | N
         transport = "fallback"
     transport_repaired = transport_repaired or transport == "fallback"
     meta = dict(meta)
-    meta.update({"usage": usage if isinstance(usage, dict) else None,
-                 "usage_status": status, "call_id": call_id,
+    if isinstance(usage, dict):
+        meta["usage"] = usage
+    else:
+        meta.pop("usage", None)
+    meta.update({"usage_status": status, "call_id": call_id,
                  "attempt_index": attempt_index})
     _observe({"kind": "llm_attempt", "call_id": call_id,
               "parent_call_id": parent_call_id, "attempt_index": attempt_index,
               "transport": transport, "finish_reason": finish_reason, "ok": ok,
               "model_requested": model_requested, "model_reported": model_reported,
-              "usage": meta["usage"], "usage_status": status,
+              "usage": usage if isinstance(usage, dict) else None,
+              "usage_status": status,
               "http_code": http_code, "error_kind": error_kind,
               "interface": {"raw_tool_calls": raw_tool_calls,
                             "transport_repaired": transport_repaired,
                             "protocol_error": protocol_error}})
     return meta
 
+
+from . import cost
 
 #: ★ 配置来源（优先级从高到低）: 环境变量 → config/llm.json
 #:   ★★ 为什么不去读宿主（Hermes）的配置:
@@ -346,6 +352,28 @@ class LLMClient:
         self.n_ok = 0
         self.n_fail = 0
         self.n_retries = 0
+        #: ★ R439 · 价目表（只读一次；文件缺失 ⇒ {} ⇒ cost_usd=None）
+        #:   不在每次调用时读盘：LLM 调用已经是瓶颈，不再加 I/O。
+        self._pricing: Dict[str, Any] = cost.load_pricing()
+
+    # ── token 记账（R439 · P0-a）───────────────────────────
+
+    def _attach_usage(self, meta: Dict[str, Any],
+                      data: Any = None) -> Dict[str, Any]:
+        """把 usage 记进 meta 并落盘（旁路，失败不影响调用）。
+
+        ★ 没有 usage ⇒ meta 里**不出现** usage 键（不是 0）。
+        ★ 未知模型 ⇒ 有 usage 但没有 cost_usd。
+        """
+        u = cost.from_response(data) if data is not None else None
+        if u is None:
+            return meta
+        meta["usage"] = u.as_dict()
+        c = cost.cost_usd(self._model, u, self._pricing)
+        if c is not None:
+            meta["cost_usd"] = c
+        cost.record(self._model, u, c)
+        return meta
 
     # ── 凭证护栏（纪律①）─────────────────────────────────
 
@@ -404,6 +432,7 @@ class LLMClient:
                  images: list[str] | None = None,
                  tools: list[dict] | None = None,
                  tool_choice: str | None = None,
+                 reasoning_effort: str | None = None,
                  _retry: bool = False,
                  _parent_call_id: str | None = None,
                  _call_id: str | None = None,
@@ -462,8 +491,11 @@ class LLMClient:
             if tool_choice:
                 body["tool_choice"] = tool_choice
         # ★ R377 · 推理强度（配了才发；未配不猜端点支持什么）
-        if getattr(self, "reasoning_effort", ""):
-            body["reasoning_effort"] = self.reasoning_effort
+        # ★ R444 · 按调用覆盖（profile 路由用）；不传则用实例值，行为不变
+        _re = (str(reasoning_effort).strip() if reasoning_effort is not None
+               else getattr(self, "reasoning_effort", ""))
+        if _re:
+            body["reasoning_effort"] = _re
 
         self.n_calls += 1
         import uuid as _uuid
@@ -605,6 +637,7 @@ class LLMClient:
                     model_reported=data.get("model"), usage=data.get("usage"),
                     finish_reason=finish, http_code=200,
                     raw_tool_calls=len(_tool_calls))
+                meta = self._attach_usage(meta, data)
                 return LLMResult(ok=True, text="", source="llm", meta=meta)
             self.n_fail += 1
             if isinstance(rc, str) and rc.strip():
@@ -640,6 +673,7 @@ class LLMClient:
             transport="complete", ok=True, model_requested=self._model,
             model_reported=data.get("model"), usage=data.get("usage"),
             finish_reason=finish, http_code=200)
+        meta = self._attach_usage(meta, data)
         return LLMResult(ok=True, text=text, source="llm", meta=meta)
 
     def complete_stream(self, prompt: str, *, system=None,

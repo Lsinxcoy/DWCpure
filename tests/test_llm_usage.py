@@ -53,7 +53,8 @@ def isolated(monkeypatch):
 def test_complete_records_real_usage_and_returned_model(monkeypatch, isolated):
     monkeypatch.setattr(C.urllib.request, "urlopen", lambda *a, **k: Resp(body()))
     result = client().complete("private prompt")
-    assert result.ok and result.meta["usage"] == body()["usage"]
+    assert result.ok and result.meta["usage"] == {
+        "prompt_tokens": 3, "completion_tokens": 2, "cached_tokens": 0}
     assert result.meta["usage_status"] == "reported"
     assert result.meta["call_id"] == isolated[0]["call_id"]
     assert result.meta["attempt_index"] == 0
@@ -83,8 +84,12 @@ def test_every_complete_outcome_emits_once(monkeypatch, isolated, payload, ok, k
     event = isolated[0]
     assert event["error_kind"] == kind
     assert event["interface"]["raw_tool_calls"] == tools
-    for key in ("usage", "usage_status", "call_id", "attempt_index"):
+    for key in ("usage_status", "call_id", "attempt_index"):
         assert key in result.meta
+    if event["usage_status"] == "reported":
+        assert "usage" in result.meta
+    else:
+        assert "usage" not in result.meta
 
 
 def test_retry_attempts_share_call_id_and_emit_failures(monkeypatch, isolated):

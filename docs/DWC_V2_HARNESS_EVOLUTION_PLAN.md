@@ -1,0 +1,606 @@
+# DWC v2.0 · 成本感知的 Harness 自进化 —— 版本开发计划
+
+> **状态**：规划中（等论文池攒够后统一开工）
+> **上游**：R438 十九项落地（v1 完成"能不能自进化"）
+> **本版本要回答**：**进化得值不值**
+> **首个来源论文**：HarnessPro（arXiv 2610.26770）· 详见 `docs/HARNESSPRO_DEEP_REPORT.html`
+
+---
+
+## 0. 一句话
+
+v1 让 DWC 学会了自己改自己；v2 要让 DWC 学会**算账**——把「每次任务花多少钱」变成与「通过率」并列的一等目标，从而在**不掉分**的前提下持续降本。
+
+---
+
+## 1. 版本边界
+
+### 1.1 做
+
+| # | 能力 | 一句话验收 |
+|---|---|---|
+| V2-1 | 成本可观测 | 每一次 LLM 调用都有 token 记账，可按任务/按轮汇总出美元成本 |
+| V2-2 | 输出可回溯 | 工具输出截断后，原文落盘且模型可按路径定向回读 |
+| V2-3 | 预算可约束 | 每任务有 economy→strict→finalize 三段预算，finalize 后硬阻断 |
+| V2-4 | 双目标进化 | fitness 同时含 pass_rate 与 cost，任一退化即 reject |
+| V2-5 | 按任务选档 | 按任务特征选 profile（推理力度 + 预算档），而非全局一个值 |
+| V2-6 | 三档产物 | 一轮进化产出 lite / medium / heavy 三套可切换策略 |
+
+### 1.2 不做（红线）
+
+| 不做 | 理由 |
+|---|---|
+| label-free（放弃 ground truth） | DWC 有真实评测池（池 A 53/54 = 98.1%），主动放弃真值是倒退 |
+| 多候选并行（3 计划 × G=3 rollout） | 一轮 90 次调用会吃光日预算（96/80） |
+| 全 harness 重写 | 19 个对象已按维度隔离，全放开会破坏结构完整性 |
+| CoP 当唯一 fitness | 成功数为 0 时发散；DWC 失败样本少，噪声爆炸 |
+| 引入新的重型依赖 | 预算/压缩/路由全部用 stdlib + 现有依赖实现 |
+
+---
+
+## 2. 全局约束（继承 R438，全部生效）
+
+1. **配置必填无默认**：新开关不许 `get(..., False)` 兜底，缺键即报错。
+2. **开关变更同轮改测试留痕**：改一个开关，必须同轮补/改测试。
+3. **降级与成功必须可区分**：无 usage 就记 `None`，不许猜、不许记 0。
+4. **基础设施故障与模型失败必须可区分**：502/超时不进成本分母，但要单独记。
+5. **生产数据文件容忍坏行 + 原子写入**。
+6. **测试不许污染生产状态**：pid/state/ledger 一律"读旧→写→finally 还原"。
+7. **不许写恒真放水断言**（`... or True`）；`tests/test_no_watering.py` 会抓。
+8. **注释即语料**：`src/` `scripts/` `docs/` `tests/` 里不许出现不存在的文件名/标识符。
+9. **同一件事两种写法必须有归一化入口**；同一份规则不许写两遍。
+10. **改文件后行为没变 ⇒ 先查 `__pycache__` 与 kernel 持久化**。
+11. **单轮全池不可引用**，对外只报两轮均值 + 极差。
+12. **落地定义四项**：有产物文件 + 有消费者读它 + 有试验能判好坏 + 能回滚。
+
+### 2.1 本版本新增约束
+
+13. **成本必须可归因**：每笔成本要能回答"哪个任务、哪一轮、哪个环节"。
+14. **截断不许丢信息**：任何截断都必须留下可回读的原文路径。
+15. **预算提醒不许改前缀**：只允许追加到 tool result，不许重写 system prompt（否则 cache 失效，越省越贵）。
+16. **成本不进分母**：失败/超时任务的成本单独统计，不与成功任务混算均值。
+
+---
+
+## 3. 阶段划分
+
+```
+P0-a 成本记账 ──┐
+                ├─→ P1-b 双目标 fitness ─→ P1-c 对比探针 ─→ P2 任务选档 ─→ P3 三档 Pareto ─→ P4 改进库
+P0-b 输出可回溯 ─┘         ↑
+                    P1-a 三段预算
+```
+
+依赖关系：**P0-a 是一切的前提**（没有成本数据，P1-b/P2/P3 都无从比较）；P1-a 与 P1-b 可并行，但 P1-b 的验收依赖 P1-a 的成本数据；**P1-c 必须先纠正"继承式起草"**（见 §4 P1-c），否则 P4 的库没有意义。
+
+---
+
+## 4. 阶段详规
+
+### P0-a · 成本记账（R439）
+
+**目标**：让每一次 LLM 调用都留下 token 与美元成本。
+
+**Files**
+- Modify: `src/dwc/llm/client.py`（`LLMResult` 已有 `meta` 字段，直接复用）
+- Create: `src/dwc/llm/cost.py`（价目表 + 折算）
+- Modify: `src/dwc/llm/task_exec.py`（把 usage 写进任务结果）
+- Create: `tests/test_r439_cost.py`
+- Modify: `config/llm.json`（新增 `pricing` 段，**必填**）
+
+**接口**
+
+```python
+# src/dwc/llm/cost.py
+@dataclass(frozen=True)
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+    cached_tokens: int = 0
+
+def parse_usage(data: dict) -> Optional[Usage]:
+    """从 API 响应解析 usage。缺失/畸形 ⇒ None（不许猜 0）。"""
+
+def cost_usd(model: str, u: Usage, pricing: dict) -> Optional[float]:
+    """按价目折算。model 不在价目表 ⇒ None（不许用别的模型价格兜底）。"""
+```
+
+**验收**
+- 跑一轮池 A，`var/task_scores.jsonl` 每行含 `tokens` 与 `cost_usd`。
+- 无 usage 的响应 ⇒ 两字段为 `null`，且 `usage_missing: true`。
+- 价目缺失的模型 ⇒ `cost_usd: null`，但 `tokens` 照记。
+- **`cached_tokens` 必须单独记并单独计价**（缓存价与未缓存价可差一个数量级；HarnessPro 与 Cache Engineering 两篇独立论文都用了三档计价）。
+
+**测试**
+- `test_parse_usage_missing_returns_none`
+- `test_parse_usage_cached_tokens`
+- `test_cost_unknown_model_returns_none_not_zero`
+- `test_llmresult_meta_carries_usage`
+
+---
+
+### P0-b · 输出可回溯（R440）
+
+**目标**：截断但可回读。
+
+**Files**
+- Modify: `src/dwc/llm/task_exec.py`（`_cap_answer` / 工具返回处）
+- Create: `src/dwc/llm/tool_raw.py`（落盘 + 读回）
+- Create: `tests/test_r440_tool_raw.py`
+
+**行为**
+```
+if len(text) > output_max_chars:
+    path = var/tool_raw/<sha1[:16]>.json
+    写原文（原子写）
+    返回 head(N) + "\n…[truncated %d chars; full: %s]\n" + tail(M)
+```
+
+**验收**
+- 超限输出：模型看到的字符串含原文路径；该路径可读回完整原文。
+- 未超限：不落盘（不许把每次输出都写成文件）。
+- 同一内容重复出现：路径相同（sha1 去重），不重复写。
+- **前缀稳定性必须可测**：连续两轮请求的公共前缀长度写入 `var/prefix_stability.jsonl`。
+  现状（`task_exec.py:2333` 每轮重建整串 prompt）预期公共前缀极短；改造目标是"稳定前缀在前、易变内容在后"。
+  依据：Cache Engineering 实测 trim 反而让成本涨到 **1.85×**，根因就是改前缀触发 re-prefill。
+
+**测试**
+- `test_truncate_keeps_head_and_tail`
+- `test_truncate_writes_raw_and_path_readable`
+- `test_short_output_not_persisted`
+- `test_same_content_dedup_path`
+
+---
+
+### P1-a · 三段式预算（R441）
+
+**目标**：把"无限探索"变成"有节奏地收敛"。
+
+**Files**
+- Modify: `src/dwc/llm/task_exec.py`（原生工具循环）
+- Modify: `src/dwc/organs/evo_targets.py`（新增 `tool_budget` 目标）
+- Create: `tests/test_r441_budget.py`
+
+**三档语义**
+
+| 阶段 | 触发 | 行为 |
+|---|---|---|
+| economy | 计数 ≥ economy_after | 追加提醒："批量独立检查、别重复读、别叙述过程" |
+| strict | 计数 ≥ strict_after，每 N 次重复 | 追加提醒："停止发散，只查与当前失败直接相关的证据" |
+| finalize | 计数 > finalize_after | **拒绝新工具调用**，要求基于现有证据给最终答案 |
+
+**配置（`config/evo_targets` 白名单内）**
+```json
+{"tool_budget": {"economy_after": 18, "strict_after": 38,
+                 "finalize_after": 60, "strict_reminder_every": 8}}
+```
+
+**硬性**
+- 提醒只能追加到**工具结果**，不许改 system prompt。
+- finalize 之后必须仍允许"给出最终答案"（不是把模型锁死）。
+
+**验收**
+- 池 A 通过率 ≥ 98.1%（不退化）。
+- 平均工具调用数下降 ≥ 20%。
+- 关掉开关（配置缺失即报错，不静默关）后行为回到基线。
+
+---
+
+### P1-b · 成本归因（R442）· 原计划"双目标 fitness"的诚实改写
+
+**原计划**：`scalar = realization × outcome × (1 − cost_weight × Δcost)`，加 `no_cost_regression` 门。
+
+**为什么改了**（实测得出，不是偷懒）：
+
+> ~~候选规则的 trial 不调 LLM~~ ← **这句话在 R445 被更正**：trial 确实会调 LLM
+> （`_peer_held_out_code`，code 路与 agent 路都调）。
+>
+> 但更正要害不在这里：那部分是 **评测开销** —— 两臂都要付、`max_tokens` 固定、
+> prompt 只差一个 `hint_code` ⇒ 它衡量的是"评测花了多少"，**不是"这条规则上线后多贵"**。
+> 拿它当 `no_cost_regression` 的输入，就是拿噪声当信号。
+>
+> 所以结论不变：**候选成本在 trial 期测不出来**，`cost_measured` 门只会
+> 恒假或恒真。两者都是假门。
+
+**实际落地**：回溯归因。
+
+| 组件 | 内容 |
+|---|---|
+| `cost.set_tag / clear_tag` | 任务期间的所有 LLM 调用记到该 task_id 名下（线程本地） |
+| `scripts/dwc_agent.py` | 接单前后 set/clear（try/finally） |
+| `src/dwc/organs/cost_attribution.py` | `per_task` / `mean_tokens_per_task` / `snapshot`（增量）/ `trend` |
+| `scripts/dwc_evo_round.py` | 每轮写 `var/cost_ledger.jsonl` 快照，报告里出 `cost_attribution` 块 |
+
+**验收（已达成）**
+- 坏行容错：半截 JSON 跳过，不掀轮。
+- 无标签不归因：宁可少算，不可错算。
+- 无数据 ⇒ `mean_total=None`（不是 0）。
+- 快照增量：只统计上次快照之后的任务，否则历史会抹平趋势。
+- 真实跑一轮：报告出现 `n_tasks=0 / mean_total=null / trend=unknown`（当前确实没数据）。
+
+**仍缺的（留给 P2）**
+- 候选级成本门需要"用候选规则真跑 N 个任务"，这是有成本的实验。
+  P2 有了 profile 候选（成本差异大、易测）时再上，那时它才是**可判**的。
+- 在此之前，成本只作**观测**与**落地后回溯告警**，不做假门。
+
+**Files（实际）**
+- Create: `src/dwc/organs/cost_attribution.py`
+- Modify: `src/dwc/llm/cost.py`（tag）
+- Modify: `scripts/dwc_agent.py`（set/clear tag）
+- Modify: `scripts/dwc_evo_round.py`（快照 + 报告块）
+- Create: `tests/test_r442_cost_attribution.py`（12 条）
+
+---
+
+### P1-c · 逐例对比（R443）· 原计划"对比探针 + 纠正继承"的核实结果
+
+**来源**：Harness²（arXiv 2610.14224）§2.2.1 + §2.3。
+
+#### 第一半：对比探针 —— 只做到能诚实做到的那一半
+
+| 项 | 结果 |
+|---|---|
+| 做了什么 | `src/dwc/organs/contrast.py`：把 `in_score` 一个标量拆成 `n_cases / n_failed / failed[]`（每例的 fn/args/expected/actual） |
+| 为什么有价值 | "修好 3 例、弄坏 3 例"和"什么都没改"在分数上一样，但前者是**回归** —— 分数看不见 |
+| 诚实缺席 | `regressed: None` + 原因"anchor 不含原始实现" ⇒ **没有基线逐例结果**，不许编"消失/新增" |
+| 形态纪律 | 缺例/多例/坏形状 ⇒ `None`（fail-closed，不拿前面的例子蒙混） |
+| 数值等价 | 1 与 1.0 视为同值（模型常返回 1.0） |
+
+#### 第二半：纠正"继承式起草" —— **核实后撤回**
+
+原判断来自 R438 的一句话笔记「`p.code` 复用为起草起点」。**逐行核实代码后不成立**：
+
+```
+scripts/dwc_evo_round.py:511   t = trial_fn(task, p.patch, p.code)
+scripts/dwc_evo_round.py:913   hint_code=(code if suc is True else None)
+scripts/dwc_evo_round.py:768   if (hint_code or "").strip():  # 拼进 peer prompt
+```
+
+- `p.code` 只在 **trial 成功**（`suc is True`）时才传给 peer；
+- 它进的是 peer 的 **翻译参考**（"已验证对的同族解，仅供翻译参考"），
+- 而 peer 函数名与 dev 函数名**不同**（R291-P4 Task4 的设计）。
+
+⇒ 这是**库式选择性复用**，不是 Harness² 反对的"继承上一轮定制 harness"。
+**该条修正撤回**，不写代码。
+
+> 教训：文档里的"复用为起草起点"是**概括**，不是代码事实。
+> 拿概括当依据去改代码，就是这次差点犯的错。
+
+#### Files（实际）
+- Create: `src/dwc/organs/contrast.py`
+- Modify: `scripts/dwc_evo_round.py`（trial 的 code 路带 `contrast`）
+- Create: `tests/test_r443_contrast.py`（8 条）
+
+---
+
+### P2 · 按任务选档（R444）· 原计划的"高预算档"被硬上限证伪
+
+**目标**：简单题别用牛刀，难题别省子弹。
+
+**原计划 vs 实际**
+
+| 项 | 原计划 | 实际 | 原因 |
+|---|---|---|---|
+| 五档预算 | economy/strict/finalize 最高到 68 | 最高 15 | **循环硬上限就是 `NATIVE_TOOLS_MAX_ROUNDS=15`**（`task_exec.py:1148`）。写 68 是承诺一个永远不会到来的轮次 —— 幻影预算 |
+| deep/research 用 `low` | 论文形状 | **全部 `None`（继承全局）** | R411 实测「推理档越高越差」；改推理力度必须走 A/B，不许在路由里夹带 |
+| 两个文件（profile + profile_rules） | 分层 | 合成一个 `profile.py` | 规则只有 5 条，拆两文件是空壳分层 |
+
+**五档（实际）**
+
+| profile | 推理力度 | economy | strict | finalize | 触发条件 |
+|---|---|---|---|---|---|
+| compact | 继承 | 3 | 5 | 8 | ≤40 字且无多交付物标记 |
+| lean | 继承 | 5 | 8 | 12 | ≤120 字 |
+| standard | 继承 | 6 | 10 | 15 | 兜底（= R441 默认，零行为变化） |
+| deep | 继承 | 8 | 12 | 15 | 含审计/重构/架构/调用链… 或 >600 字 |
+| research | 继承 | 8 | 12 | 15 | 含调研/检索/搜索/论文… |
+
+> `standard` 的 6/10/15 与 R441 的模块默认**完全相同** ⇒ 未命中任何规则时行为零变化。
+
+**优先级（关键设计）**
+
+```
+进化改过的值  >  profile 先验  >  模块默认
+```
+
+用 `_MISSING` 哨兵区分"策略里没这个键"与"策略把它设成了默认值"。
+否则进化一旦写过 `6`，就永远盖住 profile —— 学习器被先验锁死。
+
+**选择器**：纯规则，5 条，**命中率 100%**（`standard` 兜底）。
+不引 LLM 分类器：用模型做确定性判断是反模式（贵、不稳、不可解释）。
+
+**Files（实际）**
+- Create: `src/dwc/llm/profile.py`（`Profile` / `PROFILES` / `choose` / `explain`）
+- Modify: `src/dwc/llm/client.py`（`complete(..., reasoning_effort=None)` 按调用覆盖）
+- Modify: `src/dwc/llm/task_exec.py`（`tool_budget(profile)` + `execute_user_task` 选档）
+- Create: `tests/test_r444_profile.py`（16 条）
+
+**验收（已达成）**
+- 五档 `economy ≤ strict ≤ finalize`，且 `finalize ≤ 15`。
+- 无 profile 时 `tool_budget()` 仍是 6/10/15（R441 行为不变）。
+- 进化值能盖住 profile（有测试）。
+- 客户端按调用覆盖 `reasoning_effort`（本地 HTTP 服务抓 body 验证）。
+
+**没做的（诚实记账）**
+- **没有测量"选档是否真的省了钱/提了分"** —— 需要真实任务 A/B，属 P3。
+  本步只保证机制存在且不改变默认行为。
+- 上下文三元组（trigger/selector/reposition）**未落地**：DWC 的压缩路径只有一条，
+  拆成可进化对象要先有"多形态"才谈得上选择。留到 P4。
+
+### P3 · 三档 Pareto（R445）· 只落地到"可观测"，不接管 landing
+
+**原计划**：一轮产出 lite/medium/heavy 三套策略，部署时按预算选。
+
+**为什么没接管决策**（两条都是硬事实）：
+
+1. **DWC 一轮只有一个成功候选**。`dwc_evo_round.py:512-518` 的循环是
+   `if _ok is True or _att >= _pool_n: break` —— 试到过就停。
+   一个点的 Pareto 前沿必然只有一个点，选谁都一样。
+2. **DWC 只有一种部署形态**（`auto_apply: true`）。
+   没有"按预算挑档"的部署位，三档权重没有作用对象。
+
+**实际落地**
+
+| 组件 | 内容 |
+|---|---|
+| `src/dwc/organs/pareto.py` | `non_dominated(points)` + `select(points, mode)`，三档权重 `J = a·d_perf² + b·d_cost²` |
+| `scripts/dwc_evo_round.py` | 每次 trial 前后量 `_usage_total()` 差值 → `trial_tokens`；报告出 `pareto` 块 |
+| `tests/test_r445_pareto.py` | 12 条 |
+
+**三条纪律（都有测试锁定）**
+- **成本缺失 ≠ 0**：缺成本的候选不参与（0 会被选成"最便宜"）。
+- **成本全等 ⇒ 退化为最高分**：与现状完全一致，不许因为算法把好候选选掉。
+- **没有可测点 ⇒ `select` 返回 None**：调用方保持原行为。
+
+**报告里长什么样**
+```json
+"pareto": {"n_candidates": 1, "front": ["P_xxx"],
+           "lite": "P_xxx", "medium": "P_xxx", "heavy": "P_xxx",
+           "note": "观测项，不接管 landing：…"}
+```
+
+**要让它真正起作用，还缺什么**
+- 多候选并行（需日预算 96/80 支持，当前红线禁）
+- 或者一个**能测规则线上成本**的通道（生产 A/B 跨天，不是 trial）
+
+在此之前它是**数据结构的准备**，不是决策机制。诚实记账。
+
+### P4 · 改进库（R446）· 落地即入库，但**还不读**
+
+**来源**：Harness² `core/library.py` 四条硬规则 + Figure 7。
+
+**DWC 的现状**：`config/anchors/rules.json` 的 `learned` 条目已有
+`key`（=cue）/ `rationale`（≈lesson）/ `provenance`（≈evidence），
+**但没有任何东西强制它们非空** —— 半条记录也能进，下轮按 cue 取用会拿到没有依据的"经验"。
+
+**四条硬规则 → DWC 的对应物**
+
+| Harness² | 原文位置 | DWC 落地 |
+|---|---|---|
+| 三要素缺一不入库 | `library.py:43-47` | `validate()`：`cue` / `lesson` / `evidence` 任一为空 ⇒ 返回**原因**，`add()` 不写半条 |
+| 写库前无判分结论 | `library.py:122-123` | `from_rule()` 只取 `rationale` 与 `in_score/held_out/baseline_in`，**不把 expected 抄进 lesson** |
+| 只留当前任务之前 | `library.py:101-104` | `before(rows, ts)`：`ts > 给定时刻` 的条目一律过滤 |
+| 存整棵树不存摘要 | `library.py:22-23` | 存 `rationale` 全文 + 完整 evidence dict，不压缩成一句话 |
+
+**Files（实际）**
+- Create: `src/dwc/organs/library.py`（`validate` / `add` / `load` / `family` / `select_family` / `before` / `from_rule` / `has_cue`）
+- Modify: `scripts/dwc_evo_round.py`（落地成功处入库；报告出 `library` 块）
+- Create: `tests/test_r446_library.py`（13 条）
+
+**真实回填（不是演示数据）**
+
+`var/backfill_library.py` 从 `rules.json` + `var/evolution_ledger.jsonl` 回填两条：
+
+| cue | evidence |
+|---|---|
+| `E_VALUE:wrong_magnitude:fibonacci` | in=1.0 / ho=1.0 / baseline=1.0 |
+| `E_VALUE:wrong_magnitude:average` | in=1.0 / ho=1.0 / baseline=1.0 |
+
+证据来自账本里那两次真实落地的 `trial` 字段 —— **不是编的**。
+
+**★★ 诚实缺口（必须写在最显眼处）**
+
+库**只写不读**。起草器仍走 `rules.json` 的 `hint_code`，
+`select_family()` 今天只有报告在用。
+
+要让它真正参与"按 cue 选择性复用"，下一步是把
+`select_family(load(), cue)` 的结果喂进 `Mutator.propose` 的上下文
+（Harness² Figure 7 还提醒：k=1 的库只能把性能**拉回基线**，
+要正增益需 k≥5 的探索量 —— DWC 目前 2 条，远不够）。
+
+**所以 P4 的定位是"记忆先合规"**，不是"记忆已生效"。两件事不能混为一谈。
+
+## 5. 论文接入协议（本版本的核心机制）
+
+既然要"攒几篇论文一起动手"，每篇论文必须走同一条流水线，否则会变成拍脑袋堆功能。
+
+### 5.1 七步吸收
+
+| 步 | 动作 | 产物 |
+|---|---|---|
+| 1 | 全文精读（正文 + 附录口径） | 研读报告 HTML |
+| 2 | 提取机制清单（一条机制一行） | 机制表 |
+| 3 | 映射到 DWC 19 对象 | 映射表（命中/未命中） |
+| 4 | 判定可复现性（仓库有没有代码） | 可复现 / 仅产物 / 不可复现 |
+| 5 | 定阶段（P0–P3 或新增 P4） | 阶段归属 |
+| 6 | 写验收（怎么算做成） | 验收条目 |
+| 7 | 登记台账 | 本文件 §5.2 |
+
+### 5.2 论文台账
+
+| # | 论文 | 年份 | 核心机制 | 归属阶段 | 采纳 | 理由 |
+|---|---|---|---|---|---|---|
+| 1 | HarnessPro (2610.26770) | 2026 | 成本作为一等目标 | P0-a / P1-b | ✅ | DWC 零成本度量，缺口最大 |
+| 1 | 同上 | | 三段式工具预算 | P1-a | ✅ | 最可直接抄，纯 stdlib |
+| 1 | 同上 | | 输出压缩 + 原文落盘 | P0-b | ✅ | DWC 截断即丢信息 |
+| 1 | 同上 | | profile 路由 | P2 | ✅ | 但阈值按 DWC 实测重定 |
+| 1 | 同上 | | 三档 Pareto | P3 | ✅ | 需先有成本指标 |
+| 1 | 同上 | | 多候选并行 | — | ❌ | 日预算吃不下 |
+| 1 | 同上 | | label-free | — | ❌ | DWC 有真值，放弃是倒退 |
+| 1 | 同上 | | LLM 当裁判 | — | ❌ | 论文自证失败召回仅 41.7% |
+| 2 | Harness² (2610.14224) | 2026 | 两层递归（执行+改进） | P4 | ✅ | R438 #14 只调一个旋钮，不是"改进器带库" |
+| 2 | 同上 | | 对比式 Propose-Probe-Compose | P1-c | ✅ | DWC 只比分数不比行为 |
+| 2 | 同上 | | 双候选作用域（通用/领域） | P2 扩展 | ✅ | DWC 不区分能力缺陷与领域知识 |
+| 2 | 同上 | | 改进库（全树 + EXPERIENCE.md） | P4 | ✅ | DWC 有 lessons/skills 但无捆绑 |
+| 2 | 同上 | | 证据门槛（cue/lesson/evidence 全非空） | P4 | ✅ | 与 DWC "不可复现不进候选" 同源，但更严 |
+| 2 | 同上 | | 选择性复用而非继承 | P1-c 前置 | ✅ | **DWC 现在做反了**，论文实测继承会掉分 |
+| 2 | 同上 | | 并行递归 k=5 | — | ❌ | 成本 ×5，日预算吃不下 |
+| 2 | 同上 | | 8 组件文件级重写 | — | ❌ | DWC 是配置/规则级，改文件树会破坏隔离 |
+| 3 | Cache Engineering (2610.28577) | 2026 | cached_tokens 三档计价 | P0-a 补充 | ✅ | 两篇独立论文收敛于同一需求 |
+| 3 | 同上 | | 前缀失效诊断（trim = 1.85×） | P0-b 补充 | ✅ | DWC 每轮重建 prompt，缓存几乎不可能命中 |
+| 3 | 同上 | | 上下文策略三元组 | P2 扩展 | ✅ | `context_mgmt` 现在只有一种硬编码形态 |
+| 3 | 同上 | | 策略 RSI（比专家再省 7.1%） | P4 佐证 | ✅ | 第三份"进化策略而非内容"的证据 |
+| 3 | 同上 | | Drop / Repos（KV cache 操作） | — | ❌ | 需自建 SGLang + 改模型内部；DWC 走远程 API |
+| 3 | 同上 | | Cache-as-Tool | — | ❌ | 同上，且会新增工具面 |
+| 3 | 同上 | | 位置编码解耦 | — | ❌ | DWC 无 RoPE 控制权 |
+| 3 | 同上 | | serving 优化（1.36×/1.51×） | — | ❌ | DWC 不拥有推理服务 |
+| 4 | （待填） | | | | | |
+
+### 5.3 判定规则
+
+一篇论文的机制要被采纳，必须同时满足：
+1. **缺口真实**：DWC 当前确实没有，且不是"有但没接"。
+2. **可落地**：有明确落点文件，不需要引入重型依赖。
+3. **可验证**：能写出一个会失败的测试。
+4. **不破坏结构**：不要求放开 19 对象的隔离边界。
+
+任一不满足 ⇒ 记入台账"拒绝"，并写明理由（**不许静默丢弃**）。
+
+---
+
+## 6. 版本 KPI
+
+| 指标 | 基线（v1 / R438） | v2 目标 | 测法 |
+|---|---|---|---|
+| 成本可见率 | 0% | **100%** | 有 usage 的调用 / 总调用 |
+| 池 A 通过率 | 98.1%（53/54） | **≥ 98.1%** | 两轮均值 |
+| 单任务平均成本 | 未知 | **−15%** | 相对 P1 基线 |
+| 工具调用数 | 未知 | **−20%** | 平均每任务 |
+| 截断可回溯率 | 0% | **100%** | 截断处含可读路径 |
+| 三档可切换 | 无 | **有** | 三档各自可单独启用 |
+| 进化台账双指标 | 只有 score | **score + cost** | 每条台账 |
+| 行为对比 | 无 | **每轮有 Contrast** | `disappeared/persisted/introduced` 三列表非空 |
+| 改进库条目 | 0 | **≥ 10 条且全带 evidence** | `var/improver_library/*/entries/*/EXPERIENCE.md` |
+
+---
+
+## 7. 风险与对策
+
+| 风险 | 后果 | 对策 |
+|---|---|---|
+| 成本噪声大（单次波动 ±20%） | 误判"变贵了" | 用两轮均值 + 极差；单轮结论不引用 |
+| 预算过紧导致掉分 | 通过率跌破地板 | `PR ≥ PR(h0)` 硬地板；finalize 后仍允许作答 |
+| 分类器误判 | 难题被分到 compact | 规则优先；无法判定 ⇒ 默认 standard |
+| 成本记账引入延迟 | 每轮多一次解析 | 纯本地解析，无额外网络调用 |
+| 原文落盘撑爆磁盘 | 磁盘满 | sha1 去重 + 单文件上限 + 定期清理（保留 7 天） |
+| 三档产物维护成本 | 配置爆炸 | 三档共用同一份对象定义，只差参数 |
+
+---
+
+## 8. 交付物清单
+
+| 阶段 | 产物 | 验收证据 |
+|---|---|---|
+| P0-a | `src/dwc/llm/cost.py` + 测试 | 池 A 跑完，每行有 tokens/cost |
+| P0-b | `src/dwc/llm/tool_raw.py` + 测试 | 截断路径可读回 |
+| P1-a | 预算三档 + 配置目标 | 工具调用数下降 ≥20%，池 A 不退化 |
+| P1-b | 双目标 fitness + 新门 | "分数不变成本翻倍"被 reject |
+| P2 | `profile.py` + 规则选择器 | 规则覆盖 ≥80%，成本 −15% |
+| P3 | `pareto.py` + 三档产出 | 三档成本单调 + 都过地板 |
+| 全程 | 台账 + 文档 | 每阶段一份 HTML 验收记录 |
+
+---
+
+## 9. 开工条件
+
+本计划**不立即开工**，等满足以下条件后统一执行：
+
+1. 论文池 ≥ 3 篇 —— **已满足**（HarnessPro 2610.26770 / Harness² 2610.14224 / Cache Engineering 2610.28577）。
+2. 每篇都已走完 §5.1 七步，台账登记完毕。
+3. 机制之间没有冲突（若有，先在本文件"冲突裁决"节写明二选一及理由）。
+4. 用户确认版本范围（尤其 P2/P3 是否纳入本版本）。
+
+### 冲突裁决（预留）
+
+| 冲突 | 选项 | 裁决 | 理由 |
+|---|---|---|---|
+| （待填） | | | |
+
+---
+
+## 10. 与既有路线的关系
+
+| 既有 | 关系 |
+|---|---|
+| R438 十九对象 | v2 不改对象划分，只在既有对象上增加"成本"维度 |
+| `auto_apply_max_per_round: 1` | P1-b 之后仍然保留，避免一轮落太多 |
+| `prompt_evolve_weekday: 6` | 不受影响 |
+| 热力学智能 / I_δ | 成本数据是 I_δ 量化的基础输入，P0-a 完成后才可能真正进 fitness |
+| 进化双锚（thermo / 北极星） | v2 不改锚，只给 thermo 锚提供成本信号 |
+
+---
+
+## 11. 三篇论文的收敛结论
+
+三篇论文来自不同团队、不同问题，但在三件事上收敛：
+
+### 11.1 收敛点一：**成本必须一等**
+
+| 论文 | 说法 |
+|---|---|
+| HarnessPro | `min(−PR, C)`，Pareto 三档 |
+| Harness² | 报告 #Steps 与总 compute，明确画 compute–performance 前沿 |
+| Cache Engineering | 每任务美分成本作为主指标之一，−27.7% |
+
+**DWC 现状：零成本度量。** 这不是"少一个功能"，是少一个目标函数。
+
+### 11.2 收敛点二：**进化的是策略，不是内容**
+
+| 论文 | 进化的对象 | 相对人工设计的收益 |
+|---|---|---|
+| HarnessPro | prompt / profile / 预算策略 | +2.0pp 且 −26.1% 成本 |
+| Harness² | 改进器本身（库） | 去掉库 −3.1 / −1.8 |
+| Cache Engineering | cache 策略 | 比专家再省 **7.1%** |
+
+三份独立证据都指向：**手写一次策略，不如让系统自己搜策略**。
+
+### 11.3 收敛点三：**不许破坏前缀 / 不许继承**
+
+| 论文 | 证据 |
+|---|---|
+| HarnessPro | 阶段提醒追加到 tool result，不重写 system prompt（保 cache 前缀） |
+| Harness² | 直接编辑不看参考/探针/库 ⇒ 73.4→63.2（−10.2） |
+| Cache Engineering | trim 改前缀 ⇒ 成本 **1.85×** |
+
+**DWC 同时踩了三条**：
+1. 每轮重建整串 prompt（前缀必变）
+2. `propose` 继承上轮 `p.code`
+3. compaction 滑动窗口 + 摘要
+
+> 这三条不是三个独立的小问题，是同一个根因：
+> **DWC 的上下文是"重新渲染"的，不是"累积"的。**
+
+### 11.4 实测修正（2026-10-24）
+
+第 ① 条**已实测降级**：真实调用三次，`cached_tokens` 全是 **0**
+（详见 `docs/P0_0_COMPACTION_MEASUREMENT.md`）。
+
+- 服务端要么没开前缀缓存，要么不回报 ⇒ **DWC 今天没有缓存收益可以失去**
+- 所以论文的 1.85× 不适用；compaction 在 token 上是**净省**
+- 它真正的风险是**信息损失掉分**（对应论文的 summary −5pp），不是"变贵"
+
+第 ② 条（继承 `p.code`）**不受影响**，P1-c 优先级不变。
+
+### 11.5 因此 P0 的实际顺序
+
+原计划 P0-a 是"加记账"。三篇论文合起来说明：
+
+| 顺序 | 动作 | 状态 |
+|---|---|---|
+| **P0-0** | 量一次 compaction 的成本 | ✅ **已完成**：`cached_tokens` 恒 0 ⇒ 无缓存可失去；压缩净省 token |
+| P0-a | 加 token 记账（含 cached 三档） | ✅ **已完成**（R439，15 passed） |
+| P0-b | 输出压缩 + 原文落盘 | ⏳ 进行中（前缀稳定性度量降级为"缓存友好准备"） |
+
+---
+
+*本计划为版本级规划，各阶段开工前需再产出对应的 R 轮实现计划（含逐任务 TDD 步骤）。*

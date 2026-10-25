@@ -462,6 +462,17 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 except Exception:
                     pass
                 _key = Mutator.key_for(cl["sigs"][0])
+                # ★ R447 · 同族经验注入：把库里**同族**的 lesson 拼进起草提示。
+                #   ★★ 只拼 lesson，绝不拼 code —— Harness² 实测继承实现会掉分
+                #   （WB-code 73.4→63.2）。经验可以借鉴，实现不能继承。
+                try:
+                    from dwc.organs import library as _LB
+                    _lh = _LB.hint_for(_key)
+                    if _lh:
+                        _hint = ((_hint or "") + _lh)
+                        item["hint_lessons"] = _lh.count("\n- ")
+                except Exception as _le:      # noqa: BLE001 — 经验注入坏不掀轮
+                    item["hint_lessons"] = "error: %r" % (_le,)
                 _op = "draft" if _key not in Mutator.RULES else "improve"
                 if str(_task).startswith("code_fix"):
                     _op = "debug" if _op == "improve" else _op
@@ -513,10 +524,13 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 break
             item["drafted"] = True
             item["proposal_id"] = p.proposal_id
+            _u0 = _usage_total()
             with task_measurement_context(
                     _task, candidate_id=p.proposal_id, rollout_id=str(_att)):
                 with measurement_role("evaluation"):
                     t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
+            # ★ R445 · 这次 trial 烧的 token（评测开销，不是规则成本 —— 见 pareto.py）
+            item["trial_tokens"] = max(0, _usage_total() - _u0)
             # ★ D4-③ assess 段（试跑＋门判：候选→真分；真伪由门＋held_out 定）。
             item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
             # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
@@ -595,6 +609,27 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                         p, admission_round=ledger_date)
                     item["landed"] = True
                     _n_landed += 1
+                    # ★ R446 · P4 改进库：落地即入库（三要素缺一不入，不写半条）。
+                    #   ★ 只写不读：起草仍走 rules.json 的 hint_code —— 不假装已复用。
+                    try:
+                        from dwc.organs import library as _LB
+                        _ent = _LB.from_rule(
+                            str(cl.get("key") or ""),
+                            {"rationale": getattr(p, "rationale", ""),
+                             "provenance": {"proposal_id":
+                                            getattr(p, "proposal_id", "")}},
+                            t if isinstance(t, dict) else {})
+                        _why = _LB.validate(_ent)
+                        if _why:
+                            item["library"] = {"added": False, "why": _why}
+                        else:
+                            _row = _LB.add(entry=_ent)
+                            item["library"] = ({"added": True,
+                                                "cue": _row["cue"]}
+                                               if _row else
+                                               {"added": False, "why": "落盘失败"})
+                    except Exception as _le:      # noqa: BLE001 — 记账坏不撤落地
+                        item["library"] = {"added": False, "why": repr(_le)}
             else:
                 # ★ R291-P4 Task 3 · legacy 直落已删（条件①②齐：trial 有
                 #   分数＋accept 拿真输入）。门没判过（blocked/rejected/
@@ -662,8 +697,88 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
         "pool_N": _pool_n,  # ★ B4 · 候选池上限（Thm 3 Eq.8 的 N）
         "by_mode": _env_modes,
         "llm_calls": "unmeasured（llm 在 trial_fn 闭包内 — 另轮改契约）",
-        "tokens": "unmeasured（R42：DWC 未记 token）",
+        # ★ R439/R442 · token 现在**真的记了**（var/llm_usage.jsonl + cost_ledger）。
+        #   旧文案"未记 token"已不成立，留着就是幻影声明。
+        "tokens": "见 cost_attribution（var/llm_usage.jsonl 按 task 聚合）",
         "search_cost": "另列：by_mode.code＝LLM search 面；其余零 search"}
+    # ★ R445 · P3 Pareto（观测）：把本轮候选按 (分数, trial token) 放到前沿上。
+    #   ★★ 诚实：DWC 一轮只留**一个**成功候选（试到过就 break）⇒ 前沿必然只有一个点，
+    #   这一步今天不改变任何决策。它的价值是**把数据结构备好**：
+    #   等多候选并行那天（需预算支持），select() 才真的有得选。
+    try:
+        from dwc.organs import pareto as _PA
+        _pts = []
+        for _r in results:
+            _t = _r.get("trial")
+            _sc = _t.get("in_score") if isinstance(_t, dict) else None
+            _tk = _r.get("trial_tokens")
+            if _sc is None or _tk is None:
+                continue
+            _pts.append({"name": str(_r.get("proposal_id") or _r.get("key") or ""),
+                         "score": _sc, "cost": _tk})
+        _rep["pareto"] = {
+            "n_candidates": len(_pts),
+            "front": _PA.non_dominated(_pts),
+            "lite": (_PA.select(_pts, "lite") or {}).get("name"),
+            "medium": (_PA.select(_pts, "medium") or {}).get("name"),
+            "heavy": (_PA.select(_pts, "heavy") or {}).get("name"),
+            "note": ("观测项，不接管 landing：一轮只有一个成功候选，前沿必然单点；"
+                     "且 trial_tokens 是评测开销、不是规则线上成本"),
+        }
+    except Exception as _pe:      # noqa: BLE001 — Pareto 坏不掀轮
+        _rep["pareto"] = {"error": repr(_pe)}
+    # ★ R448 · 上下文决策分布（trigger|selector → 次数 / 压缩比）
+    try:
+        from dwc.llm import context_log as _clog
+        _rep["context"] = _clog.summary()
+    except Exception as _ce:      # noqa: BLE001 — 留痕坏不掀轮
+        _rep["context"] = {"error": repr(_ce)}
+    # ★ R446 · P4 改进库（观测）：落地即入库，这里只报规模。
+    #   ★ R447 起库**已接入起草**：hint_for() 的输出拼进 learned_hint
+    #   （只注 lesson，不注 code）。
+    try:
+        from dwc.organs import library as _LB
+        _lib = _LB.load()
+        _rep["library"] = {
+            "n_entries": len(_lib),
+            "families": sorted({_LB.family(str(r.get("cue") or ""))
+                                for r in _lib}),
+            "note": "已接入起草：hint_for → learned_hint（只注 lesson）",
+        }
+    except Exception as _le:      # noqa: BLE001 — 库坏不掀轮
+        _rep["library"] = {"error": repr(_le)}
+    # ★ R442 · 成本归因（回溯）：本轮每任务平均 token + 与上次快照的走向。
+    #   ★★ 诚实边界（R445 更正）：trial **确实会调 LLM**（peer held-out），
+    #   但那部分是**评测开销**，两臂都要付，与候选规则的线上成本无关
+    #   ⇒ 不能拿它当"候选成本"。这里量的是**生产**成本（按 task_id 聚合）。
+    #   没有数据 ⇒ None（不猜 0）。
+    try:
+        from dwc.organs import cost_attribution as _ca
+        _snap = _ca.snapshot(note="evo_round")
+        _rep["cost_attribution"] = {
+            "n_tasks": _snap.get("n_tasks"),
+            "mean_total": _snap.get("mean_total"),
+            "trend": _ca.trend(),
+            # ★ R447 · 按档位分布（哪档更省，跑几天才有结论）
+            "by_profile": _ca.by_profile(),
+            "scope": "回溯归因（生产任务）；trial 的 token 是评测开销，不是规则成本",
+        }
+    except Exception as _ce:      # noqa: BLE001 — 归因坏不掀轮
+        _rep["cost_attribution"] = {"error": repr(_ce)}
+    # ★ R449 · 规则版本成本轴：每条已落地规则按激活时刻切前后两段。
+    #   ★★ 这是**分段相关不是因果**（激活前后任务构成会变），每份结果自带 confound。
+    try:
+        from dwc.organs import cost_attribution as _ca2
+        from dwc.organs.evolver import Mutator as _Mu2
+        _rc: Dict[str, Any] = {}
+        for _rk, _rv in (_Mu2.RULES or {}).items():
+            if _rk in _Mu2.SEED_KEYS:
+                continue
+            _rc[_rk] = _ca2.by_rule_epoch(
+                (_rv or {}).get("activated_at"))
+        _rep["rule_cost"] = _rc
+    except Exception as _re:      # noqa: BLE001 — 成本轴坏不掀轮
+        _rep["rule_cost"] = {"error": repr(_re)}
     # ★ R310-③ · triage 附报告（纯呈现，不改判定）。
     _rep["triage"] = triage_report(_rep)
     return _rep
@@ -780,6 +895,28 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
         return None
 
 
+def _usage_total() -> int:
+    """当前用量日志的 prompt+completion 总和（trial 前后差值 = 这次 trial 烧的）。"""
+    try:
+        from dwc.llm import cost as _c
+        import io as _io
+        n = 0
+        with _io.open(_c.usage_log_path(), encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                n += int(r.get("prompt_tokens") or 0)
+                n += int(r.get("completion_tokens") or 0)
+        return n
+    except Exception:      # noqa: BLE001 — 记账坏不许掀轮
+        return 0
+
+
 def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 agent_executor=None):
     """★ 真试跑：规则 patch 进 prompt → 真执行 → 判分 dict。
@@ -862,9 +999,10 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
     if code and _cat == "code_repair":
         from dwc.llm.sandbox import run_code_observed, SandboxError
         _mode = "code"
+        _diag: Dict[str, Any] = {}
+        _skel = obs_skeleton(judge.anchors, task)
         try:
-            _obs = run_code_observed(
-                code, obs_skeleton(judge.anchors, task))
+            _obs = run_code_observed(code, _skel, diag=_diag)
         except SandboxError as _se:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
@@ -872,7 +1010,9 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         if _obs is None:
             return {"success": None, "in_score": None, "baseline_in": None,
                     "held_out": None, "mode": _mode, "partial": None,
-                    "reason": "沙箱跑挂/缺函数（fail-closed）", "activated": False}
+                    "reason": "沙箱跑挂/缺函数（fail-closed）：%s"
+                              % (_diag.get("error") or "缺函数或超时",),
+                    "activated": False}
         suc = judge.evaluate(task, "dev",
                              observed={"observed": _obs,
                                        "★_executed": True}).success
@@ -882,12 +1022,21 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
         # ★ A3 · 小Δ熔断（code 路）：|Δ_in|<spread ⇒ 跳过 peer 验证，
         #   省出码+沙箱 LLM 预算；held_out=None ⇒ 门仍 blocked（门语义零改）。
         _fused, _d_in = _small_delta_fused(_cur, base)
+        # ★ R443 · 逐例对比（分数之外看得见"哪几例错了"）
+        try:
+            from dwc.organs import contrast as _CT
+            # ★ 期望值只能从 anchor 的 checks 取 —— 骨架里的 expected 是 None
+            _exp = _CT.expected_from_checks(
+                (judge.anchors.get(task) or {}).get("checks"))
+            _ct = _CT.from_observed(_skel, _obs, _exp)
+        except Exception as _ce:      # noqa: BLE001 — 对比坏不掀 trial
+            _ct = {"error": repr(_ce)}
         if _fused:
             return {"success": suc,                    "in_score": _cur,
                     "partial": _cur,
                     "baseline_in": base,
                     "baseline_ho": _base_ho, "held_out": None,
-                    "mode": _mode,
+                    "mode": _mode, "contrast": _ct,
                     "reason": ("A3小Δ熔断：|Δ_in|=%.4f<spread，不烧peer预算"
                                % (_d_in,)), "activated": True, "mechanism_ran": True}
         return {"success": suc,
@@ -902,7 +1051,7 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 "held_out": _peer_held_out_code(
                     judge, llm, task, max_tokens=max_tokens,
                     hint_code=(code if suc is True else None)),
-                "mode": _mode, "activated": True}
+                "mode": _mode, "activated": True, "contrast": _ct}
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
     with task_measurement_context(task):

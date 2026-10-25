@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness² 深度研读报告 · 对 DWC 的可借鉴性</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#101823; --panel2:#151f2b; --line:#22303f;
+    --fg:#dbe6f2; --dim:#8ba1b8; --acc:#4ea8ff; --ok:#3ddc97;
+    --bad:#ff5f6d; --warn:#ffc857; --vio:#b48bff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.7 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{position:sticky;top:0;z-index:9;background:rgba(10,14,19,.94);
+         backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+         padding:13px 26px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650}
+  header .sub{color:var(--dim);font-size:12.5px}
+  header nav{margin-left:auto;display:flex;gap:13px;flex-wrap:wrap}
+  header nav a{color:var(--dim);text-decoration:none;font-size:12.8px}
+  header nav a:hover{color:var(--acc)}
+  main{max-width:1120px;margin:0 auto;padding:26px}
+  section{margin:0 0 38px;scroll-margin-top:64px}
+  h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+     border-left:3px solid var(--acc);padding-left:10px;margin:0 0 16px}
+  h3{font-size:15.5px;margin:22px 0 10px;color:#e8f1fb}
+  h4{font-size:14px;margin:18px 0 8px;color:#8fd4ff}
+  p{margin:10px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card .k{color:var(--dim);font-size:11.8px;letter-spacing:.05em}
+  .card .v{font-size:25px;font-weight:700;margin-top:5px;font-family:var(--mono)}
+  .card .n{color:var(--dim);font-size:12.3px;margin-top:4px;line-height:1.55}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .vio{color:var(--vio)}
+  pre{background:#070b10;border:1px solid var(--line);border-radius:10px;
+      padding:13px 15px;overflow:auto;font-family:var(--mono);font-size:12.6px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;font-size:13.4px;margin:10px 0}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12.3px;letter-spacing:.04em}
+  tr:hover td{background:rgba(78,168,255,.04)}
+  code{font-family:var(--mono);font-size:12.4px;background:#0c131b;padding:1.5px 5px;border-radius:5px}
+  .pill{display:inline-block;padding:1.5px 9px;border-radius:999px;font-size:11.4px;
+        border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .pill.ok{border-color:rgba(61,220,151,.42);color:var(--ok);background:rgba(61,220,151,.08)}
+  .pill.bad{border-color:rgba(255,95,109,.42);color:var(--bad);background:rgba(255,95,109,.08)}
+  .pill.warn{border-color:rgba(255,200,87,.42);color:var(--warn);background:rgba(255,200,87,.08)}
+  .note{border-left:3px solid var(--warn);background:rgba(255,200,87,.06);
+        padding:11px 15px;border-radius:0 8px 8px 0;color:#e9d9b6;font-size:13.5px;margin:14px 0}
+  .danger{border-left-color:var(--bad);background:rgba(255,95,109,.07);color:#f3c8cd}
+  .good{border-left-color:var(--ok);background:rgba(61,220,151,.06);color:#c6f0de}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13.5px}
+  .kv .k{color:var(--dim)}
+  footer{color:var(--dim);font-size:12.4px;text-align:center;padding:30px;border-top:1px solid var(--line)}
+  ul{margin:8px 0 8px 4px;padding-left:20px} li{margin:5px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Harness² 深度研读 · 对 DWC 的可借鉴性</h1>
+  <span class="sub">arXiv 2610.14224v1 · 2315 行 · Google Cloud AI Research</span>
+  <nav>
+    <a href="#s0">结论</a><a href="#s1">概览</a><a href="#s2">两层递归</a><a href="#s3">任务级</a>
+    <a href="#s4">改进库</a><a href="#s5">证据</a><a href="#s6">代码</a><a href="#s7">DWC 借鉴</a>
+    <a href="#s8">局限</a>
+  </nav>
+</header>
+<main>
+
+<!-- 0 -->
+<section id="s0">
+  <h2>0 · 一句话结论</h2>
+  <div class="danger note" style="font-size:14.5px">
+    <b>这篇论文直接指出 DWC 现在做错了一件事。</b><br>
+    它实测：<b>直接改 harness、不看参考执行 / 候选探针 / 库 ⇒ 性能反而下降</b>
+    （WB-code 73.4 → <b>63.2</b>）。而 DWC 的进化轮正是这个模式：读签名 → 起草 → 试跑，
+    并且把上一轮的 <code>p.code</code> 当作下一轮的起草起点 —— 这是论文明确反对的<b>继承</b>。<br>
+    它给出的替代方案是<b>两层递归</b>：任务级用「对比式探针」，harnessing 级用「改进库」。
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <div class="card"><div class="k">最强单步提升</div><div class="v ok">+11.8</div>
+      <div class="n">GLM-5 / OpenCode，LAB Partial（59.6 → 71.4）</div></div>
+    <div class="card"><div class="k">消融：去掉改进库</div><div class="v bad">−3.1</div>
+      <div class="n">WorkBuddy（JobBench −1.8）</div></div>
+    <div class="card"><div class="k">消融：去掉作用域编辑</div><div class="v bad">−3.7</div>
+      <div class="n">JobBench（WorkBuddy −2.9）</div></div>
+    <div class="card"><div class="k">仓库可复现性</div><div class="v ok">完整</div>
+      <div class="n">core/ 14 模块 5,688 行，管线齐全</div></div>
+  </div>
+</section>
+
+<!-- 1 -->
+<section id="s1">
+  <h2>1 · 概览</h2>
+  <div class="kv">
+    <div class="k">标题</div><div>Harness²: Recursive Agent Harnessing for an Open World</div>
+    <div class="k">作者</div><div>Ruiyao Xu, Yanfei Chen, Zhongying CuiZhu, Bhavana Dalvi Mishra, Yifei Ming, Han Yu, Rujun Han, Chen-Yu Lee, Tomas Pfister</div>
+    <div class="k">机构</div><div>Northwestern University · Google Cloud AI Research</div>
+    <div class="k">仓库</div><div><code>github.com/google-research/harness2</code> · Apache-2.0</div>
+    <div class="k">基准</div><div>WorkBuddy-Bench（Code/Web/Office）· JobBench · LAB（法律）</div>
+    <div class="k">执行器</div><div>Gemini 3.5 Flash · GLM-5，跑在 OpenCode / Codex 上（四配置）</div>
+    <div class="k">改进器</div><div>默认 Claude Opus 4.8（高推理），也测了同模型当编辑者</div>
+  </div>
+
+  <h3>核心问题</h3>
+  <blockquote style="border-left:3px solid var(--vio);margin:12px 0;padding:8px 16px;color:#d9c9ff">
+    Can recursive self-improvement improve both the current harness
+    <b>and how future harnesses are improved</b>?
+  </blockquote>
+  <p>两个开放世界的难题：</p>
+  <ul>
+    <li><b>没有 ground truth</b>：任务在 harness 设计时未见过，测试时也是新的，没有可靠的验证器</li>
+    <li><b>RSI 高度任务特化</b>：为一个任务改好的 harness 到下一个任务就失效</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2>2 · 两层递归（核心贡献）</h2>
+  <table>
+    <tr><th>层级</th><th>改什么</th><th>怎么改</th><th>何时更新</th></tr>
+    <tr><td><b>任务级</b></td><td>执行 harness（当前任务的运行时）</td><td>对比式 Propose–Probe–Compose；可并行（宽 k）或串行（深 k）</td><td>任务内</td></tr>
+    <tr><td><b>Harnessing 级</b></td><td><b>改进 harness</b>（改进机制本身）</td><td>反思整个改进过程 → 把采纳的 harness + 经验写进库</td><td>每个任务结束后</td></tr>
+  </table>
+  <div class="good note">
+    <b>关键区分：</b>执行 harness 是<b>被改进的系统</b>；改进 harness 是<b>改进它的机制</b>。
+    任务级递归期间改进 harness 保持固定，任务结束后才通过"库"更新。
+  </div>
+  <p>这条定义直接对应 DWC 的 <code>meta_evolution</code>（R438 #14）——
+  但 DWC 只实现了"调一个旋钮"（<code>auto_apply_max_per_round</code>），没有"改进器带库"。</p>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2>3 · 任务级递归：对比式 Propose–Probe–Compose</h2>
+
+  <h3>3.1 三步</h3>
+  <table>
+    <tr><th>步</th><th>做什么</th><th>关键细节</th></tr>
+    <tr><td><b>Propose</b></td><td>先拿一次<b>参考执行</b>，再提<b>两个</b>候选</td>
+      <td>invariant 候选针对跨领域的通用缺陷（规划/工具/上下文/委派）；domain 候选针对当前领域的知识、流程、约束</td></tr>
+    <tr><td><b>Probe</b></td><td>在<b>同模型同环境</b>下跑每个候选</td>
+      <td>与参考执行对比得到<b>行为对比</b>：缓解 / 无变化 / 引入回归。<b>不是</b>验证正确性</td></tr>
+    <tr><td><b>Compose</b></td><td>读参考、候选、diff、全部本地证据，形成后继 harness</td>
+      <td>可合并、可改写冲突、可选其一、可保留原样；<b>每个决定都要绑定一个具体观测</b></td></tr>
+  </table>
+
+  <h3>3.2 并行 vs 串行</h3>
+  <table>
+    <tr><th>形态</th><th>机制</th><th>论文结果</th></tr>
+    <tr><td>并行（宽 k）</td><td>收集 k 次参考执行，独立提 k 个 invariant + k 个 domain 候选，k 个组合会话各拿到<b>完整候选池</b></td><td>WB-code 76.5 → 80.8；WB-office 79.5 → <b>83.4</b></td></tr>
+    <tr><td>串行（深 k）</td><td>链式 k 步，每步以上一步的 harness 与累计历史为条件</td><td>k=2 时在 Code 上更高；k=5 时整体低于并行</td></tr>
+  </table>
+  <div class="note">
+    <b>两种形态在 k=2 时就超过所有基线在 k=5 的成绩</b> ——
+    说明"递归改进 harness"比"单纯增加推理预算"更有效。
+    对照：Harness Scaling 在 k=2→3 时<b>回退</b>。
+  </div>
+
+  <h3>3.3 最终选择</h3>
+  <p>k&gt;1 时由一个 agentic selector 比较<b>匿名化</b>的交付物，只能选一个现有输出，
+  不能改写、不能合成新内容。选中的 harness 记为 H*（星号表示"被采纳"而非"已验证最优"）。</p>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2>4 · Harnessing 级递归：改进库</h2>
+
+  <h3>4.1 库的形态（`core/library.py` 实测）</h3>
+<pre>&lt;root&gt;/&lt;run-tag&gt;/&lt;mode&gt;/&lt;domain&gt;/
+    INDEX.md                                  # 每条一行 cue
+    harnesses/&lt;task&gt;/harness/&lt;rel&gt;            # 采纳的完整树（不是摘要）
+    harnesses/&lt;task&gt;/EXPERIENCE.md            # cue / lesson / evidence / confidence</pre>
+
+  <h3>4.2 四条硬规则（全部可读代码验证）</h3>
+  <table>
+    <tr><th>#</th><th>规则</th><th>代码证据</th></tr>
+    <tr><td>1</td><td><b>缺证据不入库</b>：<code>cue</code>/<code>lesson</code>/<code>evidence</code> 三项任一为空 ⇒ 直接返回 None</td><td><code>library.py:43-47,120-121</code></td></tr>
+    <tr><td>2</td><td><b>防泄漏</b>：写库前断言树与 EXPERIENCE 里没有 grader verdict</td><td><code>library.py:122-123</code></td></tr>
+    <tr><td>3</td><td><b>只保留当前任务之前</b>的条目（防未来信息泄漏）</td><td><code>library.py:101-104</code></td></tr>
+    <tr><td>4</td><td><b>存整棵树，不存摘要</b>（"The whole tree is carried, never a summary"）</td><td><code>library.py:22-23</code></td></tr>
+  </table>
+
+  <h3>4.3 反思的门槛</h3>
+  <p>"Lessons are retained only when supported by execution contrasts;
+  <b>selecting an output alone does not establish transferability</b>."</p>
+  <div class="good note">
+    这句话是整篇最硬的一条纪律：<b>选中一个结果，不等于它能迁移</b>。
+    必须有执行对比支撑，才允许写成经验。
+  </div>
+
+  <h3>4.4 选择性复用，而不是继承</h3>
+  <p>下一个任务<b>从共同的 H0 开始</b>，不是从上个任务改好的 harness 开始。
+  库里的组件通过 Propose 被<b>按需复用或改写</b>。</p>
+  <div class="danger note">
+    <b>这正是 DWC 做反的地方。</b>DWC 的 <code>Mutator.propose</code> 把上一轮的 <code>p.code</code>
+    当作起草起点 —— 这是"继承"。论文实测直接继承会掉分（见 §5.3）。
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2>5 · 证据</h2>
+
+  <h3>5.1 主结果（单步 k=1）</h3>
+  <table>
+    <tr><th>配置</th><th>WorkBuddy Avg</th><th>JobBench</th><th>LAB Partial</th></tr>
+    <tr><td>Gemini 3.5 Flash / OpenCode</td><td>72.4 → <b>77.5</b>（+5.1）</td><td>31.5 → <b>36.0</b>（+4.5）</td><td>79.9 → <b>81.9</b>（+2.0）</td></tr>
+    <tr><td>Gemini 3.5 Flash / Codex</td><td>74.5 → <b>77.5</b>（+3.0）</td><td>33.9 → <b>35.3</b>（+1.4）</td><td>71.6 → <b>75.6</b>（+4.0）</td></tr>
+    <tr><td>GLM-5 / OpenCode</td><td>64.2 → <b>75.7</b>（+11.5）</td><td>20.6 → <b>24.2</b>（+3.6）</td><td>59.6 → <b>71.4</b>（+11.8）</td></tr>
+    <tr><td>GLM-5 / Codex</td><td>64.4 → <b>75.3</b>（+10.9）</td><td>23.6 → <b>24.8</b>（+1.2）</td><td>58.1 → <b>65.9</b>（+7.8）</td></tr>
+  </table>
+  <p><b>弱执行器获益更大</b>：GLM-5 在 WB 与 LAB 上的绝对增益都大于 Gemini。
+  改进后的 GLM-5（75.7 / 75.3）甚至超过未改进的 Gemini（72.4 / 74.5）。</p>
+
+  <h3>5.2 递归预算 k=5 的增量</h3>
+  <table>
+    <tr><th>基准</th><th>增量</th></tr>
+    <tr><td>WorkBuddy-Bench</td><td>+2.9 ~ +3.9</td></tr>
+    <tr><td>JobBench</td><td>+3.0 ~ +4.2</td></tr>
+    <tr><td>LAB Partial</td><td>+2.6 ~ +6.7</td></tr>
+  </table>
+  <p><b>步数反而更少</b>：Gemini/OpenCode 在 WorkBuddy 上平均 25.4 → 21.9 步。</p>
+
+  <h3>5.3 ★ 最重要的一条（对 DWC 的直接警告）</h3>
+<pre>直接改基础 harness，不看参考执行 / 候选探针 / 库：
+
+WB-code   73.4 → 63.2    (−10.2)
+WB-web    69.9 → 65.0    (−4.9)
+
+加上 k=1 的库 ⇒ 只能"恢复"到基线
+加上 k=5 的库 ⇒ 才开始产生 +0.9 / +4.4 / +5.1 的增益</pre>
+  <div class="danger note">
+    <b>读法：</b>"直接编辑"不是"效果差一点"，而是<b>负收益</b>。
+    库不是锦上添花，它是把负收益拉回零、再往上走的前提。
+  </div>
+
+  <h3>5.4 消融（WorkBuddy / JobBench）</h3>
+  <table>
+    <tr><th>去掉</th><th>WorkBuddy</th><th>JobBench</th><th>说明</th></tr>
+    <tr><td>改进库</td><td>−3.1</td><td>−1.8</td><td>不读也不写，每个任务孤立</td></tr>
+    <tr><td>作用域编辑（双候选）</td><td>−2.9</td><td><b>−3.7</b></td><td>同样数量候选，但不按轨迹作用域读</td></tr>
+    <tr><td>组合（Compose）</td><td>−1.6</td><td>−1.9</td><td>两个提案只当备选，不合并</td></tr>
+  </table>
+
+  <h3>5.5 组件贡献（移除已改进 harness 的某组）</h3>
+  <table>
+    <tr><th>配置</th><th>WorkBuddy Avg</th><th>损失</th></tr>
+    <tr><td>完整</td><td>80.8</td><td>—</td></tr>
+    <tr><td>去 prompt 组</td><td>79.3</td><td>−1.5</td></tr>
+    <tr><td>去 scripts</td><td>77.1</td><td>−3.7</td></tr>
+    <tr><td>去 skills</td><td><b>75.5</b></td><td><b>−5.3</b></td></tr>
+  </table>
+  <p>所有消融版本仍高于基线（72.4），说明贡献来自多个组件组，
+  但论文明确说"<b>不构成可加性结论</b>"。</p>
+
+  <h3>5.6 同模型当编辑者</h3>
+  <p>五个模型（GLM-5 → Claude Opus 5）在三个基准上全部提升。
+  Opus 5 在 WB / JB / LAB 上 +3.3 / +5.5 / +3.0；GLM-5 在 LAB 上 <b>+13.7</b>。</p>
+  <div class="good note">
+    <b>结论：harness 改进不需要比执行器更强的编辑器。</b>
+    这对 DWC 很重要 —— 它现在用的就是和任务同一档的模型。
+  </div>
+
+  <h3>5.7 案例（JobBench）</h3>
+  <p>基线 43.1，轨迹显示的是<b>流程失败</b>而非知识缺口：数字从未跨文件核对，产出写完后从未重开验证。
+  两个干预：</p>
+  <ul>
+    <li><b>invariant</b>：流程级护栏 —— 强制盘点所有输入、把数字追到确切来源、用脚本重开产出核对</li>
+    <li><b>domain</b>：领域技能 —— 提供日程/场地/人力/预算文件的核对机制，加数字格式的工具指引</li>
+  </ul>
+  <p>组合后重跑 <b>77.8</b>（+34.7）。</p>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2>6 · 代码审读</h2>
+  <div class="grid">
+    <div class="card"><div class="k">Python 行数（不含 third_party）</div><div class="v">13,270</div><div class="n">harness2/ 39 文件</div></div>
+    <div class="card"><div class="k">core/ 模块</div><div class="v">14</div><div class="n">5,688 行</div></div>
+    <div class="card"><div class="k">测试</div><div class="v warn">5</div><div class="n">1 个文件，<b>本次未执行</b></div></div>
+    <div class="card"><div class="k">与 HarnessPro 比</div><div class="v ok">可复现</div><div class="n">那边只有产物，这边有管线</div></div>
+  </div>
+
+  <h3>6.1 core 模块清单</h3>
+  <table>
+    <tr><th>模块</th><th>行数</th><th>职责</th></tr>
+    <tr><td><code>prompts.py</code></td><td>1,163</td><td>各阶段提示词（propose/probe/compose/reflect/select）</td></tr>
+    <tr><td><code>schedule.py</code></td><td>850</td><td>任务流调度</td></tr>
+    <tr><td><code>recursion.py</code></td><td>578</td><td>并行 / 串行递归主循环（<code>run_parallel</code> / <code>run_sequential</code> / <code>run_mode</code>）</td></tr>
+    <tr><td><code>context.py</code></td><td>546</td><td>给改进会话的上下文目录 + 泄漏断言</td></tr>
+    <tr><td><code>proposer.py</code></td><td>534</td><td>提候选（invariant / domain）</td></tr>
+    <tr><td><code>selection.py</code></td><td>505</td><td>agentic selector</td></tr>
+    <tr><td><code>tree.py</code></td><td>427</td><td>harness 树读写 + <code>SurfaceSpec</code>（可编辑面）</td></tr>
+    <tr><td><code>spec.py</code></td><td>277</td><td>benchmark 接缝 + channel/model 解析</td></tr>
+    <tr><td><code>library.py</code></td><td>222</td><td><b>改进库</b></td></tr>
+    <tr><td><code>judge.py</code></td><td>155</td><td>评分（仅评测用，不进改进回路）</td></tr>
+  </table>
+
+  <h3>6.2 值得抄的两个工程细节</h3>
+  <h4>① 无效树回退（D.2）</h4>
+<pre>树不合法（技能无触发句 / 脚本不编译 / 引用未打包的 helper）
+  ⇒ 带校验消息重试一次
+  ⇒ 再失败 ⇒ 继承起始树，并记录 fallback</pre>
+  <p>这是"失败也要留痕且不炸整轮"的标准做法，DWC 的 `trial` 目前是 fail-closed 直接返回 None。</p>
+
+  <h4>② 通道与模型必须成对覆盖</h4>
+<pre>if (kind is None) != (model is None):
+    raise ValueError("channel and model must be overridden TOGETHER")</pre>
+  <p>理由写得很直白："a bare-id/provider-prefixed mismatch fails silently downstream"。
+  这正是 DWC 反复踩过的"配置写了但不生效"那类坑。</p>
+
+  <h3>6.3 声称 vs 实现</h3>
+  <table>
+    <tr><th>论文声称</th><th>仓库</th><th>判定</th></tr>
+    <tr><td>对比式 Propose-Probe-Compose</td><td><code>proposer.py</code> + <code>recursion.py</code></td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>并行 / 串行递归</td><td><code>run_parallel</code> / <code>run_sequential</code></td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>改进库 + EXPERIENCE.md</td><td><code>library.py</code> 完整</td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>8 组件可编辑面</td><td><code>tree.py::SurfaceSpec</code></td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>防泄漏 guard</td><td><code>context.assert_tree_has_no_grader_verdicts</code></td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>三个基准</td><td><code>benchmarks/</code> 三个适配器（1,175 / 1,029 / 1,005 行）</td><td><span class="pill ok">有</span></td></tr>
+    <tr><td>测试完备性</td><td>仅 5 个测试函数</td><td><span class="pill warn">薄</span></td></tr>
+  </table>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2>7 · DWC 能学到什么</h2>
+
+  <h3>7.1 六项采纳</h3>
+  <table>
+    <tr><th>机制</th><th>DWC 现状</th><th>阶段</th></tr>
+    <tr><td>两层递归（执行 + 改进）</td><td><code>meta_evolution</code> 只调一个旋钮</td><td><b>P4</b></td></tr>
+    <tr><td>对比式探针</td><td>只比分数，不比行为</td><td><b>P1-c</b></td></tr>
+    <tr><td>双候选作用域（通用/领域）</td><td>不区分能力缺陷与领域知识</td><td>P2 扩展</td></tr>
+    <tr><td>改进库（全树 + 经验）</td><td>有 lessons/skills，无捆绑</td><td><b>P4</b></td></tr>
+    <tr><td>证据门槛</td><td>已有"不可复现不进候选"，但可更严</td><td><b>P4</b></td></tr>
+    <tr><td>选择性复用而非继承</td><td><b>做反了</b>：<code>p.code</code> 当下轮起点</td><td><b>P1-c 前置</b></td></tr>
+  </table>
+
+  <h3>7.2 三项拒绝</h3>
+  <table>
+    <tr><th>机制</th><th>理由</th></tr>
+    <tr><td>并行递归 k=5</td><td>成本 ×5；DWC 日预算 96/80 吃不下。串行 k=2 可作为 P4 可选项</td></tr>
+    <tr><td>8 组件文件级重写</td><td>DWC 对象是配置/规则级，改文件树会破坏 19 对象隔离</td></tr>
+    <tr><td>无效树回退（照搬）</td><td>DWC 没有"树"概念；但"失败留痕不炸轮"的精神可借</td></tr>
+  </table>
+
+  <h3>7.3 对 DWC 最重要的三条结论</h3>
+  <div class="grid">
+    <div class="card">
+      <div class="k">① 直接编辑是负收益</div>
+      <div class="n" style="margin-top:6px">DWC 现在的进化模式（读签名→起草→试跑，继承上轮 code）
+      正是论文实测会掉 10 分的做法。<b>P1-c 必须先做。</b></div>
+    </div>
+    <div class="card">
+      <div class="k">② 库是前提不是装饰</div>
+      <div class="n" style="margin-top:6px">k=1 的库只能把性能拉回基线；要正收益必须积累到 k≥5 的探索量。
+      所以 <b>P4 不能省</b>，但要接受"前期只有恢复、没有提升"。</div>
+    </div>
+    <div class="card">
+      <div class="k">③ 不需要更强的编辑器</div>
+      <div class="n" style="margin-top:6px">五个模型全部提升，GLM-5 在 LAB 上 +13.7。
+      DWC 用同档模型做编辑者是可行的。</div>
+    </div>
+  </div>
+
+  <h3>7.4 与 HarnessPro 的关系</h3>
+  <table>
+    <tr><th>维度</th><th>HarnessPro</th><th>Harness²</th><th>DWC 取谁</th></tr>
+    <tr><td>目标</td><td>性能 + 成本</td><td>性能（开放世界）</td><td>成本取前者，递归取后者</td></tr>
+    <tr><td>反馈</td><td>LLM 生成测试</td><td>行为对比（无判据）</td><td>DWC 有真值，用真值 + 行为对比</td></tr>
+    <tr><td>跨任务</td><td>不跨（每轮重来）</td><td>库 + 经验</td><td><b>取后者</b></td></tr>
+    <tr><td>候选数</td><td>3 计划 × 3 rollout</td><td>2 候选（通用/领域）× k</td><td>取"2 候选"，不取 k=5</td></tr>
+    <tr><td>可复现</td><td>仅产物</td><td><b>完整管线</b></td><td>—</td></tr>
+  </table>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2>8 · 诚实边界</h2>
+  <table>
+    <tr><th>项</th><th>状态</th></tr>
+    <tr><td>复现实验</td><td><b>未做</b>。需要 Gemini 3.5 Flash / GLM-5 + OpenCode/Codex + 三套专业基准数据</td></tr>
+    <tr><td>跑仓库测试</td><td><b>未做</b>。5 个测试函数是静态计数</td></tr>
+    <tr><td>代码审读深度</td><td><code>library.py</code> 全文；<code>spec.py</code> / <code>tree.py</code> 关键段；<code>recursion.py</code> / <code>proposer.py</code> / <code>selection.py</code> 只读函数签名</td></tr>
+    <tr><td>数字来源</td><td>全部引自论文 Table 1–3、Table 6、Figure 5–7 与 §4，未二次计算</td></tr>
+    <tr><td>DWC 侧证据</td><td><code>evolver.py::Mutator.propose</code> 的继承行为来自 R438 落地记录（<code>p.code</code> 随规则落盘并复用为起草起点）</td></tr>
+    <tr><td>口径注意</td><td>论文用 Partial（按 criterion 通过率）报 LAB，与"整题通过"不可直接比较</td></tr>
+  </table>
+
+  <h3>引用</h3>
+<pre>@article{xu2026harness2,
+  title   = {Harness$^2$: Recursive Agent Harnessing for an Open World},
+  author  = {Xu, Ruiyao and Chen, Yanfei and CuiZhu, Zhongying
+             and Dalvi Mishra, Bhavana and Ming, Yifei and Yu, Han
+             and Han, Rujun and Lee, Chen-Yu and Pfister, Tomas},
+  journal = {arXiv preprint arXiv:2610.14224},
+  year    = {2026}
+}</pre>
+</section>
+
+<footer>
+  DWC 研读报告 · Harness² (arXiv 2610.14224v1) · 生成于 2026-10-24<br>
+  论文 2315 行全读 · 仓库 13,270 行 Python 静态清点 · 未做实验复现，数字均引自论文
+</footer>
+</main>
+</body>
+</html>

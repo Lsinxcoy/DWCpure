@@ -309,6 +309,9 @@ class TermReport:
     term_id: str
     chain_id: str
     started_at: float
+    #: ★ R456 · 本 term 判的是哪道题（判分面按它收窄观测集；
+    #:   空串 = 未知 ⇒ 回退全量，向后兼容自由文本调用）
+    task: str = ""
     #: ★ decision 环的 ref_id（各环 upstream 都指它）
     decision_ref: str | None = None
     #: ★★ T3 的证据: term 自己写了哪些记忆 ⇒ 用于区分
@@ -333,8 +336,10 @@ class TermReport:
     measure4: dict[str, Any] = field(default_factory=dict)
     #: ★ R152 · 门组链（V2 §5.4 六门三态; verdict=blocked ⇒ 不许落地）
     gate_chain: dict[str, Any] = field(default_factory=dict)
-    #: ★★ R25: judge 的真实判定（未注入 judge 时为 None）
+    #: ★ R25: judge 的真实判定（未注入 judge 时为 None）
     judgement: dict[str, Any] | None = None
+    #: ★ R458 · 本轮写进记忆的 skill 节点（None = 没写）
+    skill_written: str | None = None
     #: ★ judge 给的通过率（None = 未评价或未判）
     score_delta: float | None = None
     #: ★ Phase 1.2 · 是否为自造观测（executor 未注入 ⇒ 合成, 不代表真实能力）
@@ -564,7 +569,8 @@ class TermRunner:
         """
         cid = chain_id or ("CH_" + uuid.uuid4().hex[:10])
         tid = "T_" + uuid.uuid4().hex[:8]
-        rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time())
+        rep = TermReport(term_id=tid, chain_id=cid, started_at=time.time(),
+                         task=task)   # ★ R456 · 判分面要知道这轮判哪道题
         self._term_hist = []          # ★ 边界3 · 本 term 历史召回清空
         self.cost.reset_term(task_id=task)   # T4: term 级 reset（R99: 传 task 标记新账）
 
@@ -1024,6 +1030,21 @@ class TermRunner:
             except OSError as exc:
                 # ★ G7: 对照台账写失败不许静默
                 sys.stderr.write("effect 对照台账写失败: %s\n" % exc)
+            # ★ R458 · 判分通过 + 模型自述做法 ⇒ 写成 skill。
+            #   失败只留 failure_sig（错在哪）；成功若不记，记忆里永远只有
+            #   负样本，函数类题目的召回就一直是空的。
+            try:
+                _det = [d for d in (verdict.get("details") or [])
+                        if d.get("task_id") == rep.task]
+                _m = (obs.get(rep.task) or {}).get("★method") or ""
+                if _det and _det[0].get("success") is True and _m:
+                    from dwc.organs import skill_writer as _SW
+                    rep.skill_written = _SW.from_term(
+                        self.memory, rep.task,
+                        (self.judge.anchors.get(rep.task) or {}).get("prompt", ""),
+                        _m, passed=True)
+            except Exception as exc:                  # noqa: BLE001
+                sys.stderr.write("skill 写入跳过: %s\n" % exc)
             try:  # ★ R277 · verdict 落盘可观测（坏了留痕不阻断本轮）
                 _m0 = ""
                 for _d in ((verdict or {}).get("details") or []):
@@ -1157,7 +1178,14 @@ class TermRunner:
         # ── R126 · 真执行路径（executor 注入才启用）──
         if self.executor is not None:
             out: dict[str, dict] = {}
-            for tid, rec in self.judge.anchors.items():
+            # ★ R456 · 只跑当前题：全量判会把 6~20 次模型调用摊在每一轮上，
+            #   而且别的题的成败会混进本 term 的分数 —— 一轮一题才归得了因。
+            #   当前题不在 anchors（自由文本 / 老测试）⇒ 回退全量，行为不变。
+            _only = (getattr(rep, "task", "") or "").strip()
+            _tids = ([_only] if _only and _only in self.judge.anchors
+                     else list(self.judge.anchors))
+            for tid in _tids:
+                rec = self.judge.anchors.get(tid) or {}
                 if tid.startswith("_"):
                     continue
                 if rec.get("verifier_kind") != "behavior":
@@ -1175,6 +1203,9 @@ class TermRunner:
                         "error_code", "no_observed")}
                     continue
                 out[tid] = {"observed": det["observed"], "★_executed": True}
+                # ★ R458 · 模型自述的做法（判分通过后才会变成 skill）
+                if det.get("method"):
+                    out[tid]["★method"] = det["method"]
             return out
         # ── R25 自造路径（executor 未注入 ⇒ 原样行为）──
         out = {}

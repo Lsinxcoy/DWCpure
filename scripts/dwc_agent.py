@@ -16,8 +16,10 @@
   · 退化崩塌: 曾经 pass>0.1 后连续 2 轮 <0.1 ⇒ 停 + 告警
   · 冻结门（人工）: var/dwc_agent_frozen 存在 ⇒ 优雅停（G3 frozen 设置方）
 
-★ 运行: python dwc_agent.py [--interval 600] [--steps 2] [--llm]
+★ 运行: python dwc_agent.py [--interval 600] [--steps 2] [--selfcheck]
       [--terms-per-day 96] [--budget-day 80]
+      ★ R456: 默认**真模型作答**（term 才有信号）。--selfcheck = 无模型自检，
+        跑参考答案自判，分数不进饱和判据，只用于排障。
       python dwc_agent.py --freeze / --unfreeze / --status
 """
 from __future__ import annotations
@@ -63,6 +65,9 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from dwc.core import DWC                                    # noqa: E402
 from dwc.organs.actor import Actor, execute_task, Receipt   # noqa: E402
+from dwc.organs import selection_state as _SS               # noqa: E402  ★ R455
+from dwc.organs import skill_writer as _SW                  # noqa: E402  ★ R457
+from dwc.organs import task_recall as _TR                   # noqa: E402  ★ R457
 
 _LOCK_FD = None  # ★ R297-混沌真修 · 锁 fd 进程持有（不关；死即放）
 
@@ -205,9 +210,15 @@ STUCK_LIMIT = 3
 
 #: 选择态（进程内）。last/streak = 连续计数；used = LRU 历史（最近在尾部）；
 #: cooldown = 卡住的任务 → 剩余让位轮数（逃逸后置为「池子扫完一圈」）。
+#: ★ R455 · 这两个字典会**落盘**（`var/agent_sel.json`）：
+#:   实测队列 15 道题只跑过 1 道 —— 因为进程一重启 `_day["terms"]` 归零，
+#:   选择永远回到 `pool[0]`。当天重启 6 次 = 同一道题被喂了 6 遍。
 _sel = {"last": None, "streak": 0, "used": [], "cooldown": {}}
 _day = {"key": time.strftime("%Y-%m-%d"), "terms": 0, "cost": 0.0}
 _stop = {"by": None}
+
+#: ★ R455 · 选择状态文件（重启不失忆）
+SEL_STATE_PATH = os.path.join(ROOT, "var", "agent_sel.json")
 
 #: ★★★ R382 · 收件箱互斥锁 —— 轮询线程与其它调用方并发读 INBOX 时，
 #:   "读到未处理 → 返回" 不是原子的 ⇒ 同一单会被取两次（重复投递）。
@@ -670,11 +681,21 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
             lc = lessons_context(str(item.get("task", "")))
             if lc:
                 ctx = (ctx + "\n" + lc) if ctx else lc
-            rep = _run_with_deadline(
-                lambda: execute_user_task(
-                    str(item.get("task", "")), llm=llm,
-                    ctx=ctx, task_id=item["id"]),
-                _TASK_TIMEOUT_S, str(item.get("task", "")))
+            # ★ R442 · 成本归因：这一单期间的所有 LLM 调用都记到它的 id 名下
+            # ★ R447 · 同时记档位（不拼进 tag —— 拼进去会毁掉按 task_id 聚合）
+            from dwc.llm import cost as _cost
+            from dwc.llm import profile as _profile
+            _cost.set_tag(str(item.get("id") or ""))
+            _cost.set_profile(_profile.choose(str(item.get("task", ""))).name)
+            try:
+                rep = _run_with_deadline(
+                    lambda: execute_user_task(
+                        str(item.get("task", "")), llm=llm,
+                        ctx=ctx, task_id=item["id"]),
+                    _TASK_TIMEOUT_S, str(item.get("task", "")))
+            finally:
+                _cost.clear_tag()
+                _cost.clear_profile()
     except Exception as exc:          # noqa: BLE001
         # ★ R398 · 执行抛异常也必须**停心跳**，否则标记永远是 running
         #   ⇒ 这一单既不会完成也不会被重取（比崩溃更糟）。
@@ -744,6 +765,20 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     return rep
 
 
+def _save_state() -> None:
+    """★ R455 · 选择状态落盘（每个 term 一次，文件很小）。"""
+    _SS.save(_sel, _day, SEL_STATE_PATH)
+
+
+def _load_state() -> None:
+    """★ R455 · 启动时恢复选择状态；跨天只清当日计数，覆盖进度保留。"""
+    s, d = _SS.load(SEL_STATE_PATH)
+    _sel.clear()
+    _sel.update(s)
+    _day.clear()
+    _day.update(d)
+
+
 def _note_used(tid: str) -> None:
     """记录一次选择（LRU：最近用过的挪到尾部）。"""
     used = _sel.setdefault("used", [])
@@ -778,9 +813,13 @@ def _tick_cooldown() -> None:
             del cd[k]
 
 
-def select_task(prev_rep, pool=None) -> str:
+def select_task(prev_rep, pool=None, supply=(), stats=None) -> str:
     """★ agent 自主任务源: 上轮 next_task_source 优先（它的测量触发它的
     下一轮）; 无/空 ⇒ 池轮询（seed 语义）。
+
+    ★ R455 · 供给覆盖优先：队列里还有**从未跑过**的题 ⇒ 先跑它。
+      病根: 实测队列 15 道只跑过 1 道 —— `_day["terms"]` 重启归零，
+      选择永远回到 `pool[0]`，后面的题永远轮不到。
 
     ★★★ R375 · 逃逸阀: 同一任务**连续**选中超过 `STUCK_LIMIT` 次 ⇒ 强制
       切到池里最久没用过的任务，并让该任务**冷却一整圈**（直到池里其余
@@ -799,12 +838,20 @@ def select_task(prev_rep, pool=None) -> str:
     nodes = [t["node"] for t in tasks
              if t.get("kind") == "world_tree_action" and t.get("node")]
     cand = nodes[0] if nodes else pool[_day["terms"] % len(pool)]
+    if not nodes:
+        # ★ R457 · 记忆参与选择：跑过且失败过的题最该再试（失败是唯一的学习
+        #   信号），其次没跑过（覆盖），最后 LRU。pick 返回空 ⇒ 回退轮转。
+        cand = (_TR.pick(pool, stats or {}, cd, _sel.get("used", []))
+                or pool[_day["terms"] % len(pool)])
+    # ★ R455 · 覆盖优先：队列里有没跑过的题就先跑它（全覆盖后回归正常轮转）
+    cand = _SS.pick_with_supply(cand, pool, supply, _sel.get("used", []), cd)
 
     if cand in cd:                      # 冷却中 ⇒ 让位（advice 不是强制令）
         cand = _lru_pick(pool, list(cd))
         _sel["last"] = cand
         _sel["streak"] = 1
         _note_used(cand)
+        _save_state()
         return cand
 
     if cand == _sel.get("last"):
@@ -822,6 +869,7 @@ def select_task(prev_rep, pool=None) -> str:
         _sel["streak"] = 1
 
     _note_used(cand)
+    _save_state()
     return cand
 
 
@@ -853,6 +901,105 @@ def _budget_check(terms_per_day: float, budget_day: float) -> bool:
         _stop["by"] = "daily_limit"
         return True
     return False
+
+
+# ── ★ R453 · 任务供给（L1/L2，零 LLM）────────────────────────────
+#: 供给队列：与 DEV_POOL 并列的任务源（池子是代码，队列是数据）
+SUPPLY_PATH = os.path.join(ROOT, "var", "task_queue.jsonl")
+#: ★ R457 · 成功做法台账（905 条 success_pattern —— skill 记忆的来源）
+LESSONS_PATH = os.path.join(ROOT, "var", "dwc_lessons.jsonl")
+#: ★ R454 · 难度阶梯状态（饱和升 / 太难降，带 min_terms + cooldown 双闸）
+LEVEL_PATH = os.path.join(ROOT, "var", "supply_level.json")
+#: ★ R454 · L3 起草请求：tick 里不起草（会阻塞主循环 + 成本不可控），
+#:          写请求给带 LLM 的入口（scripts/supply_l3.py）消费
+ESCALATE_PATH = os.path.join(ROOT, "var", "supply_escalate.json")
+#: 最近 30 个 term 的通过率（饱和判据的输入）
+_RECENT_PASS: list = []
+#: ★ R457 · 记忆统计（每题失败签名数）—— 选择器读它，不再只按轮转
+_MEM_STATS: dict = {}
+
+
+def _refresh_mem_stats(d) -> dict:
+    """从记忆库重算"每题失败了几次"。一次全扫（5k 行，毫秒级）。"""
+    global _MEM_STATS
+    try:
+        _MEM_STATS = _TR.task_stats(d.memory)
+    except Exception as exc:              # noqa: BLE001 — 统计坏了不掀轮
+        sys.stderr.write("记忆统计失败（按无统计选任务）: %r\n" % (exc,))
+    return _MEM_STATS
+
+
+def _supply_sync(d) -> tuple:
+    """把队列里的题注入 judge.anchors（判分必须找得到），返回 id 元组。
+
+    ★ 只注入带 checks 的题：没有判据的题跑起来也判不了分，等于污染。
+    """
+    from dwc.organs import task_supply as _TS
+    ids = []
+    for t in _TS.load_queue(SUPPLY_PATH):
+        tid = str(t.get("task_id") or "")
+        a = t.get("anchor")
+        if not tid or not isinstance(a, dict) or not a.get("checks"):
+            continue
+        if tid not in d.judge.anchors:
+            d.judge.anchors[tid] = dict(a)
+        ids.append(tid)
+    return tuple(ids)
+
+
+def _seed_recent(path: str, n: int = 30) -> list:
+    """★ R453 · 从台账尾部取最近 n 个 term 的 pass_rate（重启后判据不失忆）。"""
+    vals: list = []
+    try:
+        import io as _io
+        with _io.open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or '"agent_term"' not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                pr = r.get("pass_rate")
+                # ★ R456 · 只认真模型跑出来的 term（mode=llm）。
+                #   自检模式的 1.0 是参考答案自判，喂进饱和判据等于自己骗自己。
+                if pr is not None and r.get("mode") == "llm":
+                    vals.append(float(pr))
+    except OSError:
+        return []
+    return vals[-n:]
+
+
+def _maybe_supply(d, recent) -> dict:
+    """饱和 ⇒ 造题；并按难度阶梯决定造哪一级。
+
+    ★ 为什么在饱和时才造：没饱和说明还有不会做的题，加难度只会掩盖问题。
+    ★ 为什么 L3 只写请求不起草：agent 的 tick 里不能调 LLM
+      （阻塞主循环 + 成本不可控），起草交给 `scripts/supply_l3.py`。
+    """
+    from dwc.organs import task_supply as _TS
+    sat = _TS.saturation([{"pass_rate": p} for p in recent])
+    st = _TS.step_level(sat, path=LEVEL_PATH)
+    lvl = int(st["level"])
+    out = {"generated": 0, "level": lvl, "level_changed": bool(st["changed"]),
+           "level_why": st.get("why", ""), **sat}
+    plan = _TS.plan_batch(lvl, sat, len(_TS.load_queue(SUPPLY_PATH)))
+    if plan["action"] == "none":
+        return {**out, "why": plan["why"]}
+    if plan["action"] == "escalate":
+        _TS.request_escalation(2, why=plan["why"], path=ESCALATE_PATH)
+        return {**out, "why": "escalation_requested"}
+    tasks = []
+    if plan["with_fresh"]:
+        tasks += list(_TS.from_fresh(
+            os.path.join(ROOT, "config", "anchors", "fresh.json")))
+    for tid in DEV_POOL:
+        a = d.judge.anchors.get(tid)
+        if isinstance(a, dict):
+            tasks += _TS.perturb(tid, a, seed=int(time.time()) // 86400, n=1)
+    n = _TS.admit(tasks, SUPPLY_PATH)
+    return {**out, "generated": n, "why": "saturated"}
 
 
 def _maybe_skip(prev_ok, item, skips):
@@ -1089,7 +1236,17 @@ def main(argv) -> int:
     #   剩下 12 单全部变成 timeout（日志里看着像模型全崩）。
     #   每个 term 的 cost 是 1.0（合成计数，不是真钱），40 等于"每天 40 单"，
     #   连一轮全池都跑不完。要收紧成本请显式传 `--budget-day 40`。
-    use_llm = "--llm" in argv
+    # ★ R456 · 默认真模型：term 必须由模型作答，否则判分器只是在给参考答案
+    #   自己打分（实测 6 道 dev 题恒 1.0，供给题一律 executor_raised）。
+    #   自检（无模型）要显式 --selfcheck，且分数不进饱和判据。
+    use_llm = "--selfcheck" not in argv
+    # ★ R456 · 模式必须显式记账：selfcheck = 跑参考答案自判（无模型），
+    #   它的 1.0 不是"会做"，不许进饱和判据、不许喂难度阶梯。
+    MODE = "llm" if use_llm else "selfcheck"
+    if not use_llm:
+        sys.stderr.write(
+            "★ 自检模式：term 跑的是参考答案（无模型），分数不具信号意义；"
+            "要真跑请加 --llm\n")
     os.makedirs(VAR, exist_ok=True)
     # W1：唯一共享证据库；client 物理 attempt 与 task 角色上下文在此汇合。
     try:
@@ -1146,15 +1303,26 @@ def main(argv) -> int:
     try:
         from dwc.organs.evolver import Mutator as _Mu
         _n_learned = _Mu.ensure_loaded()
-        print("已学规则加载：%d 条" % (_n_learned,), flush=True)
+        # ★ 报"内存中共几条"，不是"本次新增几条" —— 幂等守卫会让第二次调用返回 0，
+        #   旧文案"已学规则加载：0 条"读起来像加载失败（实测规则其实已就位）。
+        _n_total = len([_k for _k in _Mu.RULES
+                        if _k not in getattr(_Mu, "SEED_KEYS", frozenset())])
+        print("已学规则：本次新增 %d 条 / 内存中共 %d 条"
+              % (_n_learned, _n_total), flush=True)
     except Exception as _e:  # noqa: BLE001 — 加载坏不拦启动，但必须留痕
         sys.stderr.write("已学规则加载失败: %r\n" % (_e,))
 
     d = DWC(depth_limit=3, max_nodes=50, budget=bpd, db_path=DB)
+    # ★ R453 · 供给队列接进来（L1/L2 的题在 var/task_queue.jsonl）
+    # ★ R456 · 顺序修正：先注入供给锚点，再建执行体 ——
+    #   LLMExecutorFactory 的 _enabled 读构造时的 anchors 快照，
+    #   先建后注入会让供给题一律 llm_not_enabled（永远判不了）。
+    _SUPPLY_IDS = _supply_sync(d)
     if use_llm:
         from dwc.llm.client import LLMClient
         from dwc.llm.executor import LLMExecutorFactory
-        d.executor = LLMExecutorFactory(LLMClient()).make(memory=d.memory)
+        d.executor = LLMExecutorFactory(
+            LLMClient(), anchors=d.judge.anchors).make(memory=d.memory)
     else:
         actor = Actor()
 
@@ -1165,6 +1333,22 @@ def main(argv) -> int:
                            verified=True)
         d.executor = exe
     d.runner.executor = d.executor
+    # ★ R457 · 把 lessons 里的成功做法写进记忆 —— 生产 skill 一直是 0 条，
+    #   而 memory_text() 只读 skill ⇒ 模型 prompt 的"已知参考资料"恒空。
+    try:
+        _prom = _SW.promote_pending(d.memory, path=LESSONS_PATH)
+        print("skill 记忆：写入 %d / 重复 %d / 跳过 %d（库内共 %d 条）"
+              % (_prom["n_written"], _prom["n_dup"], _prom["n_skip"],
+                 _SW.skill_count(d.memory)), flush=True)
+        _log({"event": "skill_promoted", **_prom,
+              "skill_total": _SW.skill_count(d.memory)})
+    except Exception as _e:               # noqa: BLE001 — 记忆写入坏了不拦启动
+        sys.stderr.write("skill 记忆写入失败（不影响运行）: %r\n" % (_e,))
+    _refresh_mem_stats(d)                 # ★ R457 · 选择器读它
+    _RECENT_PASS.extend(_seed_recent(os.path.join(ROOT, "var",
+                                                  "dwc_prod_log.jsonl")))
+    if _SUPPLY_IDS:
+        print("供给队列：%d 道（与池子并列）" % len(_SUPPLY_IDS), flush=True)
 
     # ★ R审计-P2 · 产物参数进化驱动器（R438-P1 补全）:
     #   挂信号通道（task_exec read 截断观测，默认 None 零开销，只在
@@ -1189,8 +1373,12 @@ def main(argv) -> int:
     prev = None
     collapse = 0
     best_pass = 0.0
+    # ★ R455 · 恢复选择状态（重启不失忆：否则 `_day["terms"]` 归零 ⇒ 永远 pool[0]）
+    _load_state()
     _log({"event": "agent_started", "pid": os.getpid(),
-          "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port})
+          "interval": interval, "use_llm": use_llm, "rpc_port": rpc_port,
+          "mode": MODE,
+          "sel_terms": _day["terms"], "sel_used": len(_sel.get("used") or [])})
     # ★★★ R382 · 收件箱改**独立轮询线程**（秒级），不再等 term 间隙。
     #   现场：投单 13:47:29 → 接单 13:55:06（排队 7 分 37 秒），执行只用
     #   5 秒；一个 term 实测 ~10 分钟 ⇒ 52 单要跑 6 小时。
@@ -1209,6 +1397,17 @@ def main(argv) -> int:
         _maybe_maintain(getattr(d, "memory", None))
         # ★ R266C · 进化投单（每轮开头: 未派发论文 → 深读任务候选）
         maybe_dispatch_reading()
+        # ★ R451 · 规则热加载：盘上变了就重读（一次 stat，零 LLM 成本）。
+        #   为什么必须在 tick 里做：落地发生在**另一个进程**（04:00 cron），
+        #   而本进程只在 import/启动时加载一次 ⇒ 不重载就永远用旧规则，
+        #   落地等于没落（RSI 回路最后一米）。
+        try:
+            from dwc.organs.evolver import Mutator as _MuReload
+            _n_new = _MuReload.reload_if_changed()
+            if _n_new:
+                _log({"event": "rules_reloaded", "n_new": _n_new})
+        except Exception as _re:      # noqa: BLE001 — 热加载坏不掀 tick
+            _log({"event": "rules_reload_error", "error": repr(_re)})
         # ── R209 · 收件箱已由 start_inbox_poller 独立消费（R382）──
         #   主循环不再同步取单（否则与轮询线程抢单）。
         item = None
@@ -1235,7 +1434,9 @@ def main(argv) -> int:
         #   interval=90 时 5 分钟里 2 次跳过 + 2 个 term，选择态空转了
         #   2 格，冷却会在池子扫完前就到期（逃逸保证被削弱）。
         #   有源码序测试锁（test_r375::test_select_task_after_monitor_skip）。
-        task = select_task(prev)
+        # ★ R453 · 新题优先：供给队列的题排在池子前面 —— 它们才是新信号来源
+        task = select_task(prev, pool=tuple(_SUPPLY_IDS) + DEV_POOL,
+                           supply=tuple(_SUPPLY_IDS), stats=_MEM_STATS)
         globals()["_SKIPS"] = 0
         try:
             rep = d.run_term(task, n_steps=steps)
@@ -1249,13 +1450,15 @@ def main(argv) -> int:
         cost = float((rep.cost_after or {}).get("term_cost", 0.0) or 0.0)
         _day["terms"] += 1
         _day["cost"] += cost
+        _save_state()      # ★ R455 · 当日计数与选择态落盘（重启不失忆）
         ir = rep.iron_report or {}
-        _log({"agent_term": _day["terms"], "task": task,
+        _log({"agent_term": _day["terms"], "task": task, "mode": MODE,
               "pass_rate": pr, "cost": round(cost, 3),
               "advice_consumed": (rep.iwm_advice or {}).get("consumed_action"),
               "iron_block": ir.get("block"), "iron_warn": ir.get("warn"),
               "drift": (rep.drift or {}).get("gdi"),
               "synthetic": bool(getattr(rep, "synthetic", False)),
+              "skill": bool(getattr(rep, "skill_written", None)),
               "evo_feed": rep.evo_feed,
               "next": [t.get("kind") for t in
                        (rep.next_task_source or {}).get("tasks", [])]})
@@ -1279,6 +1482,19 @@ def main(argv) -> int:
                       "error": "%s: %s" % (type(_pde).__name__, _pde)})
         _heartbeat(status="alive", terms=_day["terms"],
                    last_task=task, pass_rate=pr)
+        # ★ R453 · 饱和 ⇒ 造题（L1/L2，零 LLM）。队列变了就重新同步。
+        # ★ R456 · 只有真模型 term 才算数：自检模式的分数恒 1.0，
+        #   喂进去只会让阶梯一路升到顶（假饱和）。
+        if pr is not None and use_llm:
+            _RECENT_PASS.append(float(pr))
+            del _RECENT_PASS[:-30]
+            _sup = _maybe_supply(d, _RECENT_PASS)
+            if _sup.get("level_changed"):
+                _log({"event": "supply_level", "level": _sup.get("level"),
+                      "why": _sup.get("level_why")})
+            if _sup.get("generated"):
+                _log({"event": "supply_generated", **_sup})
+                _SUPPLY_IDS = _supply_sync(d)
         if pr is not None and pr > best_pass:
             best_pass = pr
         triggered, collapse = collapse_triggered(
@@ -1291,6 +1507,8 @@ def main(argv) -> int:
         if not (pr is not None and pr < 0.1 and best_pass > 0.1
                 and not bool(getattr(rep, "synthetic", False))):
             collapse = 0
+        # ★ R457 · 本轮失败签名已落库 ⇒ 让选择器看到它（下一轮据此选题）
+        _refresh_mem_stats(d)
         prev = rep
         if _stop["by"] is None:
             time.sleep(interval)
