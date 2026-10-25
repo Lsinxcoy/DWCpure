@@ -2,7 +2,7 @@
 
 > 版本：2026-10-25 · 依据：`docs/research/MEMORY_CROSS_PROJECT_AUDIT.md` + 9 个参考仓库 commit（`docs/research/memory_sources.json`）。
 > **落地状态（2026-10-25）**：M0、M1.1、M1.2、M1.4、M1.6 已实现；M1.3、M1.5、M1.7、M1.8 及 M2–M3 仍为设计，不得写成已实现。
-> 实测：主仓非真端点（排除 r208 lifecycle）`3228 passed / 2 skipped`；另有被忽略文件的本地子集 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
+> 实测：全量（ignore 两个真端点文件）`3228 passed / 2 skipped / 1 failed`；失败为 `test_r208_agent.py::test_agent_lifecycle_short_run` 180s 超时；排除该用例后 `3228 passed / 2 skipped`，被忽略文件本地子集另 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
 > 本文是**实施规格 + 当前落地记录**；状态以代码/测试/生产读回为准。
 > 机制矩阵：`docs/research/memory_mechanism_matrix.csv`（MEM-01–MEM-19）。
 

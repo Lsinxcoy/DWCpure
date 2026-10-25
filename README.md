@@ -84,7 +84,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 
 ## 开发
 
-四层验证每轮必过: `pytest`（3228 全绿，非真端点）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+四层验证每轮必过: `pytest`（3228 passed，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
 纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
 
 > ★ 2026-10-23 审计修复完成（R审计-P0~P2）: 全量基线 **2717 passed / 0 failed / 4 skipped**。
@@ -94,7 +94,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 ```bash
 git clone https://github.com/Lsinxcoy/divine-wisdom-core.git && cd divine-wisdom-core
 pip install -r requirements.txt && pip install -e .
-python -m pytest tests -q        # ~4 分钟（3228 全绿，非真端点）
+python -m pytest tests -q        # ~4 分钟（3228 passed，非真端点）
 ```
 
 ---

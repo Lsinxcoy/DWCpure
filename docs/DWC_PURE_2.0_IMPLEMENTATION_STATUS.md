@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3228 passed, 2 skipped`（非真端点，排除 r208 lifecycle；被忽略文件的本地子集另 `5 passed`） |
+| 全量测试 | `3228 passed, 2 skipped, 1 failed`（ignore 两个真端点文件；失败为 r208 lifecycle 180s 超时；被忽略文件本地子集另 `5 passed`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
