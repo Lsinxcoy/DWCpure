@@ -532,7 +532,94 @@ cd "Z:/DWC pure"
 
 ---
 
-## 10. 审计局限
+## 10. Semgrep / CodeQL 实测（2026-10-25）
+
+### 10.1 Semgrep
+
+环境：`.venv-audit`，Semgrep **1.182.1**，只扫 git tracked 文件。
+
+```bash
+# 官方 Python / 安全 / 密钥规则
+.venv-audit/Scripts/semgrep.exe scan \
+  --config p/python --config p/security-audit --config p/secrets \
+  --json --output semgrep_official.json --metrics=off src scripts
+
+# DWC 自定义规则（8 条）
+.venv-audit/Scripts/semgrep.exe scan \
+  --config docs/research/semgrep_dwc.yml \
+  --json --output semgrep_dwc.json --metrics=off src scripts
+```
+
+结果：
+
+- 官方规则：393 条规则、261 个文件，**31 findings**。
+- 自定义规则：8 条规则、259 个文件，**385 findings**。
+- 自定义命中分布：`open-dynamic 315`、`subprocess-dynamic 30`、`urlopen-dynamic 17`、`exec-dynamic 9`、`weak-hash 7`、`sql-format 6`、`shell-true 1`。
+
+高信号命中：
+
+| 规则 | 位置 | 判定 |
+|---|---|---|
+| exec | `src/dwc/organs/actor.py:482`、`candidates.py:183` | **真实 P0**：模型/候选源码进入 `exec` |
+| exec | `src/dwc/llm/sandbox.py:184` | 有 AST 门卫，属于设计内；仍需 escape 测试 |
+| subprocess | `src/dwc/llm/task_exec.py:647/660/672` | **真实 P0**：`args` 进入 `subprocess.run` |
+| subprocess | `scripts/dwc_bench2.py:399/402` | `shell=True`，脚本层命令注入面 |
+| urlopen | `src/dwc/llm/task_exec.py:466/494` | **真实 SSRF 面**：`web_search`/`web_read` |
+| SQL format | `causal_chain.py:186/357/364/366/368`、`run_term.py:921` | 逐条看过：固定 SQL + 参数/白名单，**不是注入** |
+| weak hash | `tool_raw.py:54`、`memory.py:1143`、`skill_writer.py:93`、`task_supply.py:88/306` | ID/指纹用途，P3 |
+| open dynamic | 315 条 | 低置信；多数是脚本/常量拼接，不能直接当漏洞 |
+
+说明：自定义 `open-dynamic` 315 条是**筛查噪声**，不是 315 个漏洞；报告不把它当发现数。官方 Semgrep 的 `dynamic-urllib` 命中多数是固定 Feishu/LLM 端点，真正需要处理的是 `web_read` 的 URL。
+
+### 10.2 CodeQL
+
+环境：CodeQL CLI **2.27.3**，Python extractor，数据库 **702 个 Python 文件**。
+
+```bash
+codeql database create codeql_db_dwc --language=python --source-root=.
+codeql database analyze codeql_db_dwc python-security-extended.qls \
+  --format=sarif-latest --output=codeql_dwc_security.sarif
+```
+
+官方 `python-security-extended` 只有 **4 条**：
+
+- `py/incomplete-url-substring-sanitization`：`src/dwc/llm/task_exec.py:1421/1422`（只是把 arxiv/openreview 分类为 paper，不是 URL 安全校验；低风险误报）
+- `py/overly-permissive-file`：`scripts/dwc_agent.py:243`、`src/dwc/organs/judge.py:92`（`0o644` 日志文件；Windows 上影响有限，P3）
+
+**关键限制：官方 suite 没有把 DWC 的 `task`/`args` 识别为远程源，所以默认查询不会报命令/代码注入。** 这正是“通用 SAST 不懂 DWC 入口”的典型。
+
+为补这一点，写了 4 个自定义 CodeQL 查询（`docs/research/codeql/dwc/`），显式把 DWC 参数声明为 source：
+
+| 查询 | 结果 | 证据 |
+|---|---|---|
+| `dwc_command.ql` | **3 条** | `args` → `subprocess.run`：`task_exec.py:647/660/672` |
+| `dwc_code.ql` | **3 条** | `source`/`implementation`/`src` → `compile/exec`：`actor.py:482`、`candidates.py:183` |
+| `dwc_path.ql` | **5 条** | `args` → 路径 sink：`task_exec.py:87/540/590`、`client.py:499/751` |
+| `dwc_ssrf.ql` | **1 条** | `args.url` → HTTP request：`task_exec.py:491` |
+
+其中 `dwc_path.ql` 的 `task_exec.py:87` 是 `_guard_path` 内部路径（已有护栏，但前缀/符号链接问题仍在）；`540/590` 是任务文件写入；`client.py:499/751` 是图片路径。它们不是全部可利用，但证明“任务输入 → 路径 sink”的真实数据流存在。
+
+### 10.3 结论
+
+- **CodeQL 自定义查询确认了 SEC-01/SEC-02 的 P0 数据流**：`args → subprocess`、`source/implementation → exec`。
+- Semgrep 快速规则确认了同类 sink，并额外指出 `web_read` SSRF、脚本 `shell=True`、弱哈希。
+- 官方 Semgrep/CodeQL 规则单独跑会漏掉 DWC 的核心风险，因为 DWC 的入口不是 Flask/Django 的 remote flow source；**必须保留自定义规则/查询**。
+- 385 条自定义 Semgrep 结果里，真正需要立即处理的是 P0/P1 表中的少数路径；`open-dynamic` 315 条只能作为 triage 队列，不能当结论。
+
+原始结果：
+
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/semgrep_official.json`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/semgrep_dwc.json`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/codeql_dwc_security.sarif`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/dwc_command.bqrs`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/dwc_code.bqrs`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/dwc_path.bqrs`
+- `C:/Users/41228/AppData/Local/hermes/cache/scratch/dwc_ssrf.bqrs`
+
+---
+
+## 11. 审计局限
+
 
 - 未做完整渗透测试；SEC-01/02 是受控探针证明“能力存在”，没有执行破坏性命令。
 - 覆盖率为行覆盖，不是分支覆盖；不能证明异常分支都被测到。

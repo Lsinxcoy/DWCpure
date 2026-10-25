@@ -1,0 +1,130 @@
+rules:
+  - id: dwc-exec-dynamic
+    languages: [python]
+    message: >-
+      DWC: exec/eval/compile of dynamic content. Confirm the source is not
+      model/user-controlled; use the AST-guarded sandbox for generated code.
+    severity: ERROR
+    pattern-either:
+      - pattern: exec(...)
+      - pattern: eval(...)
+      - pattern: compile(...)
+    metadata:
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+
+  - id: dwc-subprocess-dynamic
+    languages: [python]
+    message: >-
+      DWC: subprocess call. Verify the argv is an allowlisted, fixed command;
+      a blacklist/substring guard is not a sandbox.
+    severity: WARNING
+    pattern-either:
+      - pattern: subprocess.run(...)
+      - pattern: subprocess.Popen(...)
+      - pattern: subprocess.call(...)
+      - pattern: subprocess.check_output(...)
+      - pattern: subprocess.check_call(...)
+    metadata:
+      category: security
+      confidence: MEDIUM
+      impact: HIGH
+      likelihood: MEDIUM
+
+  - id: dwc-subprocess-shell-true
+    languages: [python]
+    message: >-
+      DWC: shell=True. This is command injection unless the entire string is
+      fixed and trusted; prefer an argv list with shell=False.
+    severity: ERROR
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    metadata:
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: HIGH
+
+  - id: dwc-urlopen-dynamic
+    languages: [python]
+    message: >-
+      DWC: urllib.urlopen with a non-literal URL. Check scheme/host allowlist
+      and block loopback/private/link-local addresses (SSRF).
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: urllib.request.urlopen($URL, ...)
+          - pattern: urllib.urlopen($URL, ...)
+      - pattern-not: urllib.request.urlopen("...", ...)
+      - pattern-not: urllib.request.urlopen('...', ...)
+    metadata:
+      category: security
+      confidence: MEDIUM
+      impact: HIGH
+      likelihood: MEDIUM
+
+  - id: dwc-sql-format
+    languages: [python]
+    message: >-
+      DWC: SQL built with string formatting/concatenation. Use placeholders
+      and bind parameters; whitelist any dynamic column/table name.
+    severity: ERROR
+    pattern-either:
+      - pattern: $CUR.execute("..." % ..., ...)
+      - pattern: $CUR.execute(f"...", ...)
+      - pattern: $CUR.execute("...".format(...), ...)
+      - pattern: $CUR.executescript("..." % ..., ...)
+      - pattern: $CUR.executescript(f"...", ...)
+    metadata:
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+
+  - id: dwc-open-dynamic
+    languages: [python]
+    message: >-
+      DWC: open() with a non-literal path. Verify realpath containment and
+      reject symlink/reparse-point escapes.
+    severity: WARNING
+    patterns:
+      - pattern: open($PATH, ...)
+      - pattern-not: open("...", ...)
+      - pattern-not: open('...', ...)
+    metadata:
+      category: security
+      confidence: LOW
+      impact: MEDIUM
+      likelihood: MEDIUM
+
+  - id: dwc-pickle-loads
+    languages: [python]
+    message: >-
+      DWC: pickle deserialization. Never unpickle untrusted/model/user data;
+      use JSON or a signed, versioned format.
+    severity: ERROR
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+    metadata:
+      category: security
+      confidence: HIGH
+      impact: HIGH
+      likelihood: MEDIUM
+
+  - id: dwc-weak-hash
+    languages: [python]
+    message: >-
+      DWC: MD5/SHA1. If this is only an ID/fingerprint, pass
+      usedforsecurity=False or use SHA-256; if it is integrity/security,
+      replace it.
+    severity: WARNING
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+    metadata:
+      category: security
+      confidence: HIGH
+      impact: LOW
+      likelihood: LOW
