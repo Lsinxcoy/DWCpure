@@ -1,4 +1,9 @@
-"""DWC-AUTO · Recoverable, fail-open output compaction backed by controlled raw evidence."""
+"""DWC-AUTO · Recoverable evidence compaction; runtime tool output uses dwc.llm.tool_raw.
+
+This module persists raw evidence and produces recoverable head/tail views for
+evaluation artifacts. The production tool-output path is :mod:`dwc.llm.tool_raw`
+(R440); do not wire both as competing runtime compressors.
+"""
 from __future__ import annotations
 
 import hashlib

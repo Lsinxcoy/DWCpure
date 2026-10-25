@@ -1,38 +1,41 @@
-"""DWC-AUTO · Public-feature task profiles with an explicit four-layer identity."""
+"""DWC-AUTO · Evaluation adapter for runtime task profiles.
+
+Canonical runtime selection lives in :mod:`dwc.llm.profile` and
+:mod:`dwc.llm.budget`. This module only projects the runtime choice into the
+four-layer identity required by formal evaluation; it must not keep a second
+classification or budget table.
+"""
 from __future__ import annotations
 
+from dataclasses import asdict
 import hashlib
 import json
-import re
 from typing import Any, Callable
 
+from dwc.llm import profile as _runtime_profile
 from dwc.llm.task_exec import NATIVE_TOOLS_MAX_ROUNDS, NATIVE_TOOLS_REPEAT_LIMIT
 
-PROFILE_NAMES = ("lean", "standard", "deep", "research")
+PROFILE_NAMES = tuple(_runtime_profile.PROFILES)
 BASE_SPEC = {
     "max_rounds": NATIVE_TOOLS_MAX_ROUNDS,
     "repeat_limit": NATIVE_TOOLS_REPEAT_LIMIT,
-    "reasoning_effort": "medium",
     "final_reserved_calls": 1,
     "output_recovery": True,
 }
 PROFILE_SPECS = {
-    "standard": BASE_SPEC,
-    "lean": {**BASE_SPEC, "reasoning_effort": "low"},
-    "deep": {**BASE_SPEC, "reasoning_effort": "high"},
-    "research": {**BASE_SPEC, "reasoning_effort": "high"},
+    name: {
+        **BASE_SPEC,
+        "reasoning_effort": profile.reasoning_effort,
+        "budget": asdict(profile.budget),
+    }
+    for name, profile in _runtime_profile.PROFILES.items()
 }
 
 
 def _rule_classify(task: str) -> tuple[str, str]:
-    text = str(task or "")
-    if re.search(r"research|survey|literature|sources|研究|调研|文献|检索", text, re.I):
-        return "research", "public_research_keywords"
-    if re.search(r"architecture|debug|refactor|analy[sz]e|设计|调试|重构|分析", text, re.I):
-        return "deep", "public_complexity_keywords"
-    if re.search(r"typo|rename|one[- ]line|small change|错字|重命名|一行|小改", text, re.I):
-        return "lean", "public_small_change_keywords"
-    return "unknown", "no_specialized_public_features"
+    """Use the runtime rule engine; do not duplicate its thresholds."""
+    info = _runtime_profile.explain(task)
+    return str(info["profile"]), str(info["rule"])
 
 
 def _normalize_classification(value: Any) -> tuple[str, dict[str, Any]]:

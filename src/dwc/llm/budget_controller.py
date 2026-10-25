@@ -1,4 +1,9 @@
-"""DWC-AUTO · Bounded tool-call convergence with separate soft hints and hard denials."""
+"""DWC-AUTO · Formal budget controller for evaluation; runtime uses dwc.llm.budget.
+
+The production task loop is governed by :mod:`dwc.llm.budget` (R441). This
+module provides the stricter evaluation-side state machine and must not be
+wired as a second runtime budget source.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
