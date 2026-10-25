@@ -59,6 +59,54 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
 
+
+#: 可选的进程内观测出口；只接收非敏感计数与协议事实，不含 prompt/正文/凭证。
+_OBS_SINK = None
+_OBS_SINK_ERRORS = 0
+
+
+def _observe(event: dict[str, Any]) -> None:
+    global _OBS_SINK_ERRORS
+    if _OBS_SINK is None:
+        return
+    try:
+        _OBS_SINK(event)
+    except Exception as exc:  # 观测故障绝不能改变 LLM 结果
+        _OBS_SINK_ERRORS += 1
+        import sys
+        print("LLM observation sink failed: %s" % type(exc).__name__, file=sys.stderr)
+
+
+def _attempt_meta(meta: dict[str, Any], *, call_id: str, parent_call_id: str | None,
+                  attempt_index: int, transport: str, ok: bool,
+                  model_requested: str, model_reported: str | None = None,
+                  usage: Any = None, finish_reason: Any = None,
+                  http_code: int | None = None, error_kind: str = "",
+                  raw_tool_calls: int = 0, transport_repaired: bool = False,
+                  protocol_error: bool = False) -> dict[str, Any]:
+    """补全结果 meta，并恰好发布一个物理 attempt 事件。"""
+    status = "reported" if isinstance(usage, dict) else ("not_reported" if usage is None else "malformed")
+    if transport == "complete" and parent_call_id is not None:
+        transport = "fallback"
+    elif transport == "fallback_retry" and parent_call_id is not None:
+        transport = "fallback"
+    transport_repaired = transport_repaired or transport == "fallback"
+    meta = dict(meta)
+    meta.update({"usage": usage if isinstance(usage, dict) else None,
+                 "usage_status": status, "call_id": call_id,
+                 "attempt_index": attempt_index})
+    _observe({"kind": "llm_attempt", "call_id": call_id,
+              "parent_call_id": parent_call_id, "attempt_index": attempt_index,
+              "transport": transport, "finish_reason": finish_reason, "ok": ok,
+              "model_requested": model_requested, "model_reported": model_reported,
+              "usage": meta["usage"], "usage_status": status,
+              "http_code": http_code, "error_kind": error_kind,
+              "interface": {"raw_tool_calls": raw_tool_calls,
+                            "transport_repaired": transport_repaired,
+                            "protocol_error": protocol_error}})
+    return meta
+
+
 #: ★ 配置来源（优先级从高到低）: 环境变量 → config/llm.json
 #:   ★★ 为什么不去读宿主（Hermes）的配置:
 #     ① 那是**别的系统的凭证**，越权取用不是"复用"
@@ -356,7 +404,10 @@ class LLMClient:
                  images: list[str] | None = None,
                  tools: list[dict] | None = None,
                  tool_choice: str | None = None,
-                 _retry: bool = False) -> LLMResult:
+                 _retry: bool = False,
+                 _parent_call_id: str | None = None,
+                 _call_id: str | None = None,
+                 _attempt_index: int | None = None) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
         ★★★ 为什么不用异常: 调用方最常见的写法是
@@ -415,6 +466,10 @@ class LLMClient:
             body["reasoning_effort"] = self.reasoning_effort
 
         self.n_calls += 1
+        import uuid as _uuid
+        call_id = _call_id or _uuid.uuid4().hex
+        parent_call_id = _parent_call_id
+        attempt_index = _attempt_index or 0
         # ★★★ R422 · **每次调用重置重试计数** ——
         #   原实现只在**成功**路径归零（见文末 n_ok 分支），失败后
         #   `_attempts` 停在 2 ⇒ 之后每次调用 `_attempts < retries` 恒假
@@ -453,6 +508,10 @@ class LLMClient:
             #   ★★ 只读 e.code/e.reason — 不读 body（可能含 Authorization）。
             if e.code in (429, 500, 502, 503, 504) and self.retries > 0 \
                     and self._attempts < self.retries:
+                _attempt_meta({}, call_id=call_id, parent_call_id=parent_call_id,
+                              attempt_index=attempt_index, transport="complete",
+                              ok=False, model_requested=self._model,
+                              http_code=e.code, error_kind="http")
                 self.n_retries += 1
                 self._attempts += 1
                 import time as _t
@@ -461,15 +520,24 @@ class LLMClient:
                                      max_tokens=max_tokens,
                                      json_mode=json_mode, images=images,
                                      tools=tools, tool_choice=tool_choice,
-                                     _retry=True)
+                                     _retry=True, _call_id=call_id,
+                                     _parent_call_id=parent_call_id,
+                                     _attempt_index=attempt_index + 1)
             self.n_fail += 1
+            meta = _attempt_meta(
+                {"http_code": e.code, "n_retry_used": self._attempts},
+                call_id=call_id, parent_call_id=parent_call_id,
+                attempt_index=attempt_index, transport="complete", ok=False,
+                model_requested=self._model, http_code=e.code, error_kind="http")
             return LLMResult(ok=False, source="error",
-                             error="HTTP %s: %s" % (e.code, e.reason),
-                             meta={"http_code": e.code,
-                                   "n_retry_used": self._attempts})
+                             error="HTTP %s: %s" % (e.code, e.reason), meta=meta)
         except Exception as e:      # ★ 网络/超时 —— 统一收敛
             # ★★★ R36: **传输类**错误才重试（见 __init__ 的理由）
             if self.retries > 0 and self._attempts < self.retries:
+                _attempt_meta({}, call_id=call_id, parent_call_id=parent_call_id,
+                              attempt_index=attempt_index, transport="complete",
+                              ok=False, model_requested=self._model,
+                              error_kind="transport")
                 self.n_retries += 1
                 self._attempts += 1
                 import time as _t
@@ -478,12 +546,17 @@ class LLMClient:
                                      max_tokens=max_tokens,
                                      json_mode=json_mode, images=images,
                                      tools=tools, tool_choice=tool_choice,
-                                     _retry=True)
+                                     _retry=True, _call_id=call_id,
+                                     _parent_call_id=parent_call_id,
+                                     _attempt_index=attempt_index + 1)
             self.n_fail += 1
+            meta = _attempt_meta(
+                {"kind": "transport", "n_retry_used": self._attempts},
+                call_id=call_id, parent_call_id=parent_call_id,
+                attempt_index=attempt_index, transport="complete", ok=False,
+                model_requested=self._model, error_kind="transport")
             return LLMResult(ok=False, source="error",
-                             error="%s: %s" % (type(e).__name__, e),
-                             meta={"kind": "transport",
-                                   "n_retry_used": self._attempts})
+                             error="%s: %s" % (type(e).__name__, e), meta=meta)
         try:
             data = json.loads(raw)
             # ★★★ R376 · 推理模型的 `content` 空**不是**「可以拿 reasoning
@@ -507,42 +580,67 @@ class LLMClient:
             rc = msg.get("reasoning_content") or msg.get("reasoning") or ""
         except Exception as e:
             self.n_fail += 1
+            reported = data.get("model") if isinstance(locals().get("data"), dict) else None
+            usage = data.get("usage") if isinstance(locals().get("data"), dict) else None
+            meta = _attempt_meta(
+                {"kind": "parse"}, call_id=call_id,
+                parent_call_id=parent_call_id, attempt_index=attempt_index,
+                transport="complete", ok=False, model_requested=self._model,
+                model_reported=reported, usage=usage, http_code=200,
+                error_kind="parse", protocol_error=True)
             return LLMResult(ok=False, source="error",
-                             error="响应解析失败: %s" % e,
-                             meta={"kind": "parse"})
+                             error="响应解析失败: %s" % e, meta=meta)
         if not isinstance(text, str) or not text.strip():
             # ★★★ R384 · 有 tool_calls ⇒ 这不是空响应，是「模型要调工具」。
             #   必须在"空内容判死"**之前**拦下（否则 tool_calls 被丢弃）。
             if _tool_calls:
                 self.n_ok += 1
                 self._attempts = 0
-                return LLMResult(ok=True, text="", source="llm",
-                                 meta={"model": self._model,
-                                       "tool_calls": _tool_calls,
-                                       "finish_reason": finish,
-                                       "content_chars": 0})
+                meta = _attempt_meta(
+                    {"model": data.get("model") or self._model,
+                     "tool_calls": _tool_calls, "finish_reason": finish,
+                     "content_chars": 0}, call_id=call_id,
+                    parent_call_id=parent_call_id, attempt_index=attempt_index,
+                    transport="complete", ok=True, model_requested=self._model,
+                    model_reported=data.get("model"), usage=data.get("usage"),
+                    finish_reason=finish, http_code=200,
+                    raw_tool_calls=len(_tool_calls))
+                return LLMResult(ok=True, text="", source="llm", meta=meta)
             self.n_fail += 1
             if isinstance(rc, str) and rc.strip():
                 # 推理吃光 token ⇒ 如实报「只有推理，没有正文」，不冒充答案
+                meta = _attempt_meta(
+                    {"kind": "reasoning_only", "finish_reason": finish,
+                     "reasoning_chars": len(rc), "content_chars": 0},
+                    call_id=call_id, parent_call_id=parent_call_id,
+                    attempt_index=attempt_index, transport="complete", ok=False,
+                    model_requested=self._model, model_reported=data.get("model"),
+                    usage=data.get("usage"), finish_reason=finish, http_code=200,
+                    error_kind="reasoning_only")
                 return LLMResult(
                     ok=False, source="error",
                     error=("模型只产出推理、没有正文（finish_reason=%s，"
                            "推理 %d 字）— 多半是 max_tokens 被推理吃光，"
                            "请调大 max_tokens 或换非推理模型"
-                           % (finish, len(rc))),
-                    meta={"kind": "reasoning_only",
-                          "finish_reason": finish,
-                          "reasoning_chars": len(rc),
-                          "content_chars": 0})
+                           % (finish, len(rc))), meta=meta)
+            meta = _attempt_meta(
+                {"kind": "empty", "finish_reason": finish}, call_id=call_id,
+                parent_call_id=parent_call_id, attempt_index=attempt_index,
+                transport="complete", ok=False, model_requested=self._model,
+                model_reported=data.get("model"), usage=data.get("usage"),
+                finish_reason=finish, http_code=200, error_kind="empty")
             return LLMResult(ok=False, source="error",
-                             error="返回内容为空（不许静默当成功）",
-                             meta={"kind": "empty", "finish_reason": finish})
+                             error="返回内容为空（不许静默当成功）", meta=meta)
         self.n_ok += 1
         self._attempts = 0      # ★ 成功后归零（下次调用从头数）
-        return LLMResult(ok=True, text=text, source="llm",
-                         meta={"model": self._model,   # ★ model 名可记
-                               "n_chars": len(text),
-                               "finish_reason": finish})
+        meta = _attempt_meta(
+            {"model": data.get("model") or self._model,
+             "n_chars": len(text), "finish_reason": finish},
+            call_id=call_id, parent_call_id=parent_call_id, attempt_index=attempt_index,
+            transport="complete", ok=True, model_requested=self._model,
+            model_reported=data.get("model"), usage=data.get("usage"),
+            finish_reason=finish, http_code=200)
+        return LLMResult(ok=True, text=text, source="llm", meta=meta)
 
     def complete_stream(self, prompt: str, *, system=None,
                         max_tokens: int | None = None, json_mode: bool = False,
@@ -609,6 +707,12 @@ class LLMClient:
         chunks: list[str] = []
         rc_chunks: list[str] = []
         finish = [None]
+        usage: Any = None
+        reported_model: str | None = None
+        tool_calls: list[dict[str, Any]] = []
+        protocol_error = False
+        import uuid as _uuid
+        call_id = _uuid.uuid4().hex
         try:
             # ★★★ R379 · 串行化（流式同样 —— 生产 progress 路径走这里）
             with _HTTP_LOCK:
@@ -625,12 +729,34 @@ class LLMClient:
                         if payload == "[DONE]":
                             break
                         try:
-                            ch = json.loads(payload)["choices"][0]
+                            packet = json.loads(payload)
+                            if not isinstance(packet, dict):
+                                raise ValueError("SSE frame is not an object")
+                            reported_model = packet.get("model") or reported_model
+                            if "usage" in packet and packet["usage"] is not None:
+                                usage = packet["usage"]
+                            choices = packet.get("choices") or []
+                            if not choices:
+                                continue  # OpenAI 的 usage-only 末帧无 choices
+                            ch = choices[0]
                             delta = ch.get("delta", {}) or {}
                             if ch.get("finish_reason"):
                                 finish[0] = ch["finish_reason"]
-                        except (ValueError, KeyError, IndexError):
-                            continue                # 单帧坏不炸流
+                            for fragment in delta.get("tool_calls") or []:
+                                index = int(fragment.get("index", len(tool_calls)))
+                                while len(tool_calls) <= index:
+                                    tool_calls.append({"index": len(tool_calls), "function": {"name": "", "arguments": ""}})
+                                target = tool_calls[index]
+                                if fragment.get("id"):
+                                    target["id"] = fragment["id"]
+                                if fragment.get("type"):
+                                    target["type"] = fragment["type"]
+                                for key, piece_value in (fragment.get("function") or {}).items():
+                                    old = target.setdefault("function", {}).get(key, "")
+                                    target["function"][key] = old + str(piece_value or "")
+                        except (ValueError, KeyError, IndexError, TypeError):
+                            protocol_error = True
+                            continue                # 单帧坏不炸流，但协议事实须留痕
                         # ★★★ R376 · 推理 delta 绝不拼进正文 —— 旧代码
                         #   `if not piece: piece = delta.get("reasoning_content")`
                         #   把推理当正文推给 on_delta，下游拼出的 text 是英文
@@ -651,44 +777,97 @@ class LLMClient:
             if self.retries > 0 and getattr(self, "_stream_fb", False) is False:
                 self._stream_fb = True
             self.n_fail += 1
+            _attempt_meta({}, call_id=call_id, parent_call_id=None,
+                          attempt_index=0, transport="stream", ok=False,
+                          model_requested=self._model, model_reported=reported_model,
+                          usage=usage, finish_reason=finish[0], error_kind="transport",
+                          protocol_error=protocol_error)
             fb = self.complete(prompt, system=system, max_tokens=max_tokens,
-                               json_mode=json_mode, images=images)
+                               json_mode=json_mode, images=images,
+                               _parent_call_id=call_id)
+            fallback_event = {"stream_fallback": True,
+                              "fallback_reason": "%s: %s" % (type(e).__name__, str(e)[:80])}
             if fb.ok:
                 self.n_ok += 1                  # 回退成功计入（账本仍如实）
-                return LLMResult(ok=True, text=fb.text, source="llm",
-                                 meta={"stream_fallback": True,
-                                       "fallback_reason": "%s: %s"
-                                       % (type(e).__name__, str(e)[:80]),
-                                       "n_chars": len(fb.text)})
+                meta = dict(fb.meta)
+                meta.update(fallback_event)
+                meta["n_chars"] = len(fb.text)
+                return LLMResult(ok=True, text=fb.text, source="llm", meta=meta)
+            meta = dict(fb.meta)
+            meta.update({"stream_error": str(e)[:80], **fallback_event})
             return LLMResult(ok=False, source="error",
-                             error="流式失败且回退失败: %s" % fb.error[:120],
-                             meta={"stream_error": str(e)[:80]})
+                             error="流式失败且回退失败: %s" % fb.error[:120], meta=meta)
         finally:
             self._stream_fb = False
+        if tool_calls:
+            malformed_tool = protocol_error
+            for call in tool_calls:
+                function = call.get("function") or {}
+                try:
+                    arguments = json.loads(function.get("arguments") or "{}")
+                    if not isinstance(arguments, dict) or not str(function.get("name") or "").strip():
+                        malformed_tool = True
+                except (TypeError, ValueError):
+                    malformed_tool = True
+            if malformed_tool:
+                self.n_fail += 1
+                meta = _attempt_meta(
+                    {"kind": "tool_protocol", "streamed": True,
+                     "tool_calls": tool_calls, "finish_reason": finish[0]},
+                    call_id=call_id, parent_call_id=None, attempt_index=0,
+                    transport="stream", ok=False, model_requested=self._model,
+                    model_reported=reported_model, usage=usage,
+                    finish_reason=finish[0], http_code=200,
+                    raw_tool_calls=len(tool_calls), protocol_error=True,
+                    error_kind="tool_protocol")
+                return LLMResult(ok=False, source="error",
+                                 error="流式工具调用协议错误", meta=meta)
+            self.n_ok += 1
+            meta = _attempt_meta(
+                {"model": reported_model or self._model, "streamed": True,
+                 "tool_calls": tool_calls, "finish_reason": finish[0],
+                 "content_chars": len(text)}, call_id=call_id, parent_call_id=None,
+                attempt_index=0, transport="stream", ok=True,
+                model_requested=self._model, model_reported=reported_model,
+                usage=usage, finish_reason=finish[0], http_code=200,
+                raw_tool_calls=len(tool_calls), protocol_error=protocol_error)
+            return LLMResult(ok=True, text=text, source="llm", meta=meta)
         if not text.strip():
             self.n_fail += 1
             if reasoning.strip():
                 # ★ R376 · 只有推理没有正文 ⇒ 如实报，不冒充答案
+                meta = _attempt_meta(
+                    {"kind": "reasoning_only", "finish_reason": finish[0],
+                     "reasoning_chars": len(reasoning), "content_chars": 0,
+                     "streamed": True}, call_id=call_id, parent_call_id=None,
+                    attempt_index=0, transport="stream", ok=False,
+                    model_requested=self._model, model_reported=reported_model,
+                    usage=usage, finish_reason=finish[0], http_code=200,
+                    error_kind="reasoning_only", protocol_error=protocol_error)
                 return LLMResult(
                     ok=False, source="error",
                     error=("模型只产出推理、没有正文（finish_reason=%s，"
                            "推理 %d 字）— 多半是 max_tokens 被推理吃光，"
                            "请调大 max_tokens 或换非推理模型"
-                           % (finish[0], len(reasoning))),
-                    meta={"kind": "reasoning_only",
-                          "finish_reason": finish[0],
-                          "reasoning_chars": len(reasoning),
-                          "content_chars": 0,
-                          "streamed": True})
+                           % (finish[0], len(reasoning))), meta=meta)
+            meta = _attempt_meta(
+                {"kind": "empty", "finish_reason": finish[0]}, call_id=call_id,
+                parent_call_id=None, attempt_index=0, transport="stream", ok=False,
+                model_requested=self._model, model_reported=reported_model,
+                usage=usage, finish_reason=finish[0], http_code=200,
+                error_kind="empty", protocol_error=protocol_error)
             return LLMResult(ok=False, source="error",
-                             error="流式返回内容为空",
-                             meta={"kind": "empty", "finish_reason": finish[0]})
+                             error="流式返回内容为空", meta=meta)
         self.n_ok += 1
-        return LLMResult(ok=True, text=text, source="llm",
-                         meta={"model": self._model, "streamed": True,
-                               "n_chars": len(text),
-                               "n_chunks": len(chunks),
-                               "finish_reason": finish[0]})
+        meta = _attempt_meta(
+            {"model": reported_model or self._model, "streamed": True,
+             "n_chars": len(text), "n_chunks": len(chunks),
+             "finish_reason": finish[0]}, call_id=call_id, parent_call_id=None,
+            attempt_index=0, transport="stream", ok=True,
+            model_requested=self._model, model_reported=reported_model,
+            usage=usage, finish_reason=finish[0], http_code=200,
+            protocol_error=protocol_error)
+        return LLMResult(ok=True, text=text, source="llm", meta=meta)
 
     def stats(self) -> dict[str, Any]:
         """★ 调用账本（不含量任何凭证）。"""

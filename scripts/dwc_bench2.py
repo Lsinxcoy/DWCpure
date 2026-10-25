@@ -422,6 +422,14 @@ def verify(check: dict, answer: str, since=None, report=None) -> tuple:
                 how = "agent-ran-equivalent(anchor=%r) + %s" % (anchor, how)
             else:
                 how = "agent-ran + " + how
+                # ★★★ R413-b · agent 已真跑且输出含锚点，即使判据自身的复核
+                #   因解释器/环境差异 rc≠0，也不得否定 agent 的取证事实。
+                evidence_anchor = (check.get("target")
+                                   or _answer_anchor(check, ans, r.stdout + r.stderr))
+                if evidence_anchor and _agent_saw(
+                        evidence_anchor, report,
+                        cmd if check.get("target") else ""):
+                    ok = True
         return (ok, how)
     if t in ("file_contains", "file_contains_all", "file_lines"):
         p = _file_of(check["path"])

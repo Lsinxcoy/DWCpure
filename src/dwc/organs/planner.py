@@ -25,6 +25,7 @@ import json
 from typing import Any
 
 from dwc.organs.contract import FGGM, ContractError, bounded_param
+from dwc.observability.context import measurement_role, task_measurement_context
 
 #: ★ 模板族（白名单 — 静态 λ, 不来自 LLM; LLM 只选 kind + 填参）
 TEMPLATES: dict[str, dict[str, Any]] = {
@@ -195,7 +196,15 @@ def craft(task_view: dict[str, Any], llm: Any, *,
         user = prompt if err is None else (
             prompt + "\n\n★★ 上次合成被拒, 原因: %s\n按原因修正, "
             "只回 JSON。" % err)
-        res = llm.complete(user, json_mode=True, max_tokens=400)
+        task_context = (task_measurement_context(
+            task_view["task_id"],
+            candidate_id=task_view.get("candidate_id"),
+            rollout_id=task_view.get("rollout_id"),
+            protocol_id=task_view.get("protocol_id"))
+            if task_view.get("task_id") else measurement_role("planner"))
+        with task_context:
+            with measurement_role("planner"):
+                res = llm.complete(user, json_mode=True, max_tokens=400)
         if not getattr(res, "ok", False):
             trace.append({"attempt": attempt, "stage": "llm",
                           "why": getattr(res, "error", "llm 失败")})

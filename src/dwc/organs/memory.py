@@ -48,6 +48,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from dwc.observability.context import measurement_role
+
 # ══════════════════════════════════════════════════════════
 # 契约
 # ══════════════════════════════════════════════════════════
@@ -201,11 +203,12 @@ def _llm_expand(scene: str) -> list[str]:
         llm = LLMClient(timeout=_EXPAND_TIMEOUT)
         if not getattr(llm, "configured", False):
             return []
-        res = llm.complete(
-            "把下面的中文任务描述拆成 3-8 个检索关键词（函数名/代码标识符/"
-            "错误类型/中文短语，尽量给出对应的英文标识符），只输出 JSON "
-            "数组，不要任何解释:\n" + scene[:300],
-            max_tokens=120)
+        with measurement_role("expansion"):
+            res = llm.complete(
+                "把下面的中文任务描述拆成 3-8 个检索关键词（函数名/代码标识符/"
+                "错误类型/中文短语，尽量给出对应的英文标识符），只输出 JSON "
+                "数组，不要任何解释:\n" + scene[:300],
+                max_tokens=120)
         if not res.ok:
             return []
         _m = re.search(r"\[.*\]", res.text or "", re.S)

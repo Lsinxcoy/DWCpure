@@ -56,6 +56,7 @@ from dwc.organs.replay import (
     select_policy,
 )
 from dwc.organs.world_model import WorldModel
+from dwc.observability.context import measurement_role, task_measurement_context
 
 #: 系统外真值源（G2）—— 成功判定永远在 judge/回执, 不在本类
 TRUTH_SOURCE = {
@@ -476,10 +477,16 @@ class DWC:
                     _sys_action = _ota("sys_action", _sys_action, __file__)
                 except Exception:
                     _ota_miss()
-                raw = self.llm.complete(
-                    "从动作集 %s 里为本任务选一个动作, 只回动作名。任务: %s"
-                    % (list(ACTIONS), str(task.get("kind", task))[:120]),
-                    system=_sys_action)
+                with task_measurement_context(
+                        task["task_id"],
+                        candidate_id=task.get("candidate_id"),
+                        rollout_id=task.get("rollout_id"),
+                        protocol_id=task.get("protocol_id")):
+                    with measurement_role("decision"):
+                        raw = self.llm.complete(
+                            "从动作集 %s 里为本任务选一个动作, 只回动作名。任务: %s"
+                            % (list(ACTIONS), str(task.get("kind", task))[:120]),
+                            system=_sys_action)
                 choice = (raw or "").strip().split("\n")[0].strip().strip("` ")
                 if choice in ACTIONS:
                     layers.append({"layer": "llm", "available": True,

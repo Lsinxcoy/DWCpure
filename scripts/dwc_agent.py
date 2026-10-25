@@ -1091,6 +1091,17 @@ def main(argv) -> int:
     #   连一轮全池都跑不完。要收紧成本请显式传 `--budget-day 40`。
     use_llm = "--llm" in argv
     os.makedirs(VAR, exist_ok=True)
+    # W1：唯一共享证据库；client 物理 attempt 与 task 角色上下文在此汇合。
+    try:
+        from dwc.observability.context import configure_store, emit_llm_observation
+        from dwc.observability.evidence_store import EvidenceStore
+        _measure_store = EvidenceStore(os.path.join(VAR, "dwc_metrics.sqlite"))
+        configure_store(_measure_store)
+        from dwc.llm import client as _measure_client
+        _measure_client._OBS_SINK = emit_llm_observation
+        print("真实测量证据库已挂：var/dwc_metrics.sqlite", flush=True)
+    except Exception as _measure_exc:  # 测量故障显式降级，不静默假称已挂
+        sys.stderr.write("真实测量挂载失败: %r\n" % (_measure_exc,))
     # ★ R309-③ · 启动自检（只告警不拦；--no-selfcheck 可关）。
     if "--no-selfcheck" not in argv:
         _warn = startup_selfcheck()

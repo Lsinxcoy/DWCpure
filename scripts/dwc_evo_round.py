@@ -37,6 +37,7 @@ def _code_root(start=None) -> str:
 sys.path.insert(0, os.path.join(_code_root(), "src"))
 
 from dwc.organs.evolver import Evolver, LLMMutator, Mutator
+from dwc.observability.context import measurement_role, task_measurement_context
 
 
 #: ★ R437 · 探针缓存（task → 该任务的破坏实现能跑出的 (c,q) 集合）。
@@ -476,11 +477,15 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                         _kw_comp = {"component": lane_component}
                 except (TypeError, ValueError):
                     _kw_comp = {}
-                p = mu.propose_from_cluster(cl["sigs"], context,
-                                            want_code=want_code_of(_task),
-                                            learned_hint=_hint,
-                                            operator=_op,
-                                            **_kw_comp)
+                with task_measurement_context(
+                        _task, candidate_id=cl["key"], rollout_id=str(_att)):
+                    with measurement_role("editor"):
+                        p = mu.propose_from_cluster(
+                            cl["sigs"], context,
+                            want_code=want_code_of(_task),
+                            learned_hint=_hint,
+                            operator=_op,
+                            **_kw_comp)
                 # ★ R342 · patch 层 dedup：patch 不得包含任何 benchmark 的
                 #   expected_behavior（防 test leakage，OpenRSI dedup 原则）。
                 try:
@@ -508,7 +513,10 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                 break
             item["drafted"] = True
             item["proposal_id"] = p.proposal_id
-            t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
+            with task_measurement_context(
+                    _task, candidate_id=p.proposal_id, rollout_id=str(_att)):
+                with measurement_role("evaluation"):
+                    t = trial_fn(cl["sigs"][0].get("task", ""), p.patch, p.code)
             # ★ D4-③ assess 段（试跑＋门判：候选→真分；真伪由门＋held_out 定）。
             item["trial"] = t                  # ★ 原样存（bool/dict 照旧）
             # ★ R290-P1 · 归一：dict 取 success，bool/None 照旧（旧契约不断）。
@@ -754,8 +762,10 @@ def _peer_held_out_code(judge, llm, task, max_tokens=1500, max_attempts=3,
                              "必须按上面函数名/形态重写）：\n%s"
                              % hint_code.strip())
         for _ in range(max_attempts):
-            _pr = llm.complete(_base_prompt,
-                               max_tokens=max_tokens)
+            with task_measurement_context(task):
+                with measurement_role("evaluation"):
+                    _pr = llm.complete(_base_prompt,
+                                       max_tokens=max_tokens)
             if not _pr.ok:
                 continue
             _pcode = _extract_code(_pr.text or "", _pfn)
@@ -895,7 +905,9 @@ def _real_trial(judge, llm, task, patch, max_tokens=1500, code=None,
                 "mode": _mode, "activated": True}
     skel = obs_skeleton(judge.anchors, task)
     prompt = build_observed_prompt(task, skel, "") + "\n" + patch
-    r = llm.complete(prompt, max_tokens=max_tokens)
+    with task_measurement_context(task):
+        with measurement_role("probe"):
+            r = llm.complete(prompt, max_tokens=max_tokens)
     if not r.ok:
         return {"success": None, "in_score": None, "baseline_in": None,
                 "held_out": None, "mode": _mode, "partial": None, "activated": False,

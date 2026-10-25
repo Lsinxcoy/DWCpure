@@ -189,7 +189,7 @@ class EvoParamDriver:
             from dwc.organs import evo_targets as ET
             current = (ET.read(component).get(key) or 0)
             new_val = min(int(current) + self.step, max_value)
-            res = ET.apply(component, {key: new_val})
+            res = ET.update(component, lambda _current: {key: new_val})
             rec = {"ts": now, "component": component, "key": key,
                    "decision": "adjusted",
                    "before": res["before"].get(key),

@@ -1427,25 +1427,26 @@ def _revision_retry(*, task: str, fail: dict[str, Any], llm: Any,
     revision_pair 供调用方入记忆（correction 轨迹比成功轨迹多学东西 — §3.3）。
     """
     global _PAIRS_FAIL
-    try:
-        prompt = (
-            "上一个任务执行失败, 请**重写任务**（更小步/更明确/补上缺失前提）"
-            "让下一次执行能走通。只输出 JSON: {\"revised_task\": \"…\"}\n"
-            "原任务: %s\n失败状态: %s\n失败原因: %s\n已做动作: %s"
-            % (task, fail.get("status"), str(fail.get("why", ""))[:300],
-               json.dumps([{"op": e.get("op"),
-                            "ok": e.get("ok"),
-                            "t": str(e.get("target", ""))[:60]}
-                           for e in (fail.get("actions_log") or [])
-                           if isinstance(e, dict) and e.get("phase") == "obs"][-8:],
-                          ensure_ascii=False)[:1200]))
-        r = llm.complete(prompt, json_mode=True)
-        obj = json.loads(r.text or "{}") if getattr(r, "ok", False) else {}
-        revised = str(obj.get("revised_task", "")).strip()
-        if not revised or revised == task.strip():
-            return None                    # 修订无产出 ⇒ 不重跑
-    except Exception:                      # noqa: BLE001 — 修订失败=不重跑
-        return None
+    with measurement_role("revision"):
+        try:
+            prompt = (
+                "上一个任务执行失败, 请**重写任务**（更小步/更明确/补上缺失前提）"
+                "让下一次执行能走通。只输出 JSON: {\"revised_task\": \"…\"}\n"
+                "原任务: %s\n失败状态: %s\n失败原因: %s\n已做动作: %s"
+                % (task, fail.get("status"), str(fail.get("why", ""))[:300],
+                   json.dumps([{"op": e.get("op"),
+                                "ok": e.get("ok"),
+                                "t": str(e.get("target", ""))[:60]}
+                               for e in (fail.get("actions_log") or [])
+                               if isinstance(e, dict) and e.get("phase") == "obs"][-8:],
+                              ensure_ascii=False)[:1200]))
+            r = llm.complete(prompt, json_mode=True)
+            obj = json.loads(r.text or "{}") if getattr(r, "ok", False) else {}
+            revised = str(obj.get("revised_task", "")).strip()
+            if not revised or revised == task.strip():
+                return None
+        except Exception:
+            return None
     if progress:
         progress({"ev": "revision_retry", "revised": revised[:200]})
     try:      # _sess 是 execute_user_task 闭包 — 模块级直写同款文件
@@ -1492,7 +1493,37 @@ def _revision_retry(*, task: str, fail: dict[str, Any], llm: Any,
     return res2
 
 
+from dwc.observability.context import (
+    emit_llm_observation,
+    emit_task_metrics,
+    measurement_role,
+    task_measurement_context,
+)
+
+
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
+                      ctx: str | None = None,
+                      task_id: str | None = None,
+                      _depth: int = 0,
+                      retry_on_fail: bool = True,
+                      progress: Any | None = None) -> dict[str, Any]:
+    """测量包装：保留原显式签名，只加归属与统一收尾。"""
+    from dwc.observability.context import task_measurement_context as _ctx
+    sid = task_id or ("T_" + time.strftime("%m%d_%H%M%S"))
+    with _ctx(sid):
+        result = _execute_user_task_impl(
+            task, llm=llm, max_rounds=max_rounds, ctx=ctx, task_id=task_id,
+            _depth=_depth, retry_on_fail=retry_on_fail, progress=progress)
+        if not isinstance(result, dict):
+            raise TypeError("task executor must return dict")
+        result.setdefault("task_id", sid)
+        metrics = emit_task_metrics(result)
+        result["measurement_status"] = ("measured" if metrics.get("persistence_status") == "persisted" and metrics.get("measurement_status") == "measured" else "incomplete")
+        result["measurement_ref"] = metrics.get("record_id")
+        return result
+
+
+def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                       ctx: str | None = None,
                       task_id: str | None = None,
                       _depth: int = 0,
@@ -1599,6 +1630,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         system = _ota("task_exec", system, __file__, key=str(sid or task))
     except Exception as _ota_e:     # 留痕不炸单（G7）
         _sess({"phase": "ota_miss", "why": str(_ota_e)[:80]})
+    _MEASURE_SINK = globals().get("_OBS_SINK")
     if self_md:
         system += ("\n\n# 自我认知（你的持久记忆文件, 每单加载）\n" + self_md)
     # ★ R301-C · qa 分流（纯问句⇒直答通道；规则 fail-closed，边界走执行路）。
@@ -1738,6 +1770,18 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                 res = llm.complete(prompt, system=system,
                                    json_mode=True, images=_imgs)
         _tool_mode = "native" if _native else "json"
+        emit_llm_observation({
+            "kind": "solver_observation", "round": rnd,
+            "transport": _tool_mode, "ok": bool(getattr(res, "ok", False)),
+            "call_id": (getattr(res, "meta", None) or {}).get("call_id"),
+            "attempt_index": (getattr(res, "meta", None) or {}).get("attempt_index"),
+            "usage": (getattr(res, "meta", None) or {}).get("usage"),
+            "usage_status": (getattr(res, "meta", None) or {}).get("usage_status"),
+            "model_reported": (getattr(res, "meta", None) or {}).get("model"),
+            "finish_reason": (getattr(res, "meta", None) or {}).get("finish_reason"),
+            "tool_call_count": len((getattr(res, "meta", None) or {}).get("tool_calls") or []),
+            "interface_error": "missing_tool_call" if _native and not (getattr(res, "meta", None) or {}).get("tool_calls") else None,
+        })
         if not getattr(res, "ok", False):
             # ★★★ R422 · **基础设施故障与模型失败必须可区分** ——
             #   端点 502/503/429 或传输超时不是模型的错；原来两者都写成

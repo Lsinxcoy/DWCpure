@@ -104,7 +104,7 @@ def test_system_prompt_tells_search_code_first():
     现场：模型反复 `ls -la .` 11 轮零进展 ⇒ 复读熔断。
     """
     import inspect
-    src = inspect.getsource(T.execute_user_task)
+    src = inspect.getsource(T._execute_user_task_impl)
     assert "search_code" in src, "系统提示没提 search_code"
     assert "不要用 list_dir" in src or "不要用 list_dir / ls" in src, \
         "系统提示没禁止逐层 ls"
@@ -114,5 +114,5 @@ def test_system_prompt_tells_search_code_first():
 def test_system_prompt_warns_about_windows_find():
     """★★ 系统提示必须警告 Windows 的 find.exe（否则模型还会踩）。"""
     import inspect
-    src = inspect.getsource(T.execute_user_task)
+    src = inspect.getsource(T._execute_user_task_impl)
     assert "find.exe" in src, "没警告 Windows find.exe"

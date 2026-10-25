@@ -50,6 +50,7 @@ if _ROOT not in sys.path:
 from dwc.llm import LLMClient
 from dwc.organs.actor import Actor, execute_task
 from dwc.organs.judge import Judge
+from dwc.observability.context import measurement_role, task_measurement_context
 
 #: 系统外真值源（G2）
 TRUTH_SOURCE = {
@@ -536,9 +537,14 @@ def run_experiment(llm: Any, repeat: int = 2, rounds: int = 2,
                             _sys_code = _ota("sys_code", _sys_code, __file__)
                         except Exception:
                             _ota_miss()
-                        res = llm.complete(
-                            prompt,
-                            system=_sys_code)
+                        with task_measurement_context(
+                                tid, candidate_id=arm,
+                                rollout_id="%s:%s" % (rep, rnd),
+                                protocol_id=dataset):
+                            with measurement_role("solver"):
+                                res = llm.complete(
+                                    prompt,
+                                    system=_sys_code)
                         if not res.ok:
                             rec["error"] = "llm: %s" % (res.error or res.source)
                             records.append(rec)

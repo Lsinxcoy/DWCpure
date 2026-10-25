@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .evolver import COMPONENT_VOCAB, DIMENSIONS, K_META, check_component, layer_of
+from dwc.observability.context import measurement_role, task_measurement_context
 
 
 class CandidateError(Exception):
@@ -499,10 +500,17 @@ class CandidateGenerator:
                 _sys_strict = _ota("sys_json_strict", _sys_strict, __file__)
             except Exception:
                 _ota_miss()
-            res = self.llm.complete(
-                prompt,
-                system=_sys_strict,
-                json_mode=True)
+            task_context = (task_measurement_context(
+                sig["task_id"], candidate_id=sig.get("candidate_id"),
+                rollout_id=sig.get("rollout_id"),
+                protocol_id=sig.get("protocol_id"))
+                if sig.get("task_id") else measurement_role("editor"))
+            with task_context:
+                with measurement_role("editor"):
+                    res = self.llm.complete(
+                        prompt,
+                        system=_sys_strict,
+                        json_mode=True)
         except Exception as e:
             # ★★★ R34 纪律②: **不抛不吞**
             #   · `LLMClient.complete` 自己已 catch（返回值模式）

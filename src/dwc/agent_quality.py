@@ -19,6 +19,7 @@ import time
 from typing import Any
 
 from dwc.foundation.paths import find_root
+from dwc.observability.context import measurement_role, task_measurement_context
 
 ROOT = find_root()
 # ★ R438 · 尊重 DWC_VAR_DIR（与 agent_rpc 同口径）。
@@ -438,7 +439,9 @@ def revision_lessons(task: str, *, status: str, fail_why: str = "",
             % (task[:300], status,
                ("失败原因: " + fail_why[:200]) if fail_why else "", old_txt[:600]))
         try:
-            r = llm.complete(prompt)
+            with task_measurement_context(h["task_id"]):
+                with measurement_role("review"):
+                    r = llm.complete(prompt)
             new_txt = (r.text or "").strip() if getattr(r, "ok", False) else ""
         except Exception as exc:                # noqa: BLE001 — 修订失败不阻断
             sys.stderr.write("lesson_revise LLM 失败: %s\n" % exc)

@@ -33,6 +33,7 @@ import re
 from typing import Any
 
 from dwc.organs.actor import Receipt
+from dwc.observability.context import measurement_role, task_measurement_context
 
 #: src/dwc/llm/executor.py ⇒ 四级上跳到仓库根（src/dwc/llm → src/dwc
 #: → src → root）— core.py 只用三级是因为它在 src/dwc/ 而非 src/dwc/llm/
@@ -177,7 +178,12 @@ class LLMExecutorFactory:
                     _sys_json = _ota("sys_json", _sys_json, __file__)
                 except Exception:
                     _ota_miss()
-                res = self.llm.complete(prompt, system=_sys_json)
+                with task_measurement_context(
+                        tid, candidate_id=task.get("candidate_id"),
+                        rollout_id=task.get("rollout_id"),
+                        protocol_id=task.get("protocol_id")):
+                    with measurement_role("solver"):
+                        res = self.llm.complete(prompt, system=_sys_json)
             except Exception as exc:            # 端点炸 ⇒ 未评价, 不当 False
                 self.stats["n_errors"] += 1
                 return Receipt(ok=True, verified=True, detail={

@@ -78,25 +78,35 @@ def test_r297_raises_quota_acquire_never_none(tmp_path):
             str(tmp_path), "no_such_dir", "agent.pid"))
 
 
-def _race_worker(pid_path, q):
+def _race_worker(pid_path, q, start=None, release=None):
     import sys as _s
     _s.path.insert(0, os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
     from dwc_agent import acquire_singleton
-    q.put(acquire_singleton(pid_path))
+    if start is not None:
+        start.wait(30)
+    won = acquire_singleton(pid_path)
+    q.put(won)
+    if release is not None:
+        release.wait(30)
 
 
 def test_r297_concurrent_stale_single_winner(tmp_path):
-    """★ 真并发：两进程同时撞 stale⇒恰一 True（CAS 收敛单赢）。"""
+    """两进程同时起步，赢者持锁到败者完成，验证真实重叠竞争。"""
     import multiprocessing as _mp
     p = str(tmp_path / "agent.pid")
     with open(p, "w", encoding="utf-8") as fh:
         fh.write("999999999")
     q = _mp.Queue()
-    ps = [_mp.Process(target=_race_worker, args=(p, q)) for _ in range(2)]
+    start = _mp.Event()
+    release = _mp.Event()
+    ps = [_mp.Process(target=_race_worker, args=(p, q, start, release)) for _ in range(2)]
     for x in ps:
         x.start()
+    start.set()
+    wins = [q.get(timeout=35) for _ in ps]
+    assert wins.count(True) == 1, wins
+    release.set()
     for x in ps:
         x.join(30)
-    wins = [q.get() for _ in ps]
-    assert wins.count(True) == 1, wins
+        assert x.exitcode == 0

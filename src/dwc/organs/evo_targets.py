@@ -23,8 +23,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
+import tempfile
 import time
-from typing import Any
+import uuid
+from contextlib import contextmanager
+from typing import Any, Callable
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
@@ -146,46 +150,152 @@ def validate(component: str, patch: dict[str, Any]) -> list[str]:
     return errs
 
 
-def apply(component: str, patch: dict[str, Any],
-          backup_dir: str = "") -> dict[str, Any]:
-    """合并 + 校验 + 备份 + 原子写 + 读回。
+@contextmanager
+def _target_lock(component: str):
+    """跨进程/线程互斥；锁文件与目标同目录，绝不锁 replace 的目标本身。"""
+    p = path_of(component)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    lock_path = p + ".lock"
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            while True:
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.01)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
-    ★ 读回失败 ⇒ TargetError（写了但读不回 = 没写成）。
-    """
-    errs = validate(component, patch)
-    if errs:
-        raise TargetError("; ".join(errs))
+
+def _atomic_bytes(path: str, payload: bytes) -> None:
+    fd, tmp = tempfile.mkstemp(prefix=".%s." % os.path.basename(path),
+                               suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def _atomic_write(path: str, data: dict[str, Any]) -> None:
+    """同目录唯一临时文件 + replace；失败清理且不碰旧文件。"""
+    fd, tmp = tempfile.mkstemp(prefix=".%s." % os.path.basename(path),
+                               suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def _apply_locked(component: str, patch: dict[str, Any],
+                  backup_dir: str = "") -> dict[str, Any]:
+    """调用者必须持有目标锁。"""
     p = path_of(component)
     before = read(component)
     after = dict(before)
     after.update(patch)
-    os.makedirs(os.path.dirname(p), exist_ok=True)
+    created = not os.path.isfile(p)
     bak = ""
-    if os.path.isfile(p):
+    if not created:
         bd = backup_dir or _p(os.path.join("var", "backups"))
         os.makedirs(bd, exist_ok=True)
-        bak = os.path.join(bd, "%s_%s.json"
-                           % (component, time.strftime("%Y%m%d_%H%M%S")))
+        bak = os.path.join(bd, "%s_%s_%s.json"
+                           % (component, time.strftime("%Y%m%d_%H%M%S"),
+                              uuid.uuid4().hex))
         shutil.copy2(p, bak)
-    tmp = p + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(after, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, p)
+    _atomic_write(p, after)
     got = read(component)
     if got != after:
         raise TargetError("读回不一致：写入 %r，读回 %r" % (after, got))
     return {"outcome": "applied", "component": component, "path": p,
-            "before": before, "after": after, "backup": bak}
+            "before": before, "after": after, "backup": bak,
+            "created": created}
+
+
+def snapshot_backup(component: str, backup_dir: str = "") -> str:
+    """在任何写入前复制当前文件；首次创建返回空路径。"""
+    p = path_of(component)
+    if not os.path.isfile(p):
+        return ""
+    bd = backup_dir or _p(os.path.join("var", "backups"))
+    os.makedirs(bd, exist_ok=True)
+    bak = os.path.join(bd, "%s_%s_%s.json" %
+                       (component, time.strftime("%Y%m%d_%H%M%S"),
+                        uuid.uuid4().hex))
+    shutil.copy2(p, bak)
+    return bak
+
+
+def apply(component: str, patch: dict[str, Any],
+          backup_dir: str = "") -> dict[str, Any]:
+    """合并 + 校验 + 唯一备份 + 原子写 + 读回，整段跨进程互斥。"""
+    errs = validate(component, patch)
+    if errs:
+        raise TargetError("; ".join(errs))
+    with _target_lock(component):
+        return _apply_locked(component, patch, backup_dir)
+
+
+def update(component: str, mutator: Callable[[dict[str, Any]], dict[str, Any]],
+           *, backup_dir: str = "") -> dict[str, Any]:
+    """在锁内由当前值计算 patch，避免调用方 read/apply 之间丢更新。"""
+    with _target_lock(component):
+        patch = mutator(read(component))
+        errs = validate(component, patch)
+        if errs:
+            raise TargetError("; ".join(errs))
+        return _apply_locked(component, patch, backup_dir)
 
 
 def rollback(component: str, backup_path: str) -> dict[str, Any]:
-    """用备份整份还原（备份缺失 ⇒ 大声）。"""
+    """备份整份原子还原；空备份路径明确表示撤销首次创建。"""
     p = path_of(component)
-    if not backup_path or not os.path.isfile(backup_path):
-        raise TargetError("备份不存在: %r" % (backup_path,))
-    shutil.copy2(backup_path, p)
+    with _target_lock(component):
+        if not backup_path:
+            if os.path.isfile(p):
+                os.unlink(p)
+            if os.path.exists(p):
+                raise TargetError("首次创建回滚失败，文件仍存在: %s" % (p,))
+            return {"outcome": "rolled_back", "component": component,
+                    "path": p, "restored_from": "", "removed": True}
+        if not os.path.isfile(backup_path):
+            raise TargetError("备份不存在: %r" % (backup_path,))
+        with open(backup_path, "rb") as f:
+            payload = f.read()
+        data = json.loads(payload.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise TargetError("备份必须是 JSON 对象: %s" % (backup_path,))
+        _atomic_bytes(p, payload)
+        got = read(component)
+        if got != dict(spec_of(component)["defaults"], **data):
+            raise TargetError("回滚读回不一致：写入 %r，读回 %r" % (data, got))
     return {"outcome": "rolled_back", "component": component,
-            "path": p, "restored_from": backup_path}
+            "path": p, "restored_from": backup_path, "removed": False}
 
 
 def smoke(component: str) -> dict[str, Any]:
