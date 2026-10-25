@@ -3,7 +3,7 @@
 > **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
-[![pytest](https://img.shields.io/badge/pytest-2717%20passed-brightgreen)](#开发)
+[![pytest](https://img.shields.io/badge/pytest-3007%20passed-brightgreen)](#开发)
 [![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R438-FFB86B)](docs/PROGRESS.md)
 [![commits](https://img.shields.io/badge/commits-547-blue)](docs/PROGRESS.md)
 
@@ -32,6 +32,12 @@ dwc                 # 全屏 TUI（消息卡片 · 命令面板 Ctrl+P · 文件
 dwc start --llm     # 常驻 agent（后台自触发循环, watchdog 守护）
 dwc status          # 实时状态; dwc ask "任务" 单发派单
 ```
+
+## DWC pure 2.0
+
+2.0 的实现状态、真实测量证据、shadow-only 边界和未启用项，统一见
+[docs/DWC_PURE_2.0_IMPLEMENTATION_STATUS.md](docs/DWC_PURE_2.0_IMPLEMENTATION_STATUS.md)。
+设计规格见 [docs/DWC_PURE_2.0_DEVELOPMENT_PLAN.md](docs/DWC_PURE_2.0_DEVELOPMENT_PLAN.md)。
 
 ## 能力一览
 

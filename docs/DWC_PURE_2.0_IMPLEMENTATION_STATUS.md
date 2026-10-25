@@ -9,7 +9,7 @@
 | 全量测试 | `3007 passed, 1 skipped`（`pytest tests`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
-| 实现检查点 | `9c308bd feat(dwc2): land W1 real measurement and W2-W6 core modules` |
+| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -18,6 +18,7 @@
 - 普通正文：`prompt=2648 / completion=18 / total=2666 / cached=0`
 - 带缓存：`prompt=2509 / cached=1159 / completion=20 / total=2529`
 - native tool：`prompt=2338 / cached=1116 / completion=37 / total=2375`，`finish_reason=tool_calls`
+- 2026-10-25 复验：`prompt=2192 / completion=15 / total=2207 / cached=0`，`measurement_status=measured`，真实 `record_id` 落库
 
 ## 2. 已接入生产代码路径
 
