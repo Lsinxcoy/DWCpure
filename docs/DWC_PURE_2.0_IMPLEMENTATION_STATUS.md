@@ -9,8 +9,8 @@
 | 全量测试 | `3273 passed, 2 skipped, 1 deselected`（ignore 两个真端点文件 + deselect r208 lifecycle；被忽略文件本地子集另 `5 passed`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
-| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
-| 生产部署 | `~/.dwc` 本地提交 `52ae532`（代码对应 release `7b09f0f`）；agent `--llm` 常驻，RPC 8802 |
+| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3 |
+| 生产部署 | `~/.dwc` 本地提交 `a99a753`（代码对应 release `c850809`）；agent `--llm` 常驻 pid `934692`，RPC 8802；生产全量 `3273 passed / 2 skipped / 1 deselected`，gate 8/8 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -88,7 +88,7 @@
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
 9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
 10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
-11. **M0–M3 核心已落地，但仍有明确边界**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；成功/失败对比没有生产配对样本；轨迹拼接只有 API、无消费方；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，当前用 `deselect` 排除，未归因于记忆改动，不能写成全量全绿。
+11. **M0–M3 已部署生产，但仍有明确边界**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；成功/失败对比没有生产配对样本；轨迹拼接只有 API、无消费方；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，当前用 `deselect` 排除，未归因于记忆改动，不能写成全量全绿。
 
 ## 5. 复现命令
 
