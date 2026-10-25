@@ -85,7 +85,7 @@ SAMPLERS: Dict[str, Callable[[random.Random], Any]] = {
 
 def _stable_seed(text: str, seed: int) -> int:
     """跨进程稳定的种子（`hash()` 每进程加盐，不能用）。"""
-    h = hashlib.sha1(("%s|%d" % (text, seed)).encode("utf-8")).hexdigest()
+    h = hashlib.sha1(("%s|%d" % (text, seed)).encode("utf-8"), usedforsecurity=False).hexdigest()
     return int(h[:8], 16)
 
 
@@ -304,7 +304,7 @@ def generate_family(llm: Callable[[str], str], *, seed: int = 0,
         return None
     checks = [{"fn": fn, "args": repr(x), "expected": repr(v)} for x, v in agree]
     tid = "supply_%s_%s" % (fn, hashlib.sha1(
-        str(spec["impl"]).encode("utf-8")).hexdigest()[:8])
+        str(spec["impl"]).encode("utf-8"), usedforsecurity=False).hexdigest()[:8])
     return {
         "task_id": tid,
         "anchor": {

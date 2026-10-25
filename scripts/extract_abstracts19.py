@@ -21,5 +21,5 @@ for f in sorted(os.listdir(d)):
     out.append((f, ab[:1400]))
 print("\n\n" + "#" * 84)
 print("=== 全部摘要已提取 %d 篇 ===" % len(out))
-io.open(ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "papers19_abstracts.txt"), "w", encoding="utf-8").write(
+io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "papers19_abstracts.txt"), "w", encoding="utf-8").write(
     "\n\n".join("### %s\n%s" % (a, b) for a, b in out))

@@ -2,8 +2,8 @@
 """深读 39 仓库的进化设计意图: 核心进化模块 docstring + 关键类 + 落地/应用符号。"""
 import io, os, re, json
 
-ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
-OUT  = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_design.json")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+OUT  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_design.json")
 
 # 只看真正承载"进化设计"的文件
 CORE = re.compile(r'(evolution|harness|world_model|self_improve|rsi|evolvemem|mutator|fitness|'

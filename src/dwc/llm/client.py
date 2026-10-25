@@ -58,7 +58,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict
 
 
 #: 可选的进程内观测出口；只接收非敏感计数与协议事实，不含 prompt/正文/凭证。

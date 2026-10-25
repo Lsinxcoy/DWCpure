@@ -2,8 +2,8 @@
 """全量扫描 39 仓库的进化设计 —— 只报实测, 不推断。"""
 import io, os, re, json
 
-ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
-OUT  = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_scan.json")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+OUT  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_scan.json")
 
 # 进化核心的判据维度 (每条都可机械查)
 CRIT = {

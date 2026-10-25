@@ -2,8 +2,8 @@
 """提取 39 仓库的进化模块结构: 目录/文件/核心类名/关键设计符号。"""
 import io, os, re, json
 
-ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
-OUT  = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_struct.json")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+OUT  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "evolution_struct.json")
 
 EVO_DIR = re.compile(r'(evolution|evol|harness|world_model|self_improve|rsi|meta|gene)', re.I)
 

@@ -29,6 +29,7 @@ import subprocess
 import sys
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 from dwc.foundation.atomic_io import write_text_atomic
 from dwc.foundation.paths import find_root
@@ -1480,8 +1481,11 @@ def _extract_sources(log: list[dict[str, Any]], *, task_id: str, task: str,
                 queries.append(target[:200])
         elif op == "web_read" and target.startswith(("http://", "https://")):
             low = target.lower()
-            kind = ("paper" if ("arxiv.org" in low or low.endswith(".pdf")
-                                or "openreview.net" in low)
+            _host = (urlsplit(target).hostname or "").lower()
+            kind = ("paper" if (_host in ("arxiv.org", "www.arxiv.org")
+                                or low.endswith(".pdf")
+                                or _host in ("openreview.net",
+                                             "www.openreview.net"))
                     else "doc")
             urls.append({"url": target, "kind": kind,
                          "snippet": str(obs.get("content", ""))[:300]})

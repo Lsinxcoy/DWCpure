@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+from typing import Optional
+
 import os as _os
 def _dwc_root():
     """R228: 仓库根发现（env DWC_ROOT > 本文件上溯 — 不写死盘符/用户名）。"""

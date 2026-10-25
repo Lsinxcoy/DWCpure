@@ -348,8 +348,6 @@ def record_edit(liquidity: list[dict[str, Any]], round_no: int, component: str,
         raise ValueError(
             "★ ΔS_i 必须实测（能测必须测）—— "
             "g_t = max{ΔS} 用 max，填 0 会让没测过的组件假装测过")
-    if delta_c is None and False:        # ← 占位: None 现在**收**（见上）
-        raise ValueError("★ ΔC 不许 None（旧规则, R45 已改）")
     if delta_c is not None and not isinstance(delta_c, (int, float)):
         raise ValueError(
             "★ ΔC_i 只能是数值或 None（实测值/诚实未测），实得 %r" % (delta_c,))

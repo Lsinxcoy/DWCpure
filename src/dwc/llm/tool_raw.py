@@ -51,7 +51,7 @@ def persist(text: str) -> Optional[str]:
     去重：同名（sha1 前 16 位）已存在 ⇒ 直接复用，不重复写。
     """
     body = str(text or "")
-    digest = hashlib.sha1(body.encode("utf-8", "replace")).hexdigest()[:16]
+    digest = hashlib.sha1(body.encode("utf-8", "replace"), usedforsecurity=False).hexdigest()[:16]
     d = raw_dir()
     path = os.path.join(d, digest + ".txt")
     if os.path.isfile(path):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """取具体清单: 12层 / 15变异 / 4门 / 9维 / 四轨。"""
 import io, os, re
-ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 def rd(p):
     try: return io.open(p,encoding="utf-8",errors="replace").read()
     except Exception: return ""

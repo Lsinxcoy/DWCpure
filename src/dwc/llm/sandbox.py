@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 import threading
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 
 class SandboxError(Exception):

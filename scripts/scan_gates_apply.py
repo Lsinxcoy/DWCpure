@@ -2,7 +2,7 @@
 """深读各仓库"过门→落地"的具体设计: 门有几步 + 落地怎么做 + 失败怎么办。"""
 import io, os, re, json
 
-ROOT = ros.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "gh_clones")
 
 TARGETS = [
  ("ARSI", "src/arsi/harness/accept.py"),

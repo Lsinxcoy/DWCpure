@@ -1163,7 +1163,7 @@ class MemoryKernel:
         self.get(str(source_id))
         self.get(str(target_id))
         raw = "%s\x00%s\x00%s" % (source_id, target_id, relation)
-        eid = "E_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+        eid = "E_" + hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
         self._conn.execute(
             "INSERT OR REPLACE INTO memory_edge"
             " (edge_id, source_id, target_id, relation, weight,"

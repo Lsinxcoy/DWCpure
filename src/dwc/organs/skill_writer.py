@@ -90,7 +90,7 @@ def _clip(s: Any, n: int) -> str:
 def src_key(task: Any, method: Any) -> str:
     """做法指纹（task + method）。同一做法只写一次。"""
     raw = "%s\x00%s" % (_clip(task, 400), _clip(method, 800))
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def _action_digest(value: Any) -> str:
