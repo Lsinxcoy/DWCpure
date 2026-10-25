@@ -53,7 +53,7 @@
 | intent×scope 稀疏计划、静态校验 | `scripts/dwc_shadow_round.py` | 不生成代码、不调用模型 |
 | Probe/Compose | `scripts/dwc_shadow_round.py` | Compose 返回 `needs_reprobe`；不替代固定评价 |
 | 离线候选评价 | `scripts/dwc_evaluate_candidate.py` | 只读 attempts/usage/pricing，不调用 LLM |
-| 多组件安全落地 | `scripts/dwc_apply_candidate.py` | 必须显式 root + `--confirm APPLY`；默认拒绝生产根 |
+| 多组件安全落地 | `scripts/dwc_apply_candidate.py` | 必须显式 root + `--confirm APPLY`；生产根需 `--allow-production`；已做生产根可逆事务 canary，真实候选未落地 |
 | recovery journal / canary | `src/dwc/harness/recovery_journal.py` | 先持久化 undo，再写目标；只发布 committed |
 | 历史卡片/经验库 | `src/dwc/harness/history_retrieval.py`、`reflection_library.py` | 脱敏、namespace 隔离；未接入生产演化轮 |
 | 预算/输出压缩/条件 review | `src/dwc/llm/budget_controller.py` 等 | 单元测试通过；尚未改变 `task_exec` 行为 |
@@ -61,10 +61,10 @@
 
 ## 4. 尚未完成 / 明确未启用
 
-1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `7b09f0f`，本地提交 `52ae532`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻，cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”和“失败回滚演练”。
+1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `7b09f0f`，本地提交 `52ae532`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻，cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”；生产根事务回滚已单独演练。
 2. **W5 运行时已单一真源**：`task_profiles.py` 只做投影，预算/选档委托 `dwc.llm.budget` + `dwc.llm.profile`；`budget_controller.py`、`output_compaction.py`、`completion_review.py` 仅供评价/证据，不进入运行时。
 3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
-4. **`dwc_apply_candidate.py` 未在生产根执行**：只在 tmp 根验证；生产候选落地仍需显式审批与 canary。
+4. **生产根事务已演练，真实候选未落地**：2026-10-25 在 `~/.dwc` 用 `read_default_lines 250→251` 执行 `--allow-production --confirm APPLY`，journal `committed`、canary 通过，随后按 journal 回滚，文件哈希恢复为 `1d8d193…`。这是事务 canary，不是改进候选；真实候选仍需评价/审批后再落地。
 5. **Windows 低权限沙箱未验证**：script/hook Probe 仍应 `blocked`，不能宣称 shadow verified。
 6. **AKV serving 未启用**：当前远程 OpenAI 兼容端点不支持 `drop_message/reposition`；无定制 SGLang/GPU 实测。
 7. **TIES/SFT 未启用**：无 checkpoint/训练控制权，只能作为未来条件扩展。
