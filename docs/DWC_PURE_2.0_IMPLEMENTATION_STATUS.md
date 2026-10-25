@@ -6,11 +6,11 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3273 passed, 2 skipped, 1 deselected`（ignore 两个真端点文件 + deselect r208 lifecycle；被忽略文件本地子集另 `5 passed`） |
+| 全量测试 | `3284 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
-| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3 |
-| 生产部署 | `~/.dwc` 本地提交 `a99a753`（代码对应 release `c850809`）；agent `--llm` 常驻 pid `934692`，RPC 8802；生产全量 `3273 passed / 2 skipped / 1 deselected`，gate 8/8 |
+| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费） |
+| 生产部署 | `~/.dwc` 本地提交 `44bd6c0`（代码对应 release `5543f42`）；agent `--llm` 常驻 pid `995852`，RPC 8802；生产全量 `3284 passed / 9 skipped`，gate 8/8 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -78,7 +78,7 @@
 
 ## 4. 尚未完成 / 明确未启用
 
-1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `7b09f0f`，本地提交 `52ae532`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻，cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”；生产根事务回滚已单独演练。
+1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `5543f42`，本地提交 `44bd6c0`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻 pid `995852`，RPC 8802；cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”；生产根事务回滚已单独演练。
 2. **W5 运行时已单一真源**：`task_profiles.py` 只做投影，预算/选档委托 `dwc.llm.budget` + `dwc.llm.profile`；`budget_controller.py`、`output_compaction.py`、`completion_review.py` 仅供评价/证据，不进入运行时。
 3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
 4. **生产根事务已演练，真实候选未落地**：2026-10-25 在 `~/.dwc` 用 `read_default_lines 250→251` 执行 `--allow-production --confirm APPLY`，journal `committed`、canary 通过，随后按 journal 回滚，文件哈希恢复为 `1d8d193…`。这是事务 canary，不是改进候选；真实候选仍需评价/审批后再落地。
@@ -88,13 +88,19 @@
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
 9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
 10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
-11. **M0–M3 已部署生产，但仍有明确边界**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；成功/失败对比没有生产配对样本；轨迹拼接只有 API、无消费方；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，当前用 `deselect` 排除，未归因于记忆改动，不能写成全量全绿。
+11. **M0–M3 已部署生产，边界已按类型处置**：`from_task_result()` 已接 `scripts/dwc_agent.py::run_user_task`，默认门 `result_verified()`（done + 至少一次成功 run/test/check），不是生产判分器；`trajectory_ref` 已进任务结果并用于写过程技能；`trajectory_stitch` 已接 `_revision_retry` 修订对；成功/失败对比仍无生产配对样本；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。7 个真端点 live 测试默认 skip（`--run-live` 才跑）；`test_r208_agent.py::test_agent_lifecycle_short_run` 标为 live，不再用 deselect。`LLMClient` 已加总 deadline（默认 ≤90s），端点不可用时是有界失败，不再无限挂主线程。全量 `3284 passed / 9 skipped` 是默认集，不能写成“真端点也全绿”。
 
 ## 5. 复现命令
 
 ```bash
-# 全量
+# 全量（live 自动 skip）
 .venv/Scripts/python.exe -B -m pytest tests -q -p no:cacheprovider
+
+# 真端点 live（会触网；端点不可用时应有界失败）
+.venv/Scripts/python.exe -B -m pytest tests -q -p no:cacheprovider --run-live
+
+# 机制矩阵审计（19 项代码/测试落点）
+.venv/Scripts/python.exe -B scripts/audit_memory_plan.py
 
 # 质量门
 .venv/Scripts/python.exe -B scripts/gate.py --json
