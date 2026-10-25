@@ -6,10 +6,11 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3207 passed, 2 skipped`（`pytest tests`） |
+| 全量测试 | `3214 passed, 2 skipped`（`pytest tests`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
-| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458 |
+| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
+| 生产部署 | `~/.dwc` 本地提交 `52ae532`（代码对应 release `7b09f0f`）；agent `--llm` 常驻，RPC 8802 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -20,6 +21,8 @@
 - native tool：`prompt=2338 / cached=1116 / completion=37 / total=2375`，`finish_reason=tool_calls`
 - 2026-10-25 复验：`prompt=2192 / completion=15 / total=2207 / cached=0`，`measurement_status=measured`，真实 `record_id` 落库
 - 合并上游后复验：`prompt=2124 / completion=37 / total=2161 / cached=0`，`finish_reason=tool_calls`，`measurement_status=measured`
+- 生产 canary（`~/.dwc` 代码 + 生产 `config/llm.json`，3 道只读问答）：3/3 `done`、1 轮、`measured`；usage `2218/9`、`2214/37`、`2217/66`，`cached=0`，`pricing_status=not_configured` → `cost_status=indeterminate`
+- 生产常驻 agent 首轮（`code_fix_001__p1_s20751`）：`task_metrics=measured`，`input=153 / output=49 / cached=0`，与唯一 `llm_attempt` 一致；`cost_status=indeterminate`（未配价格，不填 0）
 
 ## 2. 已接入生产代码路径
 
@@ -29,6 +32,7 @@
 | stream→fallback→retry 父子链 | active | `tests/test_llm_usage.py::test_stream_fallback_retry_keeps_original_parent_chain` |
 | SSE 混合正文 + tool call、malformed 参数 | active | `tests/test_llm_usage.py` |
 | 任务级统一收尾、真实 `record_id`、`incomplete` 诚实状态 | active | `src/dwc/llm/task_exec.py`、`tests/test_task_exec_metrics.py` |
+| agent term 级 `task_metrics`（按本轮时间窗聚合） | active | `scripts/dwc_agent.py`、`src/dwc/observability/context.py`、`tests/test_agent_term_metrics.py` |
 | SQLite WAL 证据账、幂等、脱敏、raw ref+hash | active | `src/dwc/observability/evidence_store.py`、`tests/test_evidence_store.py` |
 | 正式尝试、C/CoP、缺 usage 不填零 | active | `src/dwc/observability/task_metrics.py`、`usage_pricing.py` |
 | 辅助角色归属（revision/planner/executor 等） | active | `tests/test_auxiliary_measurement_roles.py` |
@@ -57,15 +61,16 @@
 
 ## 4. 尚未完成 / 明确未启用
 
-1. **常驻生产 agent 未切换**：`~/.dwc` 仍是旧 clone，且有独立本地修改；不能整目录覆盖，必须按文件审查合并并受控重启。
-2. **两套 W5 路径并存**：上游 R441/R444 的三段式预算与规则选档已 active；我们的 `budget_controller.py`、`output_compaction.py`、`completion_review.py` 仍是 shadow/单元级，尚未替换上游路径。
+1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `7b09f0f`，本地提交 `52ae532`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻，cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”和“失败回滚演练”。
+2. **W5 运行时已单一真源**：`task_profiles.py` 只做投影，预算/选档委托 `dwc.llm.budget` + `dwc.llm.profile`；`budget_controller.py`、`output_compaction.py`、`completion_review.py` 仅供评价/证据，不进入运行时。
 3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
-4. **生产 canary 未执行**：`dwc_apply_candidate.py` 只在 tmp 根验证。
+4. **`dwc_apply_candidate.py` 未在生产根执行**：只在 tmp 根验证；生产候选落地仍需显式审批与 canary。
 5. **Windows 低权限沙箱未验证**：script/hook Probe 仍应 `blocked`，不能宣称 shadow verified。
 6. **AKV serving 未启用**：当前远程 OpenAI 兼容端点不支持 `drop_message/reposition`；无定制 SGLang/GPU 实测。
 7. **TIES/SFT 未启用**：无 checkpoint/训练控制权，只能作为未来条件扩展。
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
-9. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
+9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
+10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
 
 ## 5. 复现命令
 

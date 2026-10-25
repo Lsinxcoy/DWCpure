@@ -3,7 +3,7 @@
 > **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
-[![pytest](https://img.shields.io/badge/pytest-3207%20passed-brightgreen)](#开发)
+[![pytest](https://img.shields.io/badge/pytest-3214%20passed-brightgreen)](#开发)
 [![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R438-FFB86B)](docs/PROGRESS.md)
 [![commits](https://img.shields.io/badge/commits-547-blue)](docs/PROGRESS.md)
 
@@ -84,7 +84,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 
 ## 开发
 
-四层验证每轮必过: `pytest`（2717 全绿）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+四层验证每轮必过: `pytest`（3214 全绿）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
 纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
 
 > ★ 2026-10-23 审计修复完成（R审计-P0~P2）: 全量基线 **2717 passed / 0 failed / 4 skipped**。
@@ -94,7 +94,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 ```bash
 git clone https://github.com/Lsinxcoy/divine-wisdom-core.git && cd divine-wisdom-core
 pip install -r requirements.txt && pip install -e .
-python -m pytest tests -q        # ~3 分钟（2717 全绿）
+python -m pytest tests -q        # ~3 分钟（3214 全绿）
 ```
 
 ---
