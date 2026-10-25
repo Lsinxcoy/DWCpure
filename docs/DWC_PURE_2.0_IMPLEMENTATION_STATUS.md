@@ -19,6 +19,7 @@
 - 带缓存：`prompt=2509 / cached=1159 / completion=20 / total=2529`
 - native tool：`prompt=2338 / cached=1116 / completion=37 / total=2375`，`finish_reason=tool_calls`
 - 2026-10-25 复验：`prompt=2192 / completion=15 / total=2207 / cached=0`，`measurement_status=measured`，真实 `record_id` 落库
+- 合并上游后复验：`prompt=2124 / completion=37 / total=2161 / cached=0`，`finish_reason=tool_calls`，`measurement_status=measured`
 
 ## 2. 已接入生产代码路径
 
