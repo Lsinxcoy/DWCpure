@@ -1,8 +1,8 @@
 # DWC pure 记忆系统强化 M0–M3 · 代码级方案
 
 > 版本：2026-10-25 · 依据：`docs/research/MEMORY_CROSS_PROJECT_AUDIT.md` + 9 个参考仓库 commit（`docs/research/memory_sources.json`）。
-> **落地状态（2026-10-25）**：M0、M1.1、M1.2、M1.4 已实现；M1.3、M1.5–M3 仍为设计，不得写成已实现。
-> 实测：主仓全量通过（见下）；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
+> **落地状态（2026-10-25）**：M0、M1.1、M1.2、M1.4、M1.6 已实现；M1.3、M1.5、M1.7、M1.8 及 M2–M3 仍为设计，不得写成已实现。
+> 实测：主仓非真端点（排除 r208 lifecycle）`3228 passed / 2 skipped`；另有被忽略文件的本地子集 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
 > 本文是**实施规格 + 当前落地记录**；状态以代码/测试/生产读回为准。
 > 机制矩阵：`docs/research/memory_mechanism_matrix.csv`（MEM-01–MEM-19）。
 
@@ -240,21 +240,31 @@ record_task_trajectory(result) -> {
 - 只有成对证据才写“差异技能”；单边成功/失败不写因果。
 - 进入 `dream` 的候选必须带 `evidence_ref`。
 
-### M1.6 `MemoryWriteGuard`
+### M1.6 `MemoryWriteGuard`（已实现）
 
-新文件：`src/dwc/organs/memory_guard.py`
+文件：`src/dwc/organs/memory_guard.py`
 
 ```python
 CHANNEL_TRUST = {
-  "tool_output": 0.2, "user_message": 0.7,
-  "system_summary": 0.5, "retrieved_context": 0.3,
+  "tool_output": 0.15, "llm_self_report": 0.35,
+  "lesson_ledger": 0.60, "task_trajectory": 0.60,
+  "user_message": 0.80, "system_summary": 0.50,
 }
 
-def validate(content: str, source: str, context: dict | None = None) -> dict:
-    """返回 passed/reason/channel/trust_score/checks。"""
+def validate(content, source="unknown", context=None) -> dict:
+    """passed/reason/channel/trust_score/checks/quarantine。"""
 ```
 
-检查：空内容、二进制控制字符、重复字符、注入模式、长度上限；失败 ⇒ `quarantine`，不静默丢。`MemoryKernel.remember()` 增加可选 `source_channel`；缺省 `unknown`，不阻断旧调用。
+检查：空内容、超长（120k）、控制字符、注入模式、重复填充。
+
+接入：
+
+- `MemoryKernel.remember(..., source_channel=None)`：默认不校验，旧调用零变化；显式通道才 enforce。
+- 失败 ⇒ `memory_quarantine`（hash/键名/原因/字符数，不存原文）⇒ 抛 `MemoryQuarantineError`。
+- `skill_writer` 三条通道：`from_term="llm_self_report"`、`promote_pending="lesson_ledger"`、`from_task_result="task_trajectory"`。
+- `promote_pending` 的 `n_quarantined` 是 `n_skip` 子计数，`n_seen = n_written + n_dup + n_skip` 仍成立。
+
+未做：不判断内容真假、不调用 LLM 分类器、不删除已入记忆；这些留给 M3。
 
 ### M1.7 `WorkingState` 证据门
 

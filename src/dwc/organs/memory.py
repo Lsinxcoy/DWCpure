@@ -39,6 +39,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import re
 import sqlite3
@@ -278,6 +279,21 @@ CREATE TABLE IF NOT EXISTS memory_retrieval (
 CREATE INDEX IF NOT EXISTS ix_retrieval_route
     ON memory_retrieval(route, created_at);
 
+-- ★ M1.6 · 写入隔离账（只存 hash/键名/原因，不存原文）
+CREATE TABLE IF NOT EXISTS memory_quarantine (
+    quarantine_id  TEXT PRIMARY KEY,
+    source_channel TEXT NOT NULL,
+    trust_score    REAL NOT NULL,
+    reason         TEXT NOT NULL,
+    checks         TEXT NOT NULL DEFAULT '{}',
+    payload_ref    TEXT NOT NULL,
+    payload_keys   TEXT NOT NULL DEFAULT '[]',
+    payload_chars  INTEGER NOT NULL DEFAULT 0,
+    created_at     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_quarantine_channel
+    ON memory_quarantine(source_channel, created_at);
+
 -- ★★★ R审计-P2 · P1-5 · FTS5 全文索引（trigram 分词 — 中文子串友好）
 --   现场: recall 路1 是**全表 in 子串扫**（O(n×len)），209 条时无感，
 --   上千条后每步 term 都扫会拖垮。FTS5 是 SQLite 原生（零依赖）。
@@ -410,16 +426,31 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     def remember(self, kind: MemoryKind, payload: dict[str, Any],
                  chain_id: str | None = None,
-                 node_id: str | None = None) -> str:
+                 node_id: str | None = None,
+                 source_channel: str | None = None) -> str:
         """写入一条记忆（remember / learn / evolve 共用）。
 
         ★★ D6 强制: 若 kind 属 EXPERIENCE 类，payload 必须含
           EXPERIENCE_REQUIREMENTS 里列的字段，否则 raise
           —— 这是**写入时的门槛**，不是事后分类。
+
+        ★ M1.6 · `source_channel` 非空时先过 `memory_guard.validate`：
+          失败 ⇒ 写 `memory_quarantine`（hash/键名/原因），再抛
+          `MemoryQuarantineError`。默认 None = 旧调用零变化。
         """
         if kind not in KIND_TO_ZONE:
             raise MemoryError("未知记忆种类: %r" % kind)
         zone = KIND_TO_ZONE[kind]
+
+        # ★ M1.6: 只有显式声明来源通道的写路径才 enforce（默认不改变旧行为）
+        if source_channel:
+            from dwc.organs.memory_guard import (
+                validate, MemoryQuarantineError)
+            raw = json.dumps(payload, ensure_ascii=False, default=str)
+            verdict = validate(raw, source_channel)
+            if not verdict["passed"]:
+                qid = self.quarantine(payload, source_channel, verdict)
+                raise MemoryQuarantineError(verdict["reason"], qid)
 
         # ★★ D6: EXPERIENCE 的门槛
         need = EXPERIENCE_REQUIREMENTS.get(kind)
@@ -956,6 +987,52 @@ class MemoryKernel:
             "n_unique_nodes": len(unique),
             "n_bad_rows": n_bad,
             "by_route": by_route,
+        }
+
+    # ══════════════════════════════════════════════
+    # ★ M1.6 · 写入隔离（quarantine）
+    # ══════════════════════════════════════════════
+    def quarantine(self, payload: dict[str, Any], source_channel: str,
+                   verdict: dict[str, Any]) -> str:
+        """记录一次被拒绝的写入；只存 hash/键名/原因，不存原文。"""
+        raw = json.dumps(payload, ensure_ascii=False, default=str)
+        qid = "Q_" + uuid.uuid4().hex
+        self._conn.execute(
+            "INSERT INTO memory_quarantine"
+            " (quarantine_id, source_channel, trust_score, reason, checks,"
+            "  payload_ref, payload_keys, payload_chars, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (qid, str(source_channel or "unknown"),
+             float(verdict.get("trust_score") or 0.0),
+             str(verdict.get("reason") or "quarantined"),
+             json.dumps(verdict.get("checks") or {}, ensure_ascii=False),
+             "sha256:" + hashlib.sha256(
+                 raw.encode("utf-8", "replace")).hexdigest(),
+             json.dumps(sorted(str(k) for k in payload.keys())
+                        if isinstance(payload, dict) else [],
+                        ensure_ascii=False),
+             len(raw), time.time()))
+        self._conn.commit()
+        return qid
+
+    def quarantine_stats(self) -> dict[str, Any]:
+        """隔离账的聚合：总数 + 按通道 + 按原因。"""
+        rows = self._conn.execute(
+            "SELECT source_channel, reason, COUNT(*) AS n"
+            " FROM memory_quarantine GROUP BY source_channel, reason"
+        ).fetchall()
+        by_channel: dict[str, int] = {}
+        by_reason: dict[str, int] = {}
+        for row in rows:
+            n = int(row["n"] or 0)
+            by_channel[str(row["source_channel"])] = \
+                by_channel.get(str(row["source_channel"]), 0) + n
+            by_reason[str(row["reason"])] = \
+                by_reason.get(str(row["reason"]), 0) + n
+        return {
+            "n_quarantined": sum(by_channel.values()),
+            "by_channel": by_channel,
+            "by_reason": by_reason,
         }
 
     def _all_nodes(self) -> list[MemoryNode]:

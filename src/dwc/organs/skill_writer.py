@@ -34,6 +34,7 @@ import os
 from typing import Any, Dict, Iterable, Optional, Set
 
 from dwc.organs.memory import MemoryKind
+from dwc.organs.memory_guard import MemoryQuarantineError
 
 #: 成功做法失效后的真实去向（不是策略发明：失败签名本来就进 evolver）
 _RECOVERY = "失效时按本轮失败签名重新诊断（evolver 通道），不沿用本条"
@@ -210,7 +211,7 @@ def promote_lesson(memory: Any, row: Dict[str, Any],
     else:
         if p["src_key"] in existing_keys(memory):
             return None
-    nid = memory.remember(MemoryKind.SKILL, p)
+    nid = memory.remember(MemoryKind.SKILL, p, source_channel="lesson_ledger")
     if seen is not None:
         seen.add(p["src_key"])
     return nid
@@ -220,14 +221,16 @@ def promote_pending(memory: Any, path: Optional[str] = None,
                     limit: Optional[int] = None) -> Dict[str, int]:
     """把 lessons 里尚未入库的成功做法写成 SKILL。
 
-    返回 `{n_seen, n_written, n_dup, n_skip}` —— 四个数必须能对上 n_seen，
-    否则就是有分支没记账（G7 精神：不许静默跳过）。
+    返回 `{n_seen, n_written, n_dup, n_skip, n_quarantined}` ——
+    `n_seen = n_written + n_dup + n_skip` 仍成立；
+    `n_quarantined` 是 `n_skip` 的子计数（被写入门拒绝，不是解析失败）。
     """
     path = path or os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))))),
         "var", "dwc_lessons.jsonl")
-    out = {"n_seen": 0, "n_written": 0, "n_dup": 0, "n_skip": 0}
+    out = {"n_seen": 0, "n_written": 0, "n_dup": 0, "n_skip": 0,
+           "n_quarantined": 0}
     seen = existing_keys(memory)
     try:
         fh = io.open(path, encoding="utf-8")
@@ -251,7 +254,14 @@ def promote_pending(memory: Any, path: Optional[str] = None,
             if p["src_key"] in seen:
                 out["n_dup"] += 1
                 continue
-            memory.remember(MemoryKind.SKILL, p)
+            try:
+                memory.remember(MemoryKind.SKILL, p,
+                                source_channel="lesson_ledger")
+            except MemoryQuarantineError:
+                # 被写入门拒绝：已进 memory_quarantine；计 skip 子类，不静默
+                out["n_quarantined"] += 1
+                out["n_skip"] += 1
+                continue
             seen.add(p["src_key"])
             out["n_written"] += 1
             if limit is not None and out["n_written"] >= int(limit):
@@ -266,7 +276,8 @@ _METHOD_SOURCE = "llm_self_report"
 def from_term(memory: Any, task: str, prompt: str, method: str,
               passed: bool, quality: Optional[float] = None,
               procedure: Optional[Dict[str, Any]] = None,
-              evidence_ref: str = "") -> Optional[str]:
+              evidence_ref: str = "",
+              source_channel: str = "llm_self_report") -> Optional[str]:
     """★ R458 · term 判分**通过** ⇒ 把模型自述的做法写成 SKILL。
 
     为什么需要：term 失败只写 failure_sig（"错在哪"），成功却什么都不写
@@ -308,7 +319,8 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
         "m_source": _METHOD_SOURCE,
         "quality": quality,
     }
-    return memory.remember(MemoryKind.SKILL, payload)
+    return memory.remember(MemoryKind.SKILL, payload,
+                           source_channel=source_channel)
 
 
 def from_task_result(memory: Any, task: str, prompt: str, result: Any,
@@ -331,7 +343,8 @@ def from_task_result(memory: Any, task: str, prompt: str, result: Any,
         return None
     return from_term(memory, task, prompt, method, passed=True,
                      quality=quality, procedure=proc,
-                     evidence_ref=str(result.get("trajectory_ref") or ""))
+                     evidence_ref=str(result.get("trajectory_ref") or ""),
+                     source_channel="task_trajectory")
 
 
 def skill_count(memory: Any) -> int:

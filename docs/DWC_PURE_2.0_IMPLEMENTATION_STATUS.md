@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3226 passed, 2 skipped`（非真端点；6 个 planner 真端点用例因端点阻塞未跑） |
+| 全量测试 | `3228 passed, 2 skipped`（非真端点，排除 r208 lifecycle；被忽略文件的本地子集另 `5 passed`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
@@ -46,6 +46,7 @@
 | skill 质量分类元数据（M1.1：procedural/factual/chat） | active-metadata | `src/dwc/organs/skill_writer.py`、`tests/test_skill_quality.py`；生产 8 条 = 7 factual + 1 chat + 0 procedural；尚未按 kind 过滤 |
 | 过程技能字段（M1.2：steps/tools/verification/evidence_ref） | active-api | `src/dwc/organs/skill_writer.py`、`tests/test_skill_procedure.py`；尚未接生产判分器 |
 | 任务轨迹落盘（M1.4：actions_log → refs/hash） | active | `src/dwc/llm/task_trajectory.py`、`src/dwc/llm/task_exec.py`、`tests/test_task_trajectory.py` |
+| 记忆写入门（M1.6：通道信任 + 注入/控制字符/重复/超长 → quarantine） | active | `src/dwc/organs/memory_guard.py`、`src/dwc/organs/memory.py`、`tests/test_memory_guard.py`；旧 `remember()` 不传通道时零变化 |
 | 原子组件更新 `update()` 与跨进程锁 | active | `src/dwc/organs/evo_targets.py`、`tests/test_atomic_evo_targets.py` |
 
 ## 3. 已实现且有入口，但默认 shadow-only
@@ -75,7 +76,7 @@
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
 9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
 10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
-11. **M1.2/M1.4 只到 API/落盘**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能。M1.3 的 factual/chat 过滤、M1.5 对比、M1.6 写入门、M1.7 工作态证据门、M1.8 巩固保护仍未实现。真端点测试 6 个因端点阻塞未跑，不能写成全量全绿。
+11. **M1.2/M1.4/M1.6 只到 API/落盘/写入门**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；写入门只覆盖显式通道，旧 `remember()` 不传通道仍不校验。M1.3 的 factual/chat 过滤、M1.5 对比、M1.7 工作态证据门、M1.8 巩固保护仍未实现。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，未归因于 M1.6，单独记录，不能写成全量全绿。
 
 ## 5. 复现命令
 
