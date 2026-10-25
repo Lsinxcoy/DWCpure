@@ -32,6 +32,7 @@ from typing import Any
 
 from dwc.foundation.paths import find_root
 from dwc.llm import budget as _budget
+from dwc.llm import exec_policy
 from dwc.llm import tool_raw
 from dwc.llm.task_trajectory import record_task_trajectory
 ROOT = find_root()
@@ -640,12 +641,23 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
                              "（分类会错、参数还会被截断）。"
                              "请直接调用 search_code(pattern='符号名')，"
                              "答案在它的 === DEFINITIONS 段。"}
-        ask = _ask_level(joined)
+        # ★ SEC-01 · allowlist 是主判定；_ASK 只负责“需要人工授权”的写/外发命令
+        decision = exec_policy.check(
+            cmd, cwd=ROOT,
+            from_tool=bool(args.get("_from_tool")),
+            allow_unsafe=os.environ.get("DWC_ALLOW_UNSAFE_RUN") == "1")
+        if not decision.allowed and not decision.requires_approval:
+            return {"ok": False, "error": "command_denied",
+                    "reason": decision.reason, "cmd": cmd[:3]}
+        ask = (_ask_level(joined) if decision.requires_approval else None) \
+            or (decision.ask if decision.requires_approval else None)
         confirmed = args.get("_confirmed") or set()
         if ask and any(str(c) in joined for c in confirmed):
             # ★ R222 · 人工授权通道: ctx 带 '人工授权: <词>' ⇒ 放行 + 留痕
             r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
-                                capture_output=True, text=True, timeout=60,
+                                shell=False, capture_output=True, text=True,
+                                timeout=60, env=exec_policy.safe_env(),
+                                stdin=subprocess.DEVNULL,
                                 encoding="utf-8", errors="replace")
             return {"ok": r0.returncode == 0, "rc": r0.returncode,
                     "stdout": tool_raw.clip(r0.stdout or "", limit=4000),
@@ -658,9 +670,10 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
             ans = _ask_human(ask, joined, args.get("_task_id") or "")
             if ans is True:
                 r0 = subprocess.run([str(x) for x in cmd], cwd=ROOT,
-                                    capture_output=True, text=True,
-                                    timeout=60, encoding="utf-8",
-                                    errors="replace")
+                                    shell=False, capture_output=True, text=True,
+                                    timeout=60, env=exec_policy.safe_env(),
+                                    stdin=subprocess.DEVNULL,
+                                    encoding="utf-8", errors="replace")
                 return {"ok": r0.returncode == 0, "rc": r0.returncode,
                         "stdout": tool_raw.clip(r0.stdout or "", limit=4000),
                         "stderr": (r0.stderr or "")[:1000],
@@ -670,7 +683,9 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
                 " final 说明需要人工做哪步" % (ask, ans))
         try:
             r = subprocess.run([str(x) for x in cmd], cwd=ROOT,
-                               capture_output=True, text=True, timeout=60,
+                               shell=False, capture_output=True, text=True,
+                               timeout=60, env=exec_policy.safe_env(),
+                               stdin=subprocess.DEVNULL,
                                encoding="utf-8", errors="replace")
             return {"ok": r.returncode == 0, "rc": r.returncode,
                     "out": tool_raw.clip(r.stdout or "", limit=6000),

@@ -85,8 +85,8 @@ def test_tool_generated_search_not_blocked():
     assert "=== DEFINITIONS (1) ===" in out.get("out", ""), out
 
 
-def test_plain_python_still_allowed():
-    """★★ 普通 python 命令不受影响（不是搜索脚本）。"""
+def test_plain_python_is_denied_by_default():
+    """★ SEC-01: 普通 python -c 默认拒绝（它可执行任意代码）。"""
     out = _run(["python", "-c", "print(1+1)"])
-    assert out.get("ok") is True, out
-    assert "2" in out.get("out", "")
+    assert out.get("ok") is False, out
+    assert out.get("error") == "command_denied", out
