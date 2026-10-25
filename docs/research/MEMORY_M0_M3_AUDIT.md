@@ -10,6 +10,7 @@
 - **19/19 有代码落点和测试文件**；审计脚本 `issues=[]`。
 - **18 adopt / 1 conditional**：MEM-19（MemPO / RL Navigator / 向量检索）由 `memory_policy.py` 默认关闭，属于设计上的条件扩展，不是漏做。
 - 开发仓默认全量：**3284 passed / 9 skipped**（7 个 live 测试自动 skip，2 个常规 skip）。
+- 真端点复测：`test_r178_planner_live_layer.py` + `test_r185_planner_layer_live.py` 的 **6 个 live 用例全过**（2026-10-25，约 6s）；`test_r208_agent.py::test_agent_lifecycle_short_run` 仍会在真端点下超过 300s，保持 live skip，**不能写成 7/7 全过**。
 - 本轮补掉的“设计了但没有消费方”的两处：
   1. `from_task_result()` 已接入 `scripts/dwc_agent.py::run_user_task`，且默认门是 `result_verified()`：`status=done` + 至少一次成功的 `run/test/check`，不再拿 `done` 冒充正确。
   2. `trajectory_stitch.stitch()` 已接入 `task_exec._revision_retry` 的修订对，产出 `stitched_trajectory`；单边/空轨迹仍 `stitched=False`。
@@ -60,3 +61,8 @@
 - **“代码写了但没消费方”**：本轮补掉 2 项（`from_task_result`、`trajectory_stitch`）；MEM-16 `contrast` 仍缺真实配对样本，属于数据缺口。
 - **“设计了但按设计不启用”**：MEM-19 1 项，明确 conditional。
 - **“外部环境不具备”**：live 端点、AKV、TIES/SFT、Windows 沙箱、价格，均不能算代码落地。
+
+## 5. 审计范围说明（DWC 2.0 主计划）
+
+本报告审计的是 **M0–M3 记忆方案**，不是 `docs/DWC_PURE_2.0_DEVELOPMENT_PLAN.md` 的全部 165 项机制。主计划末尾的 W1–W5 验收清单仍有 `[ ]`，且没有逐项机器状态矩阵；`docs/DWC_PURE_2.0_IMPLEMENTATION_STATUS.md` 只按 W1–W5 记录“已实现/明确未启用”，不能据此推导 165/165 全落地。若要审计主计划全部机制，需要另建 `mechanism_matrix`（每项：代码落点/测试/状态/边界），不能拿本报告的 19/19 冒充 165/165。
+
