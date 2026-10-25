@@ -1250,7 +1250,7 @@ def main(argv) -> int:
     os.makedirs(VAR, exist_ok=True)
     # W1：唯一共享证据库；client 物理 attempt 与 task 角色上下文在此汇合。
     try:
-        from dwc.observability.context import configure_store, emit_llm_observation
+        from dwc.observability.context import configure_store, emit_llm_observation, emit_task_metrics
         from dwc.observability.evidence_store import EvidenceStore
         _measure_store = EvidenceStore(os.path.join(VAR, "dwc_metrics.sqlite"))
         configure_store(_measure_store)
@@ -1446,6 +1446,25 @@ def main(argv) -> int:
             _heartbeat(status="term_error", task=task)
             time.sleep(interval)
             continue
+        # ★ W1 · term 级任务账：按本轮时间窗聚合 llm_attempt，
+        #   避免同一 task_id 跨轮重复时把历史 usage 加进来。
+        try:
+            _tm = emit_task_metrics(
+                {"task_id": task,
+                 "status": "done" if rep.score_delta is not None else "unknown",
+                 "rounds": rep.n_steps,
+                 "actions_log": rep.stages},
+                rounds=rep.n_steps,
+                since=rep.started_at,
+                until=rep.closed_at or time.time(),
+            )
+            _log({"event": "task_metrics", "task": task,
+                  "measurement_status": _tm.get("measurement_status"),
+                  "usage_status": _tm.get("usage_status"),
+                  "record_id": _tm.get("record_id")})
+        except Exception as _tme:  # noqa: BLE001 — 测量坏不掀 term
+            _log({"event": "task_metrics_error", "task": task,
+                  "error": "%s: %s" % (type(_tme).__name__, _tme)})
         pr = rep.score_delta
         cost = float((rep.cost_after or {}).get("term_cost", 0.0) or 0.0)
         _day["terms"] += 1

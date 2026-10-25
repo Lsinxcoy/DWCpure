@@ -90,12 +90,29 @@ def emit_llm_observation(event: dict) -> None:
     _deliver(enriched)
 
 
-def task_usage_summary(task_id: str) -> dict:
-    """从已落库的物理 attempt 重算任务 token；不从任务文本估算。"""
+def task_usage_summary(task_id: str, *, since: float | None = None,
+                       until: float | None = None) -> dict:
+    """从已落库的物理 attempt 重算任务 token；不从任务文本估算。
+
+    ★ 时间窗只用于 agent term 级汇总：同一 task_id 可能跨多轮重复，
+      不传窗口时保持原语义（该 task 的全部 attempt）。
+    """
     if _STORE is None:
         return {"usage_status": "not_measured", "reason": "store_unconfigured"}
     rows = _STORE.query("llm_attempt", task_id=str(task_id))
     events = [row["payload"] for row in rows]
+    if since is not None or until is not None:
+        def _in_window(event: dict) -> bool:
+            observed = event.get("observed_at")
+            if not isinstance(observed, (int, float)):
+                return False
+            if since is not None and observed < since:
+                return False
+            if until is not None and observed > until:
+                return False
+            return True
+        events = [event for event in events if _in_window(event)]
+        rows = [row for row in rows if _in_window(row["payload"])]
     normalized = []
     from dwc.observability.usage_pricing import normalize_usage
     for event in events:
@@ -117,7 +134,9 @@ def task_usage_summary(task_id: str) -> dict:
     }
 
 
-def emit_task_metrics(report: dict, *, rounds: int | None = None) -> dict:
+def emit_task_metrics(report: dict, *, rounds: int | None = None,
+                      since: float | None = None,
+                      until: float | None = None) -> dict:
     event = {
         "kind": "task_metrics", "event_id": "task_" + uuid.uuid4().hex,
         "task_id": report.get("task_id"),
@@ -130,7 +149,8 @@ def emit_task_metrics(report: dict, *, rounds: int | None = None) -> dict:
         "evidence_ref": report.get("evidence_ref"),
         "observed_at": time.time(),
     }
-    summary = task_usage_summary(str(report.get("task_id")))
+    summary = task_usage_summary(str(report.get("task_id")),
+                                 since=since, until=until)
     event.update(summary)
     usage_ok = (summary.get("usage_status") == "reported"
                 and summary.get("llm_attempts", 0) > 0)

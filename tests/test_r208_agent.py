@@ -162,14 +162,20 @@ def test_cron_copy_paths_point_to_repo():
         capture_output=True, text=True, timeout=60)
     out = r.stdout.strip()
     # ★ 路径含空格 ⇒ 不能按空格 split — 断言两段前缀都出现。
-    # ★ R228: 期望值动态取仓库根（锁的意图=副本指向仓库; 判据不写死盘符 —
-    #   发布后任何机器安装路径不同, 锁必须跟着 find_root 走）。
+    # ★ R228: 期望值动态取副本自己的 .dwc_repo 指针；没有指针才回退当前仓库。
+    #   多部署共存时（测试仓库 vs 生产 cron 副本），副本指向的生产路径才是事实，
+    #   不能用 find_root() 把测试仓库当成副本的归属。
     from dwc.foundation.paths import find_root
 
     def _norm(x):
         return x.replace("\\", "/").rstrip("/")
     var_part, root_part = out.split("|", 1)      # 路径含空格 — 竖线分隔
-    repo = _norm(find_root())
+    pointer = os.path.join(dst, ".dwc_repo")
+    if os.path.exists(pointer):
+        with open(pointer, encoding="utf-8") as fh:
+            repo = _norm(fh.read().strip())
+    else:
+        repo = _norm(find_root())
     assert _norm(var_part).startswith(repo + "/") and \
         _norm(var_part).endswith("/var"), "副本 VAR 错（应指仓库 var）: %s" % out
     assert _norm(root_part) == repo, "副本 ROOT 错（应指仓库根）: %s" % out
