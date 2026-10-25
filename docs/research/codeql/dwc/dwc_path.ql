@@ -24,6 +24,5 @@ class DwcPathSource extends PathInjection::Source instanceof DataFlow::Parameter
 
 from PathInjectionFlow::PathNode source, PathInjectionFlow::PathNode sink
 where PathInjectionFlow::flowPath(source, sink)
-select sink.getNode(), source, sink,
-  "DWC task/args/path value reaches a file path sink.",
-  sink.getNode().getLocation().toString()
+select sink.getNode().getLocation(), source, sink,
+  "DWC task/args/path value reaches a file path sink."

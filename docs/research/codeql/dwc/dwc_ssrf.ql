@@ -30,6 +30,5 @@ from
 where
   request = sink.getNode().(ServerSideRequestForgery::Sink).getRequest() and
   FullServerSideRequestForgeryFlow::flowPath(source, sink)
-select request, source, sink,
-  "DWC task/args/url value reaches an HTTP request sink.",
-  request.getLocation().toString()
+select request.getLocation(), source, sink,
+  "DWC task/args/url value reaches an HTTP request sink."

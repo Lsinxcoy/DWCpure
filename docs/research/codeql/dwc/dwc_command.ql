@@ -27,6 +27,5 @@ class DwcTaskSource extends CommandInjection::Source instanceof DataFlow::Parame
 
 from CommandInjectionFlow::PathNode source, CommandInjectionFlow::PathNode sink
 where CommandInjectionFlow::flowPath(source, sink)
-select sink.getNode(), source, sink,
-  "DWC task/args value reaches a command execution sink.",
-  sink.getNode().getLocation().toString()
+select sink.getNode().getLocation(), source, sink,
+  "DWC task/args value reaches a command execution sink."

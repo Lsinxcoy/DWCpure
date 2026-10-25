@@ -25,6 +25,5 @@ class DwcCodeSource extends CodeInjection::Source instanceof DataFlow::Parameter
 
 from CodeInjectionFlow::PathNode source, CodeInjectionFlow::PathNode sink
 where CodeInjectionFlow::flowPath(source, sink)
-select sink.getNode(), source, sink,
-  "DWC model/candidate source reaches an exec sink.",
-  sink.getNode().getLocation().toString()
+select sink.getNode().getLocation(), source, sink,
+  "DWC model/candidate source reaches an exec sink."
