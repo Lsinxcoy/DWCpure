@@ -730,6 +730,8 @@ class LLMClient:
         if not self.configured:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
+        # ★ A 类边界 · 流式也受总 deadline 约束；回退 complete 共用同一 deadline
+        _deadline = time.monotonic() + float(getattr(self, "deadline", 90.0))
         # ★ R377 · 未显式传 ⇒ 用实例配置（与 complete 同口径）
         if max_tokens is None:
             max_tokens = getattr(self, "max_tokens", 1200)
@@ -790,14 +792,24 @@ class LLMClient:
         import uuid as _uuid
         call_id = _uuid.uuid4().hex
         try:
+            _remaining = _deadline - time.monotonic()
+            if _remaining <= 0:
+                return LLMResult(
+                    ok=False, source="error", error="deadline_exceeded",
+                    meta={"error_kind": "deadline", "streamed": True,
+                          "deadline_s": float(getattr(self, "deadline", 90.0))})
             # ★★★ R379 · 串行化（流式同样 —— 生产 progress 路径走这里）
             with _HTTP_LOCK:
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                with urllib.request.urlopen(
+                        req, timeout=min(float(self.timeout),
+                                         max(0.1, _remaining))) as resp:
                     ctype = (resp.headers.get("Content-Type") or "").lower()
                     if ("event-stream" not in ctype
                             and "text/plain" not in ctype):
                         raise ValueError("非 SSE 响应: %s" % ctype[:60])
                     for raw in resp:
+                        if time.monotonic() > _deadline:
+                            raise TimeoutError("deadline_exceeded")
                         line = raw.decode("utf-8", "replace").strip()
                         if not line.startswith("data:"):
                             continue
@@ -860,7 +872,7 @@ class LLMClient:
                           protocol_error=protocol_error)
             fb = self.complete(prompt, system=system, max_tokens=max_tokens,
                                json_mode=json_mode, images=images,
-                               _parent_call_id=call_id)
+                               _parent_call_id=call_id, _deadline=_deadline)
             fallback_event = {"stream_fallback": True,
                               "fallback_reason": "%s: %s" % (type(e).__name__, str(e)[:80])}
             if fb.ok:

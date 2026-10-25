@@ -72,3 +72,15 @@ def test_urlopen_timeout_uses_remaining_deadline(monkeypatch):
     r = c.complete("hi")
     assert r.ok is True
     assert 0 < seen["timeout"] <= 1.0
+
+
+def test_stream_deadline_exceeded_returns_without_network(monkeypatch):
+    c = _client()
+    c.deadline = 0.0
+
+    def _boom(*a, **k):
+        raise AssertionError("network must not be called")
+
+    monkeypatch.setattr("urllib.request.urlopen", _boom)
+    r = c.complete_stream("hi")
+    assert r.ok is False and r.error == "deadline_exceeded"
