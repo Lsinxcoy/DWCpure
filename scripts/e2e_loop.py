@@ -520,7 +520,7 @@ install_registry(_reg)
 from dwc.harness.exploration import plan as explore_plan, tag_candidates
 from dwc.harness.pipeline import run_round
 from dwc.organs.credit import CreditLedger
-from dwc.organs.evolver import Mutator, Proposal
+from dwc.organs.evolver import Mutator
 
 # ★ 候选流（R31 生成器产物 — trace-grounded, 早已 live）
 _cands = list(r_gen.get("candidates") or [])
@@ -953,8 +953,8 @@ print("    ★ 竞争 ℓ（comp/rule 退）= %r" % COMPETE_L)
 #   ⇒ ⇒★ R47: **挪到 8d 之后** ⇒ 一次吃全（结算 + 竞争两条来源）
 #   ★ 编号用 8d2（8e/8f/8g/8h 都已被占用 —— 8g 是固化, 别撞）
 step(8, "消费 ℒ_t: 算 g_t(式11) + 𝒯_t + 演示 ℬ_t（含竞争记录）")
-from dwc.organs.evolver import (gain as _g_t, liquidity_summary,
-                                prune_targets, touched_from_liquidity)
+from dwc.organs.evolver import (liquidity_summary,
+                                prune_targets)
 _liq_now = [json.loads(_l) for _l in open(LIQUIDITY_PATH, encoding="utf-8")
             if _l.strip()] if os.path.exists(LIQUIDITY_PATH) else []
 _s7 = liquidity_summary(_liq_now, now_round=1, window=10)

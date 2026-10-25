@@ -435,8 +435,6 @@ def _hist(n_arg, cost=False):
     rows = (out or {}).get("tail", [])
     total = 0.0
     for x in rows:
-        tag = ("cost" if "cost" in x else "event" if "event" in x else
-               "task" if "agent_term" in x else "?")
         if cost and "cost" in x:
             total += float(x["cost"] or 0)
         print("  %s %s" % (dim(str(x.get("ts", ""))[11:19]),

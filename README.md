@@ -3,9 +3,9 @@
 > **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
-[![pytest](https://img.shields.io/badge/pytest-3273%20passed-brightgreen)](#开发)
-[![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R438-FFB86B)](docs/PROGRESS.md)
-[![commits](https://img.shields.io/badge/commits-547-blue)](docs/PROGRESS.md)
+[![pytest](https://img.shields.io/badge/pytest-3334%20passed%20%2F%209%20skipped-brightgreen)](#开发)
+[![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R458-FFB86B)](docs/PROGRESS.md)
+[![commits](https://img.shields.io/badge/commits-633-blue)](docs/PROGRESS.md)
 
 ---
 
@@ -84,19 +84,20 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 
 ## 开发
 
-四层验证每轮必过: `pytest`（3273 passed，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+四层验证每轮必过: `pytest`（3334 passed / 9 skipped，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
 纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
 
-> ★ 2026-10-23 审计修复完成（R审计-P0~P2）: 全量基线 **2717 passed / 0 failed / 4 skipped**。
-> 修复内容: 371 处硬编码路径相对化 · 依赖声明补齐 · 沙箱资源守卫三层纵深 ·
-> F821/ruff/bandit 清零 · gate.py 八门全过 · 缓存竞态改内容哈希 · 测试环境自足。
+> ★ 2026-10-26 审计修复完成（P0–P3）: 全量基线 **3334 passed / 9 skipped / 0 failed**。
+> 修复内容: 命令 allowlist · actor/candidates AST 沙箱 · SSRF/路径门 · 复读重试可达 ·
+> judge 泄漏检查 · QA 诚实状态 · FTS 一次性迁移 · SQLite 锁/超时 · 原子写 · CI。
+> F821 已清零；ruff/bandit 按 CI 选中规则门禁，不再声称“全库清零”。
 
 ```bash
-git clone https://github.com/Lsinxcoy/divine-wisdom-core.git && cd divine-wisdom-core
+git clone https://github.com/Lsinxcoy/divine-wisdom-core-pure.git && cd divine-wisdom-core-pure
 pip install -r requirements.txt && pip install -e .
-python -m pytest tests -q        # ~5 分钟（3273 passed，非真端点）
+python -m pytest tests -q        # ~11 分钟（3334 passed / 9 skipped，非真端点）
 ```
 
 ---
 
-*R1–R438 · 547 commits · 2026-10-23（审计修复后基线 · 全量全绿）*
+*R1–R458 · 633 commits · 2026-10-26（审计修复后基线 · 全量全绿）*

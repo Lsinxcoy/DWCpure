@@ -105,9 +105,10 @@ def test_r301c_qa_first_round_final():
     assert r["status"] == "done" and calls["n"] == 1, (r, calls)
 
 
-def test_r301c_exec_still_r4():
+def test_r301c_exec_still_r4(monkeypatch):
     """★ C：执行任务首轮空 op⇒仍 R4（老路零变，非问句不分流）。"""
     import dwc.llm.task_exec as T
+    monkeypatch.setenv("DWC_WORKING_STATE_GATE", "0")
 
     class _R:
         ok = True

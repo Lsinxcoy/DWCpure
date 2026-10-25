@@ -78,6 +78,7 @@ def test_rebuild_picks_up_preexisting_rows(tmp_path):
          time.time()))
     # 模拟"老库没有 FTS 内容": 删掉 trigger 自动写入的索引行
     m1._conn.execute("DELETE FROM memory_fts")
+    m1._conn.execute("PRAGMA user_version=0")  # 模拟老库：迁移标记归零
     m1._conn.commit()
     m1.close()
     m2 = MemoryKernel(db)          # 重开 ⇒ rebuild

@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [divine-wisdom-core-pure]
+  pull_request:
+    branches: [divine-wisdom-core-pure]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e ".[dev]"
+      - name: Compile
+        run: python -m compileall -q src scripts
+      - name: Lint (real defects/security only)
+        run: ruff check src scripts --select F821,F841,F811,B023,S102
+      - name: Pytest (default; live skipped)
+        run: pytest -q -p no:cacheprovider
+      - name: Gate
+        run: python scripts/gate.py --json

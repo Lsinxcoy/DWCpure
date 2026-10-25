@@ -492,7 +492,7 @@ def maybe_dispatch_reading() -> dict:
                 break
         if rp is None:
             return None
-        READING = rp                            # 本单的回写目标=该源文件
+        reading_path = rp                       # 本单的回写目标=该源文件
         target = next((r for r in rows if not r.get("dispatched_at")), None)
         if target is None:
             return None
@@ -535,11 +535,11 @@ def maybe_dispatch_reading() -> dict:
                                  "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")},
                                 ensure_ascii=False) + "\n")
         target["dispatched_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+08:00")
-        tmp = READING + ".tmp"
+        tmp = reading_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             for r in rows:
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-        os.replace(tmp, READING)
+        os.replace(tmp, reading_path)
         _log({"event": "reading_dispatched", "id": tid, "url": url[:100]})
         return {"id": tid, "url": url}
     except Exception as exc:                  # noqa: BLE001 — 不许炸主循环

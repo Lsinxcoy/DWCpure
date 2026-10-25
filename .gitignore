@@ -124,3 +124,9 @@ var/
 artifacts_probe*/
 archiveknowledge3_R*.json
 archive/*.bak_*
+
+# 运行期 gate 台账：每次 gate 都变脏，改为 CI artifact
+archive/gate_trace.jsonl
+
+# 本地测试日志/临时产物
+tmp/

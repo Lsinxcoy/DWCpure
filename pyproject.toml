@@ -6,12 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "dwc"
 version = "0.1.0"
 description = "DWC · Divine Wisdom Core — an independent resident agent"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0", "psutil>=6.0", "requests>=2.31",
                 "httpx>=0.27", "pypdf>=4.0"]  # R263 PDF 读
 
 [project.optional-dependencies]
 tui = ["textual>=1.0"]      # R239 全屏 TUI（dwc chat 默认; --plain 可退 REPL）
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "bandit>=1.7"]
 
 [project.scripts]
 dwc = "dwc.cli_main:main"
@@ -23,3 +25,12 @@ where = ["src"]
 # 根目录 pytest 只收 tests/；scripts/test_candidates.py 是手工实测脚本，
 # 与 tests/test_candidates.py 同名，不能被当作测试模块收集。
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# 先门住真实缺陷/安全项；风格项按基线逐步收，不一次性 --fix 全库。
+select = ["E", "F", "I", "B", "S", "SIM", "BLE"]
+ignore = ["E501", "S101", "S603", "S607"]

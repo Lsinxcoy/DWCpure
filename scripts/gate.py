@@ -478,7 +478,7 @@ def gate8_contract() -> dict:
     """
     files = _py_files(SRC)
     violations = []
-    src_all = "".join(_read(f) for f in files)
+    "".join(_read(f) for f in files)
     ev = os.path.join(SRC, "organs", "evolver.py")
     ca = os.path.join(SRC, "organs", "candidates.py")
     ev_s = _read(ev) if os.path.isfile(ev) else ""

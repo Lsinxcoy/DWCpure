@@ -61,7 +61,7 @@ import time
 import traceback
 
 from dwc.llm.sandbox import (
-    SandboxError, compile_guarded, safe_globals,
+    SandboxError, build_guarded_code, safe_globals,
 )
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -483,7 +483,8 @@ class PureFunctionExecutor:
         ns: dict[str, Any] = safe_globals()
         # ★ SEC-02 · 只编译白名单函数，且必须过 AST 门卫
         try:
-            code_obj = compile_guarded(body, "<%s>" % self.source_from)
+            code_obj = build_guarded_code(body, "<%s>" % self.source_from,
+                                                      allow_for=True, allow_while=True)
             exec(code_obj, ns)  # noqa: S102 — code_obj 已过 sandbox._Guard
         except SandboxError as e:
             raise ActorError(

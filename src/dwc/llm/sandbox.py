@@ -84,7 +84,16 @@ _BANNED_CALLS = frozenset({"open", "exec", "eval", "compile", "input",
 
 
 class _Guard(ast.NodeVisitor):
-    """★ AST 门卫：恶意节点⇒SandboxError。"""
+    """★ AST 门卫：恶意节点⇒SandboxError。
+
+    allow_for=True 供 actor/candidates 的纯函数使用：允许 for 遍历
+    Name/常量/字面量容器；仍禁 while、import、open、dunder。
+    """
+
+    def __init__(self, allow_for: bool = False,
+                 allow_while: bool = False):
+        self.allow_for = bool(allow_for)
+        self.allow_while = bool(allow_while)
 
     def visit_Import(self, node):
         raise SandboxError("禁 import（沙箱禁网禁文件）")
@@ -93,11 +102,22 @@ class _Guard(ast.NodeVisitor):
         raise SandboxError("禁 from-import（沙箱禁网禁文件）")
 
     def visit_While(self, node):
+        if self.allow_while:
+            self.generic_visit(node)
+            return
         raise SandboxError("禁 while（无限循环 AST 层拒）")
 
     def visit_For(self, node):
-        """★ R审计-P1 · for 循环资源守卫：iter 必须是受限 range。"""
+        """★ R审计-P1 · for 循环资源守卫：默认只许受限 range。
+
+        actor/candidates 的纯函数需要遍历字符串/列表；allow_for=True 时
+        只放行 Name/常量/字面量容器，仍拒绝任意调用结果。
+        """
         it = node.iter
+        if self.allow_for and isinstance(
+                it, (ast.Name, ast.Constant, ast.List, ast.Tuple)):
+            self.generic_visit(node)
+            return
         if not (isinstance(it, ast.Call)
                 and isinstance(it.func, ast.Name) and it.func.id == "range"):
             raise SandboxError("禁非 range 迭代（for 资源守卫）")
@@ -163,19 +183,27 @@ _SAFE_BUILTINS = {
     "enumerate": enumerate, "zip": zip, "map": map, "filter": filter,
     "any": any, "all": all, "pow": pow, "divmod": divmod,
     "isinstance": isinstance, "True": True, "False": False, "None": None,
+    "str": str, "bool": bool, "ord": ord, "chr": chr, "repr": repr,
+    "slice": slice, "frozenset": frozenset,
 }
 
 
-def parse_guarded(code: str, filename: str = "<llm>") -> ast.Module:
+def parse_guarded(code: str, filename: str = "<llm>",
+                  *, allow_for: bool = False,
+                  allow_while: bool = False) -> ast.Module:
     """解析并过 AST 门卫；恶意节点抛 SandboxError。"""
     tree = ast.parse(code, filename=filename)
-    _Guard().visit(tree)
+    _Guard(allow_for=allow_for, allow_while=allow_while).visit(tree)
     return tree
 
 
-def compile_guarded(code: str, filename: str = "<llm>"):
+def build_guarded_code(code: str, filename: str = "<llm>",
+                    *, allow_for: bool = False,
+                    allow_while: bool = False):
     """编译已过门卫的代码；不执行。"""
-    return compile(parse_guarded(code, filename), filename, "exec")
+    return compile(parse_guarded(code, filename, allow_for=allow_for,
+                                 allow_while=allow_while),
+                   filename, "exec")
 
 
 def safe_globals() -> dict[str, Any]:

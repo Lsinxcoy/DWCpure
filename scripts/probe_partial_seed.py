@@ -108,7 +108,7 @@ def main() -> int:
                 })
         print("m=%d 完 %d 组合" % (m, len(b1_grid) * len(b2_grid)))
 
-    degen = [r for r in results if r["degenerate"]]
+    [r for r in results if r["degenerate"]]
     sep = [r for r in results if not r["degenerate"]]
     full_degen = all(r["degenerate"] for r in results if r["m_seeded"] == n)
     partial_sep = [r for r in sep if r["m_seeded"] < n]

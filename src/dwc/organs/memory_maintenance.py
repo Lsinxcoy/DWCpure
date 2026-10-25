@@ -59,7 +59,7 @@ def plan(memory: Any) -> dict[str, Any]:
     ).fetchone()["n"]
     items = []
     for r in rows:
-        node = memory.get(r["node_id"])
+        memory.get(r["node_id"])
         items.append(decide(
             node_id=r["node_id"], zone=r["zone"],
             access_count=int(r["access_count"] or 0),

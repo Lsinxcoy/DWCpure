@@ -153,7 +153,6 @@ def run_tests(repo_path: str, test_ids: List[str], timeout: int = 300,
         return {"passed": 0, "failed": 0, "total": 0, "all_passed": True, "output": ""}
     env = dict(os.environ)
     paths = [os.path.join(ROOT, "scripts", "ast_compat")]
-    repo = repo_path
     src = os.path.join(repo_path, "src")
     if os.path.isdir(src):
         paths.append(src)
@@ -193,7 +192,7 @@ def evaluate_instance(instance: BenchInstance, agent_patch: str, work_root: str)
     os.makedirs(work_root, exist_ok=True)
     repo_path = ensure_repo(instance, work_root)
     # apply test_patch first (测试侧变更)
-    tp = apply_patch(repo_path, instance.test_patch)
+    apply_patch(repo_path, instance.test_patch)
     # apply agent patch
     ap = apply_patch(repo_path, agent_patch if agent_patch else instance.patch)
     if not ap.get("applied", False) and not ap.get("skipped", False):

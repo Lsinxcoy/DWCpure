@@ -36,7 +36,7 @@ def _restore_rules(snap):
 
 
 def audit(db_path: str, limit: int = 200) -> dict:
-    judge = Judge()
+    Judge()
     evolver = Evolver()
     snap = _snapshot_rules()
 

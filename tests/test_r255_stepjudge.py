@@ -130,6 +130,7 @@ def test_noisy_triggers_revision(monkeypatch):
 
 def test_revision_fallback_on_invalid(monkeypatch):
     """★★★ fallback 锁: 修订产物非法（空 cmd run）⇒ 保留原提案执行。"""
+    monkeypatch.setenv("DWC_WORKING_STATE_GATE", "0")
     steps = [
         {"analysis": "坏run", "op": "run", "cmd": "definitely_fail_cmd_xyz"},  # R2 首次无历史 ⇒ exploratory 执行
         {"analysis": "再坏run", "op": "run", "cmd": "definitely_fail_cmd_xyz"},  # R2 noisy
@@ -146,8 +147,9 @@ def test_revision_fallback_on_invalid(monkeypatch):
     assert obs_lines[1]["target"] == "definitely_fail_cmd_xyz"
 
 
-def test_env_switch_off():
+def test_env_switch_off(monkeypatch):
     """★★★ env 开关锁: DWC_STEP_JUDGE=0 ⇒ 不判别不修订。"""
+    monkeypatch.setenv("DWC_WORKING_STATE_GATE", "0")
     os.environ["DWC_STEP_JUDGE"] = "0"
     try:
         steps = [

@@ -130,7 +130,7 @@ def main() -> int:
     last_tree_revealable = topo.get("dev", {}).get(
         "n_revealable_excl_root", 0) + tiers_out[-1]["added_leaves"]
     exhausted = (per_n[-1] == last_tree_revealable)
-    saturated = [t for t in tiers_out if t["per_world"] and
+    [t for t in tiers_out if t["per_world"] and
                  t["per_world"][3] == (per_n[-1] if per_n[-1] else None)]
     sep_tiers = [t for t in tiers_out if t["separates"]]
     out = {

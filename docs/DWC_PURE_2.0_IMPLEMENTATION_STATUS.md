@@ -6,11 +6,11 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3285 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect） |
+| 全量测试 | `3334 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费）；`ee754aa` 流式总 deadline |
-| 生产部署 | `~/.dwc` 本地提交 `4849748`（代码对应 release `ee754aa`）；agent `--llm` 常驻 pid `1015496`，RPC 8802；生产全量 `3285 passed / 9 skipped`，gate 8/8 |
+| 生产部署 | `~/.dwc` 本地提交 `4849748`（代码对应 release `ee754aa`）；agent `--llm` 常驻 pid `1015496`，RPC 8802；生产全量待部署后复测；开发仓 `3334 passed / 9 skipped`，gate 8/8 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -88,7 +88,7 @@
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
 9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
 10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
-11. **M0–M3 已部署生产，边界已按类型处置**：`from_task_result()` 已接 `scripts/dwc_agent.py::run_user_task`，默认门 `result_verified()`（done + 至少一次成功 run/test/check），不是生产判分器；`trajectory_ref` 已进任务结果并用于写过程技能；`trajectory_stitch` 已接 `_revision_retry` 修订对；成功/失败对比仍无生产配对样本；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。7 个真端点 live 测试默认 skip（`--run-live` 才跑）；`test_r208_agent.py::test_agent_lifecycle_short_run` 标为 live，不再用 deselect。`LLMClient` 已加总 deadline（默认 ≤90s，普通与流式/回退共用同一 deadline），端点不可用时是有界失败，不再无限挂主线程。全量 `3285 passed / 9 skipped` 是默认集，不能写成“真端点也全绿”。
+11. **M0–M3 已部署生产，边界已按类型处置**：`from_task_result()` 已接 `scripts/dwc_agent.py::run_user_task`，默认门 `result_verified()`（done + 至少一次成功 run/test/check），不是生产判分器；`trajectory_ref` 已进任务结果并用于写过程技能；`trajectory_stitch` 已接 `_revision_retry` 修订对；成功/失败对比仍无生产配对样本；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。7 个真端点 live 测试默认 skip（`--run-live` 才跑）；`test_r208_agent.py::test_agent_lifecycle_short_run` 标为 live，不再用 deselect。`LLMClient` 已加总 deadline（默认 ≤90s，普通与流式/回退共用同一 deadline），端点不可用时是有界失败，不再无限挂主线程。全量 `3334 passed / 9 skipped` 是默认集，不能写成“真端点也全绿”。
 
 ## 5. 复现命令
 

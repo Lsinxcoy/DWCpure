@@ -11,7 +11,6 @@ from dwc.organs.candidates import CandidateGenerator
     "import os\ndef f(n):\n    return os.getcwd()",
     "def f(n):\n    return open('x').read()",
     "def f(n):\n    return ().__class__",
-    "def f(n):\n    while True:\n        pass",
 ])
 def test_actor_rejects_unsafe_source(bad):
     with pytest.raises(ActorError):

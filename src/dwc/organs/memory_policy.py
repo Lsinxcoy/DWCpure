@@ -29,3 +29,14 @@ def enabled(name: str) -> bool:
 def require(name: str) -> None:
     if not enabled(name):
         raise RuntimeError("memory feature disabled: %s" % name)
+
+
+def status() -> dict:
+    """只读状态：每个条件扩展是否启用 + 关闭原因。"""
+    return {
+        "features": dict(FEATURES),
+        "enabled": [k for k, v in FEATURES.items() if v],
+        "disabled": [k for k, v in FEATURES.items() if not v],
+        "why_disabled": ("没有 hit-rate/effect 对照数据前保持关闭；"
+                         "启用必须显式改 FEATURES 并补证据"),
+    }

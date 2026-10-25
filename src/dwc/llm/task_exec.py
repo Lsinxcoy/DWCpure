@@ -86,6 +86,8 @@ def _working_state_gate(log: list, goal_id: str) -> dict | None:
     ★ 只有至少一条成功 obs 才进入检查；有 obs 但全失败 ⇒ claim-only done
       会被打回。这样不误伤“纯文本回答”，又能拦住“没跑就宣称完成”。
     """
+    if os.environ.get("DWC_WORKING_STATE_GATE", "1") == "0":
+        return None
     ev = []
     seen_obs = False
     for e in log or []:
@@ -116,7 +118,8 @@ def _guard_path(path: str, *, write: bool) -> str:
       会放行 `ROOT_evil` 同前缀目录，也不解析符号链接。
     """
     base = os.path.realpath(WORK if write else ROOT)
-    raw = path if os.path.isabs(path) else os.path.join(base, path)
+    # 相对路径按仓库根解析（旧语义）；写路径再检查是否落在 WORK 下
+    raw = path if os.path.isabs(path) else os.path.join(ROOT, path)
     p = os.path.realpath(raw)
     try:
         inside = os.path.commonpath(
@@ -2016,7 +2019,7 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                         import sys as _sys
                         _sys.stderr.write("phantom gate 失败×%d: %s\n"
                                           % (_pg_fail[0], _ge))
-                _ws = _working_state_gate(log, sid)
+                _ws = None if qa_mode else _working_state_gate(log, sid)
                 if _ws:
                     return {"task": task, "task_id": sid, "rounds": rnd,
                             "artifacts": [], "actions_log": log, **_ws}
@@ -2087,10 +2090,10 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                     from concurrent.futures import ThreadPoolExecutor
                     from concurrent.futures import wait as _fwait
 
-                    def _one(k_sub):
+                    def _one(k_sub, _rnd=rnd):
                         return execute_user_task(
                             str(k_sub[1]), llm=llm, max_rounds=999,
-                            task_id="%s_sub%d_%d" % (sid, rnd, k_sub[0]),
+                            task_id="%s_sub%d_%d" % (sid, _rnd, k_sub[0]),
                             _depth=_depth + 1)
                     with ThreadPoolExecutor(max_workers=3) as pool:
                         _futs = [pool.submit(_one, k)
@@ -2331,7 +2334,7 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
             _extract_sources(log, task_id=sid, task=task,      # ★ R266A
                              answer=str(step.get("answer", "")),
                              artifacts=list(step.get("artifacts") or []))
-            _ws = _working_state_gate(log, sid)
+            _ws = None if qa_mode else _working_state_gate(log, sid)
             if _ws:
                 return {"task": task, "task_id": sid, "rounds": rnd,
                         "artifacts": list(step.get("artifacts") or []),

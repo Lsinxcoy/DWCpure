@@ -206,7 +206,7 @@ def main() -> int:
     with io.open(STATE, "w", encoding="utf-8") as fh:
         json.dump(st, fh)
 
-    day = time.strftime("%m%d")
+    time.strftime("%m%d")
     n_ok = 0
     n_infra = 0     # ★ R422 · 基础设施故障单数（不计入通过率分母）
     done = 0

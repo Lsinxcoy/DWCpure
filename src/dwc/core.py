@@ -734,7 +734,7 @@ class DWC:
                     if done or k >= k2_max:
                         break
 
-                    def _in_seg(v, _sr=seg_root):
+                    def _in_seg(v, _sr=seg_root, T_i=T_i):
                         # 稿明文「段内只挖本段分支」: v 在 seg_root 子树内
                         #   （含 seg_root 自身; WorldNode.parent_id 链回溯）
                         cur = v
@@ -759,9 +759,9 @@ class DWC:
                     while k_seg < seg_budget and k < k2_max:
                         elig = sim.eligible(observed)
 
-                        def _can_reveal2(v):
-                            return any(c not in observed
-                                       for c in T_i.nodes[v].children)
+                        def _can_reveal2(v, T_i=T_i, observed=observed):
+                                                    return any(c not in observed
+                                                               for c in T_i.nodes[v].children)
 
                         # 段内候选**不含 root**（根开新分支由段间承担 —
                         #   这防「段内 pick=root 揭段外节点」的越界; 段内

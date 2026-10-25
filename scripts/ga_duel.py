@@ -206,11 +206,11 @@ def run_arm_ga(eval_v, judge10, budget, current: str,
         #     的产物必须在未评集合内**（有界枚举的正确 GA 形态 — 稿⑦
         #     §②「有界可枚举」字面）, 撞已有 ⇒ 该代跳过（枚举耗尽=停止）.
         def tour(pool: List[PolicySpec]) -> PolicySpec:
-            top = sorted(pool, key=lambda s: (-best.get(s.pid, -1.0),
-                                              s.pid))[:TOURNAMENT_K]
-            return min(top, key=lambda s: (-best.get(s.pid, -1.0), s.pid))
-        ranked = sorted(pop, key=lambda s: (-best.get(s.pid, -1.0),
-                                            s.pid))
+            top = sorted(pool, key=lambda p: (-best.get(p.pid, -1.0),
+                                              p.pid))[:TOURNAMENT_K]
+            return min(top, key=lambda p: (-best.get(p.pid, -1.0), p.pid))
+        ranked = sorted(pop, key=lambda p: (-best.get(p.pid, -1.0),
+                                                    p.pid))
         if len(ranked) < 2:
             info.update({"skipped": True,
                          "why": "种群 <2 ⇒ tournament 没法选父母"})

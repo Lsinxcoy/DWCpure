@@ -1,5 +1,7 @@
 """P1 · 出站 URL 策略（SSRF 第一道门）。
 
+定位声明 · **DWC-AUTO**（自我强化）
+
 ★ 这不是完整 SSRF 防御：DNS 解析与实际连接之间仍有 TOCTOU。
   生产更强做法是把解析结果钉到 IP + Host 头，或用代理白名单；
   当前先封 loopback/私网/link-local/元数据地址，并禁止自动重定向。

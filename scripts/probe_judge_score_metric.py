@@ -93,7 +93,6 @@ def main() -> int:
     n_full = sum(1 for v in per_task.values() if v == 1.0)
     n_zero = sum(1 for v in per_task.values() if v == 0.0)
 
-    identical_metric = (mean_score == 1.0)
     out = {
         "probe": ("R129 整改路径②实证: 同起底下 A=论文式V(max聚合) vs "
                   "B=judge逐任务分均值(TS3) — 若 A 恒等而 B 有区分 "

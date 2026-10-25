@@ -75,7 +75,7 @@ def main() -> int:
     # ── 准入关: meta-F1 对拍（同锚同任务集 — evaluate_meta 机制复用）──
     # ★ ε 不进 diff 判分 ⇒ 两配置 F1 结构性相同 = 平票（分层正确表现）
     from judge_meta_eval import evaluate_meta
-    duel_start = time.time()
+    time.time()
     incumbent_meta = evaluate_meta()
     challenger_meta = json.loads(json.dumps(incumbent_meta))  # 同判分实体
     f1_i = incumbent_meta["macro_f1"]
@@ -93,13 +93,12 @@ def main() -> int:
     fp_now = judge_fingerprint(JUDGE_PATH)
     guard = EvaluatorEpochGuard(epoch_id=1, judge_fingerprint=fp_now)
     dep_after: Dict[str, Any] = {}
-    transitions = []
     if decision == "regime_change":
         # 换代: guard 记录 + dep(z) 弃置扫描（此处 challenger 未改 judge
         # 源文件 ⇒ 指纹同 ⇒ 实际扫描需以提案落盘后的指纹为准 — 见 honest）
         guard.close_epoch(fp_now, reason="challenger 赢对拍",
                           by="challenger_win")
-        transitions = list(guard.transitions)
+        list(guard.transitions)
         from dep_scan import scan, split_fingerprint
         dep_after = scan(args.archive, fp_now, split_fingerprint(ROOT),
                          regime_change=True)["counts"]

@@ -13,6 +13,7 @@ dwc status|doctor|...     # agent_rpc 九指令（与 HTTP RPC / CLI 同一实�
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -101,6 +102,24 @@ def main(argv=None) -> int:
     if cmd in ("ask", "-c", "--ask"):
         # 单发: dwc ask "任务" ⇒ chat -c "任务"
         return _run_script("dwc_chat.py", ["-c"] + rest)
+    if cmd == "memory-stats":
+        # ★ M3.4/MEM-18/MEM-03/MEM-14 · 只读消费：不生成、不启用重机制
+        from dwc.agent_rpc import DB
+        from dwc.organs.memory import MemoryKernel
+        from dwc.organs.memory_bench import bench
+        from dwc.organs import memory_policy
+        m = MemoryKernel(DB)
+        try:
+            out = {
+                "retrieval": m.retrieval_stats(),
+                "quality": m.retrieval_quality(None),
+                "bench": bench(m, {}),
+                "policy": memory_policy.status(),
+            }
+        finally:
+            m.close()
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+        return 0
     if cmd in ("status", "doctor", "submit", "query", "list", "cancel",
                "freeze", "unfreeze", "history"):
         return _rpc([cmd] + rest)

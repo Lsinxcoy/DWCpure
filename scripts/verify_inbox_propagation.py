@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 
 def verify(db_path: str, prod: str) -> dict:
-    inbox = os.path.join(prod, "var", "dwc_inbox.jsonl")
+    os.path.join(prod, "var", "dwc_inbox.jsonl")
     done_path = os.path.join(prod, "var", "dwc_inbox_done.json")
     try:
         with open(done_path, encoding="utf-8") as f:

@@ -47,8 +47,8 @@ def test_routing_semantic_coverage():
     """
     cov = routing_coverage()
     assert cov["actions_total"] == 5
-    assert cov["dispatched_true_branches"] == 3      # remember + dream + evolve
-    assert cov["uncovered"] == 2                     # learn/maintain
+    assert cov["dispatched_true_branches"] == 4      # remember + dream + evolve + maintain
+    assert cov["uncovered"] == 1                     # learn
     assert cov["fully_routed"] is False
 
 
