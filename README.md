@@ -3,7 +3,7 @@
 > **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
-[![pytest](https://img.shields.io/badge/pytest-3007%20passed-brightgreen)](#开发)
+[![pytest](https://img.shields.io/badge/pytest-3207%20passed-brightgreen)](#开发)
 [![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R438-FFB86B)](docs/PROGRESS.md)
 [![commits](https://img.shields.io/badge/commits-547-blue)](docs/PROGRESS.md)
 

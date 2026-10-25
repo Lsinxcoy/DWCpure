@@ -6,10 +6,10 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3007 passed, 1 skipped`（`pytest tests`） |
+| 全量测试 | `3207 passed, 2 skipped`（`pytest tests`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
-| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口 |
+| 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -32,6 +32,11 @@
 | 正式尝试、C/CoP、缺 usage 不填零 | active | `src/dwc/observability/task_metrics.py`、`usage_pricing.py` |
 | 辅助角色归属（revision/planner/executor 等） | active | `tests/test_auxiliary_measurement_roles.py` |
 | 规则任务画像（四层身份、`execution_adjustment=shadow`） | active-shadow | `src/dwc/llm/task_exec.py`、`tests/test_runtime_profile_shadow.py` |
+| 上游 R439 成本账 / 三档计价 | active | `src/dwc/llm/cost.py`、`tests/test_r439_cost.py` |
+| 上游 R440 工具输出压缩 + 原文落盘 | active | `src/dwc/llm/tool_raw.py`、`tests/test_r440_tool_raw.py` |
+| 上游 R441 三段式工具预算 | active | `src/dwc/llm/budget.py`、`tests/test_r441_budget.py` |
+| 上游 R444 规则选档（只调预算） | active | `src/dwc/llm/profile.py`、`tests/test_r444_profile.py` |
+| 上游 R457/R458 skill 记忆与做法来源 | active | `src/dwc/organs/skill_writer.py`、`tests/test_r457_skill_recall.py`、`test_r458_method_memory.py` |
 | 原子组件更新 `update()` 与跨进程锁 | active | `src/dwc/organs/evo_targets.py`、`tests/test_atomic_evo_targets.py` |
 
 ## 3. 已实现且有入口，但默认 shadow-only
@@ -52,13 +57,14 @@
 ## 4. 尚未完成 / 明确未启用
 
 1. **常驻生产 agent 未切换**：`~/.dwc` 仍是旧 clone，且有独立本地修改；不能整目录覆盖，必须按文件审查合并并受控重启。
-2. **W5 预算/压缩/review 未激活**：模块和测试存在，但 `task_exec` 主循环仍走旧行为；画像只做 shadow。
+2. **两套 W5 路径并存**：上游 R441/R444 的三段式预算与规则选档已 active；我们的 `budget_controller.py`、`output_compaction.py`、`completion_review.py` 仍是 shadow/单元级，尚未替换上游路径。
 3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
 4. **生产 canary 未执行**：`dwc_apply_candidate.py` 只在 tmp 根验证。
 5. **Windows 低权限沙箱未验证**：script/hook Probe 仍应 `blocked`，不能宣称 shadow verified。
 6. **AKV serving 未启用**：当前远程 OpenAI 兼容端点不支持 `drop_message/reposition`；无定制 SGLang/GPU 实测。
 7. **TIES/SFT 未启用**：无 checkpoint/训练控制权，只能作为未来条件扩展。
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
+9. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
 
 ## 5. 复现命令
 
