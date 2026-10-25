@@ -9,7 +9,7 @@
 
 - **19/19 有代码落点和测试文件**；审计脚本 `issues=[]`。
 - **18 adopt / 1 conditional**：MEM-19（MemPO / RL Navigator / 向量检索）由 `memory_policy.py` 默认关闭，属于设计上的条件扩展，不是漏做。
-- 开发仓默认全量：**3284 passed / 9 skipped**（7 个 live 测试自动 skip，2 个常规 skip）。
+- 开发仓默认全量：**3285 passed / 9 skipped**（7 个 live 测试自动 skip，2 个常规 skip）。
 - 真端点复测：`test_r178_planner_live_layer.py` + `test_r185_planner_layer_live.py` 的 **6 个 live 用例全过**（2026-10-25，约 6s）；`test_r208_agent.py::test_agent_lifecycle_short_run` 仍会在真端点下超过 300s，保持 live skip，**不能写成 7/7 全过**。
 - 本轮补掉的“设计了但没有消费方”的两处：
   1. `from_task_result()` 已接入 `scripts/dwc_agent.py::run_user_task`，且默认门是 `result_verified()`：`status=done` + 至少一次成功的 `run/test/check`，不再拿 `done` 冒充正确。
