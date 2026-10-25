@@ -80,6 +80,10 @@ class TaskExecError(Exception):
     pass
 
 
+#: 工具层私有能力标记：模型 JSON 无法构造同一对象（防 `_from_tool: true` 伪造）
+TRUSTED_TOOL = object()
+
+
 def _working_state_gate(log: list, goal_id: str) -> dict | None:
     """M1.7 · done 前检查环境证据；无真实 obs 不拦（纯聊天）。
 
@@ -682,7 +686,7 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
         #   ② 脚本自己还会抛 `TypeError: Object of type set is not JSON
         #      serializable`，模型据此"撤回"正确答案
         #   工具层（readonly=True，如 search_code 自己）不拦。
-        if (not args.get("_from_tool") and len(cmd) >= 3
+        if (args.get("_from_tool") is not TRUSTED_TOOL and len(cmd) >= 3
                 and str(cmd[0]).lower().endswith(("python", "python.exe"))
                 and str(cmd[1]) == "-c"
                 and ("definitions" in joined
@@ -695,7 +699,7 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
         # ★ SEC-01 · allowlist 是主判定；_ASK 只负责“需要人工授权”的写/外发命令
         decision = exec_policy.check(
             cmd, cwd=ROOT,
-            from_tool=bool(args.get("_from_tool")),
+            from_tool=args.get("_from_tool") is TRUSTED_TOOL,
             allow_unsafe=os.environ.get("DWC_ALLOW_UNSAFE_RUN") == "1")
         if not decision.allowed and not decision.requires_approval:
             return {"ok": False, "error": "command_denied",
@@ -1218,7 +1222,7 @@ def _tool_calls_to_step(tool_calls: list):
     if not isinstance(args, dict):
         args = {}
     if name == "list_dir":
-        return {"op": "run", "readonly": True, "_from_tool": True,
+        return {"op": "run", "readonly": True, "_from_tool": TRUSTED_TOOL,
                 "cmd": ["ls", "-la", str(args.get("path") or ".")]}
     if name == "run_command":
         return {"op": "run", "cmd": _argv_of(args.get("cmd"))}
@@ -1229,14 +1233,14 @@ def _tool_calls_to_step(tool_calls: list):
             return None
         # ★★★ R394 · 改用 Python 实现：定义置顶 + 引用限流
         #   （grep 会把定义埋在几十行引用里 ⇒ 模型读不出答案，反复重搜）
-        return {"op": "run", "readonly": True, "_from_tool": True,
+        return {"op": "run", "readonly": True, "_from_tool": TRUSTED_TOOL,
                 "cmd": _search_to_python(pat, path)}
     if name == "find_files":
         pat = str(args.get("pattern") or "")
         path = str(args.get("path") or ".")
         if not pat:
             return None
-        return {"op": "run", "readonly": True, "_from_tool": True,
+        return {"op": "run", "readonly": True, "_from_tool": TRUSTED_TOOL,
                 "cmd": _find_to_python(
                     ["find", path, "-name", pat] if not args.get("ignore_case")
                     else ["find", path, "-iname", pat])}
