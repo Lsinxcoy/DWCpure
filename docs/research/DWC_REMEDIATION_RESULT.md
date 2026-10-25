@@ -12,8 +12,8 @@
 
 | 项 | 实测 |
 |---|---|
-| 开发仓全量 | `3334 passed / 9 skipped / 0 failed`（610s） |
-| 生产全量 | `3334 passed / 9 skipped / 0 failed`（606s，部署 `e185051` 后） |
+| 开发仓全量 | `3334 passed / 9 skipped / 0 failed`（610s，提交时点） |
+| 生产全量 | `3337 passed / 9 skipped / 0 failed`（585s，最终部署 `21fc9b0` 后） |
 | 定向回归 | 最新 allowlist 收窄后 `39 passed`；trusted marker `24 passed` |
 | 质量门 | `python scripts/gate.py --json` = **8/8** |
 | CI lint | `ruff check src scripts --select F821,F841,F811,B023,S102` = **All checks passed** |
