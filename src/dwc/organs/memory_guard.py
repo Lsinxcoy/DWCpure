@@ -27,6 +27,7 @@ from typing import Any
 #: 通道信任分（0..1）。只用于记录/排序，不是“高分免检”。
 CHANNEL_TRUST = {
     "user_message": 0.80,
+    "maintainer": 0.90,
     "lesson_ledger": 0.60,
     "task_trajectory": 0.60,
     "llm_self_report": 0.35,

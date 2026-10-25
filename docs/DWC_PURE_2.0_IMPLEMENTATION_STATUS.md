@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3228 passed, 2 skipped, 1 failed`（ignore 两个真端点文件；失败为 r208 lifecycle 180s 超时；被忽略文件本地子集另 `5 passed`） |
+| 全量测试 | `3273 passed, 2 skipped, 1 deselected`（ignore 两个真端点文件 + deselect r208 lifecycle；被忽略文件本地子集另 `5 passed`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
@@ -47,6 +47,18 @@
 | 过程技能字段（M1.2：steps/tools/verification/evidence_ref） | active-api | `src/dwc/organs/skill_writer.py`、`tests/test_skill_procedure.py`；尚未接生产判分器 |
 | 任务轨迹落盘（M1.4：actions_log → refs/hash） | active | `src/dwc/llm/task_trajectory.py`、`src/dwc/llm/task_exec.py`、`tests/test_task_trajectory.py` |
 | 记忆写入门（M1.6：通道信任 + 注入/控制字符/重复/超长 → quarantine） | active | `src/dwc/organs/memory_guard.py`、`src/dwc/organs/memory.py`、`tests/test_memory_guard.py`；旧 `remember()` 不传通道时零变化 |
+| skill 过滤（M1.3：factual/chat 不进 prompt） | active | `src/dwc/llm/executor.py`、`tests/test_skill_filter.py`；legacy 无 kind 现场分类 |
+| 工作态证据门（M1.7） | active-api | `src/dwc/organs/working_state.py`、`tests/test_memory_working_state.py`；尚未接生产任务收尾 |
+| 巩固保护（M1.8） | active | `src/dwc/organs/memory.py:revise/learn/dream`、`tests/test_consolidation_guard.py` |
+| 成功/失败对比（M1.5/M3.2） | active-api | `src/dwc/harness/contrast.py`、`tests/test_memory_contrast.py`；无生产配对样本 |
+| 记忆边（M2.1） | active | `src/dwc/organs/memory.py:link/neighbors/multi_hop`、`tests/test_memory_edges.py` |
+| SELF 保护区（M2.2） | active | `src/dwc/organs/memory.py:Zone.SELF/revise_self`、`tests/test_memory_self.py` |
+| 偏好/信念（M2.3） | active | `src/dwc/organs/preference.py`、`tests/test_memory_belief.py` |
+| 上下文预算（M2.4） | active-api | `src/dwc/organs/memory_context.py`、`tests/test_memory_context.py` |
+| 检索质量 MRR/NDCG（M2.5） | active-api | `src/dwc/organs/memory.py:retrieval_quality`、`tests/test_memory_retrieval_quality.py`；无标签返回 None |
+| 可解释维护（M3.1） | active-api | `src/dwc/organs/memory_maintenance.py`、`tests/test_memory_maintenance.py`；只出建议，不自动删 |
+| 轨迹拼接（M3.3） | conditional | `src/dwc/harness/trajectory_stitch.py`、`tests/test_trajectory_stitch.py`；无生产消费方 |
+| 条件扩展 feature gate（M3.4/MEM-19） | active-off | `src/dwc/organs/memory_policy.py`、`tests/test_memory_non_goals.py`；向量/RL/MemPO 默认关 |
 | 原子组件更新 `update()` 与跨进程锁 | active | `src/dwc/organs/evo_targets.py`、`tests/test_atomic_evo_targets.py` |
 
 ## 3. 已实现且有入口，但默认 shadow-only
@@ -76,7 +88,7 @@
 8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
 9. **价格未配置**：生产 usage 已真实记账，但 `pricing_status=not_configured`，成本一律 `indeterminate`；不填 0、不估算美元。
 10. **上游仍会前进**：本次已合并到 `9aaa6f8`（R458）；之后若上游再更新，需要重新 fetch/审查合并，绝不回推原仓。
-11. **M1.2/M1.4/M1.6 只到 API/落盘/写入门**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；写入门只覆盖显式通道，旧 `remember()` 不传通道仍不校验。M1.3 的 factual/chat 过滤、M1.5 对比、M1.7 工作态证据门、M1.8 巩固保护仍未实现。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，未归因于 M1.6，单独记录，不能写成全量全绿。
+11. **M0–M3 核心已落地，但仍有明确边界**：`from_task_result()` 尚未接生产判分器；`trajectory_ref` 已进任务结果，但还没有消费方用它生成过程技能；成功/失败对比没有生产配对样本；轨迹拼接只有 API、无消费方；向量/RL/MemPO 由 `memory_policy.py` 默认关闭。真端点测试 6 个因端点阻塞未跑；`test_r208_agent.py::test_agent_lifecycle_short_run` 在隔离短跑中只完成 1 个 term 后进入 monitor skip，180s 超时，当前用 `deselect` 排除，未归因于记忆改动，不能写成全量全绿。
 
 ## 5. 复现命令
 

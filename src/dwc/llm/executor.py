@@ -149,7 +149,8 @@ def _bigrams(s: str):
 
 def memory_text(memory: Any, task: str = "", k: int = 5,
                 max_chars: int = 1800, min_cov: float = 0.45,
-                record: bool = True) -> str:
+                record: bool = True,
+                include_factual: bool = False) -> str:
     """按**当前任务**取最相关的 k 条 skill 做法（不是全量倾倒）。
 
     ★ R457 · 旧实现把库里全部 SKILL 渲染进 prompt：实测 71 条 = 29,952 字符，
@@ -164,6 +165,10 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
 
     ★ M0 · `record=True` 时把这次 skill 召回写入 `memory_retrieval`，
       并给选中节点 access+1。没有命中也要记 zero-hit（不能只记成功）。
+
+    ★ M1.3 · `include_factual=False`（默认）时跳过 `skill_kind` 为
+      `factual/chat` 的条目；旧数据没有 kind ⇒ 现场分类。审计/迁移可传
+      `include_factual=True` 看全量，不改变库。
     """
     def _record(ids: list[str], scores: list[float]) -> None:
         if not record:
@@ -187,10 +192,15 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
         _record([], [])
         return ""
     skills = []
+    from dwc.organs.skill_writer import classify_skill_kind as _classify
     for r in rows:
         try:
             d = json.loads(r["payload"])
         except (ValueError, TypeError, KeyError, IndexError):
+            continue
+        kind = d.get("skill_kind") or _classify(
+            d.get("scene") or "", d.get("method") or "")
+        if not include_factual and kind in ("factual", "chat"):
             continue
         skills.append((str(r["node_id"]), d,
                        _bigrams("%s %s" % (d.get("scene") or "",

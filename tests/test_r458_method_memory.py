@@ -118,5 +118,5 @@ def test_term_skill_is_recallable_by_its_own_prompt(tmp_path):
     from dwc.llm.executor import memory_text
     mem = MemoryKernel(db_path=str(tmp_path / "m.db"))
     prompt = "实现 fresh_range_sum 函数：输入 [a, b] 列表，返回 a 到 b（含）的整数和"
-    SW.from_term(mem, "fresh_range_sum", prompt, "用 range(a,b+1) 求和", passed=True)
+    SW.from_term(mem, "fresh_range_sum", prompt, "先定位边界，再用 range(a,b+1) 求和", passed=True)
     assert "range(a,b+1)" in memory_text(mem, prompt)

@@ -65,6 +65,7 @@ class Zone(str, Enum):
     PROXY = "proxy"             # 痕迹 / 工作态
     ARCHIVE = "archive"
     INERT = "inert"
+    SELF = "self"               # ★ M2.2 身份/长期规则（受保护，不参与淘汰）
 
 
 class Tube(str, Enum):
@@ -95,6 +96,10 @@ class MemoryKind(str, Enum):
     FAILURE_SIGNATURE = "failure_sig" # (c,q,m) → EXPERIENCE
     SKILL = "skill"                   # 场景/方法/边界 → EXPERIENCE
     PROPOSAL = "proposal"             # 进化提案+结果 → EXPERIENCE
+    IDENTITY = "identity"             # ★ M2.2 身份/自我认知 → SELF
+    STANDING_RULE = "standing_rule"   # ★ M2.2 长期规则 → SELF
+    PREFERENCE = "preference"         # ★ M2.3 用户偏好 → EXPERIENCE
+    BELIEF = "belief"                 # ★ M2.3 可修订信念 → EXPERIENCE
 
 
 #: ★ 各类记忆的归属区（MEMORY_SYSTEM §四 的表）★
@@ -104,6 +109,10 @@ KIND_TO_ZONE = {
     MemoryKind.FAILURE_SIGNATURE: Zone.EXPERIENCE,
     MemoryKind.SKILL: Zone.EXPERIENCE,
     MemoryKind.PROPOSAL: Zone.EXPERIENCE,
+    MemoryKind.IDENTITY: Zone.SELF,
+    MemoryKind.STANDING_RULE: Zone.SELF,
+    MemoryKind.PREFERENCE: Zone.EXPERIENCE,
+    MemoryKind.BELIEF: Zone.EXPERIENCE,
 }
 
 #: ★ 归入 EXPERIENCE 的门槛（D6）—— 缺这些就不许进 EXPERIENCE
@@ -116,7 +125,13 @@ EXPERIENCE_REQUIREMENTS = {
     MemoryKind.SKILL: ("scene", "method", "boundary",
                        "invalid_conditions", "recovery_strategies"),
     MemoryKind.PROPOSAL: ("consumer_declared",),
+    # ★ M2.3 · 偏好/信念必须带主题、立场与证据；没有证据的“偏好”不进 EXPERIENCE
+    MemoryKind.PREFERENCE: ("topic", "stance", "evidence_refs"),
+    MemoryKind.BELIEF: ("topic", "stance", "confidence", "evidence_refs"),
 }
+
+#: ★ M2.2 · SELF 区只允许身份/长期规则的显式来源写入
+SELF_WRITE_CHANNELS = ("user_message", "system", "maintainer")
 
 #: ★ R104 · 写入三步的第三步（PAHF salience→摘要→τ 近重复合并）——
 #:   DWC 落点 = **去重语义**（同经验域同 kind 近重复 ⇒ 不新增, 防膨胀;
@@ -140,6 +155,10 @@ WEIBULL_BY_KIND: dict[MemoryKind, tuple[float, float]] = {
     MemoryKind.FAILURE_SIGNATURE: (30.0, 1.2),   # episodic: 失败经验中速
     MemoryKind.SKILL: (365.0, 0.5),          # procedural: 技能几乎不忘
     MemoryKind.PROPOSAL: (180.0, 0.8),       # semantic: 提案慢忘
+    MemoryKind.IDENTITY: (3650.0, 0.3),      # SELF: 几乎不忘
+    MemoryKind.STANDING_RULE: (3650.0, 0.3),
+    MemoryKind.PREFERENCE: (365.0, 0.5),     # 偏好慢忘
+    MemoryKind.BELIEF: (365.0, 0.5),         # 信念可修订，不按年龄淘汰
 }
 
 
@@ -294,6 +313,21 @@ CREATE TABLE IF NOT EXISTS memory_quarantine (
 CREATE INDEX IF NOT EXISTS ix_quarantine_channel
     ON memory_quarantine(source_channel, created_at);
 
+-- ★ M2.1 · 轻量记忆边（邻接表；不引图数据库）
+CREATE TABLE IF NOT EXISTS memory_edge (
+    edge_id      TEXT PRIMARY KEY,
+    source_id    TEXT NOT NULL,
+    target_id    TEXT NOT NULL,
+    relation     TEXT NOT NULL,
+    weight       REAL NOT NULL DEFAULT 1.0,
+    evidence_ref TEXT,
+    created_at   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_edge_source
+    ON memory_edge(source_id, relation);
+CREATE INDEX IF NOT EXISTS ix_edge_target
+    ON memory_edge(target_id, relation);
+
 -- ★★★ R审计-P2 · P1-5 · FTS5 全文索引（trigram 分词 — 中文子串友好）
 --   现场: recall 路1 是**全表 in 子串扫**（O(n×len)），209 条时无感，
 --   上千条后每步 term 都扫会拖垮。FTS5 是 SQLite 原生（零依赖）。
@@ -441,6 +475,15 @@ class MemoryKernel:
         if kind not in KIND_TO_ZONE:
             raise MemoryError("未知记忆种类: %r" % kind)
         zone = KIND_TO_ZONE[kind]
+
+        # ★ M2.2 · SELF 保护区：只允许用户/系统/维护者显式写入；工具输出拒绝
+        if zone is Zone.SELF:
+            if str(source_channel or "") not in SELF_WRITE_CHANNELS:
+                raise MemoryError(
+                    "SELF 只允许 %r 写入，收到 %r"
+                    % (SELF_WRITE_CHANNELS, source_channel))
+            payload = dict(payload)
+            payload["protected"] = True
 
         # ★ M1.6: 只有显式声明来源通道的写路径才 enforce（默认不改变旧行为）
         if source_channel:
@@ -596,7 +639,8 @@ class MemoryKernel:
         rows = self._conn.execute(
             "SELECT node_id, kind, zone, access_count, effect_count"
             " FROM memory_node WHERE archived_at IS NULL"
-            " ORDER BY created_at").fetchall()
+            " AND zone != ? ORDER BY created_at",
+            (Zone.SELF.value,)).fetchall()
         out = []
         for r in rows:
             rare = False
@@ -989,6 +1033,54 @@ class MemoryKernel:
             "by_route": by_route,
         }
 
+    def retrieval_quality(self, labels: dict[str, list[str]] | None = None
+                          ) -> dict[str, Any]:
+        """有 labeled relevance 时算 MRR/NDCG@k；没有标签返回 None。
+
+        ★ labels: `{query: [relevant_node_id, ...]}`。
+        ★ 只评估 `memory_retrieval` 中出现的 query；未标注 query 不猜。
+        """
+        if not labels:
+            return {"n_labeled": 0, "mrr": None, "ndcg": None,
+                    "why": "no labeled relevance"}
+        rows = self._conn.execute(
+            "SELECT query, selected_ids FROM memory_retrieval"
+            " ORDER BY created_at").fetchall()
+        rr: list[float] = []
+        ndcg: list[float] = []
+        for row in rows:
+            rel = set(str(x) for x in (labels.get(str(row["query"])) or []))
+            if not rel:
+                continue
+            try:
+                ids = json.loads(row["selected_ids"] or "[]")
+                if not isinstance(ids, list):
+                    raise ValueError("not list")
+            except (TypeError, ValueError):
+                ids = []
+            first = 0.0
+            for i, nid in enumerate(ids, 1):
+                if str(nid) in rel:
+                    first = 1.0 / i
+                    break
+            dcg = sum(1.0 / math.log2(i + 1)
+                      for i, nid in enumerate(ids, 1)
+                      if str(nid) in rel)
+            ideal_n = min(len(rel), len(ids))
+            idcg = sum(1.0 / math.log2(i + 1)
+                       for i in range(1, ideal_n + 1))
+            rr.append(first)
+            ndcg.append((dcg / idcg) if idcg else 0.0)
+        if not rr:
+            return {"n_labeled": 0, "mrr": None, "ndcg": None,
+                    "why": "no labeled query matched retrieval rows"}
+        return {
+            "n_labeled": len(rr),
+            "mrr": round(sum(rr) / len(rr), 6),
+            "ndcg": round(sum(ndcg) / len(ndcg), 6),
+            "why": "",
+        }
+
     # ══════════════════════════════════════════════
     # ★ M1.6 · 写入隔离（quarantine）
     # ══════════════════════════════════════════════
@@ -1034,6 +1126,65 @@ class MemoryKernel:
             "by_channel": by_channel,
             "by_reason": by_reason,
         }
+
+    # ══════════════════════════════════════════════
+    # ★ M2.1 · 记忆边（轻量邻接表）
+    # ══════════════════════════════════════════════
+    def link(self, source_id: str, target_id: str, relation: str,
+             weight: float = 1.0, evidence_ref: str = "") -> str:
+        """写一条有向边；两端必须已存在。同一 (source,target,relation) 幂等。"""
+        if not source_id or not target_id or not relation:
+            raise MemoryError("边必须有 source/target/relation")
+        if str(source_id) == str(target_id):
+            raise MemoryError("边不允许自环")
+        self.get(str(source_id))
+        self.get(str(target_id))
+        raw = "%s\x00%s\x00%s" % (source_id, target_id, relation)
+        eid = "E_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+        self._conn.execute(
+            "INSERT OR REPLACE INTO memory_edge"
+            " (edge_id, source_id, target_id, relation, weight,"
+            "  evidence_ref, created_at) VALUES (?,?,?,?,?,?,?)",
+            (eid, str(source_id), str(target_id), str(relation),
+             float(weight), str(evidence_ref or "")[:500], time.time()))
+        self._conn.commit()
+        return eid
+
+    def neighbors(self, node_id: str, relation: str | None = None,
+                  depth: int = 1, limit: int = 200) -> list[dict[str, Any]]:
+        """BFS 出边邻居；返回 `{node, edge, depth}`，不重复访问。"""
+        if int(depth) < 1 or int(limit) < 1:
+            return []
+        visited = {str(node_id)}
+        frontier = [str(node_id)]
+        out: list[dict[str, Any]] = []
+        for d in range(int(depth)):
+            nxt: list[str] = []
+            for nid in frontier:
+                sql = ("SELECT * FROM memory_edge WHERE source_id=?"
+                       + (" AND relation=?" if relation else "")
+                       + " ORDER BY weight DESC, created_at")
+                params = [nid] + ([relation] if relation else [])
+                for row in self._conn.execute(sql, params).fetchall():
+                    target = str(row["target_id"])
+                    if target in visited:
+                        continue
+                    visited.add(target)
+                    out.append({"node": self.get(target),
+                                "edge": dict(row), "depth": d + 1})
+                    nxt.append(target)
+                    if len(out) >= int(limit):
+                        return out
+            frontier = nxt
+            if not frontier:
+                break
+        return out
+
+    def multi_hop(self, node_id: str, max_depth: int = 2,
+                  relation: str | None = None) -> list[dict[str, Any]]:
+        """多跳别名；默认 2 跳，仍只返回有边证据的节点。"""
+        return self.neighbors(node_id, relation=relation,
+                              depth=max_depth, limit=200)
 
     def _all_nodes(self) -> list[MemoryNode]:
         """全部未归档节点。★ 检索的候选池（内部用）。"""
@@ -1399,6 +1550,32 @@ class MemoryKernel:
             "UPDATE memory_node SET payload=? WHERE node_id=?",
             (json.dumps(old_p, ensure_ascii=False), node_id))
         self._conn.commit()
+        # ★ M2.1 · 版本链也写成边，检索可回答“它从哪版来”
+        self.link(new_id, node_id, "revises", evidence_ref=source_traj)
+        return self.get(new_id)
+
+    def revise_self(self, node_id: str, payload_new: dict[str, Any], *,
+                    source_traj: str, why: str) -> MemoryNode:
+        """SELF 的版本链修订：旧内容不动，只加 `_revised_to`；新节点 `_rev_prev`。"""
+        if not source_traj:
+            raise MemoryError("SELF 修订必须引源轨迹")
+        old = self.get(node_id)
+        if old.zone is not Zone.SELF:
+            raise MemoryError("revise_self 只接受 SELF 节点")
+        payload = dict(payload_new)
+        payload["_rev_prev"] = node_id
+        payload["_rev_why"] = str(why)[:300]
+        payload["_rev_src"] = str(source_traj)[:400]
+        new_id = self.remember(old.kind, payload,
+                               chain_id=old.chain_id,
+                               source_channel="maintainer")
+        old_p = dict(old.payload)
+        old_p["_revised_to"] = new_id
+        self._conn.execute(
+            "UPDATE memory_node SET payload=? WHERE node_id=?",
+            (json.dumps(old_p, ensure_ascii=False), node_id))
+        self._conn.commit()
+        self.link(new_id, node_id, "revises", evidence_ref=source_traj)
         return self.get(new_id)
 
     def _note_retrieved(self, node_ids) -> None:
@@ -1436,7 +1613,10 @@ class MemoryKernel:
         return "\n".join(lines)
 
     def archive(self, node_id: str) -> MemoryNode:
-        """归档（不删 —— 判据 S6 的同款纪律）。"""
+        """归档（不删 —— 判据 S6 的同款纪律）；SELF 保护区拒绝归档。"""
+        node = self.get(node_id)
+        if node.zone is Zone.SELF:
+            raise MemoryError("SELF 保护区不允许归档: %s" % node_id)
         self._conn.execute(
             "UPDATE memory_node SET archived_at=?, zone=? WHERE node_id=?",
             (time.time(), Zone.ARCHIVE.value, node_id))

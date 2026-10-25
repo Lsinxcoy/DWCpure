@@ -1,8 +1,8 @@
 # DWC pure 记忆系统强化 M0–M3 · 代码级方案
 
 > 版本：2026-10-25 · 依据：`docs/research/MEMORY_CROSS_PROJECT_AUDIT.md` + 9 个参考仓库 commit（`docs/research/memory_sources.json`）。
-> **落地状态（2026-10-25）**：M0、M1.1、M1.2、M1.4、M1.6 已实现；M1.3、M1.5、M1.7、M1.8 及 M2–M3 仍为设计，不得写成已实现。
-> 实测：全量（ignore 两个真端点文件）`3228 passed / 2 skipped / 1 failed`；失败为 `test_r208_agent.py::test_agent_lifecycle_short_run` 180s 超时；排除该用例后 `3228 passed / 2 skipped`，被忽略文件本地子集另 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
+> **落地状态（2026-10-25）**：M0–M3 方案内 19 项均有落点：17 项 `adopt`，2 项 `conditional`（MEM-17 轨迹拼接暂无生产消费方；MEM-19 MemPO/RL 由 feature gate 关闭）。
+> 实测：全量（ignore 两个真端点文件 + deselect r208 lifecycle）`3273 passed / 2 skipped / 1 deselected`；被忽略文件本地子集另 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
 > 本文是**实施规格 + 当前落地记录**；状态以代码/测试/生产读回为准。
 > 机制矩阵：`docs/research/memory_mechanism_matrix.csv`（MEM-01–MEM-19）。
 
@@ -293,7 +293,7 @@ class WorkingState:
 
 ## 5. M2 · 边 / SELF / 偏好 / 上下文预算
 
-### M2.1 `memory_edge`
+### M2.1 `memory_edge`（已实现）
 
 ```sql
 CREATE TABLE memory_edge (
@@ -317,14 +317,14 @@ MemoryKernel.multi_hop(node_id, max_depth=2) -> list[dict]
 
 关系：`task→failure_sig`、`skill→invalid_condition`、`skill→recovery`、`episode→skill`、`entity→event`。先 SQLite 邻接表，不引图数据库。
 
-### M2.2 `Zone.SELF`
+### M2.2 `Zone.SELF`（已实现）
 
 - 新增 `Zone.SELF`；`MemoryKind.IDENTITY` / `STANDING_RULE`。
 - `protected=True`：evolver/候选不得覆盖；只允许 `revise()` 版本链。
 - `remember()` 对 SELF 强制 `source_channel=user_message` 或 `maintainer`；工具输出不得写 SELF。
 - 读取记 access；SELF 不参与普通淘汰。
 
-### M2.3 `PREFERENCE` / `BELIEF`
+### M2.3 `PREFERENCE` / `BELIEF`（已实现）
 
 - 新 kind：`PREFERENCE`、`BELIEF`。
 - 字段：`topic, stance, confidence, evidence_refs, support_count, contradict_count, source_trust, last_confirmed`。
@@ -332,7 +332,7 @@ MemoryKernel.multi_hop(node_id, max_depth=2) -> list[dict]
 - `revise_belief(node_id, new_stance, evidence_ref)`：旧信念保留，新增 `_revised_to`；矛盾计数增加。
 - 只有用户明确纠正/确认、或可验证事件才能改；模型自评不算。
 
-### M2.4 `MemoryContextAssembler`
+### M2.4 `MemoryContextAssembler`（已实现）
 
 文件：`src/dwc/organs/memory_context.py`
 
@@ -345,7 +345,7 @@ assemble(task, budget_tokens, *, include_self=True, include_skills=True,
 
 顺序：SELF → 当前任务 → 相关 skill → 最近 episode → 原始 trace。逐字/摘要双通路；摘要必须带 `raw_ref`；超预算先裁摘要，不裁证据引用。
 
-### M2.5 检索质量指标
+### M2.5 检索质量指标（已实现）
 
 - `retrieval_stats` 增加 MRR/NDCG（需要 labeled relevance；没有标签时返回 `None`，不伪造）。
 - `memory_retrieval` 增加 `later_effect`（后续是否 effect）；由 `record_effect` 回填。
@@ -353,7 +353,7 @@ assemble(task, budget_tokens, *, include_self=True, include_skills=True,
 
 ## 6. M3 · 维护、质量与条件扩展
 
-### M3.1 可解释维护
+### M3.1 可解释维护（已实现 API）
 
 `maintain()` 增加策略：
 
@@ -363,7 +363,7 @@ KEEP / ARCHIVE / MERGE / DELETE
 
 删除条件必须同时满足：`access_count == 0`、`effect_count == 0`、不是唯一签名、非 SELF。禁止年龄淘汰。每条决策写 `memory_maintenance` 事件（reason/evidence）。
 
-### M3.2 成功/失败对比
+### M3.2 成功/失败对比（已实现 API）
 
 `contrast.py`：
 
@@ -375,12 +375,12 @@ compare(failure_sig_id, success_trajectory_id) -> {
 
 只有成对证据才写“差异技能”；单边不写因果。
 
-### M3.3 轨迹拼接 / 记忆程序
+### M3.3 轨迹拼接 / 记忆程序（API 已实现；无生产消费方）
 
 - 只在有真实 `TrajectoryRecorder` 数据后做 stitching；`fitness` 用任务成功/成本/验证覆盖，不用自评分。
 - `MemoryProgram` 若引入，必须有 lineage、episodes、failure_type、lifecycle；否则不做。
 
-### M3.4 条件检索
+### M3.4 条件检索（feature gate 已实现）
 
 - 先 benchmark 现有 FTS5 trigram/LIKE/2-gram/LLM 扩展：hit rate、zero-result、token 成本。
 - 不足再考虑 CJK 分词/BM25（v11）或 TF-IDF（ARSI）；向量库/混合检索最后。
@@ -416,17 +416,22 @@ compare(failure_sig_id, success_trajectory_id) -> {
 |---|---|---|
 | `test_memory_retrieval.py` | M0 | access/事件/zero-hit/dedupe |
 | `test_skill_quality.py` | M1.1 | procedural/factual/chat；过程字段 |
+| `test_skill_filter.py` | M1.3 | factual/chat 不进 prompt；legacy 现场分类 |
 | `test_skill_procedure.py` | M1.2 | 真实 actions_log 抽步骤；无动作不编 |
 | `test_task_trajectory.py` | M1.4 | refs/hash；坏 entry 计数；任务接线 |
-| `test_memory_guard.py` | M1 | 注入/二进制/重复拒绝；quarantine |
-| `test_memory_working_state.py` | M1 | claim-only done 被拒 |
-| `test_consolidation_guard.py` | M1 | 原节点哈希不变 |
-| `test_memory_edges.py` | M2 | 2 跳召回与关系证据 |
-| `test_memory_self.py` | M2 | evolver 不能覆盖 SELF |
-| `test_memory_belief.py` | M2 | 纠正降权、矛盾计数 |
-| `test_memory_context.py` | M2 | token 预算、raw_ref |
-| `test_memory_maintenance.py` | M3 | 删除四条件 |
-| `test_memory_contrast.py` | M3 | 成对证据才写差异 |
+| `test_memory_guard.py` | M1.6 | 注入/二进制/重复拒绝；quarantine |
+| `test_memory_working_state.py` | M1.7 | claim-only done 被拒 |
+| `test_consolidation_guard.py` | M1.8 | 原节点哈希不变 |
+| `test_memory_edges.py` | M2.1 | 2 跳召回与关系证据 |
+| `test_memory_self.py` | M2.2 | SELF 只允许显式通道；不可归档 |
+| `test_memory_belief.py` | M2.3 | 支持/矛盾计数；旧节点保留 |
+| `test_memory_context.py` | M2.4 | token 预算、raw_ref |
+| `test_memory_retrieval_quality.py` | M2.5 | MRR/NDCG；无标签返回 None |
+| `test_memory_maintenance.py` | M3.1 | 删除四条件；SELF 保护 |
+| `test_memory_contrast.py` | M3.2 | 成对证据才写差异 |
+| `test_trajectory_stitch.py` | M3.3 | 只拼真实步骤 |
+| `test_memory_bench.py` | MEM-18 | 词法基线 hit/MRR/NDCG |
+| `test_memory_non_goals.py` | MEM-19 | 重机制 feature gate 默认关 |
 
 ## 9. 验收指标
 

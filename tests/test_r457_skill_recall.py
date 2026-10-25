@@ -21,7 +21,7 @@ from dwc.organs import task_recall as TR        # noqa: E402
 from dwc.organs.memory import MemoryKernel, MemoryKind  # noqa: E402
 
 
-def _lesson(task="查某个符号在哪个文件", detail="成功做法（answer contains 'x.py'）：…",
+def _lesson(task="查某个符号在哪个文件", detail="先搜索定义，再读取文件，最后核对 x.py",
             fail_mode="success_pattern:code-locate", task_id="T1"):
     return {"task": task, "detail": detail, "fail_mode": fail_mode,
             "task_id": task_id, "quality": 0.75, "at": 1.0}
