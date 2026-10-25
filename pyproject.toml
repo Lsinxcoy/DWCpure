@@ -18,3 +18,8 @@ dwc = "dwc.cli_main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+# 根目录 pytest 只收 tests/；scripts/test_candidates.py 是手工实测脚本，
+# 与 tests/test_candidates.py 同名，不能被当作测试模块收集。
+testpaths = ["tests"]
