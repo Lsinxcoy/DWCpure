@@ -11,11 +11,8 @@ import os
 import shutil
 from dataclasses import dataclass
 
-#: 只读命令：qa_mode 与普通 run 都允许
-READONLY = frozenset({
-    "echo", "ls", "dir", "find", "grep", "rg", "cat", "type",
-    "head", "tail", "wc", "stat", "pwd", "tree", "where", "which",
-})
+#: 只读命令：只留无文件读取能力的；读文件统一走 `read` / `search_code`
+READONLY = frozenset({"echo", "pwd"})
 
 #: 需要人工授权的写/外发命令（仍不是 allowlist 的替代品）
 ASK = frozenset({

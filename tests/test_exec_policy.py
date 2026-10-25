@@ -14,6 +14,9 @@ from dwc.llm import exec_policy as P
     ["cmd", "/c", "del x"],
     ["bash", "-c", "rm -rf x"],
     ["definitely_not_a_command"],
+    ["find", ".", "-name", "*.py"],
+    ["cat", "README.md"],
+    ["grep", "x", "src"],
 ])
 def test_denied(cmd):
     d = P.check(cmd, cwd=".")
@@ -28,7 +31,6 @@ def test_denied(cmd):
     ["git", "diff"],
     ["ruff", "check", "src"],
     ["echo", "hi"],
-    ["find", ".", "-name", "*.py"],
 ])
 def test_allowed(cmd):
     assert P.check(cmd, cwd=".").allowed is True
