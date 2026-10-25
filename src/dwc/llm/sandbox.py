@@ -166,6 +166,25 @@ _SAFE_BUILTINS = {
 }
 
 
+def parse_guarded(code: str, filename: str = "<llm>") -> ast.Module:
+    """解析并过 AST 门卫；恶意节点抛 SandboxError。"""
+    tree = ast.parse(code, filename=filename)
+    _Guard().visit(tree)
+    return tree
+
+
+def compile_guarded(code: str, filename: str = "<llm>"):
+    """编译已过门卫的代码；不执行。"""
+    return compile(parse_guarded(code, filename), filename, "exec")
+
+
+def safe_globals() -> dict[str, Any]:
+    """受限 builtins + 纯数学模块；不暴露 import/open/os。"""
+    import math
+    return {"__builtins__": dict(_SAFE_BUILTINS), "math": math}
+
+
+
 def _run(code: str, skel: dict[str, list[list[Any]]],
           out: dict[str, Any]) -> None:
     """★ 线程内真跑（超时靠外层 join）。"""

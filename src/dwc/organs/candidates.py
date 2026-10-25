@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .evolver import COMPONENT_VOCAB, DIMENSIONS, K_META, check_component, layer_of
+from dwc.llm.sandbox import SandboxError, compile_guarded, safe_globals
 from dwc.observability.context import measurement_role, task_measurement_context
 
 
@@ -178,10 +179,11 @@ class CandidateGenerator:
         fn = fn_name or (bad[0].get("fn") if bad else "")
         if not fn:
             return None
-        ns: dict[str, Any] = {}
+        ns: dict[str, Any] = safe_globals()
         try:
-            exec(compile(src, "<baseline>", "exec"), ns)
-        except Exception:
+            # ★ SEC-02 · 候选基线也必须过 AST 门卫，不能直接 exec 模型代码
+            exec(compile_guarded(src, "<baseline>"), ns)  # noqa: S102
+        except (SandboxError, SyntaxError, ValueError):
             return None
         f = ns.get(fn)
         if not callable(f):

@@ -59,6 +59,10 @@ OUTCOMES = ("returned", "raised", None)
 import ast
 import time
 import traceback
+
+from dwc.llm.sandbox import (
+    SandboxError, compile_guarded, safe_globals,
+)
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -476,10 +480,14 @@ class PureFunctionExecutor:
         self.fn_name = fn_name
         self.source_from = "reference" if source is None else "provided"
         body = self.REFERENCE[fn_name] if source is None else source
-        ns: dict[str, Any] = {}
-        # ★ 只编译白名单里那一个函数（不做任意 exec）
+        ns: dict[str, Any] = safe_globals()
+        # ★ SEC-02 · 只编译白名单函数，且必须过 AST 门卫
         try:
-            exec(compile(body, "<%s>" % self.source_from, "exec"), ns)
+            code_obj = compile_guarded(body, "<%s>" % self.source_from)
+            exec(code_obj, ns)  # noqa: S102 — code_obj 已过 sandbox._Guard
+        except SandboxError as e:
+            raise ActorError(
+                "实现 %r 未通过沙箱: %s" % (self.source_from, e))
         except SyntaxError as e:
             raise ActorError(
                 "实现 %r 编译失败（%s）: %s"
