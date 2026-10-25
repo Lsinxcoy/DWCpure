@@ -46,7 +46,7 @@ def test_select_task_seed_fallback():
         SimpleNamespace(next_task_source={"tasks": []})) in A.DEV_POOL
 
 
-# ═══ agent 常驻短跑（subprocess）═══
+# ═══ agent 常驻短跑（subprocess；真端点，live 默认 skip）═══
 @pytest.mark.live
 def test_agent_lifecycle_short_run():
     """★★★ 全生命周期: started→terms→stopped(daily_limit) 入台账 + pid
