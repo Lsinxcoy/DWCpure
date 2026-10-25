@@ -5,7 +5,7 @@
 
 [![pytest](https://img.shields.io/badge/pytest-3334%20passed%20%2F%209%20skipped-brightgreen)](#开发)
 [![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R458-FFB86B)](docs/PROGRESS.md)
-[![commits](https://img.shields.io/badge/commits-633-blue)](docs/PROGRESS.md)
+[![commits](https://img.shields.io/badge/commits-636-blue)](docs/PROGRESS.md)
 
 ---
 
@@ -100,4 +100,4 @@ python -m pytest tests -q        # ~11 分钟（3334 passed / 9 skipped，非真
 
 ---
 
-*R1–R458 · 633 commits · 2026-10-26（审计修复后基线 · 全量全绿）*
+*R1–R458 · 636 commits · 2026-10-26（审计修复后基线 · 全量全绿）*
