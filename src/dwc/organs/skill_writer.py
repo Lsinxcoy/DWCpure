@@ -323,15 +323,38 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
                            source_channel=source_channel)
 
 
-def from_task_result(memory: Any, task: str, prompt: str, result: Any,
-                     passed: bool, quality: Optional[float] = None
-                     ) -> Optional[str]:
-    """从一次**已判分通过**的任务结果写过程技能（M1.2 接线口）。
+def result_verified(result: Any) -> bool:
+    """任务结果是否具备“可写过程技能”的最小证据。
 
-    ★ 只认真实 `actions_log`；没有动作 / 没有 trajectory_ref ⇒ 不写。
-    ★ `passed` 必须由外部判分器给出，不能拿 `status=done` 冒充正确。
+    ★ 不拿 `status=done` 冒充正确：必须有至少一次成功的
+      run/test/check 观察，且至少一条成功观察。
+    ★ 这是**验证动作存在**，不是判分器结论；外部有 Judge 时传 passed=True。
     """
-    if not passed or not isinstance(result, dict):
+    if not isinstance(result, dict) or result.get("status") != "done":
+        return False
+    log = result.get("actions_log") or []
+    obs = [e for e in log if isinstance(e, dict)
+           and e.get("phase") == "obs"]
+    has_ok = any(bool(e.get("ok")) for e in obs)
+    has_verify = any(bool(e.get("ok")) and str(e.get("op") or "")
+                     in ("run", "test", "check") for e in obs)
+    return bool(has_ok and has_verify)
+
+
+def from_task_result(memory: Any, task: str, prompt: str, result: Any,
+                     passed: bool | None = None,
+                     quality: Optional[float] = None) -> Optional[str]:
+    """从一次任务结果写过程技能（M1.2 接线口）。
+
+    ★ `passed=None` ⇒ 用 `result_verified()` 的验证动作门；
+      外部 Judge 给出结论时传 `passed=True/False`。
+    ★ 没有真实 actions_log / 没有验证动作 ⇒ 不写。
+    """
+    if not isinstance(result, dict):
+        return None
+    if passed is None:
+        passed = result_verified(result)
+    if not passed:
         return None
     proc = procedure_from_actions(
         result.get("actions_log") or [],

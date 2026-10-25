@@ -705,6 +705,25 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     _hb_stop.set()                    # ★ R398 · 正常路径也停心跳
     rep = {"id": item["id"], **rep,
            "ts": time.strftime("%Y-%m-%dT%H:%M:%S+08:00")}
+    # ★ M1.2 接线 · 只有 done + 真实验证动作（run/test/check ok）才写过程技能；
+    #   status=done 本身不算通过。写失败不拖垮任务，但留痕。
+    if rep.get("status") == "done":
+        try:
+            from dwc.organs.memory import MemoryKernel
+            from dwc.organs.skill_writer import from_task_result
+            _mem = MemoryKernel(DB)
+            try:
+                _nid = from_task_result(
+                    _mem, str(item.get("task", "")),
+                    str(item.get("task", "")), rep)
+            finally:
+                _mem.close()
+            if _nid:
+                _log({"event": "task_skill_written", "id": item["id"],
+                      "skill_node": _nid})
+        except Exception as _se:          # noqa: BLE001 — 不拖垮任务
+            import sys as _sy
+            _sy.stderr.write("task skill 写入失败（跳过）: %r\n" % (_se,))
     os.makedirs(REPORTS, exist_ok=True)
     with open(os.path.join(REPORTS, item["id"] + ".json"), "w",
               encoding="utf-8") as fh:

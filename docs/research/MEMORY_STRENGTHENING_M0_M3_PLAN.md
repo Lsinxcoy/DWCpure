@@ -1,7 +1,7 @@
 # DWC pure 记忆系统强化 M0–M3 · 代码级方案
 
 > 版本：2026-10-25 · 依据：`docs/research/MEMORY_CROSS_PROJECT_AUDIT.md` + 9 个参考仓库 commit（`docs/research/memory_sources.json`）。
-> **落地状态（2026-10-25）**：M0–M3 方案内 19 项均有落点：17 项 `adopt`，2 项 `conditional`（MEM-17 轨迹拼接暂无生产消费方；MEM-19 MemPO/RL 由 feature gate 关闭）。
+> **落地状态（2026-10-25）**：M0–M3 方案内 19 项均有落点：18 项 `adopt`，1 项 `conditional`（MEM-19 MemPO/RL 由 feature gate 关闭）。MEM-17 轨迹拼接已接 `_revision_retry` 修订对；MEM-05 `from_task_result` 已接 `scripts/dwc_agent.py::run_user_task`，默认走 `result_verified()` 验证门。
 > 实测：全量（ignore 两个真端点文件 + deselect r208 lifecycle）`3273 passed / 2 skipped / 1 deselected`；被忽略文件本地子集另 `5 passed`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
 > 本文是**实施规格 + 当前落地记录**；状态以代码/测试/生产读回为准。
 > 机制矩阵：`docs/research/memory_mechanism_matrix.csv`（MEM-01–MEM-19）。
@@ -181,8 +181,8 @@ def classify_skill_kind(scene: str, method: str) -> str:
 def procedure_from_actions(actions_log, evidence_ref="") -> dict:
     """只从真实 phase=obs 动作抽 steps/tools/verification/failure_modes。"""
 
-def from_task_result(memory, task, prompt, result, passed, quality=None) -> str | None:
-    """已判分通过 + 有真实 actions_log ⇒ 写过程技能；否则 None。"""
+def from_task_result(memory, task, prompt, result, passed=None, quality=None) -> str | None:
+    """passed=None ⇒ result_verified() 验证门；外部 Judge 可显式传 passed。"""
 ```
 
 `from_term(..., procedure: dict | None = None, evidence_ref: str = "")`：

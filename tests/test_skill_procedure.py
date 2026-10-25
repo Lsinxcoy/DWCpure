@@ -5,7 +5,7 @@ import json
 
 from dwc.organs.memory import MemoryKernel
 from dwc.organs.skill_writer import (
-    from_task_result, from_term, procedure_from_actions,
+    from_task_result, from_term, procedure_from_actions, result_verified,
 )
 
 
@@ -66,3 +66,31 @@ def test_from_term_without_procedure_is_not_instrumented(tmp_path):
     p = node.payload if isinstance(node.payload, dict) else json.loads(node.payload)
     assert p["steps"] == []
     assert p["procedure_status"] == "not_instrumented"
+
+
+def test_result_verified_requires_successful_verification():
+    assert result_verified({"status": "done", "actions_log": [
+        {"phase": "obs", "op": "read", "ok": True},
+    ]}) is False
+    assert result_verified({"status": "done", "actions_log": [
+        {"phase": "obs", "op": "read", "ok": True},
+        {"phase": "obs", "op": "run", "ok": True},
+    ]}) is True
+    assert result_verified({"status": "incomplete", "actions_log": [
+        {"phase": "obs", "op": "run", "ok": True},
+    ]}) is False
+
+
+def test_from_task_result_default_gate_blocks_unverified(tmp_path):
+    mem = MemoryKernel(str(tmp_path / "m.db"))
+    assert from_task_result(mem, "t1", "实现 f", {
+        "task_id": "t1", "status": "done", "answer": "先读取文件",
+        "actions_log": [{"phase": "obs", "op": "read", "ok": True}],
+    }) is None
+    assert from_task_result(mem, "t1", "实现 f", {
+        "task_id": "t1", "status": "done", "answer": "先读取文件，再运行测试",
+        "actions_log": [
+            {"phase": "obs", "op": "read", "ok": True},
+            {"phase": "obs", "op": "run", "ok": True},
+        ],
+    }) is not None

@@ -57,6 +57,7 @@ def test_template_params_for_three_kinds():
     assert e.check((), "D2") is True and e.check((), "X") is False
 
 
+@pytest.mark.live
 def test_planner_layer_real_endpoint():
     """★★★ 真端点: 现场合成 ⇒ validate ⇒ FGGM.check 对 n_edits=3 真判。
 
@@ -87,6 +88,7 @@ def test_planner_layer_real_endpoint():
         assert "trace" not in pl
 
 
+@pytest.mark.live
 def test_planner_layer_reject_is_honest_perp():
     """★★ no_contract 时: trace 留痕 + verdict 不因现场层缺席新增违规。
 

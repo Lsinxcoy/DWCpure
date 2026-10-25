@@ -1510,6 +1510,17 @@ def _revision_retry(*, task: str, fail: dict[str, Any], llm: Any,
         "fail_status": fail.get("status"),
         "retried_status": res2.get("status"),
         "retried_ok": res2.get("status") == "done"}
+    # ★ M3.3 消费点：修订对是两段真实轨迹，拼成可回读的 pair；
+    #   单边/空轨迹不拼（stitch 自己返回 stitched=False）。
+    try:
+        from dwc.harness.trajectory_stitch import stitch
+        _st = stitch(fail, res2)
+        if _st.get("stitched"):
+            res2["stitched_trajectory"] = _st
+    except Exception as _ste:          # noqa: BLE001 — 拼接坏不掀任务
+        res2["stitched_trajectory"] = {"stitched": False,
+                                       "why": "%s: %s"
+                                       % (type(_ste).__name__, _ste)}
     try:
         with open(os.path.join(SESSIONS, sid + ".jsonl"), "a",
                      encoding="utf-8") as fh:

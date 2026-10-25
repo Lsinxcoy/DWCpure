@@ -48,6 +48,7 @@ def test_planner_layer_default_off():
     assert "planner_live" not in (out.detail or {}).get("per_contract", {})
 
 
+@pytest.mark.live
 def test_gate_reads_shared_switch():
     """★★ 门②读共享开关（Loop 端 set_planner_layer ⇒ 现场层开）。"""
     f = TermFacts(pass_rate=1.0,
@@ -60,6 +61,7 @@ def test_gate_reads_shared_switch():
     assert "planner_live" in (o_on.detail or {}).get("per_contract", {})
 
 
+@pytest.mark.live
 def test_loop_round_restores_switch():
     """★★★ on 跑 round ⇒ 用完复位（finally — 不泄漏给其它调用方）。"""
     lp = Loop(planner_live=True)
@@ -67,6 +69,7 @@ def test_loop_round_restores_switch():
     assert gates.planner_layer_injection() is False
 
 
+@pytest.mark.live
 def test_loop_round_produces_planner_trace():
     """★★★ on 的一轮 ⇒ planner 痕迹在场（per-candidate 摘录, 不汇总）。"""
     lp = Loop(planner_live=True)
@@ -89,6 +92,7 @@ def test_loop_off_leaves_no_trace():
     assert lp._last_planner_trace is None
 
 
+@pytest.mark.live
 def test_llm_endpoint_reachable():
     """★★ 端点真通（现场层合成的前置 — ping 一次）。
 

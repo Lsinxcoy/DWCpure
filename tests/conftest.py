@@ -26,6 +26,26 @@ import tempfile
 
 import pytest
 
+# ★ A 类边界 · live 测试默认跳过：真端点可能无限阻塞，不能拖垮全量。
+#   需要真端点时显式 `pytest --run-live`。
+def pytest_addoption(parser):
+    parser.addoption("--run-live", action="store_true", default=False,
+                     help="run tests marked live (real network endpoint)")
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "live: requires a real network endpoint; skipped by default")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-live"):
+        return
+    skip = pytest.mark.skip(reason="live endpoint test; use --run-live")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip)
+
 # ★★★ R264 · 生产 var 全局隔离（2026-10-14 实锤: test_r211 清理时 cancel 了
 #   **所有 pending 单** ⇒ 用户 10:10:31 真实派的 "帮我读一下 core.py" 被
 #   测试误杀(cancelled 无报告); 此前已有 pairs/session 污染三例）。

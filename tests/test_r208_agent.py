@@ -15,6 +15,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -45,6 +47,7 @@ def test_select_task_seed_fallback():
 
 
 # ═══ agent 常驻短跑（subprocess）═══
+@pytest.mark.live
 def test_agent_lifecycle_short_run():
     """★★★ 全生命周期: started→terms→stopped(daily_limit) 入台账 + pid
     退出即清 + 心跳落盘。"""

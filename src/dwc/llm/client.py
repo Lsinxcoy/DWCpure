@@ -54,6 +54,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -188,7 +189,7 @@ def _load_file_config() -> dict[str, str]:
     #   config 里写了 max_tokens/reasoning_effort 却完全不生效，排障时
     #   看到的是「配了没用」而不是「没配」—— 最坏的一种静默）。
     _KEYS = ("base_url", "api_key", "model", "timeout",
-             "max_tokens", "reasoning_effort")
+             "deadline", "max_tokens", "reasoning_effort")
     return {k: str(data[k]).strip()
             for k in _KEYS
             if str(data.get(k, "")).strip()}
@@ -291,6 +292,22 @@ class LLMClient:
                 _src["timeout"] = "factory"
         except ValueError:
             self.timeout = float(timeout)
+        # ★ A 类边界 · 总 deadline：单次 timeout 只约束一次 socket 读，
+        #   重试链会把它乘成数分钟。deadline 是**整条调用链**的上限。
+        #   优先级: 显式 env > config > 工厂（默认 min(90, timeout)）。
+        try:
+            if os.environ.get("DWC_LLM_DEADLINE", ""):
+                self.deadline = float(os.environ["DWC_LLM_DEADLINE"])
+                _src["deadline"] = "env"
+            elif _fc.get("deadline", ""):
+                self.deadline = float(_fc["deadline"])
+                _src["deadline"] = "file"
+            else:
+                self.deadline = min(90.0, max(30.0, float(self.timeout)))
+                _src["deadline"] = "factory"
+        except (TypeError, ValueError):
+            self.deadline = min(90.0, max(30.0, float(self.timeout)))
+            _src["deadline"] = "factory"
         # ★★★ R377 · 推理预算（与 timeout 同口径: 显式 > env > 文件 > 工厂）
         #   为什么默认从 1600 提到 4096: 实测失败任务推理 5500+ 字，
         #   1600 token 预算被推理吃光 ⇒ content 一个字都没写 ⇒ finish=length。
@@ -436,7 +453,8 @@ class LLMClient:
                  _retry: bool = False,
                  _parent_call_id: str | None = None,
                  _call_id: str | None = None,
-                 _attempt_index: int | None = None) -> LLMResult:
+                 _attempt_index: int | None = None,
+                 _deadline: float | None = None) -> LLMResult:
         """★ 一次补全。**不抛异常**（纪律②），失败也带 `error` 返回。
 
         ★★★ 为什么不用异常: 调用方最常见的写法是
@@ -447,6 +465,17 @@ class LLMClient:
         if not self.configured:
             return LLMResult(ok=False, source="not_configured",
                              error=self.unavailable_reason or "无配置")
+
+        # ★ A 类边界 · 整条调用链的 deadline（含重试）
+        _now = time.monotonic()
+        if _deadline is None:
+            _deadline = _now + float(getattr(self, "deadline", 90.0))
+        _remaining = _deadline - _now
+        if _remaining <= 0:
+            return LLMResult(
+                ok=False, source="error", error="deadline_exceeded",
+                meta={"error_kind": "deadline", "deadline_s":
+                      float(getattr(self, "deadline", 90.0))})
 
         # ★ R377 · 未显式传 ⇒ 用实例配置（env/文件/工厂），不再写死 1200
         #   ★ getattr 兜底: 旧夹具用 __new__ 绕过 __init__（没有该属性）
@@ -528,9 +557,18 @@ class LLMClient:
             headers=_headers,
             method="POST")
         try:
+            # ★ A 类边界 · 每次尝试都用**剩余** deadline，不用旧值
+            _remaining = _deadline - time.monotonic()
+            if _remaining <= 0:
+                return LLMResult(
+                    ok=False, source="error", error="deadline_exceeded",
+                    meta={"error_kind": "deadline",
+                          "deadline_s": float(getattr(self, "deadline", 90.0))})
             # ★★★ R379 · 串行化（端点并发下不遵守 json_mode，见 _HTTP_LOCK 注释）
             with _HTTP_LOCK:
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                with urllib.request.urlopen(
+                        req, timeout=min(float(self.timeout),
+                                         max(0.1, _remaining))) as resp:
                     raw = resp.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
             # ★★★ R265 · 5xx/429 **网关瞬时类**也重试（2026-10-14 用户实测:
@@ -539,7 +577,8 @@ class LLMClient:
             #   判据: 5xx/429=上游瞬时(重试有意义); 4xx=请求错(重试无意义)。
             #   ★★ 只读 e.code/e.reason — 不读 body（可能含 Authorization）。
             if e.code in (429, 500, 502, 503, 504) and self.retries > 0 \
-                    and self._attempts < self.retries:
+                    and self._attempts < self.retries \
+                    and time.monotonic() < _deadline:
                 _attempt_meta({}, call_id=call_id, parent_call_id=parent_call_id,
                               attempt_index=attempt_index, transport="complete",
                               ok=False, model_requested=self._model,
@@ -554,7 +593,8 @@ class LLMClient:
                                      tools=tools, tool_choice=tool_choice,
                                      _retry=True, _call_id=call_id,
                                      _parent_call_id=parent_call_id,
-                                     _attempt_index=attempt_index + 1)
+                                     _attempt_index=attempt_index + 1,
+                                     _deadline=_deadline)
             self.n_fail += 1
             meta = _attempt_meta(
                 {"http_code": e.code, "n_retry_used": self._attempts},
@@ -565,7 +605,8 @@ class LLMClient:
                              error="HTTP %s: %s" % (e.code, e.reason), meta=meta)
         except Exception as e:      # ★ 网络/超时 —— 统一收敛
             # ★★★ R36: **传输类**错误才重试（见 __init__ 的理由）
-            if self.retries > 0 and self._attempts < self.retries:
+            if self.retries > 0 and self._attempts < self.retries \
+                    and time.monotonic() < _deadline:
                 _attempt_meta({}, call_id=call_id, parent_call_id=parent_call_id,
                               attempt_index=attempt_index, transport="complete",
                               ok=False, model_requested=self._model,
@@ -580,7 +621,8 @@ class LLMClient:
                                      tools=tools, tool_choice=tool_choice,
                                      _retry=True, _call_id=call_id,
                                      _parent_call_id=parent_call_id,
-                                     _attempt_index=attempt_index + 1)
+                                     _attempt_index=attempt_index + 1,
+                                     _deadline=_deadline)
             self.n_fail += 1
             meta = _attempt_meta(
                 {"kind": "transport", "n_retry_used": self._attempts},
