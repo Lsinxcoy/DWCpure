@@ -642,6 +642,21 @@ def _maybe_maintain(mem) -> None:
               "error": "%s: %s" % (type(exc).__name__, exc)})
 
 
+_MEM_CACHE: dict[str, object] = {}
+_MEM_CACHE_LOCK = threading.Lock()
+
+
+def _memory_kernel():
+    """★ PERF-01 · 进程内复用 MemoryKernel；不再每单新建/rebuild FTS。"""
+    from dwc.organs.memory import MemoryKernel
+    with _MEM_CACHE_LOCK:
+        mem = _MEM_CACHE.get(DB)
+        if mem is None:
+            mem = MemoryKernel(DB)
+            _MEM_CACHE[DB] = mem
+        return mem
+
+
 def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     """★ 消费一单: LLMTaskExecutor 执行 → 报告落盘 + 台账 + 飞书通知。"""
     from dwc.llm.task_exec import execute_user_task
@@ -709,15 +724,11 @@ def run_user_task(item: dict, use_llm: bool, llm=None) -> dict:
     #   status=done 本身不算通过。写失败不拖垮任务，但留痕。
     if rep.get("status") == "done":
         try:
-            from dwc.organs.memory import MemoryKernel
             from dwc.organs.skill_writer import from_task_result
-            _mem = MemoryKernel(DB)
-            try:
-                _nid = from_task_result(
-                    _mem, str(item.get("task", "")),
-                    str(item.get("task", "")), rep)
-            finally:
-                _mem.close()
+            _mem = _memory_kernel()
+            _nid = from_task_result(
+                _mem, str(item.get("task", "")),
+                str(item.get("task", "")), rep)
             if _nid:
                 _log({"event": "task_skill_written", "id": item["id"],
                       "skill_node": _nid})

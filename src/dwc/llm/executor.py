@@ -185,12 +185,24 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
 
     if memory is None or not str(task or "").strip():
         return ""
+    # ★ M2.4 · SELF/预算上下文进入同一 prompt；skill 仍走下面的相关性筛选
+    _self_ctx = ""
+    try:
+        from dwc.organs.memory_context import assemble
+        _ctx = assemble(
+            memory, task, budget_tokens=max(80, max_chars // 3),
+            include_self=True, include_skills=False,
+            include_episodes=False)
+        _self_ctx = _ctx.get("text", "") if _ctx.get("used_ids") else ""
+    except Exception as exc:            # noqa: BLE001 — 记忆组装坏不掀 prompt
+        import sys as _sys
+        _sys.stderr.write("memory_text self context 失败（跳过）: %s\n" % exc)
     rows = memory._conn.execute(
         "SELECT node_id, payload FROM memory_node WHERE kind='skill'"
         " AND archived_at IS NULL").fetchall()
     if not rows:
         _record([], [])
-        return ""
+        return _self_ctx
     skills = []
     from dwc.organs.skill_writer import classify_skill_kind as _classify
     for r in rows:
@@ -207,7 +219,7 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
                                            d.get("method") or ""))))
     if not skills:
         _record([], [])
-        return ""
+        return _self_ctx
     df = {}
     for _nid, _d, b in skills:
         for g in b:
@@ -217,7 +229,7 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
     info = {g for g in tb if df.get(g, 0) <= max(2, 0.3 * n)}
     if len(info) < 3:
         _record([], [])
-        return ""
+        return _self_ctx
     scored = []
     for nid, d, b in skills:
         hit = info & b
@@ -229,7 +241,7 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
         scored.append((nid, cov, len(hit), json.dumps(d, ensure_ascii=False)))
     if not scored:
         _record([], [])
-        return ""
+        return _self_ctx
     scored.sort(key=lambda x: (-x[1], -x[2]))
     out, total, seen = [], 0, set()
     selected_ids: list[str] = []
@@ -248,7 +260,7 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
         if len(out) >= k:
             break
     _record(selected_ids, selected_scores)
-    return "\n".join(out)
+    return "\n".join(x for x in (_self_ctx, "\n".join(out)) if x)
 
 
 def build_observed_prompt(tid: str, skel: dict[str, Any],

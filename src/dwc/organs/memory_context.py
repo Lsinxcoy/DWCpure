@@ -37,7 +37,8 @@ def _line(node: Any) -> str:
 
 def assemble(memory: Any, task: str, budget_tokens: int = 800, *,
              include_self: bool = True, include_skills: bool = True,
-             include_episodes: bool = True) -> dict[str, Any]:
+             include_episodes: bool = True,
+             include_preferences: bool = True) -> dict[str, Any]:
     """返回 `{text, used_ids, tokens, truncated, raw_refs, budget_tokens}`。"""
     budget = max(1, int(budget_tokens))
     head = "task: %s" % str(task or "")[:500]
@@ -66,6 +67,20 @@ def assemble(memory: Any, task: str, budget_tokens: int = 800, *,
         for node in memory.by_zone(Zone.SELF):
             if not add(node):
                 break
+
+    # ★ M2.3 · 偏好/信念只在有节点时进入；不生成、不推断
+    if include_preferences:
+        for _kind in (MemoryKind.PREFERENCE, MemoryKind.BELIEF):
+            try:
+                _rows = memory._conn.execute(
+                    "SELECT node_id FROM memory_node"
+                    " WHERE kind=? AND archived_at IS NULL",
+                    (_kind.value,)).fetchall()
+                for _r in _rows:
+                    if not add(memory.get(str(_r["node_id"]))):
+                        break
+            except Exception:        # noqa: BLE001 — 读失败不掀组装
+                continue
 
     candidates = []
     if include_skills or include_episodes:

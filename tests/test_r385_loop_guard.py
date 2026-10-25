@@ -61,6 +61,7 @@ class _LoopLLM:
 
 @pytest.fixture()
 def work(tmp_path, monkeypatch):
+    monkeypatch.setattr(T, "ROOT", str(tmp_path))
     monkeypatch.setattr(T, "WORK", str(tmp_path))
     monkeypatch.setattr(T, "SESSIONS", str(tmp_path / "sessions"))
     (tmp_path / "sessions").mkdir(exist_ok=True)
@@ -153,6 +154,8 @@ def test_repeat_detector_forces_final(work):
                                 {"path": "f%d.txt" % self.n}))
 
     llm = _LLM()
+    for _i in range(1, 20):
+        (work / ("f%d.txt" % _i)).write_text("答案 X\n", encoding="utf-8")
     rep = T.execute_user_task("不停兜圈子", llm=llm, task_id="t_repeat")
     assert llm.forced, "轮数上限没有触发强制 final 指令"
     assert rep["status"] == "done", (

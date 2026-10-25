@@ -375,9 +375,18 @@ class DWC:
                         "why": "not_dispatched: learn 器未实现"
                                "（无对应器官 — 与 evolve 区别标注）"}
         elif action == "maintain":
-            dispatch = {"kind": "maintain", "dispatched": False,
-                        "why": "not_dispatched: maintain 属记忆维护面, "
-                               "前置=巩固调度触发器（尚未接线）"}
+            # ★ M3.1 · 维护面只出建议，不删节点；失败不假装 dispatched
+            try:
+                from dwc.organs.memory_maintenance import plan as _mplan
+                _rep = _mplan(self.memory)
+                dispatch = {"kind": "maintain", "dispatched": True,
+                            "how": "memory_maintenance.plan",
+                            "n_evaluated": _rep.get("n_evaluated", 0),
+                            "counts": _rep.get("counts", {})}
+            except Exception as exc:        # noqa: BLE001 — 维护失败如实报
+                dispatch = {"kind": "maintain", "dispatched": False,
+                            "why": "maintain 失败: %s: %s"
+                                   % (type(exc).__name__, exc)}
         else:
             dispatch = {"kind": str(action), "dispatched": False,
                         "why": "not_dispatched: 未知动作（值枚举外, 不猜）"}

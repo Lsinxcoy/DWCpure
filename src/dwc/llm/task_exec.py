@@ -78,6 +78,35 @@ class TaskExecError(Exception):
     pass
 
 
+def _working_state_gate(log: list, goal_id: str) -> dict | None:
+    """M1.7 · done 前检查环境证据；无真实 obs 不拦（纯聊天）。
+
+    ★ 只有至少一条成功 obs 才进入检查；有 obs 但全失败 ⇒ claim-only done
+      会被打回。这样不误伤“纯文本回答”，又能拦住“没跑就宣称完成”。
+    """
+    ev = []
+    seen_obs = False
+    for e in log or []:
+        if not isinstance(e, dict) or e.get("phase") != "obs":
+            continue
+        seen_obs = True
+        if e.get("ok") is True:
+            ev.append("%s:%s" % (e.get("op", ""), e.get("target", "")))
+    if not seen_obs:
+        return None
+    try:
+        from dwc.organs.working_state import check_update
+        v = check_update(goal_id, "done", evidence=ev, claimed=True)
+    except Exception as exc:            # noqa: BLE001 — 门坏不炸单，但留痕
+        import sys as _sys
+        _sys.stderr.write("working_state gate 失败: %r\n" % (exc,))
+        return None
+    if v.get("passed"):
+        return None
+    return {"status": "incomplete", "why": v.get("code", "no_env_evidence"),
+            "answer": "（未通过工作态证据门：%s）" % v.get("reason", "")}
+
+
 def _guard_path(path: str, *, write: bool) -> str:
     """路径护栏: 读限 ROOT 内; 写只许 var/inbox_work/。
 
@@ -1983,6 +2012,10 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                         import sys as _sys
                         _sys.stderr.write("phantom gate 失败×%d: %s\n"
                                           % (_pg_fail[0], _ge))
+                _ws = _working_state_gate(log, sid)
+                if _ws:
+                    return {"task": task, "task_id": sid, "rounds": rnd,
+                            "artifacts": [], "actions_log": log, **_ws}
                 return {"task": task, "task_id": sid,
                         "status": "done", "rounds": rnd,
                         "answer": _cap_answer(_raw),
@@ -2294,6 +2327,11 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
             _extract_sources(log, task_id=sid, task=task,      # ★ R266A
                              answer=str(step.get("answer", "")),
                              artifacts=list(step.get("artifacts") or []))
+            _ws = _working_state_gate(log, sid)
+            if _ws:
+                return {"task": task, "task_id": sid, "rounds": rnd,
+                        "artifacts": list(step.get("artifacts") or []),
+                        "actions_log": log, **_ws}
             return {"task": task, "task_id": sid, "status": "done",
                     "rounds": rnd,
                     "answer": _cap_answer(step.get("answer", "")),

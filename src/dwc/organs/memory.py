@@ -42,7 +42,9 @@ import json
 import hashlib
 import math
 import re
+import functools
 import sqlite3
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -420,15 +422,26 @@ class MemoryNode:
 # ══════════════════════════════════════════════════════════
 
 
+def _serialized(method):
+    """同一内核实例的写路径串行化；RLock 允许 revise→remember 嵌套。"""
+    @functools.wraps(method)
+    def _wrap(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return _wrap
+
+
 class MemoryKernel:
     """DWC 记忆内核。★ 只提供证据，不做淘汰决策。"""
 
     def __init__(self, db_path: str = ":memory:"):
         self.db_path = db_path
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         if db_path != ":memory:":
             self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(SCHEMA)
         # ★ R审计-P2 · P2-7 · 老库迁移: memory_node 补 importance 列
         #   （CREATE TABLE IF NOT EXISTS 不会改已有表 ⇒ 显式 ALTER）
@@ -442,8 +455,13 @@ class MemoryKernel:
         #   已有行（老库）不会自动进 FTS ⇒ 启动时 rebuild 一次（幂等）。
         #   ★ 209 条 <10ms；万级库首次会慢一次，之后靠 trigger 增量同步。
         try:
-            self._conn.execute(
-                "INSERT INTO memory_fts(memory_fts) VALUES('rebuild')")
+            # ★ PERF-01 · 用 user_version 做迁移标记：老库/新库只 rebuild 一次；
+            #   FTS5 external-content 的 COUNT(*) 读的是内容表，不能用来判同步。
+            _ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
+            if int(_ver or 0) < 1:
+                self._conn.execute(
+                    "INSERT INTO memory_fts(memory_fts) VALUES('rebuild')")
+                self._conn.execute("PRAGMA user_version=1")
         except sqlite3.OperationalError as exc:
             # ★ G7: 不许静默 —— FTS 不可用必须留痕（检索会退回全表扫）
             import sys as _sys
@@ -452,12 +470,14 @@ class MemoryKernel:
         self._conn.commit()
         self._retrieved: list[str] = []   # ★ R258 检索留痕（修订候选集）
 
+    @_serialized
     def close(self) -> None:
         self._conn.close()
 
     # ══════════════════════════════════════════════
     # 四管之一：remember（任务痕迹 / 工作态 → PROXY）
     # ══════════════════════════════════════════════
+    @_serialized
     def remember(self, kind: MemoryKind, payload: dict[str, Any],
                  chain_id: str | None = None,
                  node_id: str | None = None,
@@ -934,6 +954,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # ★ M0 · 检索事件账（access/effect 之外的“取回事实”）
     # ══════════════════════════════════════════════
+    @_serialized
     def record_retrieval(self, query: str, route: str,
                          node_ids: list[str],
                          scores: list[float | None] | None = None,
@@ -1084,6 +1105,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # ★ M1.6 · 写入隔离（quarantine）
     # ══════════════════════════════════════════════
+    @_serialized
     def quarantine(self, payload: dict[str, Any], source_channel: str,
                    verdict: dict[str, Any]) -> str:
         """记录一次被拒绝的写入；只存 hash/键名/原因，不存原文。"""
@@ -1130,6 +1152,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # ★ M2.1 · 记忆边（轻量邻接表）
     # ══════════════════════════════════════════════
+    @_serialized
     def link(self, source_id: str, target_id: str, relation: str,
              weight: float = 1.0, evidence_ref: str = "") -> str:
         """写一条有向边；两端必须已存在。同一 (source,target,relation) 幂等。"""
@@ -1519,6 +1542,7 @@ class MemoryKernel:
     # ══════════════════════════════════════════════
     # ★ R258 · 后向修订（ReHarness 2610.12668 §3.2）
     # ══════════════════════════════════════════════
+    @_serialized
     def revise(self, node_id: str, payload_new: dict[str, Any], *,
                source_traj: str, why: str) -> MemoryNode:
         """★ 版本链式修订一条 SKILL（reflection 等价物）。
@@ -1554,6 +1578,7 @@ class MemoryKernel:
         self.link(new_id, node_id, "revises", evidence_ref=source_traj)
         return self.get(new_id)
 
+    @_serialized
     def revise_self(self, node_id: str, payload_new: dict[str, Any], *,
                     source_traj: str, why: str) -> MemoryNode:
         """SELF 的版本链修订：旧内容不动，只加 `_revised_to`；新节点 `_rev_prev`。"""
