@@ -772,11 +772,19 @@ class MemoryKernel:
         #     让"旧且未被使用"的记忆排后面 —— 只影响排序，不删任何东西
         #   ★ P2-7: importance（learn 回写）同样乘性（0.75~1.25 温和区间）
         _now = time.time()
+        # ★ 2026-10-25 · 把 gravity 加权后的分作为 MMR 的输入。
+        #   旧实现排序用加权分、但 tuple 里仍存原始 RRF 分 ⇒ MMR 归一化时
+        #   又把 importance/retention 丢了；两条同内容 trace 的 FTS 并列顺序
+        #   一抖，高 importance 就被反超（test_importance_affects_ranking
+        #   实测 1/5 概率失败）。现在加权分一路传到 MMR，排序语义一致。
+        weighted: dict[str, float] = {}
+        for nid, s in score.items():
+            node = pool[nid]
+            weighted[nid] = s * (0.5 + 0.5 * retention_of(node, _now)) \
+                * (0.75 + 0.5 * float(node.importance))
         ordered = sorted(
-            score.items(),
-            key=lambda kv: (kv[1] * (0.5 + 0.5 * retention_of(
-                pool[kv[0]], _now)) * (0.75 + 0.5 * float(
-                    pool[kv[0]].importance)), pool[kv[0]].access_count),
+            weighted.items(),
+            key=lambda kv: (kv[1], pool[kv[0]].access_count),
             reverse=True)
         # ★ P2-8 · MMR 多样性重排（同任务多条 trace 不再占满 top-k）
         _top = self._mmr_rerank(ordered, pool, k)

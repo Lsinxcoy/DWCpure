@@ -92,6 +92,60 @@ def src_key(task: Any, method: Any) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def _action_digest(value: Any) -> str:
+    """动作参数/观察的引用哈希；轨迹里只存 ref，不内联原文。"""
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return "sha256:" + hashlib.sha256(
+        raw.encode("utf-8", "replace")).hexdigest()
+
+
+def procedure_from_actions(actions_log: Any,
+                           evidence_ref: str = "") -> Dict[str, Any]:
+    """把 `task_exec.actions_log` 投影成过程技能字段（M1.2）。
+
+    ★ 只抽**真实发生过的动作**：`phase=obs` 且 `op` 非 final。
+    ★ 不推断前置条件；没有动作 ⇒ `procedure_status=not_instrumented`，
+      不编 steps。
+    ★ `verification` 只认 run/test/check 且 ok；`failure_modes` 只认
+      ok=False 的真实失败，不把猜测写成失败模式。
+    """
+    steps: list[Dict[str, Any]] = []
+    tools: list[str] = []
+    verification: list[Dict[str, Any]] = []
+    failure_modes: list[Dict[str, Any]] = []
+    for entry in actions_log or []:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("phase") != "obs":
+            continue
+        op = str(entry.get("op") or "")
+        if not op or op == "final":
+            continue
+        target = str(entry.get("target") or "")[:200]
+        ok = bool(entry.get("ok"))
+        obs_ref = _action_digest(entry.get("obs", ""))
+        steps.append({"op": op, "target": target, "ok": ok,
+                      "obs_ref": obs_ref})
+        if op not in tools:
+            tools.append(op)
+        if op in ("run", "test", "check") and ok:
+            verification.append({"op": op, "target": target,
+                                 "obs_ref": obs_ref})
+        if not ok:
+            failure_modes.append({"op": op, "target": target,
+                                  "obs_ref": obs_ref})
+    return {
+        "preconditions": [],          # 不推断：真实前置条件未登记
+        "steps": steps,
+        "tools": tools,
+        "verification": verification,
+        "failure_modes": failure_modes,
+        "recovery_strategies": _RECOVERY if failure_modes else "",
+        "evidence_ref": evidence_ref,
+        "procedure_status": "observed" if steps else "not_instrumented",
+    }
+
+
 def lesson_to_payload(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """把一条 lesson 变成 SKILL payload；不合格返回 None（fail-closed）。
 
@@ -210,7 +264,9 @@ _METHOD_SOURCE = "llm_self_report"
 
 
 def from_term(memory: Any, task: str, prompt: str, method: str,
-              passed: bool, quality: Optional[float] = None) -> Optional[str]:
+              passed: bool, quality: Optional[float] = None,
+              procedure: Optional[Dict[str, Any]] = None,
+              evidence_ref: str = "") -> Optional[str]:
     """★ R458 · term 判分**通过** ⇒ 把模型自述的做法写成 SKILL。
 
     为什么需要：term 失败只写 failure_sig（"错在哪"），成功却什么都不写
@@ -219,6 +275,10 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
     为什么只在通过时写：`method` 是模型自述（未验证）；只有它给出的答案
     被判分器判为正确，这条"怎么做"才至少有**一次实证**背书。
     payload 带 `m_source=llm_self_report` —— 读者能看出它不是人工核定的。
+
+    ★ M1.2：`procedure` 来自真实 `actions_log`（`procedure_from_actions`）；
+      有步骤 ⇒ `skill_kind=procedural`，没有则保持 classifier 的判断。
+      没有 procedure 也不编步骤，`procedure_status=not_instrumented`。
     """
     if not passed or not str(method or "").strip():
         return None
@@ -226,19 +286,52 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
     m = _clip(method, 800)
     if len(scene) < 4 or len(m) < 4:
         return None
+    proc = procedure if isinstance(procedure, dict) else {}
+    steps = proc.get("steps") if isinstance(proc.get("steps"), list) else []
+    kind = "procedural" if steps else classify_skill_kind(scene, m)
     payload = {
         "scene": scene,
         "method": m,
         "boundary": "term_pass:%s" % _clip(task, 80),
         "invalid_conditions": "任务不是「%s」时不适用" % scene[:60],
         "recovery_strategies": _RECOVERY,
-        "skill_kind": classify_skill_kind(scene, m),
+        "skill_kind": kind,
+        "preconditions": proc.get("preconditions") or [],
+        "steps": steps,
+        "tools": proc.get("tools") or [],
+        "verification": proc.get("verification") or [],
+        "failure_modes": proc.get("failure_modes") or [],
+        "evidence_ref": evidence_ref or proc.get("evidence_ref") or "",
+        "procedure_status": proc.get("procedure_status") or "not_instrumented",
         "src_key": src_key(scene, m),
         "task_id": _clip(task, 80),
         "m_source": _METHOD_SOURCE,
         "quality": quality,
     }
     return memory.remember(MemoryKind.SKILL, payload)
+
+
+def from_task_result(memory: Any, task: str, prompt: str, result: Any,
+                     passed: bool, quality: Optional[float] = None
+                     ) -> Optional[str]:
+    """从一次**已判分通过**的任务结果写过程技能（M1.2 接线口）。
+
+    ★ 只认真实 `actions_log`；没有动作 / 没有 trajectory_ref ⇒ 不写。
+    ★ `passed` 必须由外部判分器给出，不能拿 `status=done` 冒充正确。
+    """
+    if not passed or not isinstance(result, dict):
+        return None
+    proc = procedure_from_actions(
+        result.get("actions_log") or [],
+        evidence_ref=str(result.get("trajectory_ref") or ""))
+    if not proc.get("steps"):
+        return None
+    method = str(result.get("answer") or "").strip()
+    if not method:
+        return None
+    return from_term(memory, task, prompt, method, passed=True,
+                     quality=quality, procedure=proc,
+                     evidence_ref=str(result.get("trajectory_ref") or ""))
 
 
 def skill_count(memory: Any) -> int:

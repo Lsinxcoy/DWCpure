@@ -33,6 +33,7 @@ from typing import Any
 from dwc.foundation.paths import find_root
 from dwc.llm import budget as _budget
 from dwc.llm import tool_raw
+from dwc.llm.task_trajectory import record_task_trajectory
 ROOT = find_root()
 WORK = os.path.join(ROOT, "var", "inbox_work")
 #: 危险命令黑名单（子串匹配; run 动作的护栏之一 — 不是完备沙箱, 是护栏）
@@ -1566,6 +1567,12 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         except Exception as exc:  # 画像失败不改变任务语义，但必须可见
             result["runtime_profile"] = {"status": "error",
                                          "error": type(exc).__name__}
+        # ★ M1.4 · 真实工具轨迹（actions_log）落盘；失败不掀任务，但必须可见。
+        try:
+            result.update(record_task_trajectory(result))
+        except Exception as exc:  # noqa: BLE001 — 轨迹坏不改变任务语义
+            result["trajectory_status"] = "error"
+            result["trajectory_error"] = "%s: %s" % (type(exc).__name__, exc)
         metrics = emit_task_metrics(result)
         result["measurement_status"] = ("measured" if metrics.get("persistence_status") == "persisted" and metrics.get("measurement_status") == "measured" else "incomplete")
         result["measurement_ref"] = metrics.get("record_id")

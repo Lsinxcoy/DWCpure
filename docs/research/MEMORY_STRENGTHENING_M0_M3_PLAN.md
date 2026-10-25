@@ -1,8 +1,8 @@
 # DWC pure 记忆系统强化 M0–M3 · 代码级方案
 
 > 版本：2026-10-25 · 依据：`docs/research/MEMORY_CROSS_PROJECT_AUDIT.md` + 9 个参考仓库 commit（`docs/research/memory_sources.json`）。
-> **落地状态（2026-10-25）**：M0 已实现；M1.1 分类元数据已实现；M1.2–M3 仍为设计，不得写成已实现。
-> 实测：主仓 `3225 passed / 2 skipped`；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
+> **落地状态（2026-10-25）**：M0、M1.1、M1.2、M1.4 已实现；M1.3、M1.5–M3 仍为设计，不得写成已实现。
+> 实测：主仓全量通过（见下）；gate `8/8`；生产 8 条 skill 分类 = `7 factual + 1 chat + 0 procedural`。
 > 本文是**实施规格 + 当前落地记录**；状态以代码/测试/生产读回为准。
 > 机制矩阵：`docs/research/memory_mechanism_matrix.csv`（MEM-01–MEM-19）。
 
@@ -173,7 +173,17 @@ def classify_skill_kind(scene: str, method: str) -> str:
 
 `from_term()` 增加 `skill_kind` 字段；`lesson_to_payload()` 同样带 `skill_kind`。先只加元数据，不删旧数据；M1.2 再按 kind 过滤。
 
-### M1.2 过程字段
+### M1.2 过程字段（已实现）
+
+文件：`src/dwc/organs/skill_writer.py`
+
+```python
+def procedure_from_actions(actions_log, evidence_ref="") -> dict:
+    """只从真实 phase=obs 动作抽 steps/tools/verification/failure_modes。"""
+
+def from_task_result(memory, task, prompt, result, passed, quality=None) -> str | None:
+    """已判分通过 + 有真实 actions_log ⇒ 写过程技能；否则 None。"""
+```
 
 `from_term(..., procedure: dict | None = None, evidence_ref: str = "")`：
 
@@ -200,21 +210,29 @@ payload = {
 - 跳过 `skill_kind == "factual"`；旧数据没有字段 ⇒ 视为 `legacy`，先保留，迁移脚本再分类。
 - 迁移脚本 `scripts/audit_memory_skills.py`：列出每条 skill 的 `skill_kind`、access/effect；`--mark` 只写元数据，不删除。
 
-### M1.4 轨迹记录
+### M1.4 轨迹记录（已实现）
 
-文件：`src/dwc/harness/run_term.py`
+文件：`src/dwc/llm/task_trajectory.py`
 
-当前 `_step()` 不是工具执行轨迹。M1 先新增独立 `TrajectoryRecorder`：
+真实工具轨迹在 `task_exec._do_action()` 的 `actions_log`，不在 `run_term._step()`（后者是进化周期回执）。`execute_user_task()` 统一收尾时调用：
 
 ```python
-class TrajectoryRecorder:
-    def step(self, *, tool: str, args_ref: str, observation_ref: str,
-             outcome: str, diff_ref: str = "", latency_ms: int | None = None,
-             cost_usd: float | None = None) -> str: ...
-    def finish(self) -> dict: ...
+record_task_trajectory(result) -> {
+  "trajectory_ref": "<path>#TRJ_...",
+  "trajectory_path": ..., "trajectory_id": ...,
+  "trajectory_steps": N, "trajectory_sha256": "sha256:...",
+  "trajectory_status": "recorded",
+}
 ```
 
-落点：`var/trajectories/<run_id>.jsonl`，只存 ref/hash，不存原始大对象；`run_term` 在真实工具/执行体调用处接入。没有真实工具调用的 term 标 `trajectory_status=not_instrumented`，不编步骤。
+规则：
+
+- 只存 `args/obs/answer/why` 的 sha256 与字符数，不内联原文；原始对象仍由 session/tool_raw 负责。
+- 空 `actions_log` ⇒ `n_steps=0`，不编步骤；坏 entry 计 `n_bad_steps`，不静默丢。
+- 写失败 ⇒ `trajectory_status=error` + `trajectory_error`，不掀任务。
+- `trajectory_ref` 进入 `task_metrics.trajectory_ref`，供 M1.2 过程技能引用。
+
+没有真实工具调用的 term 标 `trajectory_status=not_instrumented`，不编步骤。
 
 ### M1.5 成功/失败对比
 
@@ -387,8 +405,9 @@ compare(failure_sig_id, success_trajectory_id) -> {
 | 测试 | 覆盖 | 断言 |
 |---|---|---|
 | `test_memory_retrieval.py` | M0 | access/事件/zero-hit/dedupe |
-| `test_skill_quality.py` | M1 | procedural/factual/chat；过程字段 |
-| `test_trace_enrichment.py` | M1 | refs/hash；无真实轨迹标 not_instrumented |
+| `test_skill_quality.py` | M1.1 | procedural/factual/chat；过程字段 |
+| `test_skill_procedure.py` | M1.2 | 真实 actions_log 抽步骤；无动作不编 |
+| `test_task_trajectory.py` | M1.4 | refs/hash；坏 entry 计数；任务接线 |
 | `test_memory_guard.py` | M1 | 注入/二进制/重复拒绝；quarantine |
 | `test_memory_working_state.py` | M1 | claim-only done 被拒 |
 | `test_consolidation_guard.py` | M1 | 原节点哈希不变 |
