@@ -1,0 +1,5 @@
+{
+  "default_state": "unsupported_remote",
+  "capabilities": [],
+  "note": "No drop_message/drop_rule/reposition/cache fields are sent until a capability is explicitly verified and active_eligible."
+}

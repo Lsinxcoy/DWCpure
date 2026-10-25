@@ -1,0 +1,84 @@
+# DWC pure 2.0 实现状态（诚实边界）
+
+本文件只记录**已实测**的实现状态，不把设计、单元测试或 shadow 结果写成生产已启用。
+
+## 1. 当前证据
+
+| 项目 | 结果 |
+|---|---|
+| 全量测试 | `3007 passed, 1 skipped`（`pytest tests`） |
+| 质量门 | 8/8 通过（`scripts/gate.py --json`） |
+| 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
+| 实现检查点 | `9c308bd feat(dwc2): land W1 real measurement and W2-W6 core modules` |
+| 工作分支 | `divine-wisdom-core-pure` |
+| 原仓库 | `upstream/master` 保持只读，不推送 |
+
+真实 LLM 测量（探针进程，不是常驻生产 agent）：
+
+- 普通正文：`prompt=2648 / completion=18 / total=2666 / cached=0`
+- 带缓存：`prompt=2509 / cached=1159 / completion=20 / total=2529`
+- native tool：`prompt=2338 / cached=1116 / completion=37 / total=2375`，`finish_reason=tool_calls`
+
+## 2. 已接入生产代码路径
+
+| 能力 | 状态 | 证据 |
+|---|---|---|
+| LLM 每次物理 attempt 的 usage/interface 观测 | active | `src/dwc/llm/client.py`、`tests/test_llm_usage.py` |
+| stream→fallback→retry 父子链 | active | `tests/test_llm_usage.py::test_stream_fallback_retry_keeps_original_parent_chain` |
+| SSE 混合正文 + tool call、malformed 参数 | active | `tests/test_llm_usage.py` |
+| 任务级统一收尾、真实 `record_id`、`incomplete` 诚实状态 | active | `src/dwc/llm/task_exec.py`、`tests/test_task_exec_metrics.py` |
+| SQLite WAL 证据账、幂等、脱敏、raw ref+hash | active | `src/dwc/observability/evidence_store.py`、`tests/test_evidence_store.py` |
+| 正式尝试、C/CoP、缺 usage 不填零 | active | `src/dwc/observability/task_metrics.py`、`usage_pricing.py` |
+| 辅助角色归属（revision/planner/executor 等） | active | `tests/test_auxiliary_measurement_roles.py` |
+| 规则任务画像（四层身份、`execution_adjustment=shadow`） | active-shadow | `src/dwc/llm/task_exec.py`、`tests/test_runtime_profile_shadow.py` |
+| 原子组件更新 `update()` 与跨进程锁 | active | `src/dwc/organs/evo_targets.py`、`tests/test_atomic_evo_targets.py` |
+
+## 3. 已实现且有入口，但默认 shadow-only
+
+| 能力 | 入口 | 边界 |
+|---|---|---|
+| 固定协议、Pareto/双基线选择 | `scripts/dwc_shadow_round.py` | 只读冻结评价，不自动晋级 |
+| 多 rollout 诊断 | `scripts/dwc_shadow_round.py` | 只输出诊断，不改执行 |
+| intent×scope 稀疏计划、静态校验 | `scripts/dwc_shadow_round.py` | 不生成代码、不调用模型 |
+| Probe/Compose | `scripts/dwc_shadow_round.py` | Compose 返回 `needs_reprobe`；不替代固定评价 |
+| 离线候选评价 | `scripts/dwc_evaluate_candidate.py` | 只读 attempts/usage/pricing，不调用 LLM |
+| 多组件安全落地 | `scripts/dwc_apply_candidate.py` | 必须显式 root + `--confirm APPLY`；默认拒绝生产根 |
+| recovery journal / canary | `src/dwc/harness/recovery_journal.py` | 先持久化 undo，再写目标；只发布 committed |
+| 历史卡片/经验库 | `src/dwc/harness/history_retrieval.py`、`reflection_library.py` | 脱敏、namespace 隔离；未接入生产演化轮 |
+| 预算/输出压缩/条件 review | `src/dwc/llm/budget_controller.py` 等 | 单元测试通过；尚未改变 `task_exec` 行为 |
+| cache 身份与 fail-closed 策略 | `src/dwc/llm/cache_policy.py`、`cache_capability.py` | 当前端点未验证，默认不发送 cache 扩展 |
+
+## 4. 尚未完成 / 明确未启用
+
+1. **常驻生产 agent 未切换**：`~/.dwc` 仍是旧 clone，且有独立本地修改；不能整目录覆盖，必须按文件审查合并并受控重启。
+2. **W5 预算/压缩/review 未激活**：模块和测试存在，但 `task_exec` 主循环仍走旧行为；画像只做 shadow。
+3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
+4. **生产 canary 未执行**：`dwc_apply_candidate.py` 只在 tmp 根验证。
+5. **Windows 低权限沙箱未验证**：script/hook Probe 仍应 `blocked`，不能宣称 shadow verified。
+6. **AKV serving 未启用**：当前远程 OpenAI 兼容端点不支持 `drop_message/reposition`；无定制 SGLang/GPU 实测。
+7. **TIES/SFT 未启用**：无 checkpoint/训练控制权，只能作为未来条件扩展。
+8. **synth_tests/coreset 未实现**：属于条件扩展，不作为真值替代。
+
+## 5. 复现命令
+
+```bash
+# 全量
+.venv/Scripts/python.exe -B -m pytest tests -q -p no:cacheprovider
+
+# 质量门
+.venv/Scripts/python.exe -B scripts/gate.py --json
+
+# 离线评价
+.venv/Scripts/python.exe -B scripts/dwc_evaluate_candidate.py \
+  --attempts attempts.json --usage usage.json --pricing config/pricing.example.json \
+  --out report.json --require-measured
+
+# shadow 轮（只读）
+.venv/Scripts/python.exe -B scripts/dwc_shadow_round.py \
+  --bundle bundle.json --out shadow.json
+
+# 受控 apply（示例；生产必须另行审批）
+.venv/Scripts/python.exe -B scripts/dwc_apply_candidate.py \
+  --root /tmp/dwc-root --journal /tmp/dwc-root/var/recovery.json \
+  --patches patches.json --confirm APPLY
+```

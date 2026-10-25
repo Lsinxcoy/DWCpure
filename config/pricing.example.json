@@ -1,0 +1,10 @@
+{
+  "example-model": {
+    "version": "example-unpriced",
+    "input_per_million": null,
+    "cached_input_per_million": null,
+    "cache_write_per_million": null,
+    "output_per_million": null,
+    "reasoning_per_million": null
+  }
+}

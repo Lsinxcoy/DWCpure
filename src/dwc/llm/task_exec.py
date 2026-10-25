@@ -1517,6 +1517,15 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         if not isinstance(result, dict):
             raise TypeError("task executor must return dict")
         result.setdefault("task_id", sid)
+        try:
+            from dwc.llm.task_profiles import select_profile
+            profile = select_profile(task)
+            result["runtime_profile"] = {key: value for key, value in profile.items()
+                                         if key != "spec"}
+            result["profile_effective_hash"] = profile["profile_effective_hash"]
+        except Exception as exc:  # 画像失败不改变任务语义，但必须可见
+            result["runtime_profile"] = {"status": "error",
+                                         "error": type(exc).__name__}
         metrics = emit_task_metrics(result)
         result["measurement_status"] = ("measured" if metrics.get("persistence_status") == "persisted" and metrics.get("measurement_status") == "measured" else "incomplete")
         result["measurement_ref"] = metrics.get("record_id")

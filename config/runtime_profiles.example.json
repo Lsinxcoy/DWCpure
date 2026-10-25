@@ -1,0 +1,25 @@
+{
+  "default_profile": "standard",
+  "profiles": {
+    "lean": {
+      "reasoning_effort": "low",
+      "final_reserved_calls": 1,
+      "output_recovery": true
+    },
+    "standard": {
+      "reasoning_effort": "medium",
+      "final_reserved_calls": 1,
+      "output_recovery": true
+    },
+    "deep": {
+      "reasoning_effort": "high",
+      "final_reserved_calls": 1,
+      "output_recovery": true
+    },
+    "research": {
+      "reasoning_effort": "high",
+      "final_reserved_calls": 1,
+      "output_recovery": true
+    }
+  }
+}

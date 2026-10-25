@@ -1,0 +1,13 @@
+{
+  "protocol_id": "validation-v1",
+  "task_manifest_sha256": "",
+  "evaluator_id": "example-evaluator",
+  "evaluator_version": "0",
+  "evaluator_artifact_sha256": "",
+  "outcome_kind": "binary_pass",
+  "min_formal_units": 1,
+  "baseline_noise_band": 0.0,
+  "paired_seeds": [],
+  "min_representatives": 1,
+  "max_representatives": 3
+}
