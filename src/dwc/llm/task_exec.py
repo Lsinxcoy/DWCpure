@@ -33,6 +33,7 @@ from typing import Any
 from dwc.foundation.paths import find_root
 from dwc.llm import budget as _budget
 from dwc.llm import exec_policy
+from dwc.llm import net_policy
 from dwc.llm import tool_raw
 from dwc.llm.task_trajectory import record_task_trajectory
 ROOT = find_root()
@@ -78,17 +79,28 @@ class TaskExecError(Exception):
 
 
 def _guard_path(path: str, *, write: bool) -> str:
-    """路径护栏: 读限 ROOT 内; 写只许 var/inbox_work/。"""
-    p = os.path.normpath(os.path.join(ROOT, path) if not os.path.isabs(path)
-                         else path)
+    """路径护栏: 读限 ROOT 内; 写只许 var/inbox_work/。
+
+    ★ SEC-04 · 先 realpath 再 commonpath；旧实现用 startswith，
+      会放行 `ROOT_evil` 同前缀目录，也不解析符号链接。
+    """
+    base = os.path.realpath(WORK if write else ROOT)
+    raw = path if os.path.isabs(path) else os.path.join(base, path)
+    p = os.path.realpath(raw)
+    try:
+        inside = os.path.commonpath(
+            [os.path.normcase(base), os.path.normcase(p)]
+        ) == os.path.normcase(base)
+    except ValueError:
+        inside = False
+    if not inside:
+        raise TaskExecError(
+            ("写只许 var/inbox_work/ 下: %s" if write else "读限仓库内: %s")
+            % path)
+    if os.path.islink(raw):
+        raise TaskExecError("不允许符号链接: %s" % path)
     if write:
-        w = os.path.normpath(WORK)
-        if not (p == w or p.startswith(w + os.sep)):
-            raise TaskExecError("写只许 var/inbox_work/ 下: %s" % path)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        return p
-    if not os.path.normpath(p).startswith(os.path.normpath(ROOT)):
-        raise TaskExecError("读限仓库内: %s" % path)
     return p
 
 
@@ -489,10 +501,16 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
         if not url.startswith(("http://", "https://")):
             return {"ok": False, "error": "web_read 只接受 http/https URL: %s"
                     % url[:80]}
+        try:
+            url = net_policy.check_url(url)
+        except net_policy.EgressDenied as e:
+            return {"ok": False, "error": "egress_denied", "reason": str(e)}
         req = urllib.request.Request(
             url, headers={"User-Agent": "DWC-Agent/1.0 (+research)"})
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            # ★ SEC-03 · 不自动跟随重定向；3xx 由调用方重新 check_url
+            opener = urllib.request.build_opener(net_policy.NoRedirect)
+            with opener.open(req, timeout=20) as resp:
                 raw = resp.read(2_000_000)
                 charset = resp.headers.get_content_charset() or "utf-8"
         except Exception as exc:            # noqa: BLE001 — 网络失败如实报
