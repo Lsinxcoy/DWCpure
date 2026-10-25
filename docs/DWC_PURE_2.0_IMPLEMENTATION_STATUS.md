@@ -10,7 +10,7 @@
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费）；`ee754aa` 流式总 deadline |
-| 生产部署 | `~/.dwc` 本地提交 `4849748`（代码对应 release `ee754aa`）；agent `--llm` 常驻 pid `1015496`，RPC 8802；生产全量待部署后复测；开发仓 `3334 passed / 9 skipped`，gate 8/8 |
+| 生产部署 | `~/.dwc` 本地提交 `3a4147c`（代码对应 release `6debd57`）；agent `--llm` 常驻 pid `1142048`，RPC 8802；生产全量 `3334 passed / 9 skipped`，gate 8/8 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
@@ -78,7 +78,7 @@
 
 ## 4. 尚未完成 / 明确未启用
 
-1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按文件三方合并到 release `ee754aa`，本地提交 `4849748`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻 pid `1015496`，RPC 8802；cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”；生产根事务回滚已单独演练。
+1. **生产已切换但仍是“受控运行”**：`~/.dwc` 已按路径三方合并到 release `6debd57`，本地提交 `3a4147c`；`config/llm.json` 已切到可用的 DWC 端点，旧 403 配置备份为 `config/llm.PRE_DEPLOY_403.json`。agent `--llm` 常驻 pid `1015496`，RPC 8802；cron 副本指向 `~/.dwc`。未做的是“长期稳定性观察”；生产根事务回滚已单独演练。
 2. **W5 运行时已单一真源**：`task_profiles.py` 只做投影，预算/选档委托 `dwc.llm.budget` + `dwc.llm.profile`；`budget_controller.py`、`output_compaction.py`、`completion_review.py` 仅供评价/证据，不进入运行时。
 3. **真实 shadow round 未跑生产任务集**：入口已在临时目录端到端验证，尚未对真实任务集执行。
 4. **生产根事务已演练，真实候选未落地**：2026-10-25 在 `~/.dwc` 用 `read_default_lines 250→251` 执行 `--allow-production --confirm APPLY`，journal `committed`、canary 通过，随后按 journal 回滚，文件哈希恢复为 `1d8d193…`。这是事务 canary，不是改进候选；真实候选仍需评价/审批后再落地。
