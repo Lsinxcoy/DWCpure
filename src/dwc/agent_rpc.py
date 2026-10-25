@@ -24,6 +24,7 @@ import secrets
 import time
 from typing import Any
 
+from dwc.foundation.atomic_io import write_json_atomic, write_text_atomic
 from dwc.foundation.paths import find_root
 
 ROOT = find_root()
@@ -171,15 +172,12 @@ def cmd_cancel(id: str) -> dict[str, Any]:
     if not _id_in_inbox(id):
         return {"ok": False, "error": "inbox 无此单: %s" % id}
     st[id] = "cancelled"                       # take_inbox 跳过 done 态任意键
-    with open(INBOX_DONE, "w", encoding="utf-8") as fh:
-        json.dump(st, fh, ensure_ascii=False)
+    write_json_atomic(INBOX_DONE, st)
     return {"ok": True, "id": id, "state": "cancelled"}
 
 
 def cmd_freeze() -> dict[str, Any]:
-    os.makedirs(VAR, exist_ok=True)
-    with open(FROZEN, "w", encoding="utf-8") as fh:
-        fh.write(time.strftime("%c"))
+    write_text_atomic(FROZEN, time.strftime("%c"))
     return {"ok": True, "frozen": True,
             "note": "agent 下轮优雅停, 守夜人不拉活"}
 
@@ -332,9 +330,8 @@ def load_or_make_token() -> str:
     if isinstance(tok, dict) and tok.get("token"):
         return tok["token"]
     t = secrets.token_hex(16)
-    os.makedirs(VAR, exist_ok=True)
-    with open(TOKEN, "w", encoding="utf-8") as fh:
-        json.dump({"token": t, "created": time.strftime("%c")}, fh)
+    write_json_atomic(TOKEN, {"token": t, "created": time.strftime("%c")},
+                      mode=0o600)
     return t
 
 

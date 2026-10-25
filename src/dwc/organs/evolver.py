@@ -50,6 +50,7 @@ TRUTH_SOURCE = {
 #:     vocabulary.py 一处, 本文件改为**引用同一对象**（不是复制值 —
 #:     测试锁 `is` 同一性, 防"看起来收口了其实两套值"）。
 #:   ★ 值一字不动（转抄）— 收口是位置手术, 不是语义手术（R193 计划 §四）。
+from dwc.foundation.atomic_io import write_json_atomic
 from dwc.foundation.vocabulary import (  # noqa: F401
     COMPONENT_VOCAB,
     K_META,
@@ -1382,8 +1383,7 @@ class Mutator:
             "_content_hash": Mutator._state_hash(learned),
             "learned": learned,
         }
-        with open(cls.LEARNED_PATH, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=1)
+        write_json_atomic(cls.LEARNED_PATH, payload, indent=1)
         return {"path": cls.LEARNED_PATH, "n_written": len(learned),
                 "n_seed": len(cls.SEED_KEYS),
                 "version": "R333",
@@ -1587,8 +1587,7 @@ class Mutator:
         payload = {"_version": "R333",
                    "_content_hash": Mutator._state_hash(cls.ARCHIVE),
                    "archive": cls.ARCHIVE}
-        with open(cls.ARCHIVE_PATH, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=1)
+        write_json_atomic(cls.ARCHIVE_PATH, payload, indent=1)
         return {"path": cls.ARCHIVE_PATH,
                 "n_written": sum(len(v) for v in cls.ARCHIVE.values()),
                 "version": "R333",
@@ -3097,8 +3096,7 @@ def rollback_rule(key: str, rules_path: str, backup_root: str) -> dict[str, Any]
     with open(rules_path, encoding="utf-8") as _fh:
         _cur = json.load(_fh)
     _cur.setdefault("learned", {})[key] = _bak[key]
-    with open(rules_path, "w", encoding="utf-8") as _fh:
-        json.dump(_cur, _fh, ensure_ascii=False, indent=1)
+    write_json_atomic(rules_path, _cur, indent=1)
     return {"restored": key, "from": _stamp}
 
 

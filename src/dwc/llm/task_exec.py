@@ -30,6 +30,7 @@ import sys
 import time
 from typing import Any
 
+from dwc.foundation.atomic_io import write_text_atomic
 from dwc.foundation.paths import find_root
 from dwc.llm import budget as _budget
 from dwc.llm import exec_policy
@@ -635,8 +636,7 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
         content = str(args.get("content", ""))
-        with open(p, "w", encoding="utf-8") as fh:
-            fh.write(content)
+        write_text_atomic(p, content)
         # ★ R305-T2 · sec_review 接线（纯规则只告警不驳回：照写 ok=True，
         #   findings 进 obs 回喂 LLM；坏输入 [] 不拦）
         try:
@@ -1381,8 +1381,8 @@ def _ask_human(ask_word: str, cmd_joined: str, tid: str):
                     #   一次授权只放行一次等待中的操作, 下次 ask 重新问）
                     rest = [x for i, x in enumerate(lines)
                             if i != hit_idx and x.strip()]
-                    with open(ASK_ANSWERS, "w", encoding="utf-8") as fh:
-                        fh.write("".join(x + "\n" for x in rest))
+                    write_text_atomic(
+                        ASK_ANSWERS, "".join(x + "\n" for x in rest))
                     if approved:
                         return True
                     return "denied:%s" % ask_word
