@@ -1,0 +1,62 @@
+{
+  "frozen_at": "2026-10-25T10:23:13.473484+00:00",
+  "papers": {},
+  "repos": {
+    "ARSI": {
+      "url": "https://github.com/Lsinxcoy/ARSI",
+      "commit": "89ccfa8",
+      "local": null
+    },
+    "Prometheus-X": {
+      "url": "https://github.com/Lsinxcoy/Prometheus-X",
+      "commit": "fea69b8",
+      "local": null
+    },
+    "Prometheus-Y": {
+      "url": "https://github.com/Lsinxcoy/Prometheus-Y",
+      "commit": "bad1d96",
+      "local": null
+    },
+    "Prometheus-Z": {
+      "url": "https://github.com/Lsinxcoy/Prometheus-Z",
+      "commit": "0d9e7fd",
+      "local": null
+    },
+    "Prometheus-Omega": {
+      "url": "https://github.com/Lsinxcoy/Prometheus-Omega-Omega",
+      "commit": "c538b89",
+      "local": null
+    },
+    "Prometheus-Ultra": {
+      "url": "https://github.com/Lsinxcoy/Prometheus-Ultra",
+      "commit": "becc24c",
+      "local": null
+    },
+    "Prometheus-Nexus": {
+      "url": "https://github.com/Lsinxcoy/prometheus-nexus",
+      "commit": "b9cadc2",
+      "local": null
+    },
+    "Prometheus-v11": {
+      "url": "https://github.com/Lsinxcoy/prometheus-v11",
+      "commit": "4baa62a",
+      "local": null
+    },
+    "MSTAR": {
+      "url": "https://github.com/Lsinxcoy/MSTAR-Pro-V4.0-Clean",
+      "commit": "fe26375",
+      "local": null
+    }
+  },
+  "target": {
+    "path": "Z:\\DWC pure",
+    "exists": true,
+    "git": true,
+    "head": "b36639075759376464aef618a7b3655ff083a1a5",
+    "dirty": true,
+    "error": null,
+    "expected_commit": "b366390",
+    "commit_matches": false
+  },
+  "tests": []
+}

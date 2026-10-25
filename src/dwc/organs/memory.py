@@ -262,6 +262,22 @@ CREATE INDEX IF NOT EXISTS ix_node_chain   ON memory_node(chain_id);
 CREATE INDEX IF NOT EXISTS ix_node_kind    ON memory_node(kind);
 CREATE INDEX IF NOT EXISTS ix_sig_cluster  ON failure_sig(c, q, m);
 
+-- ★ M0 · 检索事件账（只记“谁被真正取回”，不是节点内容）
+--   ★ 一行 = 一次检索；zero-hit 也记（n_hits=0）⇒ 可算 zero-result。
+--   ★ selected_ids/scores 是 JSON 数组；不内联原始大对象。
+CREATE TABLE IF NOT EXISTS memory_retrieval (
+    retrieval_id TEXT PRIMARY KEY,
+    query        TEXT NOT NULL,
+    route        TEXT NOT NULL,
+    source       TEXT,
+    n_hits       INTEGER NOT NULL,
+    selected_ids TEXT NOT NULL DEFAULT '[]',
+    scores       TEXT NOT NULL DEFAULT '[]',
+    created_at   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_retrieval_route
+    ON memory_retrieval(route, created_at);
+
 -- ★★★ R审计-P2 · P1-5 · FTS5 全文索引（trigram 分词 — 中文子串友好）
 --   现场: recall 路1 是**全表 in 子串扫**（O(n×len)），209 条时无感，
 --   上千条后每步 term 都扫会拖垮。FTS5 是 SQLite 原生（零依赖）。
@@ -827,7 +843,112 @@ class MemoryKernel:
                 " last_access=? WHERE node_id=?", (time.time(), n.node_id))
             out.append(n.node_id)
         self._conn.commit()
+        # ★ M0: access 已在这里 +1；事件只记账，touch=False 防重复计数。
+        self.record_retrieval(scene, "recall_many", out,
+                              touch=False, source="recall_many")
         return [self.get(i) for i in out]
+
+    # ══════════════════════════════════════════════
+    # ★ M0 · 检索事件账（access/effect 之外的“取回事实”）
+    # ══════════════════════════════════════════════
+    def record_retrieval(self, query: str, route: str,
+                         node_ids: list[str],
+                         scores: list[float | None] | None = None,
+                         source: str = "", touch: bool = True) -> str:
+        """记录一次检索；`touch=True` 时同时增加 access_count。
+
+        ★ 为什么要有它:
+          `usage_stats()` 只能回答“有没有被用过”，不能回答“哪次检索、
+          哪条路由、命中多少、是否 zero-result”。M0 需要后者来证明
+          skill 召回真的发生，而不是靠 access 猜。
+
+        ★ 分工:
+          · `recall_many` 已自行 +1 ⇒ 用 `touch=False` 只记账；
+          · `memory_text` 只渲染、不更新 access ⇒ 用 `touch=True`。
+        ★ zero-hit 也写一行（n_hits=0）⇒ zero-result 可计算，不丢查询。
+        """
+        ids: list[str] = []
+        seen: set[str] = set()
+        for raw in node_ids or []:
+            nid = str(raw or "")
+            if nid and nid not in seen:
+                seen.add(nid)
+                ids.append(nid)
+        vals: list[float | None] = []
+        for raw in scores or []:
+            try:
+                vals.append(float(raw))
+            except (TypeError, ValueError):
+                vals.append(None)
+        if len(vals) < len(ids):
+            vals.extend([None] * (len(ids) - len(vals)))
+        vals = vals[:len(ids)]
+        now = time.time()
+        if touch:
+            for nid in ids:
+                self._conn.execute(
+                    "UPDATE memory_node SET access_count=access_count+1,"
+                    " last_access=? WHERE node_id=?", (now, nid))
+        rid = uuid.uuid4().hex
+        self._conn.execute(
+            "INSERT INTO memory_retrieval"
+            " (retrieval_id, query, route, source, n_hits,"
+            "  selected_ids, scores, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (rid, str(query or "")[:500], str(route or "unknown"),
+             str(source or ""), len(ids),
+             json.dumps(ids, ensure_ascii=False),
+             json.dumps(vals, ensure_ascii=False), now))
+        self._conn.commit()
+        return rid
+
+    def retrieval_stats(self, route: str | None = None) -> dict[str, Any]:
+        """检索质量的最小事实：次数、命中、zero-result、唯一节点。
+
+        ★ `hit_rate = n_with_hits / n_retrievals`；无检索时 `None`（不是 0）。
+        ★ 不计算 MRR/NDCG —— 那需要 labeled relevance；没有标签时返回 None，
+          由 M2 的 `test_memory_retrieval_quality.py` 另行扩展。
+        """
+        where, params = "", []
+        if route is not None:
+            where, params = " WHERE route=?", [str(route)]
+        rows = self._conn.execute(
+            "SELECT route, n_hits, selected_ids FROM memory_retrieval"
+            + where + " ORDER BY created_at", params).fetchall()
+        by_route: dict[str, dict[str, Any]] = {}
+        unique: set[str] = set()
+        n_selected = 0
+        n_bad = 0
+        for row in rows:
+            try:
+                ids = json.loads(row["selected_ids"] or "[]")
+                if not isinstance(ids, list):
+                    raise ValueError("selected_ids not list")
+            except (TypeError, ValueError):
+                ids = []
+                n_bad += 1
+            n_selected += len(ids)
+            unique.update(str(x) for x in ids if x)
+            r = str(row["route"] or "unknown")
+            slot = by_route.setdefault(r, {"n_retrievals": 0,
+                                           "n_with_hits": 0, "n_zero": 0})
+            slot["n_retrievals"] += 1
+            if int(row["n_hits"] or 0) > 0:
+                slot["n_with_hits"] += 1
+            else:
+                slot["n_zero"] += 1
+        n = len(rows)
+        n_with = sum(1 for row in rows if int(row["n_hits"] or 0) > 0)
+        return {
+            "n_retrievals": n,
+            "n_with_hits": n_with,
+            "n_zero": n - n_with,
+            "hit_rate": (n_with / n) if n else None,
+            "n_selected": n_selected,
+            "n_unique_nodes": len(unique),
+            "n_bad_rows": n_bad,
+            "by_route": by_route,
+        }
 
     def _all_nodes(self) -> list[MemoryNode]:
         """全部未归档节点。★ 检索的候选池（内部用）。"""

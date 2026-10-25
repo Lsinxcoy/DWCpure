@@ -148,7 +148,8 @@ def _bigrams(s: str):
 
 
 def memory_text(memory: Any, task: str = "", k: int = 5,
-                max_chars: int = 1800, min_cov: float = 0.45) -> str:
+                max_chars: int = 1800, min_cov: float = 0.45,
+                record: bool = True) -> str:
     """按**当前任务**取最相关的 k 条 skill 做法（不是全量倾倒）。
 
     ★ R457 · 旧实现把库里全部 SKILL 渲染进 prompt：实测 71 条 = 29,952 字符，
@@ -160,13 +161,30 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
       实测：同一任务原文 cov=1.000 / 无关任务 cov=0.081
       ⇒ 阈值 0.45 干净分开。命中不足 3 个信息 gram 一律不认。
       **没有相关做法就返回空** —— 不拿无关经验凑数。
+
+    ★ M0 · `record=True` 时把这次 skill 召回写入 `memory_retrieval`，
+      并给选中节点 access+1。没有命中也要记 zero-hit（不能只记成功）。
     """
+    def _record(ids: list[str], scores: list[float]) -> None:
+        if not record:
+            return
+        fn = getattr(memory, "record_retrieval", None)
+        if fn is None:
+            return
+        try:
+            fn(task, "skill_prompt", ids, scores,
+               source="memory_text", touch=True)
+        except Exception as exc:            # noqa: BLE001 — 测量坏不掀 prompt
+            import sys as _sys
+            _sys.stderr.write("memory_text 检索记账失败（跳过）: %s\n" % exc)
+
     if memory is None or not str(task or "").strip():
         return ""
     rows = memory._conn.execute(
-        "SELECT payload FROM memory_node WHERE kind='skill'"
+        "SELECT node_id, payload FROM memory_node WHERE kind='skill'"
         " AND archived_at IS NULL").fetchall()
     if not rows:
+        _record([], [])
         return ""
     skills = []
     for r in rows:
@@ -174,43 +192,52 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
             d = json.loads(r["payload"])
         except (ValueError, TypeError, KeyError, IndexError):
             continue
-        skills.append((d, _bigrams("%s %s" % (d.get("scene") or "",
-                                              d.get("method") or ""))))
+        skills.append((str(r["node_id"]), d,
+                       _bigrams("%s %s" % (d.get("scene") or "",
+                                           d.get("method") or ""))))
     if not skills:
+        _record([], [])
         return ""
     df = {}
-    for _d, b in skills:
+    for _nid, _d, b in skills:
         for g in b:
             df[g] = df.get(g, 0) + 1
     n = len(skills)
     tb = _bigrams(task)
     info = {g for g in tb if df.get(g, 0) <= max(2, 0.3 * n)}
     if len(info) < 3:
+        _record([], [])
         return ""
     scored = []
-    for d, b in skills:
+    for nid, d, b in skills:
         hit = info & b
         if len(hit) < 3:
             continue
         cov = len(hit) / float(len(info))
         if cov < min_cov:
             continue
-        scored.append((cov, len(hit), json.dumps(d, ensure_ascii=False)))
+        scored.append((nid, cov, len(hit), json.dumps(d, ensure_ascii=False)))
     if not scored:
+        _record([], [])
         return ""
-    scored.sort(key=lambda x: (-x[0], -x[1]))
+    scored.sort(key=lambda x: (-x[1], -x[2]))
     out, total, seen = [], 0, set()
-    for _cov, _nh, s in scored:
+    selected_ids: list[str] = []
+    selected_scores: list[float] = []
+    for nid, cov, _nh, s in scored:
         if s in seen:
             continue
         s = s[:400]
         if total + len(s) > max_chars:
             break
         out.append(s)
+        selected_ids.append(nid)
+        selected_scores.append(round(float(cov), 6))
         seen.add(s)
         total += len(s)
         if len(out) >= k:
             break
+    _record(selected_ids, selected_scores)
     return "\n".join(out)
 
 

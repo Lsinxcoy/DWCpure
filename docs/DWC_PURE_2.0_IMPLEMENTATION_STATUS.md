@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3214 passed, 2 skipped`（`pytest tests`） |
+| 全量测试 | `3225 passed, 2 skipped`（`pytest tests`） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账 |
@@ -42,6 +42,8 @@
 | 上游 R441 三段式工具预算 | active | `src/dwc/llm/budget.py`、`tests/test_r441_budget.py` |
 | 上游 R444 规则选档（只调预算） | active | `src/dwc/llm/profile.py`、`tests/test_r444_profile.py` |
 | 上游 R457/R458 skill 记忆与做法来源 | active | `src/dwc/organs/skill_writer.py`、`tests/test_r457_skill_recall.py`、`test_r458_method_memory.py` |
+| 记忆检索事件账（M0：access + retrieval + zero-hit） | active | `src/dwc/organs/memory.py`、`src/dwc/llm/executor.py`、`tests/test_memory_retrieval.py` |
+| skill 质量分类元数据（M1.1：procedural/factual/chat） | active-metadata | `src/dwc/organs/skill_writer.py`、`tests/test_skill_quality.py`；生产 8 条 = 7 factual + 1 chat + 0 procedural；尚未按 kind 过滤 |
 | 原子组件更新 `update()` 与跨进程锁 | active | `src/dwc/organs/evo_targets.py`、`tests/test_atomic_evo_targets.py` |
 
 ## 3. 已实现且有入口，但默认 shadow-only

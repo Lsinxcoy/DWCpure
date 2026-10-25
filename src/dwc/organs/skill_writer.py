@@ -41,6 +41,46 @@ _RECOVERY = "失效时按本轮失败签名重新诊断（evolver 通道），�
 #: 只收这类 fail_mode（成功路径）；失败类不进 SKILL
 _SUCCESS_PREFIX = "success_pattern"
 
+#: M1 · 过程技能的动作词/步骤词（规则可审计；不确定 ⇒ factual）
+_ACTION_WORDS = (
+    "先", "然后", "再", "接着", "步骤", "读取", "搜索", "定位", "修改",
+    "运行", "执行", "验证", "检查", "测试", "复现", "修复", "对比",
+    "read", "search", "locate", "edit", "patch", "run", "test", "verify",
+    "grep", "diff", "open", "write",
+)
+_FACTUAL_MARKERS = ("定义为", "等于", "公式", "答案是", "即", "结果为")
+
+
+def classify_skill_kind(scene: Any, method: Any) -> str:
+    """把 skill 分成 procedural / factual / chat。
+
+    ★ 为什么需要: 生产 7 条 skill 里 6 条是最终答案/事实，不是过程；
+      不分类就会把“阶乘=120”当可复用做法，污染 prompt。
+    ★ 保守规则: 不确定 ⇒ factual（宁可少认过程，不把答案冒充步骤）。
+    ★ 只做元数据；是否过滤由调用方/M1.3 决定，不在本函数删数据。
+    """
+    text = ("%s %s" % (_clip(scene, 400), _clip(method, 800))).strip().lower()
+    if not text:
+        return "factual"
+    # ★ 问答式 scene（“...吗/？”）通常是解释，不是过程；先判 chat。
+    if str(scene or "").strip().endswith(("吗", "？", "?")):
+        return "chat"
+    action_hits = sum(1 for w in _ACTION_WORDS if w in text)
+    step_hits = sum(1 for w in ("先", "然后", "再", "接着", "步骤")
+                    if w in text)
+    # ★ 先判 chat：带建议/我认为的长文即使含“先/再”，也是对话建议，
+    #   不是可执行过程；否则会被动作词误判成 procedural。
+    chat_hits = sum(1 for w in ("建议", "你可以", "我认为", "总结一下")
+                    if w in text)
+    if chat_hits >= 2:
+        return "chat"
+    if action_hits >= 2 or (step_hits >= 1 and action_hits >= 1):
+        return "procedural"
+    if any(w in text for w in _FACTUAL_MARKERS):
+        return "factual"
+    return "factual"
+
+
 
 def _clip(s: Any, n: int) -> str:
     return str(s or "").strip()[:n]
@@ -77,6 +117,7 @@ def lesson_to_payload(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         # 什么时候不适用：不属于这一类任务时
         "invalid_conditions": "任务不属于 %s 类，或该任务已有更新的成功做法" % fm,
         "recovery_strategies": _RECOVERY,
+        "skill_kind": classify_skill_kind(task, detail),
         "src_key": src_key(task, detail),
         "task_id": _clip(row.get("task_id"), 80),
         "quality": row.get("quality"),
@@ -191,6 +232,7 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
         "boundary": "term_pass:%s" % _clip(task, 80),
         "invalid_conditions": "任务不是「%s」时不适用" % scene[:60],
         "recovery_strategies": _RECOVERY,
+        "skill_kind": classify_skill_kind(scene, m),
         "src_key": src_key(scene, m),
         "task_id": _clip(task, 80),
         "m_source": _METHOD_SOURCE,
