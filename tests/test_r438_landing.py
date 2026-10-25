@@ -11,6 +11,7 @@
 3. `_land_adopted` 落地后必须有备份文件。
 4. `_rollback_key` 删单键 + 原子写 + 先备份，不碰别的键。
 """
+from types import SimpleNamespace
 import importlib.util
 import json
 import os
@@ -123,7 +124,7 @@ def test_max_land_caps_round(tmp_path, monkeypatch):
         lambda t, pa, code=None: {"success": True, "in_score": 1.0,
                                   "held_out": 1.0, "baseline_in": 0.5,
                                   "baseline_ho": 0.5, "mode": "code"},
-        True, rules_path=str(tmp_path / "rules.json"),
+        True, judge=SimpleNamespace(anchors={}), rules_path=str(tmp_path / "rules.json"),
         fn_of=lambda r: r[3], task_of=lambda r: "t",
         max_land=1, resume=False)
     assert len(ev.landed) == 1, "配额 1 却落了 %d 条" % len(ev.landed)

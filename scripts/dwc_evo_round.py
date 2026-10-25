@@ -289,6 +289,18 @@ def triage_report(rep):
                 "note": "triage 失败：%r" % (_te,)}
 
 
+def _forbidden_expected(judge):
+    """返回 benchmark expected_behavior 集合；judge=None ⇒ None（不可判定）。"""
+    if judge is None:
+        return None
+    out = set()
+    for _a in (getattr(judge, "anchors", None) or {}).values():
+        _eb = (_a or {}).get("expected_behavior")
+        if _eb:
+            out.add(_eb)
+    return out
+
+
 def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               backup_dir=None, fn_of=None, task_of=None, max_clusters=3,
               want_code_of=None, mech_log=None, trace_log=None,
@@ -296,7 +308,7 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
               max_attempts=3, priority_prefixes=None,
               task_filter=None, hint_mode="reuse", pool_n=None,
               reproducible_only=True, clusters=None, max_land=None,
-              lane_component="control_flow"):
+              lane_component="control_flow", judge=None):
     """★ 一轮收尾：聚簇→起草→试跑→（可选）落盘。返回可审计报告。
 
     ★ R295-Task3 · want_code_of(task)→bool（code_repair 写码真执行分流；
@@ -497,22 +509,25 @@ def run_round(db_path, evolver, mu, context, trial_fn, apply, rules_path,
                             learned_hint=_hint,
                             operator=_op,
                             **_kw_comp)
-                # ★ R342 · patch 层 dedup：patch 不得包含任何 benchmark 的
-                #   expected_behavior（防 test leakage，OpenRSI dedup 原则）。
-                try:
-                    _forbidden = set()
-                    for _a in (judge.anchors or {}).values():
-                        _eb = (_a or {}).get("expected_behavior")
-                        if _eb:
-                            _forbidden.add(_eb)
+                # ★ COR-02 · patch 层 dedup：patch 不得包含 benchmark 的
+                #   expected_behavior。judge 缺失 ⇒ 不可判定：只报告时标
+                #   unavailable；apply 时 fail-closed，绝不静默跳过。
+                _forbidden = _forbidden_expected(judge)
+                if _forbidden is None:
+                    item["dedup_status"] = "unavailable"
+                    if apply:
+                        item["reason"] = ("dedup_unavailable_fail_closed: "
+                                          "judge 未传入，无法检查 benchmark 泄漏")
+                        _fatal = True
+                        break
+                else:
+                    item["dedup_status"] = "checked"
                     if p is not None and any(_f in (p.patch or "")
                                             for _f in _forbidden):
                         item["reason"] = ("patch leaks benchmark expected_behavior "
                                           "(dedup reject)")
                         _fatal = True
                         break
-                except Exception:  # noqa: BLE001 — dedup 坏不断轮
-                    pass
             # ★ D4-② propose 段（簇→候选；候选≠有效，门＋试跑在后）。
             except Exception as exc:  # ★ cron 体质：单簇端点抖不许掀整轮（留痕继续）
                 item["reason"] = "起草抛错：%r" % (exc,)
@@ -1152,7 +1167,8 @@ def main() -> int:
                     clusters=_clusters,
                     want_code_of=lambda t: (
                         judge.anchors.get(t, {}) or {}).get(
-                        "category", "") == "code_repair")
+                        "category", "") == "code_repair",
+                    judge=judge)
     print(json.dumps(rep, ensure_ascii=False, indent=1)[:2000])
     # ★ B3 · 已落地的簇标记消费（未落地的下轮重试 —— 不静默丢弃）
     if _prop_path and _clusters and _ep is not None:

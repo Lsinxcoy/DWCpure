@@ -199,7 +199,8 @@ def main() -> int:
             "category", "") == "code_repair",
         # ★ R309-⑦ · epoch ledger（默认开；--no-resume 关）。
         ledger_path=os.path.join(prod, "var", "evo_round_ledger.jsonl"),
-        resume=not _a.no_resume)
+        resume=not _a.no_resume,
+        judge=judge)
     # ★★★ R437 · 行为车道落盘：这些失败不进 evolver（没有代码可修），
     #   但也**不许静默丢** —— 落队列，交给提示词/技能/工具反馈那条车道。
     try:

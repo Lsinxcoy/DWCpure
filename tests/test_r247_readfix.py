@@ -128,6 +128,27 @@ def test_dup_fusion_blowout():
         assert rep.get("answer"), "done 必须带答案（不许空答案冒充完成）"
 
 
+def test_dup_breaker_calls_revision(monkeypatch):
+    """★ COR-01: 复读熔断必须真的进入 _revision_retry（旧代码在 return 后）。"""
+    calls = {}
+
+    def _fake_retry(**kw):
+        calls["fail"] = kw.get("fail")
+        return {"task": "x", "task_id": "T_R247_RETRY", "status": "done",
+                "rounds": 1, "answer": "修订后答案", "artifacts": [],
+                "actions_log": []}
+
+    monkeypatch.setenv("DWC_LLM_NATIVE_TOOLS", "0")
+    monkeypatch.setattr(TE, "_revision_retry", _fake_retry)
+    steps = [{"analysis": "读", "op": "read", "path": "config/drift.yaml"}] * 8
+    rep = TE.execute_user_task("熔断测试", llm=_FakeLLM(steps),
+                               task_id="T_R247_RETRY", max_rounds=12,
+                               retry_on_fail=True)
+    assert calls.get("fail"), rep
+    assert rep["status"] == "done", rep
+    assert rep["answer"] == "修订后答案"
+
+
 def test_dup_blowout_never_finalizing_is_incomplete():
     """★★★ 强制 final 之后仍不提交 ⇒ 必须判 incomplete（不许假装完成）。"""
     class _NeverFinal:

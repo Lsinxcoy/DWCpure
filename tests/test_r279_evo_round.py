@@ -4,6 +4,7 @@
 ★ 隔离：sqlite 用 tmp 库；llm/trial 全 fake；禁碰生产。
 ★ 落盘默认关（--apply 才写，且先备份）。
 """
+from types import SimpleNamespace
 import io
 import json as _json
 import os
@@ -87,6 +88,35 @@ class TestMechAdvise:
 
 
 class TestRound:
+    def test_dedup_judge_blocks_expected_behavior(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        bad = dict(_GOOD)
+        bad["patch"] = "SECRET_BEHAVIOR"
+        mu = LLMMutator(llm=lambda p: _json.dumps(bad))
+        rep = EVO.run_round(
+            db, Evolver(), mu, context="",
+            trial_fn=lambda task, patch, code=None: True, apply=False,
+            judge=SimpleNamespace(anchors={
+                "code_fix_007": {"expected_behavior": "SECRET_BEHAVIOR"}}),
+            rules_path=str(tmp_path / "rules.json"),
+            fn_of=lambda r: "zzz_norule_fn",
+            task_of=lambda r: "zzz_norule_task")
+        assert "leaks benchmark" in rep["results"][0]["reason"]
+        assert rep["results"][0]["dedup_status"] == "checked"
+
+    def test_dedup_without_judge_fails_closed_on_apply(self, tmp_path):
+        db = _tmpdb(str(tmp_path / "p.sqlite"))
+        mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
+        rep = EVO.run_round(
+            db, Evolver(), mu, context="",
+            trial_fn=lambda task, patch, code=None: True, apply=True,
+            judge=None, rules_path=str(tmp_path / "rules.json"),
+            fn_of=lambda r: "zzz_norule_fn",
+            task_of=lambda r: "zzz_norule_task")
+        item = rep["results"][0]
+        assert item["dedup_status"] == "unavailable"
+        assert "fail_closed" in item["reason"]
+
     def test_draft_and_trial_pass(self, tmp_path):
         db = _tmpdb(str(tmp_path / "p.sqlite"))
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
@@ -108,7 +138,7 @@ class TestRound:
         rp = str(tmp_path / "rules.json")
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
         rep = EVO.run_round(db, Evolver(), mu, context="",
-                            trial_fn=lambda task, patch, code=None: True, apply=True,
+                            trial_fn=lambda task, patch, code=None: True, apply=True, judge=SimpleNamespace(anchors={}),
                             rules_path=rp,
                             backup_dir=str(tmp_path),
                             fn_of=lambda r: "zzz_norule_fn",
@@ -122,7 +152,7 @@ class TestRound:
         rp = str(tmp_path / "rules.json")
         mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
         rep = EVO.run_round(db, Evolver(), mu, context="",
-                            trial_fn=lambda task, patch, code=None: False, apply=True,
+                            trial_fn=lambda task, patch, code=None: False, apply=True, judge=SimpleNamespace(anchors={}),
                             rules_path=rp,
                             backup_dir=str(tmp_path),
                             fn_of=lambda r: "zzz_norule_fn",

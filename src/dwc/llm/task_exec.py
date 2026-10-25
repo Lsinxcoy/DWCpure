@@ -2344,7 +2344,8 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                                 "多轮未能给出有效动作，如实说明："
                                 "没有完成取证，给不出有依据的答案。")
                         return {"task": task, "task_id": sid,
-                                "status": "done", "rounds": rnd,
+                                "status": "incomplete",
+                                "why": "qa_no_evidence", "rounds": rnd,
                                 "answer": _ans,
                                 "artifacts": [], "actions_log": log}
                     # ★ R301-E · R5 短路（qa 下违禁动作不执行不修订——
@@ -2465,17 +2466,12 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                 _sess({"round": rnd, "phase": "refcheck", "ok": True,
                        "why": "qa 熔断诚实收敛"})
                 return {"task": task, "task_id": sid,
-                        "status": "done", "rounds": rnd,
+                        "status": "incomplete", "why": "qa_no_evidence",
+                        "rounds": rnd,
                         "answer": ("经多轮取证仍未能定位确切依据，"
                                    "如实说明：已查阅 %s，未找到直接答案。"
                                    % "、".join(_tgt)),
                         "artifacts": [], "actions_log": log}
-            return {"task": task, "task_id": sid, "status": "incomplete",
-                    "rounds": rnd,
-                    "why": ("复读熔断: 连续 3 轮同动作同结果（%s / %s…）"
-                            " — 换 offset/路径/参数或直接 final"
-                            % (op, _tgt_sig[:60])),
-                    "actions_log": log}
             _fail = {"status": "incomplete", "why": "复读熔断",
                      "actions_log": log}
             if retry_on_fail and _depth == 0:
@@ -2483,6 +2479,12 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                                       sid=sid, progress=progress)
                 if _r2 is not None:
                     return _r2
+            return {"task": task, "task_id": sid, "status": "incomplete",
+                    "rounds": rnd,
+                    "why": ("复读熔断: 连续 3 轮同动作同结果（%s / %s…）"
+                            " — 换 offset/路径/参数或直接 final"
+                            % (op, _tgt_sig[:60])),
+                    "actions_log": log}
         # ★ R221 · 会话 compaction（滑动窗口+摘要 — 头部 agent 的上下文
         #   管理最小形态）: 窗口=最近 2 轮原文; 更早轮压成前情摘要注入 ——
         #   旧形态只带"上一步", 第 3 轮起 LLM 已忘了第 1 轮干了什么（长任务

@@ -10,6 +10,8 @@
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import io
 import json as _json
 import os
@@ -98,7 +100,7 @@ def test_round_scores_dict_trial_into_adopt(tmp_path):
         db, Evolver(), mu, context="",
         trial_fn=lambda task, patch, code=None: {"success": True, "in_score": 1.0,
                                       "baseline_in": 0.5},
-        apply=True, rules_path=str(tmp_path / "rules.json"),
+        apply=True, judge=SimpleNamespace(anchors={}), rules_path=str(tmp_path / "rules.json"),
         backup_dir=str(tmp_path),
         fn_of=lambda r: "zzz_norule_fn", task_of=lambda r: "zzz_norule_task")
     item = rep["results"][0]
@@ -114,7 +116,7 @@ def test_bool_trial_no_longer_lands_not_evaluated(tmp_path):
     rp = str(tmp_path / "rules.json")
     mu = LLMMutator(llm=lambda p: _json.dumps(_GOOD))
     rep = EVO.run_round(db, Evolver(), mu, context="",
-                        trial_fn=lambda task, patch, code=None: True, apply=True,
+                        trial_fn=lambda task, patch, code=None: True, apply=True, judge=SimpleNamespace(anchors={}),
                         rules_path=rp, backup_dir=str(tmp_path),
                         fn_of=lambda r: "zzz_norule_fn",
                         task_of=lambda r: "zzz_norule_task")

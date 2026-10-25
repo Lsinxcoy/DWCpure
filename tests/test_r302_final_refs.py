@@ -205,7 +205,8 @@ def test_qa_noop_honest_converge(xroot):
     import dwc.llm.task_exec as _T2
     print("DBG_MOD:", id(T), id(_T2), id(T._do_action), T.ROOT)
     print("DBG_WHY:", r.get("status"), r.get("rounds"), str(r.get("why"))[:140])
-    assert r["status"] == "done", r
+    assert r["status"] == "incomplete", r
+    assert r["why"] == "qa_no_evidence", r
     assert "如实说明" in r["answer"] or "未找到" in r["answer"], r["answer"]
 
 
@@ -282,7 +283,8 @@ def test_revise_qa_produces_read(xroot):
                             task_id="T_R302Q", retry_on_fail=False,
                             max_rounds=6)
     assert "只能是 read" in seen.get("rev_prompt", ""), seen
-    assert r["status"] == "done", r
+    assert r["status"] == "incomplete", r
+    assert r["why"] == "qa_no_evidence", r
 
 
 def test_r4_blank3_converge(xroot):
@@ -300,5 +302,6 @@ def test_r4_blank3_converge(xroot):
     r = T.execute_user_task("这事依据是啥", llm=_LLM(),
                             task_id="T_R302K", retry_on_fail=False,
                             max_rounds=8)
-    assert r["status"] == "done" and r["rounds"] <= 4, (r,)
+    assert r["status"] == "incomplete" and r["rounds"] <= 4, (r,)
+    assert r["why"] == "qa_no_evidence", r
     assert "如实说明" in r["answer"], r["answer"]

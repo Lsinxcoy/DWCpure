@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import os
 import sys
 
@@ -137,7 +139,7 @@ def test_round_passes_held_out_to_accept(tmp_path):
             trial_fn=lambda task, patch, code=None: {"success": True, "in_score": 1.0,
                                           "baseline_in": 0.5, "held_out": 0.6,
                                           "baseline_ho": 0.5},
-            apply=True, rules_path=str(tmp_path / "rules.json"),
+            apply=True, judge=SimpleNamespace(anchors={}), rules_path=str(tmp_path / "rules.json"),
             backup_dir=str(tmp_path),
             fn_of=lambda r: "zzz_norule_fn",
             task_of=lambda r: "zzz_norule_task")
@@ -178,7 +180,7 @@ def test_bool_trial_no_longer_lands_legacy(tmp_path):
         {"component": "prompt", "dimension": "D7", "target_layer": "assets",
          "target": "average", "m": "x", "patch": "p", "rationale": "r"}))
     rep = EVO.run_round(db, Evolver(), mu, context="",
-                        trial_fn=lambda task, patch, code=None: True, apply=True,
+                        trial_fn=lambda task, patch, code=None: True, apply=True, judge=SimpleNamespace(anchors={}),
                         rules_path=str(tmp_path / "rules.json"),
                         backup_dir=str(tmp_path),
                         fn_of=lambda r: "zzz_norule_fn",
