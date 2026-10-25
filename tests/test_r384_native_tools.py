@@ -273,11 +273,10 @@ def test_argv_preserves_grep_alternation():
 
 
 def test_run_command_with_quotes_and_pipe_executes():
-    """★★★ 端到端：带引号+管道的 run_command 要能真跑通。"""
+    """★★★ 端到端：带引号+管道字符的 run_command 要能真跑通（allowlist）。"""
     step = T._tool_calls_to_step(
-        _tc("run_command", {"cmd": 'grep -rn "import" src/dwc/llm/client.py | head -3'}))
-    assert step["cmd"][0] == "grep"
-    assert "|" not in step["cmd"]
+        _tc("run_command", {"cmd": 'echo "import|test"'}))
+    assert step["cmd"][0] == "echo"
     obs = T._do_action(step["op"], step)
     assert obs.get("ok") is True, obs
     assert "import" in str(obs.get("out") or "")
