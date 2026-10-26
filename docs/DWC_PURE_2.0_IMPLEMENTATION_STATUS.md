@@ -10,7 +10,7 @@
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费）；`ee754aa` 流式总 deadline |
-| 生产部署 | `~/.dwc` 本地提交 `048835e`（代码对应 release `4f5decf`）；agent `--llm` 常驻 pid `1300812`，RPC 8802；生产全量 `3365 passed / 9 skipped`，gate 8/8 |
+| 生产部署 | `~/.dwc` 本地提交 `e3999be`（代码对应 release `aef81e5`）；agent `--llm` 常驻 pid `1300648`，RPC 8802；生产全量 `3365 passed / 9 skipped`，gate 8/8 |
 | 工作分支 | `divine-wisdom-core-pure` |
 | 原仓库 | `upstream/master` 保持只读，不推送 |
 
