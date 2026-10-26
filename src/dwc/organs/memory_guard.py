@@ -70,6 +70,75 @@ class MemoryQuarantineError(MemoryError):
                          % (self.reason, self.quarantine_id))
 
 
+# ── H7 · 写入脱敏（不依赖 LLM；只处理高置信模式） ──
+_REDACT_PATTERNS = (
+    ("private_key", re.compile(
+        r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+        r".*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----",
+        re.DOTALL)),
+    ("api_key", re.compile(
+        r"\b(?:sk-[A-Za-z0-9_-]{16,}|sk-ant-[A-Za-z0-9_-]{16,}"
+        r"|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
+        r"|AKIA[0-9A-Z]{16})\b")),
+    ("bearer", re.compile(
+        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")),
+    ("password", re.compile(
+        r"(?i)\b(password|passwd|pwd)[\"']?\s*[:=]\s*[\"']?([^\s\"',}]{6,})")),
+    ("connection", re.compile(
+        r"(?i)\b(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?)"
+        r"://[^:\s/@]+:[^@\s]+@")),
+)
+
+
+def redact(text: Any) -> tuple[str, list[str]]:
+    """返回 `(脱敏文本, 命中类型)`；不调用 LLM，不写日志原文。"""
+    s = str(text or "")
+    hits: list[str] = []
+    for name, pat in _REDACT_PATTERNS:
+        if not pat.search(s):
+            continue
+        if name == "password":
+            s = pat.sub(lambda m: "%s=[REDACTED:password]" % m.group(1), s)
+        elif name == "connection":
+            s = pat.sub("[REDACTED:connection]://", s)
+        elif name == "bearer":
+            s = pat.sub("Bearer [REDACTED:bearer]", s)
+        else:
+            s = pat.sub("[REDACTED:%s]" % name, s)
+        hits.append(name)
+    return s, hits
+
+
+def redact_obj(value: Any) -> tuple[Any, list[str]]:
+    """递归脱敏 dict/list/str；返回新对象与命中类型（去重保序）。"""
+    hits: list[str] = []
+
+    def _walk(v: Any) -> Any:
+        if isinstance(v, str):
+            out, h = redact(v)
+            for x in h:
+                if x not in hits:
+                    hits.append(x)
+            return out
+        if isinstance(v, dict):
+            out = {}
+            for k, x in v.items():
+                if re.fullmatch(r"(?i)(password|passwd|pwd|api_key|apikey|"
+                                r"secret|access_token|refresh_token|"
+                                r"authorization)", str(k)) and isinstance(x, str):
+                    out[k] = "[REDACTED:password]"
+                    if "password" not in hits:
+                        hits.append("password")
+                else:
+                    out[k] = _walk(x)
+            return out
+        if isinstance(v, (list, tuple)):
+            return [_walk(x) for x in v]
+        return v
+
+    return _walk(value), hits
+
+
 def _repetitive(text: str) -> bool:
     """明显的重复填充/刷屏；短文本不判，避免误杀正常代码。"""
     if len(text) < 200:

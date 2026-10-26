@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3337 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect） |
+| 全量测试 | `3363 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费）；`ee754aa` 流式总 deadline |
@@ -43,8 +43,13 @@
 | 上游 R444 规则选档（只调预算） | active | `src/dwc/llm/profile.py`、`tests/test_r444_profile.py` |
 | 上游 R457/R458 skill 记忆与做法来源 | active | `src/dwc/organs/skill_writer.py`、`tests/test_r457_skill_recall.py`、`test_r458_method_memory.py` |
 | 记忆检索事件账（M0：access + retrieval + zero-hit） | active | `src/dwc/organs/memory.py`、`src/dwc/llm/executor.py`、`tests/test_memory_retrieval.py` |
-| skill 质量分类元数据（M1.1：procedural/factual/chat） | active-metadata | `src/dwc/organs/skill_writer.py`、`tests/test_skill_quality.py`；生产 8 条 = 7 factual + 1 chat + 0 procedural；尚未按 kind 过滤 |
+| skill 质量分类元数据（M1.1：procedural/factual/chat） | active | `src/dwc/organs/skill_writer.py`、`tests/test_skill_quality.py`；生产 12 条 = 4 factual + 8 未标 + 0 显式 procedural；`memory_text` 已按 kind 过滤 |
 | 过程技能字段（M1.2：steps/tools/verification/evidence_ref） | active-api | `src/dwc/organs/skill_writer.py`、`tests/test_skill_procedure.py`；尚未接生产判分器 |
+| 记忆数据契约（H1/H3/H4：derived_kind/observed_at/valid_from/valid_to/source_ids/proof_count/supersedes） | active | `src/dwc/organs/memory.py`、`tests/test_memory_contract_v2.py`；旧库加法式迁移 |
+| factual → REFERENCE（H2） | active | `src/dwc/organs/skill_writer.py:migrate_factual`、`tests/test_skill_migration.py`；`dwc memory migrate-factual --apply` |
+| knowledge page 投影（H6） | active | `src/dwc/organs/knowledge_page.py`、`tests/test_knowledge_page.py`；`dwc knowledge build/check/search`，不进每轮 prompt |
+| 离线 consolidation（H5） | active-api | `src/dwc/organs/consolidate.py`、`tests/test_memory_consolidate.py`；默认 dry-run，保留原节点 |
+| 写入脱敏（H7） | active | `src/dwc/organs/memory_guard.py:redact_obj`、`tests/test_memory_redaction.py`；全通道生效 |
 | 任务轨迹落盘（M1.4：actions_log → refs/hash） | active | `src/dwc/llm/task_trajectory.py`、`src/dwc/llm/task_exec.py`、`tests/test_task_trajectory.py` |
 | 记忆写入门（M1.6：通道信任 + 注入/控制字符/重复/超长 → quarantine） | active | `src/dwc/organs/memory_guard.py`、`src/dwc/organs/memory.py`、`tests/test_memory_guard.py`；旧 `remember()` 不传通道时零变化 |
 | skill 过滤（M1.3：factual/chat 不进 prompt） | active | `src/dwc/llm/executor.py`、`tests/test_skill_filter.py`；legacy 无 kind 现场分类 |

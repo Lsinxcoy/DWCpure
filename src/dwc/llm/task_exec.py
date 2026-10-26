@@ -562,6 +562,34 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
                 "content": text[:8000]
                            + ("\n…(截断 — 正文 %d 字符)" % len(text)
                               if len(text) > 8000 else "")}
+    if op == "knowledge_search":
+        # ★ H6 · 拉取式知识页：agent 主动查，不每轮 push
+        q = str(args.get("query", "")).strip()
+        if not q:
+            return {"ok": False, "error": "knowledge_search 需要 query"}
+        try:
+            from dwc.agent_rpc import DB
+            from dwc.organs.memory import MemoryKernel
+            from dwc.organs import knowledge_page as _KP
+            _m = MemoryKernel(DB)
+            try:
+                rep = _KP.search(_m, q)
+            finally:
+                _m.close()
+        except Exception as exc:            # noqa: BLE001 — 检索失败如实报
+            return {"ok": False, "error": "knowledge_search 失败: %s: %s"
+                    % (type(exc).__name__, exc)}
+        results = rep.get("results") or []
+        if not results:
+            return {"ok": True, "query": q, "n": 0,
+                    "content": "(无匹配知识页 — 可继续用 read/search_code 查源码)"}
+        lines = []
+        for i, r in enumerate(results, 1):
+            lines.append("%d. %s (%s)\n   %s" % (
+                i, r.get("title"), r.get("page_id"), r.get("snippet", "")))
+        return {"ok": True, "query": q, "n": len(results),
+                "content": "\n".join(lines)
+                           + "\n\n(需要完整内容时用 read 打开对应页面路径)"}
     if op == "read":
         p = _guard_path(str(args.get("path", "")), write=False)
         if os.path.splitext(p)[1].lower() in (".png", ".jpg", ".jpeg",
@@ -939,6 +967,13 @@ TASK_TOOLS = [
                                       "path": {"type": "string"}},
                        "required": ["pattern"]}}},
     {"type": "function", "function": {
+        "name": "knowledge_search",
+        "description": "检索已沉淀的项目知识页（事实/过程/失败模式），"
+                       "返回页面标题、摘要和来源。适合先查“这个项目怎么做 X”。",
+        "parameters": {"type": "object",
+                       "properties": {"query": {"type": "string"}},
+                       "required": ["query"]}}},
+    {"type": "function", "function": {
         "name": "find_files",
         "description": "按文件名通配符查找文件（如 *.py / README*），返回路径列表",
         "parameters": {"type": "object",
@@ -975,6 +1010,7 @@ _TOOL_TO_OP = {
     "run_command": ("run", {"cmd": "cmd"}),
     "list_dir": ("run", {}),          # 转成 ls 命令
     "search_code": ("run", {}),       # 转成 grep 命令
+    "knowledge_search": ("knowledge_search", {"query": "query"}),
     "find_files": ("run", {}),        # 转成 Python find（避开 Windows find.exe）
     "final_answer": ("final", {"answer": "answer"}),
 }

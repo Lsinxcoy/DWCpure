@@ -68,6 +68,7 @@ class Zone(str, Enum):
     ARCHIVE = "archive"
     INERT = "inert"
     SELF = "self"               # ★ M2.2 身份/长期规则（受保护，不参与淘汰）
+    REFERENCE = "reference"     # ★ H1 · 只读事实/参考（不进 evolver、不参与淘汰）
 
 
 class Tube(str, Enum):
@@ -102,6 +103,7 @@ class MemoryKind(str, Enum):
     STANDING_RULE = "standing_rule"   # ★ M2.2 长期规则 → SELF
     PREFERENCE = "preference"         # ★ M2.3 用户偏好 → EXPERIENCE
     BELIEF = "belief"                 # ★ M2.3 可修订信念 → EXPERIENCE
+    REFERENCE = "reference"           # ★ H1 · 客观事实/参考资料 → REFERENCE
 
 
 #: ★ 各类记忆的归属区（MEMORY_SYSTEM §四 的表）★
@@ -115,7 +117,26 @@ KIND_TO_ZONE = {
     MemoryKind.STANDING_RULE: Zone.SELF,
     MemoryKind.PREFERENCE: Zone.EXPERIENCE,
     MemoryKind.BELIEF: Zone.EXPERIENCE,
+    MemoryKind.REFERENCE: Zone.REFERENCE,
 }
+
+#: ★ H1/H2 · 数据契约的派生类型（与 kind 正交；kind 是语义，derived_kind 是消费者契约）
+KIND_TO_DERIVED = {
+    MemoryKind.TRACE: "raw",
+    MemoryKind.WORKING_STATE: "raw",
+    MemoryKind.FAILURE_SIGNATURE: "pattern",
+    MemoryKind.SKILL: "procedure",
+    MemoryKind.PROPOSAL: "observation",
+    MemoryKind.IDENTITY: "rule",
+    MemoryKind.STANDING_RULE: "rule",
+    MemoryKind.PREFERENCE: "observation",
+    MemoryKind.BELIEF: "observation",
+    MemoryKind.REFERENCE: "fact",
+}
+
+#: derived_kind 白名单（写入时校验；不让模型自由发挥）
+DERIVED_KINDS = frozenset(
+    ("raw", "fact", "procedure", "observation", "pattern", "rule"))
 
 #: ★ 归入 EXPERIENCE 的门槛（D6）—— 缺这些就不许进 EXPERIENCE
 EXPERIENCE_REQUIREMENTS = {
@@ -262,8 +283,20 @@ CREATE TABLE IF NOT EXISTS memory_node (
     archived_at  REAL,
     -- ★ R审计-P2 · P2-7 · learn 管回写的"巩固权重"
     --   ★ 不是自评分: 由 learn() 从实测 access/effect 推出（D7 同源）
-    importance   REAL NOT NULL DEFAULT 0.5
+    importance   REAL NOT NULL DEFAULT 0.5,
+    -- ★ H1/H3/H4 · 数据契约（旧行由迁移回填；新行写入时校验）
+    derived_kind TEXT NOT NULL DEFAULT 'raw',
+    observed_at  REAL,
+    valid_from   REAL,
+    valid_to     REAL,
+    source_ids   TEXT NOT NULL DEFAULT '[]',
+    proof_count  INTEGER NOT NULL DEFAULT 1,
+    source_commit TEXT,
+    supersedes   TEXT NOT NULL DEFAULT '[]',
+    status       TEXT NOT NULL DEFAULT 'active'
 );
+
+-- ★ H1 的索引在 __init__ 补列之后创建（老库先 ALTER 再建索引）
 
 -- ★★★ 2026-10-05 schema 更正（测试抓到的设计缺陷）:
 --   初版是 PRIMARY KEY (c,q,m) ⇒ 同三元组的第二条记忆把第一条**覆盖**。
@@ -388,6 +421,16 @@ class MemoryNode:
     #: ★ R审计-P2 · P2-7 · learn 管回写的巩固权重（0.5=未学）
     #:   ★ 不是自评分 — 由 learn() 从实测 access/effect 推出
     importance: float = 0.5
+    #: ★ H1/H3/H4 · 数据契约（旧行由迁移回填；新行写入时校验）
+    derived_kind: str = "raw"
+    observed_at: float | None = None
+    valid_from: float | None = None
+    valid_to: float | None = None
+    source_ids: tuple[str, ...] = ()
+    proof_count: int = 1
+    source_commit: str | None = None
+    supersedes: tuple[str, ...] = ()
+    status: str = "active"
 
     # ── D7 · 价值只能由实测推出 ──
     def used(self) -> bool:
@@ -413,6 +456,15 @@ class MemoryNode:
             "payload": self.payload, "chain_id": self.chain_id,
             "access_count": self.access_count,
             "effect_count": self.effect_count,
+            "derived_kind": self.derived_kind,
+            "observed_at": self.observed_at,
+            "valid_from": self.valid_from,
+            "valid_to": self.valid_to,
+            "source_ids": list(self.source_ids),
+            "proof_count": self.proof_count,
+            "source_commit": self.source_commit,
+            "supersedes": list(self.supersedes),
+            "status": self.status,
             "used": self.used(), "proven_value": self.proven_value(),
         }
 
@@ -429,6 +481,33 @@ def _serialized(method):
         with self._lock:
             return method(self, *args, **kwargs)
     return _wrap
+
+
+def _as_ids(value: Any) -> list[str]:
+    """把 str / list / tuple 归一成去重保序的 ID 列表。"""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raw = [value]
+    elif isinstance(value, (list, tuple, set)):
+        raw = list(value)
+    else:
+        raw = [value]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        s = str(item or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class MemoryKernel:
@@ -451,6 +530,35 @@ class MemoryKernel:
             self._conn.execute(
                 "ALTER TABLE memory_node ADD COLUMN importance REAL"
                 " NOT NULL DEFAULT 0.5")
+        # ★ H1/H3/H4 · 加法式迁移：旧库只补列，不改旧行语义
+        _h_cols = (
+            ("derived_kind", "TEXT NOT NULL DEFAULT 'raw'"),
+            ("observed_at", "REAL"),
+            ("valid_from", "REAL"),
+            ("valid_to", "REAL"),
+            ("source_ids", "TEXT NOT NULL DEFAULT '[]'"),
+            ("proof_count", "INTEGER NOT NULL DEFAULT 1"),
+            ("source_commit", "TEXT"),
+            ("supersedes", "TEXT NOT NULL DEFAULT '[]'"),
+            ("status", "TEXT NOT NULL DEFAULT 'active'"),
+        )
+        for _name, _decl in _h_cols:
+            if _name not in _cols:
+                self._conn.execute(
+                    "ALTER TABLE memory_node ADD COLUMN %s %s"
+                    % (_name, _decl))
+        # ★ 补列之后才能建索引（老库 SCHEMA 不会自动加列）
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS ix_node_valid"
+            " ON memory_node(valid_from, valid_to)")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS ix_node_derived"
+            " ON memory_node(derived_kind)")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS ix_node_status"
+            " ON memory_node(status)")
+        # ★ 回填 derived_kind 放到 FTS 迁移之后（共用 user_version；
+        #   先让旧库完成 FTS rebuild，再升到 2，避免跳过 rebuild）
         # ★ R审计-P2 · P1-5 · FTS5 external-content 索引补齐:
         #   已有行（老库）不会自动进 FTS ⇒ 启动时 rebuild 一次（幂等）。
         #   ★ 209 条 <10ms；万级库首次会慢一次，之后靠 trigger 增量同步。
@@ -467,6 +575,21 @@ class MemoryKernel:
             import sys as _sys
             _sys.stderr.write("memory_fts rebuild 失败（检索将退化）: %s\n"
                               % exc)
+        # ★ H1 · 回填 derived_kind（在 FTS rebuild 之后，共用 user_version）
+        try:
+            _ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
+            if int(_ver or 0) < 2:
+                _map = {k.value: v for k, v in KIND_TO_DERIVED.items()}
+                for _kind, _derived in _map.items():
+                    self._conn.execute(
+                        "UPDATE memory_node SET derived_kind=?"
+                        " WHERE kind=? AND (derived_kind IS NULL"
+                        " OR derived_kind='' OR derived_kind='raw')",
+                        (_derived, _kind))
+                self._conn.execute("PRAGMA user_version=2")
+        except sqlite3.OperationalError as exc:
+            import sys as _sys
+            _sys.stderr.write("memory derived_kind 回填失败: %s\n" % exc)
         self._conn.commit()
         self._retrieved: list[str] = []   # ★ R258 检索留痕（修订候选集）
 
@@ -481,7 +604,18 @@ class MemoryKernel:
     def remember(self, kind: MemoryKind, payload: dict[str, Any],
                  chain_id: str | None = None,
                  node_id: str | None = None,
-                 source_channel: str | None = None) -> str:
+                 source_channel: str | None = None,
+                 *,
+                 derived_kind: str | None = None,
+                 observed_at: float | None = None,
+                 valid_from: float | None = None,
+                 valid_to: float | None = None,
+                 source_ids: Any = None,
+                 proof_count: int | None = None,
+                 source_commit: str | None = None,
+                 supersedes: Any = None,
+                 status: str | None = None,
+                 dedupe: bool = True) -> str:
         """写入一条记忆（remember / learn / evolve 共用）。
 
         ★★ D6 强制: 若 kind 属 EXPERIENCE 类，payload 必须含
@@ -495,6 +629,65 @@ class MemoryKernel:
         if kind not in KIND_TO_ZONE:
             raise MemoryError("未知记忆种类: %r" % kind)
         zone = KIND_TO_ZONE[kind]
+        payload = dict(payload or {})
+        _now = time.time()
+
+        # ★ H7 · 全通道脱敏：在 SELF/写门/落库之前处理，避免密钥进 payload。
+        #   失败 ⇒ fail-closed（宁可拒写，不把原文落库）。
+        try:
+            from dwc.organs.memory_guard import redact_obj
+            payload, _redactions = redact_obj(payload)
+            if _redactions:
+                payload["_redactions"] = _redactions
+        except Exception as exc:            # noqa: BLE001
+            raise MemoryError("记忆脱敏失败（拒绝落库）: %r" % (exc,))
+
+        # ★ H1/H3/H4 · 数据契约归一（旧调用不传 ⇒ 由 kind 推导，行为不变）
+        _derived = str(derived_kind or payload.get("derived_kind")
+                       or KIND_TO_DERIVED.get(kind, "raw"))
+        if _derived not in DERIVED_KINDS:
+            raise MemoryError("未知 derived_kind: %r" % _derived)
+        _observed = _as_float(observed_at)
+        if _observed is None:
+            _observed = _as_float(payload.get("observed_at")) or _now
+        _valid_from = _as_float(valid_from)
+        if _valid_from is None:
+            _valid_from = _as_float(payload.get("valid_from")) or _observed
+        _valid_to = _as_float(valid_to)
+        if _valid_to is None:
+            _valid_to = _as_float(payload.get("valid_to"))
+        if _valid_to is not None and _valid_to < _valid_from:
+            raise MemoryError("valid_to 早于 valid_from: %r < %r"
+                              % (_valid_to, _valid_from))
+        _source_ids = _as_ids(source_ids)
+        if not _source_ids:
+            _source_ids = _as_ids(payload.get("source_ids"))
+        if not _source_ids and payload.get("evidence_ref"):
+            _source_ids = _as_ids(payload.get("evidence_ref"))
+        _proof = int(proof_count if proof_count is not None
+                     else (payload.get("proof_count") or 0))
+        if _source_ids:
+            _proof = len(_source_ids)
+        _proof = max(1, _proof)
+        _supersedes = _as_ids(supersedes)
+        if not _supersedes:
+            _supersedes = _as_ids(payload.get("supersedes"))
+        _status = str(status or payload.get("_memory_status")
+                      or "active").strip() or "active"
+        if _status not in ("active", "candidate", "superseded", "invalid"):
+            raise MemoryError("未知 memory status: %r" % _status)
+        if node_id and str(node_id) in _source_ids:
+            raise MemoryError("source_ids 不得引用自身: %s" % node_id)
+
+        # ★ REFERENCE 是事实层：必须有 claim + 证据；没有就不写（fail-closed）
+        if kind is MemoryKind.REFERENCE:
+            _claim = str(payload.get("claim") or payload.get("text")
+                         or payload.get("fact") or "").strip()
+            if not _claim:
+                raise MemoryError("REFERENCE 缺少 claim/text")
+            if not _source_ids:
+                raise MemoryError("REFERENCE 缺少 source_ids（事实必须有证据）")
+            payload["claim"] = _claim
 
         # ★ M2.2 · SELF 保护区：只允许用户/系统/维护者显式写入；工具输出拒绝
         if zone is Zone.SELF:
@@ -528,7 +721,7 @@ class MemoryKernel:
         # ★ R104 · 近重复合并（PAHF 第三步; 仅**文档性经验**=SKILL）:
         #   FAILURE_SIGNATURE 是事件流（同签名重复=真实独立失败, 聚簇要 N 条）——
         #   合并它会破坏聚簇（test_signature_clustering 抓到的误伤）; TRACE 不参与。
-        if kind is MemoryKind.SKILL:
+        if kind is MemoryKind.SKILL and dedupe:
             dup = self._near_duplicate(kind, payload)
             if dup is not None:
                 return dup              # 去重: 返回现节点（调用方 str 语义不变）
@@ -536,15 +729,22 @@ class MemoryKernel:
         # ★ 明确不记的四类（§四）—— 由调用方保证，本层不猜
         nid = node_id or uuid.uuid4().hex
         tube = Tube.REMEMBER if kind in (MemoryKind.TRACE,
-                                        MemoryKind.WORKING_STATE) else (
+                                        MemoryKind.WORKING_STATE,
+                                        MemoryKind.REFERENCE) else (
             Tube.REFLECT if kind is MemoryKind.FAILURE_SIGNATURE else (
                 Tube.LEARN if kind is MemoryKind.SKILL else Tube.EVOLVE))
         self._conn.execute(
             "INSERT INTO memory_node"
-            " (node_id, zone, kind, tube, payload, chain_id, created_at)"
-            " VALUES (?,?,?,?,?,?,?)",
+            " (node_id, zone, kind, tube, payload, chain_id, created_at,"
+            "  derived_kind, observed_at, valid_from, valid_to, source_ids,"
+            "  proof_count, source_commit, supersedes, status)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (nid, zone.value, kind.value, tube.value,
-             json.dumps(payload, ensure_ascii=False), chain_id, time.time()))
+             json.dumps(payload, ensure_ascii=False), chain_id, _now,
+             _derived, _observed, _valid_from, _valid_to,
+             json.dumps(_source_ids, ensure_ascii=False), _proof,
+             source_commit or payload.get("source_commit"),
+             json.dumps(_supersedes, ensure_ascii=False), _status))
         if kind is MemoryKind.FAILURE_SIGNATURE:
             self._conn.execute(
                 "INSERT OR REPLACE INTO failure_sig (c,q,m,node_id)"
@@ -562,6 +762,12 @@ class MemoryKernel:
         if row is None:
             raise MemoryError("记忆不存在: %s" % node_id)
         d = dict(row)
+        def _jlist(key: str) -> tuple[str, ...]:
+            try:
+                raw = json.loads(d.get(key) or "[]")
+                return tuple(str(x) for x in raw if str(x or "").strip())
+            except (TypeError, ValueError):
+                return ()
         return MemoryNode(
             node_id=d["node_id"], zone=Zone(d["zone"]),
             kind=MemoryKind(d["kind"]), tube=Tube(d["tube"]),
@@ -569,7 +775,16 @@ class MemoryKernel:
             created_at=d["created_at"], last_access=d["last_access"],
             access_count=d["access_count"],
             effect_count=d["effect_count"], archived_at=d["archived_at"],
-            importance=float(d.get("importance") or 0.5))
+            importance=float(d.get("importance") or 0.5),
+            derived_kind=str(d.get("derived_kind") or "raw"),
+            observed_at=d.get("observed_at"),
+            valid_from=d.get("valid_from"),
+            valid_to=d.get("valid_to"),
+            source_ids=_jlist("source_ids"),
+            proof_count=int(d.get("proof_count") or 1),
+            source_commit=d.get("source_commit"),
+            supersedes=_jlist("supersedes"),
+            status=str(d.get("status") or "active"))
 
     def recall(self, node_id: str) -> MemoryNode:
         """召回一条记忆（Tube.RECALL）。★ 这次召回本身**就是 D7 的证据**。
@@ -620,6 +835,95 @@ class MemoryKernel:
         return self.get(node_id)
 
     # ══════════════════════════════════════════════
+    # ★ H3 · 失效/替代（只写时间与指针，不删除旧节点）
+    # ══════════════════════════════════════════════
+    @_serialized
+    def supersede(self, old_id: str, new_id: str,
+                  at: float | None = None) -> dict[str, Any]:
+        """让 new_id 替代 old_id：旧节点写 valid_to/status，新节点记 supersedes。
+
+        ★ 不删除、不改旧 payload；历史查询仍可读旧节点。
+        ★ SELF 不允许被替代（身份/长期规则只能显式修订）。
+        """
+        old = self.get(old_id)
+        new = self.get(new_id)
+        if old_id == new_id:
+            raise MemoryError("supersede 不能替代自身: %s" % old_id)
+        if old.zone is Zone.SELF:
+            raise MemoryError("SELF 不允许被 supersede: %s" % old_id)
+        when = time.time() if at is None else float(at)
+        self._conn.execute(
+            "UPDATE memory_node SET valid_to=?, status='superseded'"
+            " WHERE node_id=?", (when, old_id))
+        _sup = list(new.supersedes)
+        if old_id not in _sup:
+            _sup.append(old_id)
+        self._conn.execute(
+            "UPDATE memory_node SET supersedes=? WHERE node_id=?",
+            (json.dumps(_sup, ensure_ascii=False), new_id))
+        self._conn.commit()
+        return {"old_id": old_id, "new_id": new_id, "valid_to": when,
+                "supersedes": _sup}
+
+    def memory_stats(self) -> dict[str, Any]:
+        """只读数据契约统计（P0）：派生类型/状态/有效性/证据覆盖/技能分类。"""
+        rows = self._conn.execute(
+            "SELECT node_id, zone, kind, payload, derived_kind, status,"
+            " valid_from, valid_to, proof_count, source_ids"
+            " FROM memory_node WHERE archived_at IS NULL").fetchall()
+        now = time.time()
+        by_derived: dict[str, int] = {}
+        by_status: dict[str, int] = {}
+        by_kind: dict[str, int] = {}
+        by_kind_active: dict[str, int] = {}
+        skill_kind: dict[str, int] = {}
+        proof_dist: dict[str, int] = {}
+        n_valid = n_stale = n_missing_evidence = 0
+        for r in rows:
+            d = str(r["derived_kind"] or "raw")
+            by_derived[d] = by_derived.get(d, 0) + 1
+            s = str(r["status"] or "active")
+            by_status[s] = by_status.get(s, 0) + 1
+            k = str(r["kind"] or "")
+            by_kind[k] = by_kind.get(k, 0) + 1
+            if s == "active":
+                by_kind_active[k] = by_kind_active.get(k, 0) + 1
+            if k == "skill" and s == "active":
+                try:
+                    p = json.loads(r["payload"] or "{}")
+                except (TypeError, ValueError):
+                    p = {}
+                sk = str(p.get("skill_kind") or "<unclassified>")
+                skill_kind[sk] = skill_kind.get(sk, 0) + 1
+            pc = int(r["proof_count"] or 1)
+            proof_dist[str(pc)] = proof_dist.get(str(pc), 0) + 1
+            vt = r["valid_to"]
+            if (vt is not None and float(vt) <= now) or s in (
+                    "superseded", "invalid"):
+                n_stale += 1
+            else:
+                n_valid += 1
+            try:
+                ids = json.loads(r["source_ids"] or "[]")
+            except (TypeError, ValueError):
+                ids = []
+            if d not in ("raw", "rule") and not ids:
+                n_missing_evidence += 1
+        return {
+            "n_nodes": len(rows),
+            "by_derived_kind": by_derived,
+            "by_status": by_status,
+            "by_kind": by_kind,
+            "by_kind_active": by_kind_active,
+            "skill_kind": skill_kind,
+            "proof_count": proof_dist,
+            "n_valid": n_valid,
+            "n_stale": n_stale,
+            "n_missing_evidence": n_missing_evidence,
+            "n_reference": by_kind.get("reference", 0),
+        }
+
+    # ══════════════════════════════════════════════
     # 检索（索引消费点）
     # ══════════════════════════════════════════════
     def by_signature(self, c: str, q: str, m: str) -> list[str]:
@@ -659,8 +963,8 @@ class MemoryKernel:
         rows = self._conn.execute(
             "SELECT node_id, kind, zone, access_count, effect_count"
             " FROM memory_node WHERE archived_at IS NULL"
-            " AND zone != ? ORDER BY created_at",
-            (Zone.SELF.value,)).fetchall()
+            " AND zone NOT IN (?, ?) ORDER BY created_at",
+            (Zone.SELF.value, Zone.REFERENCE.value)).fetchall()
         out = []
         for r in rows:
             rare = False
@@ -693,8 +997,11 @@ class MemoryKernel:
     # Tube.RECALL · 取回（四路融合 + RRF + 重力排序）
     # ══════════════════════════════════════════════
     def recall_search(self, scene: str, terms: list[str] | None = None,
-                      k: int = 5) -> list[MemoryNode]:
+                      k: int = 5, as_of: float | None = None) -> list[MemoryNode]:
         """★ 按**场景词**检索，返回节点（未记 access）。
+
+        ★ H3 · `as_of` 默认当前时刻：只返回 valid_from <= now < valid_to
+          的节点；历史查询可显式传时间。失效节点保留在库，不删除。
 
         ★★★ R22 这个方法是为了解一个实测出来的死结:
           dream 要求"至少一条被 used()"，而 used() 要 access_count>0，
@@ -716,8 +1023,9 @@ class MemoryKernel:
           免得各路量纲不可比（这正是母巢「多路融合」的做法）
         """
         terms = [t for t in (terms or []) if t]
+        _asof = time.time() if as_of is None else float(as_of)
         pool: dict[str, MemoryNode] = {}
-        for n in self._all_nodes():
+        for n in self._all_nodes(as_of=_asof):
             pool[n.node_id] = n
 
         # ── 路1 · 场景词（FTS5 trigram 全文 — 替代全表子串扫）──
@@ -823,6 +1131,10 @@ class MemoryKernel:
                         import sys as _sys
                         _sys.stderr.write("扩展词 FTS 失败 %r: %s\n"
                                           % (_w, exc))
+
+        # ★ H3 · 路1 的 FTS/LIKE 可能命中已失效节点（它们仍在库里）
+        #   ⇒ 进入融合前按有效池过滤；失效节点保留可查，但不参与当前召回。
+        route1 = [nid for nid in route1 if nid in pool]
 
         # ── 路2 · 同机制/同因果角色的失败签名 ──
         route2 = [n.node_id for n in pool.values()
@@ -931,14 +1243,14 @@ class MemoryKernel:
         return [(nid, smap[nid]) for nid in picked]
 
     def recall_many(self, scene: str, terms: list[str] | None = None,
-                   k: int = 5) -> list[MemoryNode]:
+                   k: int = 5, as_of: float | None = None) -> list[MemoryNode]:
         """★ 检索**并**记 access（Tube.RECALL 的完整语义）。
 
         ★★★ 判据 D7/MEMORY_SYSTEM §2.2②: 「取回后 access_count 必须 +1」
           ★★ recall_search **不记** access（它是纯查询，可被反复调用做检索实验）；
             recall_many 才记 —— 两者分开是为了让"检索"可被审阅而不污染证据。
         """
-        hits = self.recall_search(scene, terms, k)
+        hits = self.recall_search(scene, terms, k, as_of=as_of)
         out = []
         for n in hits:
             self._conn.execute(
@@ -1209,12 +1521,24 @@ class MemoryKernel:
         return self.neighbors(node_id, relation=relation,
                               depth=max_depth, limit=200)
 
-    def _all_nodes(self) -> list[MemoryNode]:
-        """全部未归档节点。★ 检索的候选池（内部用）。"""
+    def _all_nodes(self, as_of: float | None = None) -> list[MemoryNode]:
+        """全部未归档且**在 as_of 时刻有效**的节点。★ 检索候选池。"""
         rows = self._conn.execute(
             "SELECT node_id FROM memory_node WHERE archived_at IS NULL"
         ).fetchall()
-        return [self.get(r["node_id"]) for r in rows]
+        out = []
+        at = time.time() if as_of is None else float(as_of)
+        for r in rows:
+            n = self.get(r["node_id"])
+            if n.status == "invalid":
+                continue
+            vf = n.valid_from if n.valid_from is not None else n.created_at
+            if vf is not None and float(vf) > at:
+                continue
+            if n.valid_to is not None and float(n.valid_to) <= at:
+                continue
+            out.append(n)
+        return out
 
     def _near_duplicate(self, kind: MemoryKind,
                         payload: dict[str, Any]) -> str | None:

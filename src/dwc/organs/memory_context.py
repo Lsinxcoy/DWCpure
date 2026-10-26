@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from dwc.organs.memory import MemoryKind, Zone
@@ -74,8 +75,10 @@ def assemble(memory: Any, task: str, budget_tokens: int = 800, *,
             try:
                 _rows = memory._conn.execute(
                     "SELECT node_id FROM memory_node"
-                    " WHERE kind=? AND archived_at IS NULL",
-                    (_kind.value,)).fetchall()
+                    " WHERE kind=? AND archived_at IS NULL"
+                    " AND status='active'"
+                    " AND (valid_to IS NULL OR valid_to > ?)",
+                    (_kind.value, time.time())).fetchall()
                 for _r in _rows:
                     if not add(memory.get(str(_r["node_id"]))):
                         break

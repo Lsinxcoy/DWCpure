@@ -57,11 +57,14 @@ def test_promote_writes_and_is_idempotent(tmp_path):
     assert r1["n_written"] == 2, r1
     assert r1["n_skip"] == 1, r1
     assert r1["n_seen"] == r1["n_written"] + r1["n_dup"] + r1["n_skip"]
-    assert SW.skill_count(mem) == 2
+    # ★ H2 · 一条 procedural 写 SKILL；一条 factual 写 REFERENCE
+    assert SW.skill_count(mem) == 1
+    assert SW.reference_count(mem) == 1
 
     r2 = SW.promote_pending(mem, path=str(p))
     assert r2["n_written"] == 0 and r2["n_dup"] == 2, r2
-    assert SW.skill_count(mem) == 2, "重复跑不许增长"
+    assert SW.skill_count(mem) == 1, "重复跑不许增长"
+    assert SW.reference_count(mem) == 1, "重复跑不许增长"
 
 
 def test_promoted_skill_is_readable_by_memory_text(tmp_path):

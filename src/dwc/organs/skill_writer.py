@@ -31,6 +31,7 @@ import hashlib
 import io
 import json
 import os
+import time
 from typing import Any, Dict, Iterable, Optional, Set
 
 from dwc.organs.memory import MemoryKind
@@ -153,6 +154,8 @@ def lesson_to_payload(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     合格条件（全部满足才写）：
       · fail_mode 以 `success_pattern` 开头
       · task 与 detail 都非空
+    ★ H1 · 返回的 payload 带 derived_kind/source_ids/proof_count/observed_at；
+      factual 由 `lesson_to_reference()` 分流，不再写成 SKILL。
     """
     if not isinstance(row, dict):
         return None
@@ -165,6 +168,12 @@ def lesson_to_payload(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     #   task="任务X" detail="假答案" 这种行）—— 不做成"经验"。
     if len(task) < 4 or len(detail) < 12:
         return None
+    _at = row.get("at")
+    try:
+        _observed = float(_at) if _at is not None else None
+    except (TypeError, ValueError):
+        _observed = None
+    _src = _clip(row.get("task_id"), 80)
     return {
         "scene": task,
         "method": detail,
@@ -173,19 +182,60 @@ def lesson_to_payload(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "invalid_conditions": "任务不属于 %s 类，或该任务已有更新的成功做法" % fm,
         "recovery_strategies": _RECOVERY,
         "skill_kind": classify_skill_kind(task, detail),
+        "derived_kind": "procedure",
+        "source_ids": (["task:%s" % _src] if _src else []),
+        "proof_count": 1,
+        "observed_at": _observed,
         "src_key": src_key(task, detail),
-        "task_id": _clip(row.get("task_id"), 80),
+        "task_id": _src,
+        "quality": row.get("quality"),
+        "at": row.get("at"),
+    }
+
+
+def lesson_to_reference(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """把 factual/chat lesson 变成 REFERENCE payload（事实层，不进 skill prompt）。"""
+    if not isinstance(row, dict):
+        return None
+    fm = _clip(row.get("fail_mode"), 120)
+    if not fm.startswith(_SUCCESS_PREFIX):
+        return None
+    task = _clip(row.get("task"), 400)
+    detail = _clip(row.get("detail"), 800)
+    if len(task) < 4 or len(detail) < 12:
+        return None
+    _src = _clip(row.get("task_id"), 80)
+    _at = row.get("at")
+    try:
+        _observed = float(_at) if _at is not None else None
+    except (TypeError, ValueError):
+        _observed = None
+    _kind = classify_skill_kind(task, detail)
+    # ★ chat 是对话性建议，不是持久事实；不写 REFERENCE（避免污染知识页）
+    if _kind == "chat":
+        return None
+    return {
+        "claim": detail,
+        "topic": task,
+        "skill_kind": _kind,
+        "derived_kind": "fact",
+        "source_ids": (["task:%s" % _src] if _src else ["lesson:%s" % src_key(task, detail)]),
+        "proof_count": 1,
+        "observed_at": _observed,
+        "src_key": src_key(task, detail),
+        "task_id": _src,
         "quality": row.get("quality"),
         "at": row.get("at"),
     }
 
 
 def existing_keys(memory: Any) -> Set[str]:
-    """库里已有做法的 src_key 集合（一次查询，供批量去重）。"""
+    """库里已有做法的 src_key 集合（SKILL + REFERENCE，一次查询）。"""
     keys: Set[str] = set()
     try:
         rows = memory._conn.execute(
-            "SELECT payload FROM memory_node WHERE kind='skill'").fetchall()
+            "SELECT payload FROM memory_node"
+            " WHERE kind IN ('skill','reference')").fetchall()
     except Exception:                     # noqa: BLE001 — 库不可读 ⇒ 空集
         return keys
     for r in rows:
@@ -201,7 +251,10 @@ def existing_keys(memory: Any) -> Set[str]:
 
 def promote_lesson(memory: Any, row: Dict[str, Any],
                    seen: Optional[Set[str]] = None) -> Optional[str]:
-    """写一条；重复或不合格返回 None。"""
+    """写一条；重复或不合格返回 None。
+
+    ★ H2 · factual/chat 走 REFERENCE（事实层），procedural 才走 SKILL。
+    """
     p = lesson_to_payload(row)
     if p is None:
         return None
@@ -211,7 +264,15 @@ def promote_lesson(memory: Any, row: Dict[str, Any],
     else:
         if p["src_key"] in existing_keys(memory):
             return None
-    nid = memory.remember(MemoryKind.SKILL, p, source_channel="lesson_ledger")
+    if p.get("skill_kind") == "procedural":
+        nid = memory.remember(MemoryKind.SKILL, p,
+                              source_channel="lesson_ledger")
+    else:
+        rp = lesson_to_reference(row)
+        if rp is None:
+            return None
+        nid = memory.remember(MemoryKind.REFERENCE, rp,
+                              source_channel="lesson_ledger")
     if seen is not None:
         seen.add(p["src_key"])
     return nid
@@ -255,8 +316,16 @@ def promote_pending(memory: Any, path: Optional[str] = None,
                 out["n_dup"] += 1
                 continue
             try:
-                memory.remember(MemoryKind.SKILL, p,
-                                source_channel="lesson_ledger")
+                if p.get("skill_kind") == "procedural":
+                    memory.remember(MemoryKind.SKILL, p,
+                                    source_channel="lesson_ledger")
+                else:
+                    rp = lesson_to_reference(row)
+                    if rp is None:
+                        out["n_skip"] += 1
+                        continue
+                    memory.remember(MemoryKind.REFERENCE, rp,
+                                    source_channel="lesson_ledger")
             except MemoryQuarantineError:
                 # 被写入门拒绝：已进 memory_quarantine；计 skip 子类，不静默
                 out["n_quarantined"] += 1
@@ -300,6 +369,8 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
     proc = procedure if isinstance(procedure, dict) else {}
     steps = proc.get("steps") if isinstance(proc.get("steps"), list) else []
     kind = "procedural" if steps else classify_skill_kind(scene, m)
+    _src = evidence_ref or proc.get("evidence_ref") or ("task:%s" % _clip(task, 80))
+    _observed = time.time()
     payload = {
         "scene": scene,
         "method": m,
@@ -307,6 +378,10 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
         "invalid_conditions": "任务不是「%s」时不适用" % scene[:60],
         "recovery_strategies": _RECOVERY,
         "skill_kind": kind,
+        "derived_kind": "procedure" if kind == "procedural" else "fact",
+        "source_ids": ([_src] if _src else []),
+        "proof_count": 1,
+        "observed_at": _observed,
         "preconditions": proc.get("preconditions") or [],
         "steps": steps,
         "tools": proc.get("tools") or [],
@@ -319,7 +394,27 @@ def from_term(memory: Any, task: str, prompt: str, method: str,
         "m_source": _METHOD_SOURCE,
         "quality": quality,
     }
-    return memory.remember(MemoryKind.SKILL, payload,
+    if kind == "procedural":
+        return memory.remember(MemoryKind.SKILL, payload,
+                               source_channel=source_channel)
+    # ★ H2 · chat 是对话性建议，不是持久事实；不写 REFERENCE
+    if kind == "chat":
+        return None
+    # ★ H2 · factual 不写 SKILL；进 REFERENCE 事实层，由 knowledge page 消费
+    ref = {
+        "claim": m,
+        "topic": scene,
+        "skill_kind": kind,
+        "derived_kind": "fact",
+        "source_ids": payload["source_ids"],
+        "proof_count": 1,
+        "observed_at": _observed,
+        "src_key": payload["src_key"],
+        "task_id": payload["task_id"],
+        "m_source": _METHOD_SOURCE,
+        "quality": quality,
+    }
+    return memory.remember(MemoryKind.REFERENCE, ref,
                            source_channel=source_channel)
 
 
@@ -377,3 +472,140 @@ def skill_count(memory: Any) -> int:
             "SELECT COUNT(*) FROM memory_node WHERE kind='skill'").fetchone()[0])
     except Exception:                     # noqa: BLE001
         return -1
+
+
+def reference_count(memory: Any) -> int:
+    """生产核对用：库里 reference（事实层）节点数。"""
+    try:
+        return int(memory._conn.execute(
+            "SELECT COUNT(*) FROM memory_node"
+            " WHERE kind='reference'").fetchone()[0])
+    except Exception:                     # noqa: BLE001
+        return -1
+
+
+def plan_factual_migration(memory: Any) -> dict[str, Any]:
+    """P0/P1 数据迁移计划：把 factual/chat SKILL 迁到 REFERENCE。
+
+    ★ 只出计划，不改库。procedural 保持 SKILL；未标 kind 的现场分类。
+    """
+    rows = memory._conn.execute(
+        "SELECT node_id, payload FROM memory_node"
+        " WHERE kind='skill' AND archived_at IS NULL"
+        " AND status='active'").fetchall()
+    actions = []
+    for r in rows:
+        try:
+            p = json.loads(r["payload"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        kind = str(p.get("skill_kind") or classify_skill_kind(
+            p.get("scene") or "", p.get("method") or ""))
+        if kind == "chat":
+            actions.append({
+                "node_id": r["node_id"],
+                "kind": kind,
+                "claim": _clip(p.get("method") or p.get("claim") or "", 800),
+                "topic": _clip(p.get("scene") or p.get("topic") or "", 400),
+                "source_ids": _as_source_ids(p) or [r["node_id"]],
+                "action": "skip",
+                "why": "chat_not_durable",
+            })
+            continue
+        if kind != "factual":
+            continue
+        src = _as_source_ids(p)
+        actions.append({
+            "node_id": r["node_id"],
+            "kind": kind,
+            "claim": _clip(p.get("method") or p.get("claim") or "", 800),
+            "topic": _clip(p.get("scene") or p.get("topic") or "", 400),
+            "source_ids": src or [r["node_id"]],
+            "action": "migrate" if (p.get("method") or p.get("claim")) else "skip",
+        })
+    return {"n_skills": len(rows), "n_actions": len(actions),
+            "actions": actions}
+
+
+def backfill_skill_kind(memory: Any, apply: bool = False) -> dict[str, Any]:
+    """P0 · 给未标 skill_kind 的 active SKILL 回填分类（只改 payload）。"""
+    rows = memory._conn.execute(
+        "SELECT node_id, payload FROM memory_node"
+        " WHERE kind='skill' AND archived_at IS NULL"
+        " AND status='active'").fetchall()
+    actions = []
+    for r in rows:
+        try:
+            p = json.loads(r["payload"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if p.get("skill_kind"):
+            continue
+        kind = classify_skill_kind(p.get("scene") or "",
+                                   p.get("method") or "")
+        actions.append({"node_id": r["node_id"], "skill_kind": kind})
+        if apply:
+            p["skill_kind"] = kind
+            memory._conn.execute(
+                "UPDATE memory_node SET payload=? WHERE node_id=?",
+                (json.dumps(p, ensure_ascii=False), r["node_id"]))
+    if apply and actions:
+        memory._conn.commit()
+    return {"n_skills": len(rows), "n_unclassified": len(actions),
+            "applied": bool(apply), "actions": actions}
+
+
+def _as_source_ids(payload: Dict[str, Any]) -> list[str]:
+    raw = payload.get("source_ids")
+    if isinstance(raw, str):
+        raw = [raw]
+    out = []
+    for x in (raw or []):
+        s = str(x or "").strip()
+        if s and s not in out:
+            out.append(s)
+    if not out and payload.get("evidence_ref"):
+        out = [str(payload["evidence_ref"])]
+    if not out and payload.get("task_id"):
+        out = ["task:%s" % payload["task_id"]]
+    return out
+
+
+def migrate_factual(memory: Any, apply: bool = False) -> dict[str, Any]:
+    """把 factual/chat SKILL 迁到 REFERENCE；旧 SKILL 保留并 supersede。"""
+    if apply:
+        backfill_skill_kind(memory, apply=True)
+    rep = plan_factual_migration(memory)
+    written = []
+    skipped = []
+    if not apply:
+        return {**rep, "applied": False, "written": [], "skipped": []}
+    for a in rep["actions"]:
+        if a["action"] != "migrate":
+            skipped.append(a)
+            continue
+        old = memory.get(a["node_id"])
+        ref = {
+            "claim": a["claim"],
+            "topic": a["topic"],
+            "skill_kind": a["kind"],
+            "derived_kind": "fact",
+            "source_ids": a["source_ids"],
+            "proof_count": len(a["source_ids"]),
+            "observed_at": old.observed_at or old.created_at,
+            "src_key": old.payload.get("src_key"),
+            "task_id": old.payload.get("task_id"),
+            "m_source": old.payload.get("m_source"),
+            "migrated_from": a["node_id"],
+        }
+        new_id = memory.remember(MemoryKind.REFERENCE, ref,
+                                 source_ids=a["source_ids"],
+                                 supersedes=[a["node_id"]], dedupe=False)
+        try:
+            memory.supersede(a["node_id"], new_id)
+        except Exception as exc:          # noqa: BLE001
+            import sys as _sys
+            _sys.stderr.write("migrate_factual supersede 失败 %s: %r\n"
+                              % (a["node_id"], exc))
+        written.append({"old_id": a["node_id"], "new_id": new_id})
+    return {**rep, "applied": True, "written": written, "skipped": skipped}

@@ -10,6 +10,9 @@
 dwc status|doctor|...     # agent_rpc 九指令（与 HTTP RPC / CLI 同一实现）
   dwc start [--llm] / stop  # 常驻 agent 生命周期
   dwc setup / bench         # 配置向导 / 任务基准
+  dwc memory-stats          # 记忆契约/检索统计（只读）
+  dwc knowledge build       # 记忆 → var/knowledge/*.md（可重建）
+  dwc memory consolidate    # 近重复合并（默认 dry-run）
 """
 from __future__ import annotations
 
@@ -115,10 +118,72 @@ def main(argv=None) -> int:
                 "quality": m.retrieval_quality(None),
                 "bench": bench(m, {}),
                 "policy": memory_policy.status(),
+                "contract": m.memory_stats(),
             }
         finally:
             m.close()
         print(json.dumps(out, ensure_ascii=False, indent=1))
+        return 0
+    if cmd == "knowledge":
+        # ★ H6 · 只读投影：build/check/list/search；不改 skill prompt
+        from dwc.agent_rpc import DB
+        from dwc.organs.memory import MemoryKernel
+        from dwc.organs import knowledge_page as KP
+        sub = rest[0] if rest else "list"
+        args = rest[1:]
+        out_dir = None
+        scope = None
+        for i, a in enumerate(args):
+            if a == "--out" and i + 1 < len(args):
+                out_dir = args[i + 1]
+            if a == "--scope" and i + 1 < len(args):
+                scope = args[i + 1]
+        m = MemoryKernel(DB)
+        try:
+            if sub == "build":
+                rep = KP.build(m, out_dir=out_dir, scope=scope)
+            elif sub == "check":
+                rep = KP.check(m, out_dir=out_dir)
+            elif sub == "search":
+                q = " ".join(a for a in args if not a.startswith("--"))
+                rep = KP.search(m, q, out_dir=out_dir)
+            else:
+                rep = {"pages": KP.list_pages(out_dir=out_dir)}
+        finally:
+            m.close()
+        print(json.dumps(rep, ensure_ascii=False, indent=1))
+        return 0
+    if cmd == "memory":
+        # ★ H5 · 离线 consolidation：默认 dry-run；--apply 才写
+        from dwc.agent_rpc import DB
+        from dwc.organs.memory import MemoryKernel
+        from dwc.organs import consolidate as C
+        sub = rest[0] if rest else "consolidate"
+        args = rest[1:]
+        apply_flag = "--apply" in args
+        scope = None
+        for i, a in enumerate(args):
+            if a == "--scope" and i + 1 < len(args):
+                scope = args[i + 1]
+        if sub == "migrate-factual":
+            from dwc.organs import skill_writer as SW
+            m = MemoryKernel(DB)
+            try:
+                rep = SW.migrate_factual(m, apply=apply_flag)
+            finally:
+                m.close()
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0
+        if sub != "consolidate":
+            print("未知 memory 子命令 %r（当前: consolidate, migrate-factual）" % sub)
+            return 1
+        m = MemoryKernel(DB)
+        try:
+            rep = C.apply(m, scope=scope) if apply_flag else C.plan(
+                m, scope=scope)
+        finally:
+            m.close()
+        print(json.dumps(rep, ensure_ascii=False, indent=1))
         return 0
     if cmd in ("status", "doctor", "submit", "query", "list", "cancel",
                "freeze", "unfreeze", "history"):

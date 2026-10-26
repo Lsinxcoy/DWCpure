@@ -102,7 +102,8 @@ def test_from_term_writes_only_on_pass(tmp_path):
 
 def test_term_skill_payload_is_d6_complete(tmp_path):
     mem = MemoryKernel(db_path=str(tmp_path / "m.db"))
-    SW.from_term(mem, "t1", "实现 f：输入 x 返回 x+1", "直接加一", passed=True)
+    SW.from_term(mem, "t1", "实现 f：输入 x 返回 x+1",
+                 "先读取文件，再运行测试验证", passed=True)
     row = mem._conn.execute(
         "SELECT payload FROM memory_node WHERE kind='skill'").fetchone()
     d = json.loads(row[0])

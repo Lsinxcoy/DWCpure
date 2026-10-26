@@ -30,6 +30,7 @@ import ast
 import json
 import os
 import re
+import time
 from typing import Any
 
 from dwc.organs.actor import Receipt
@@ -198,17 +199,23 @@ def memory_text(memory: Any, task: str = "", k: int = 5,
         import sys as _sys
         _sys.stderr.write("memory_text self context 失败（跳过）: %s\n" % exc)
     rows = memory._conn.execute(
-        "SELECT node_id, payload FROM memory_node WHERE kind='skill'"
-        " AND archived_at IS NULL").fetchall()
+        "SELECT node_id, payload, status, valid_to FROM memory_node"
+        " WHERE kind='skill' AND archived_at IS NULL").fetchall()
     if not rows:
         _record([], [])
         return _self_ctx
     skills = []
     from dwc.organs.skill_writer import classify_skill_kind as _classify
+    _now = time.time()
     for r in rows:
         try:
             d = json.loads(r["payload"])
         except (ValueError, TypeError, KeyError, IndexError):
+            continue
+        # ★ H3 · 失效/候选技能不进 prompt；旧行 status 默认 active
+        if str(r["status"] or "active") != "active":
+            continue
+        if r["valid_to"] is not None and float(r["valid_to"]) <= _now:
             continue
         kind = d.get("skill_kind") or _classify(
             d.get("scene") or "", d.get("method") or "")
