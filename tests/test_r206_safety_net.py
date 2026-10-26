@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -116,6 +118,8 @@ def test_cron_copies_in_sync():
     def md5(p):
         return hashlib.md5(open(p, "rb").read()).hexdigest()
     dst = os.path.expandvars(r"%LOCALAPPDATA%\hermes\scripts")
+    if not os.path.isdir(dst):
+        pytest.skip("本机未安装 hermes cron 副本（CI 正常）")
     for f in ("dwc_prod_run.py", "dwc_prod_health.py", "dwc_backup.py"):
         a = os.path.join(ROOT, "scripts", f)
         b = os.path.join(dst, f)

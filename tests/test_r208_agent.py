@@ -158,6 +158,8 @@ def test_cron_copy_paths_point_to_repo():
     VAR/ROOT 必须指**仓库**路径 — 按 __file__ 定位会找错 var（drift watch
     同款坑, R208 现场抓过）。"""
     dst = os.path.expandvars(r"%LOCALAPPDATA%\hermes\scripts")
+    if not os.path.isdir(dst):
+        pytest.skip("本机未安装 hermes cron 副本（CI 正常）")
     r = subprocess.run(
         [PY, "-c",
          "import sys; sys.path.insert(0, r'%s'); import dwc_agent_watch as W;"

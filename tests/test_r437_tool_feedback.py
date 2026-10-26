@@ -50,14 +50,27 @@ def test_find_skip_keeps_var_and_archive():
 
 def test_find_files_locates_var_file():
     """★★★ 实测：心跳文件必须能被 find_files 找到（修复前 TOTAL 0）。"""
-    step = TE._tool_calls_to_step([{
-        "function": {"name": "find_files",
-                     "arguments": json.dumps({"pattern": "dwc_agent_heartbeat.json",
-                                              "path": "."})}}])
-    rc, out = _run(step)
-    assert rc == 0
-    assert "TOTAL 0" not in out, "仍然找不到 var/ 下的文件：%s" % out[:200]
-    assert "dwc_agent_heartbeat.json" in out
+    hb = os.path.join(ROOT, "var", "dwc_agent_heartbeat.json")
+    created = not os.path.exists(hb)
+    if created:
+        os.makedirs(os.path.dirname(hb), exist_ok=True)
+        with open(hb, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+    try:
+        step = TE._tool_calls_to_step([{
+            "function": {"name": "find_files",
+                         "arguments": json.dumps({"pattern": "dwc_agent_heartbeat.json",
+                                                  "path": "."})}}])
+        rc, out = _run(step)
+        assert rc == 0
+        assert "TOTAL 0" not in out, "仍然找不到 var/ 下的文件：%s" % out[:200]
+        assert "dwc_agent_heartbeat.json" in out
+    finally:
+        if created:
+            try:
+                os.remove(hb)
+            except OSError:
+                pass
 
 
 def test_search_zero_hit_gives_direction():

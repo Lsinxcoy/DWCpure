@@ -2,29 +2,45 @@ name: ci
 
 on:
   push:
-    branches: [divine-wisdom-core-pure]
+    branches: [main, divine-wisdom-core-pure]
   pull_request:
-    branches: [divine-wisdom-core-pure]
+    branches: [main, divine-wisdom-core-pure]
+  workflow_dispatch:
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-      - name: Install
+
+      - name: Create venv and install
         run: |
-          python -m pip install -U pip
-          python -m pip install -e ".[dev]"
+          python -m venv .venv
+          .venv\Scripts\python.exe -m pip install -U pip
+          .venv\Scripts\python.exe -m pip install -e ".[dev,tui]"
+
+      - name: Add venv to PATH
+        run: echo "$PWD\.venv\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Prepare runtime dirs
+        run: |
+          if (!(Test-Path var)) { New-Item -ItemType Directory var | Out-Null }
+          if (!(Test-Path archive)) { New-Item -ItemType Directory archive | Out-Null }
+
       - name: Compile
-        run: python -m compileall -q src scripts
+        run: .venv\Scripts\python.exe -m compileall -q src scripts
       - name: Lint (real defects/security only)
-        run: ruff check src scripts --select F821,F841,F811,B023,S102
+        run: .venv\Scripts\ruff.exe check src scripts --select F821,F841,F811,B023,S102
       - name: Pytest (default; live skipped)
-        run: pytest -q -p no:cacheprovider
+        run: .venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
       - name: Gate
-        run: python scripts/gate.py --json
+        run: .venv\Scripts\python.exe scripts/gate.py --json
