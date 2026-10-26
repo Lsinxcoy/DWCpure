@@ -917,6 +917,7 @@ class MemoryKernel:
             "by_kind": by_kind,
             "by_kind_active": by_kind_active,
             "skill_kind": skill_kind,
+            "n_active_procedural": int(skill_kind.get("procedural", 0)),
             "proof_count": proof_dist,
             "n_valid": n_valid,
             "n_stale": n_stale,

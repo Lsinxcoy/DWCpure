@@ -596,12 +596,16 @@ _PARAM_DRIVER = None
 
 
 def _maybe_maintain(mem) -> None:
-    """★ R审计-P2 · P0-3 · maintain 管接线（每日一次记忆维护）。
+    """★ R审计-P2 · P0-3 · maintain 管接线（启动默认只出计划，不写）。
 
     ★★★ 为什么必须接:
       MemoryKernel.maintain() 是七管里唯一执行「价值淘汰」的管
       （三层判据: 未召回不处置 / 召回过但零效果→归档 / 唯一签名硬保护）。
       但生产零调用 —— 机制建好了没人开（DWC 自批的"零引用"病）。
+    ★★ 副作用修正（2026-10-26）:
+      启动即 archive 会在无人要求时改变活跃记忆面（实测一次软归档 55 条）。
+      ⇒ 启动默认 **dry-run**：只记计划，不写库；要真维护必须显式
+        `DWC_MAINTAIN_ON_START=1` 或 `dwc memory maintain --apply`。
     ★ 防抖: 24h 一次（marker 文件），不随 term 频率刷。
     ★ 安全: maintain 只 archive 不 delete；held 占多数时会提示"该修 recall"。
     """
@@ -615,6 +619,20 @@ def _maybe_maintain(mem) -> None:
     except (OSError, ValueError, TypeError):
         pass
     if mem is None:
+        return
+    # ★ 启动默认 dry-run：只出计划，不 archive、不写 marker
+    if os.environ.get("DWC_MAINTAIN_ON_START", "0") != "1":
+        try:
+            from dwc.organs import memory_maintenance as _MM
+            _plan = _MM.plan(mem)
+            _log({"event": "memory_maintain_skipped",
+                  "why": "startup_dry_run",
+                  "n_evaluated": _plan.get("n_evaluated"),
+                  "counts": _plan.get("counts", {}),
+                  "hint": "要真维护: dwc memory maintain --apply"})
+        except Exception as exc:            # noqa: BLE001 — 计划失败不拦 agent
+            _log({"event": "memory_maintain_plan_error",
+                  "error": "%s: %s" % (type(exc).__name__, exc)})
         return
     try:
         rep = mem.maintain()

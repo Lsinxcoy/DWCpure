@@ -13,6 +13,7 @@ dwc status|doctor|...     # agent_rpc 九指令（与 HTTP RPC / CLI 同一实�
   dwc memory-stats          # 记忆契约/检索统计（只读）
   dwc knowledge build       # 记忆 → var/knowledge/*.md（可重建）
   dwc memory consolidate    # 近重复合并（默认 dry-run）
+  dwc memory maintain       # 记忆维护计划（--apply 才归档）
 """
 from __future__ import annotations
 
@@ -174,8 +175,39 @@ def main(argv=None) -> int:
                 m.close()
             print(json.dumps(rep, ensure_ascii=False, indent=1))
             return 0
+        if sub == "bench":
+            from dwc.organs.memory_bench import bench
+            labels_path = None
+            for i, a in enumerate(args):
+                if a == "--labels" and i + 1 < len(args):
+                    labels_path = args[i + 1]
+            if not labels_path:
+                print("memory bench 需要 --labels <json>（{query: [node_id,...]}）")
+                return 1
+            try:
+                with open(labels_path, encoding="utf-8") as fh:
+                    labels = json.load(fh)
+            except (OSError, ValueError) as exc:
+                print("labels 读取失败: %s" % exc)
+                return 1
+            m = MemoryKernel(DB)
+            try:
+                rep = bench(m, labels if isinstance(labels, dict) else {})
+            finally:
+                m.close()
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0
+        if sub == "maintain":
+            from dwc.organs import memory_maintenance as MM
+            m = MemoryKernel(DB)
+            try:
+                rep = m.maintain() if apply_flag else MM.plan(m)
+            finally:
+                m.close()
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0
         if sub != "consolidate":
-            print("未知 memory 子命令 %r（当前: consolidate, migrate-factual）" % sub)
+            print("未知 memory 子命令 %r（当前: consolidate, migrate-factual, maintain, bench）" % sub)
             return 1
         m = MemoryKernel(DB)
         try:
