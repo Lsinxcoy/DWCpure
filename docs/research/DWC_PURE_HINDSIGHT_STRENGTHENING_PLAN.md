@@ -6,7 +6,7 @@
 >
 > **落地状态（2026-10-26，代码级）**：P0–P4 核心已实现，新增测试覆盖数据契约、knowledge page、consolidation、脱敏、factual 迁移。
 > 新增命令：`dwc memory-stats`（含 contract 段）、`dwc knowledge build/check/list/search`、`dwc memory consolidate [--apply]`、`dwc memory migrate-factual [--apply]`。
-> **生产已执行**：开发提交 `fdaf5b0` / 生产提交 `7e4bc51`；11 条 factual SKILL → REFERENCE，1 条 chat 保留审计，生成 6 个 knowledge page；生产全量 `3363 passed / 9 skipped`，gate 8/8；agent pid `1287392`。
+> **生产已执行**：开发提交 `d4f6260` / 生产提交 `109abfd`；11 条 factual SKILL → REFERENCE，1 条 chat 保留审计，生成 6 个 knowledge page；生产全量 `3363 passed / 9 skipped`，gate 8/8；agent pid `1259360`。
 
 ---
 
