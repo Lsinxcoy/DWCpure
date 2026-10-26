@@ -260,9 +260,13 @@ def search(memory: Any, query: str, out_dir: str | None = None,
     for item in list_pages(out):
         try:
             with open(item["path"], encoding="utf-8") as fh:
-                text = fh.read()
+                raw = fh.read()
         except OSError:
             continue
+        # 跳过 YAML frontmatter，避免摘要变成转义的 page_id
+        _meta, text = _read_frontmatter(item["path"])
+        if not text:
+            text = raw
         hit = sum(1 for t in terms if t in text)
         if hit <= 0:
             continue
