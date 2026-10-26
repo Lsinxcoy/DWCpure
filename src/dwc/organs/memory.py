@@ -907,7 +907,8 @@ class MemoryKernel:
                 ids = json.loads(r["source_ids"] or "[]")
             except (TypeError, ValueError):
                 ids = []
-            if d not in ("raw", "rule") and not ids:
+            if (s == "active" and d in ("fact", "procedure", "observation")
+                    and not ids):
                 n_missing_evidence += 1
         return {
             "n_nodes": len(rows),
