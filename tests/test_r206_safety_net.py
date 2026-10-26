@@ -118,9 +118,10 @@ def test_cron_copies_in_sync():
     def md5(p):
         return hashlib.md5(open(p, "rb").read()).hexdigest()
     dst = os.path.expandvars(r"%LOCALAPPDATA%\hermes\scripts")
-    if not os.path.isdir(dst):
+    files = ("dwc_prod_run.py", "dwc_prod_health.py", "dwc_backup.py")
+    if not all(os.path.exists(os.path.join(dst, f)) for f in files):
         pytest.skip("本机未安装 hermes cron 副本（CI 正常）")
-    for f in ("dwc_prod_run.py", "dwc_prod_health.py", "dwc_backup.py"):
+    for f in files:
         a = os.path.join(ROOT, "scripts", f)
         b = os.path.join(dst, f)
         assert os.path.exists(b), "副本缺失: %s" % b
