@@ -115,7 +115,7 @@ def build(memory: Any, out_dir: str | None = None,
         refs = [_source_ref(n) for n in nodes]
         lines = [
             "---",
-            "page_id: %s" % json.dumps(slug),
+            "page_id: %s" % json.dumps(slug, ensure_ascii=False),
             "title: %s" % json.dumps(topic, ensure_ascii=False),
             "scope: %s" % json.dumps(scope or "all", ensure_ascii=False),
             "refreshed_at: %s" % json.dumps(time.time()),
