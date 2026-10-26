@@ -161,6 +161,7 @@ def test_maybe_maintain_24h_debounce(tmp_path, monkeypatch):
                     "n_protected": 0, "hint": "test"}
 
     monkeypatch.setattr(A, "ROOT", str(tmp_path))
+    monkeypatch.setenv("DWC_MAINTAIN_ON_START", "1")
     os.makedirs(tmp_path / "var", exist_ok=True)
     A._maybe_maintain(_FakeMem())
     A._maybe_maintain(_FakeMem())

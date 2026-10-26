@@ -88,10 +88,10 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 
 ## 开发
 
-四层验证每轮必过: `pytest`（3363 passed / 9 skipped，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+四层验证每轮必过: `pytest`（3365 passed / 9 skipped，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
 纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
 
-> ★ 2026-10-26 审计修复完成（P0–P3）: 全量基线 **3363 passed / 9 skipped / 0 failed**。
+> ★ 2026-10-26 审计修复完成（P0–P3）: 全量基线 **3365 passed / 9 skipped / 0 failed**。
 > 修复内容: 命令 allowlist · actor/candidates AST 沙箱 · SSRF/路径门 · 复读重试可达 ·
 > judge 泄漏检查 · QA 诚实状态 · FTS 一次性迁移 · SQLite 锁/超时 · 原子写 · CI。
 > F821 已清零；ruff/bandit 按 CI 选中规则门禁，不再声称“全库清零”。
@@ -99,7 +99,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 ```bash
 git clone https://github.com/Lsinxcoy/divine-wisdom-core-pure.git && cd divine-wisdom-core-pure
 pip install -r requirements.txt && pip install -e .
-python -m pytest tests -q        # ~11 分钟（3363 passed / 9 skipped，非真端点）
+python -m pytest tests -q        # ~11 分钟（3365 passed / 9 skipped，非真端点）
 ```
 
 ---

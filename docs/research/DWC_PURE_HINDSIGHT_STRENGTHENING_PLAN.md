@@ -6,8 +6,8 @@
 >
 > **落地状态（2026-10-26，代码级）**：P0–P4 核心已实现，新增测试覆盖数据契约、knowledge page、consolidation、脱敏、factual 迁移。
 > 新增命令：`dwc memory-stats`（含 contract 段）、`dwc knowledge build/check/list/search`、`dwc memory consolidate [--apply]`、`dwc memory migrate-factual [--apply]`。
-> **生产已执行**：开发提交 `d4f6260` / 生产提交 `109abfd`；11 条 factual SKILL → REFERENCE，1 条 chat 保留审计，生成 6 个 knowledge page；生产全量 `3363 passed / 9 skipped`，gate 8/8；agent pid `1259360`。
-> **生产副作用已回滚**：首次启动触发既有每日 `maintain`，软归档 55 条旧节点；已用部署前备份 `var/dwc_prod.backup.hindsight.sqlite` 恢复并重跑迁移，保留 `dwc_last_maintain.json` 防抖；最终 active 66 / reference 12 / pages 6，未删除任何节点。
+> **生产已执行**：开发提交 `4f5decf` / 生产提交 `048835e`；11 条 factual SKILL → REFERENCE，1 条 chat 保留审计，生成 6 个 knowledge page；生产全量 `3365 passed / 9 skipped`，gate 8/8；agent pid `1300812`。
+> **生产副作用已回滚**：首次启动触发既有每日 `maintain`，软归档 55 条旧节点；已用部署前备份 `var/dwc_prod.backup.hindsight.sqlite` 恢复并重跑迁移，保留 `dwc_last_maintain.json` 防抖；最终 active 79 / reference 12 / pages 6，未删除任何节点；启动维护已改为默认 dry-run。
 
 ---
 
@@ -501,7 +501,34 @@ B3 P1 + P2 + P3 consolidation
 
 ---
 
-## 11. 落地记录（2026-10-26）
+## 11. 副作用与边界处置（2026-10-26 追加）
+
+### 11.1 启动维护副作用：已修
+
+- 原行为：agent 启动即 `maintain()`，实测一次软归档 55 条旧节点。
+- 现行为：启动默认 **dry-run**，只写 `memory_maintain_skipped` 日志；不 archive、不写 marker。
+- 真维护必须显式：
+  - `dwc memory maintain`（只出计划）
+  - `dwc memory maintain --apply`（执行归档）
+  - 或 `DWC_MAINTAIN_ON_START=1`（明确 opt-in）
+- 生产已部署；当前 `memory maintain` 计划为 `KEEP 36 / ARCHIVE 30`，未自动执行。
+
+### 11.2 边界：哪些能解、哪些不能
+
+| 边界 | 性质 | 处置 |
+|---|---|---|
+| `skill_prompt` 0 命中 / 无 procedural | 数据依赖 | 不造假；先跑真实工具任务，`from_task_result()` 只在 done + run/test/check 成功时写；`memory-stats.n_active_procedural` 作为覆盖率指标 |
+| `memory_edge=0` | 条件扩展 | 当前无图检索消费者；先保持 0。要启用必须先有代码实体抽取 + `recall_search` 消费 + 测试，不能只建边 |
+| `retrieval_quality` 无标签 | 数据依赖 | 新增 `dwc memory bench --labels <json>`；没有 labels 继续返回 `None`，不填 0 |
+| `archive/gate_trace.jsonl` 变脏 | 工程可解 | 生产已 `git rm --cached` 并加入 `.gitignore`；运行期台账不再进 git |
+| knowledge page 可能过期 | 工程可解 | `dwc knowledge check` 标 stale；任务后/定时 `dwc knowledge build` 重建；页面不是 source of truth |
+| 30 条 ARCHIVE 候选 | 需人工决策 | 默认不执行；`dwc memory maintain --apply` 才归档；归档不是删除 |
+| 向量/RL/MemPO | 条件扩展 | 继续 feature gate 关闭；没有对照数据不启用 |
+| Hindsight benchmark 分数 | 不可迁移 | 只借机制，不抄数字；DWC 用自己的 labels 做 A/B |
+
+**原则：** 工程可解的立刻修；数据依赖的只建测量入口，不编结果；条件扩展保持关闭并标注。
+
+## 12. 落地记录（2026-10-26）
 
 | 阶段 | 文件 | 验证 |
 |---|---|---|
