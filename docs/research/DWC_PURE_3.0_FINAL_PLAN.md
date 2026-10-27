@@ -332,3 +332,34 @@ read/run/write … → final（缺产物）
 - 状态只校验枚举，不证明节点真的完成；完成真值仍归 TaskContract/verifier。
 - 未做 UI/恢复视图；JSON 文件可直接读，但没有 `task_list` 之外的展示面。
 - 已部署生产：`~/.dwc` 提交 `ae3bf4b`，pid `1483560`，生产全量 3389 passed / 9 skipped，gate 8/8。
+
+---
+
+## 12. P1 第三增量：plan mode（2026-10-27）
+
+### 12.1 已落地
+
+- 原生工具 `enter_plan` / `exit_plan`；
+- `_plan_mode` 是循环内显式状态，不是提示词；
+- plan mode 下 `write` / `apply_patch` / `run` / `delegate` 一律拦截，
+  返回 `plan_mode_blocked` 并留痕；
+- 允许 `read` / `search_code` / `task_create` / `task_update` / `task_list` /
+  `web_*` / `ask` / `final`；
+- `enter_plan` / `exit_plan` 已进 `VALID_OPS`、`validate_step`、`_TOOL_TO_OP`；
+- 系统提示词只在原生工具模式下列出这两个工具；默认不进入 plan mode。
+
+### 12.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3391 passed / 9 skipped / 0 failed（275.38s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_plan_mode` 2 项 + TaskGraph/apply_patch/contract 26 项通过 |
+| 行为验证 | enter → write 被拦 → exit → write 成功 → final；文件内容只在 exit 后写入 |
+
+### 12.3 边界
+
+- plan mode 是**模型显式进入**的状态；模型不调用 `enter_plan` 就不会启用。
+- 它只拦动作，不评估计划质量；计划好坏仍由模型/用户判断。
+- 没有持久化 plan mode 状态；任务结束即消失。
+- 未部署生产；等 CI 绿后按路径同步。

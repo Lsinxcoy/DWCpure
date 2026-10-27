@@ -1034,6 +1034,15 @@ TASK_TOOLS = [
         "description": "读取当前任务的持久任务图（节点/状态/依赖）。",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
+        "name": "enter_plan",
+        "description": "进入计划模式：先只读/建任务图，禁止 write/apply_patch/run；"
+                       "计划完成后再 exit_plan。",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "exit_plan",
+        "description": "退出计划模式，允许写/改/运行。",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
         "name": "run_command",
         "description": "在仓库根目录执行 shell 命令并返回输出",
         "parameters": {"type": "object",
@@ -1114,6 +1123,8 @@ _TOOL_TO_OP = {
                                     "addBlockedBy": "addBlockedBy",
                                     "metadata": "metadata"}),
     "task_list": ("task_list", {}),
+    "enter_plan": ("enter_plan", {}),
+    "exit_plan": ("exit_plan", {}),
     "run_command": ("run", {"cmd": "cmd"}),
     "list_dir": ("run", {}),          # 转成 ls 命令
     "search_code": ("run", {}),       # 转成 grep 命令
@@ -1915,7 +1926,9 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
         # ★★★ R384 · 原生工具模式下必须换口径（旧口径会让模型困惑）
         " 【原生工具模式】你已挂载函数工具：read_file / write_file /"
         " apply_patch / task_create / task_update / task_list /"
-        " run_command / list_dir / search_code / find_files / final_answer。"
+        " enter_plan / exit_plan / run_command / list_dir / search_code /"
+        " find_files / final_answer。"
+        " 多步任务先 enter_plan 建计划；写/改/跑前 exit_plan。"
         "**必须调用工具**，"
         "不要在正文里描述「我将要做什么」或「已做了什么」——"
         " 只有真正调用工具才算执行。"
@@ -2022,6 +2035,8 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
     _ff_pending = [False]
     #: ★ P0.5 · 契约补齐机会（只对“已有动作但产物不满足”的任务，最多 1 次）
     _contract_repairs = 0
+    #: ★ P1 · plan mode（默认关闭；enter_plan 后禁止写/改/跑）
+    _plan_mode = False
     _last_rev_sig: str | None = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     #: ★★★ R418 · 每个闸**各自**的打回额度（闸之间不许互相吃掉）
@@ -2261,6 +2276,39 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                               % (op, _st2.get("op"))})
                 step = _st2
                 op = step.get("op")
+        # ★ P1 · plan mode：显式状态，不靠提示词。enter 后只读/建图；
+        #   write/apply_patch/run/delegate 一律拦，exit 后解锁。
+        if op == "enter_plan":
+            _plan_mode = True
+            log.append({"round": rnd, "op": "enter_plan",
+                        "phase": "plan", "ok": True})
+            _sess({"round": rnd, "op": "enter_plan", "phase": "plan",
+                   "ok": True})
+            prompt = ("任务: %s\n已进入 plan mode：先 read/search/task_create/"
+                      "task_update，不要 write/apply_patch/run/delegate；"
+                      "计划完成后调用 exit_plan。\n" % task)
+            continue
+        if op == "exit_plan":
+            _plan_mode = False
+            log.append({"round": rnd, "op": "exit_plan",
+                        "phase": "plan", "ok": True})
+            _sess({"round": rnd, "op": "exit_plan", "phase": "plan",
+                   "ok": True})
+            prompt = ("任务: %s\n已退出 plan mode：可以按计划 write/"
+                      "apply_patch/run；完成后 final。\n" % task)
+            continue
+        if _plan_mode and op in ("write", "apply_patch", "run", "delegate"):
+            obs = {"ok": False, "error": "plan_mode_blocked",
+                   "reason": "当前在 plan mode；先 exit_plan 再执行 %s" % op}
+            log.append({"round": rnd, "phase": "obs", "op": op,
+                        "target": "plan_mode", "ok": False,
+                        "obs": json.dumps(obs, ensure_ascii=False)[:300]})
+            _sess({"round": rnd, "op": op, "phase": "obs",
+                   "target": "plan_mode", "ok": False,
+                   "obs": "plan_mode_blocked"})
+            prompt = ("任务: %s\n动作 %s 被 plan mode 拦截：先完成计划，"
+                      "调用 exit_plan 后再执行。\n" % (task, op))
+            continue
         # ★ R223 · delegate 子代理（真子代理最小形态: 独立上下文隔离 —
         #   子探索的大量 read 输出不淹主任务; depth 限 1 层防递归爆炸）
         if op == "delegate":

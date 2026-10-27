@@ -37,8 +37,8 @@ from typing import Any
 
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
 VALID_OPS = ("read", "write", "apply_patch", "task_create", "task_update",
-             "task_list", "run", "delegate", "ask", "web_read",
-             "web_search", "final")
+             "task_list", "enter_plan", "exit_plan", "run", "delegate",
+             "ask", "web_read", "web_search", "final")
 
 #: ★★★ R386 · 只读命令白名单（qa_mode 下放行 —— 只读不等于禁用命令）。
 #:   现场：某 code-locate 题「execute_user_task 定义在哪个文件？」被判 qa_mode ⇒
