@@ -274,4 +274,4 @@ read/run/write … → final（缺产物）
 
 - 补齐是“给一次机会”，不是保证成功；模型仍可能补错或补不出。
 - 端点 502 属于 infra，不是 agent 能力；基准结果必须区分 `llm_reject`。
-- P0.5 尚未部署生产；等 CI 绿后按路径同步。
+- P0.5 已部署生产：`~/.dwc` 提交 `0cd2fa7`，pid `1432868`，生产全量 3378 passed / 9 skipped，gate 8/8。
