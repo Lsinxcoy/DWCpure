@@ -391,4 +391,4 @@ read/run/write … → final（缺产物）
 - repo map 是文件名/计数，不是符号索引；找定义仍用 `search_code`。
 - diff 只覆盖 `apply_patch`，不覆盖 `write` 整文件覆盖。
 - 源码级写仍冻结；要改 `src/` 必须先做“diff + 显式批准 + 写后验证”，且 bench 到 80% 前不放开。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `8af769f0`，pid `1520220`，生产全量 3396 passed / 9 skipped，gate 8/8。
