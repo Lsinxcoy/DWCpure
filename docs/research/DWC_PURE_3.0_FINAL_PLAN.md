@@ -238,3 +238,40 @@ verified trace → candidate procedure → human review → active skill
 - 契约只覆盖“产物/命令/答案”三类，不覆盖语义正确性；语义仍由 verifier 负责。
 - `permission_denials` / `structured_output` 尚未实现，留到 P1。
 - 生产已部署 P0：`~/.dwc` 提交 `06ae386`，pid `1418168`，生产全量 3376 passed / 9 skipped，gate 8/8。
+
+---
+
+## 9. P0.5 契约补齐（2026-10-27）
+
+### 9.1 机制
+
+当任务已经有真实动作、但 `final` 不满足完成契约时，给模型**一次**明确补齐机会：
+
+```text
+read/run/write … → final（缺产物）
+  → contract 打回：缺 artifact_exists
+  → 模型补 write/run
+  → final → contract 通过
+```
+
+限制：
+
+- 只对 `not qa_mode`、`actions_log` 里至少一条 `phase=obs` 的任务生效；
+- 最多 1 次，`DWC_CONTRACT_REPAIR=0` 可关；
+- 零动作的假完成仍然直接判死，不进入补齐；
+- 契约本身抛错时 fail-open（不拦任务），但写 session 留痕。
+
+### 9.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3378 passed / 9 skipped / 0 failed（225.08s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_task_contract_repair` 2 项 + `test_task_contract` 11 项 + 既有 49 项通过 |
+| 基准补齐验证 | **未完成**：`T_b_core_classes` / `T_b_def_count` 复跑遇端点 `HTTP 502`，记为 `llm_reject`，不能声称补齐提升 pass rate |
+
+### 9.3 边界
+
+- 补齐是“给一次机会”，不是保证成功；模型仍可能补错或补不出。
+- 端点 502 属于 infra，不是 agent 能力；基准结果必须区分 `llm_reject`。
+- P0.5 尚未部署生产；等 CI 绿后按路径同步。

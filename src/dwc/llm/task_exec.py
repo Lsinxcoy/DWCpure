@@ -1912,6 +1912,8 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
     #: ★ R396 · 强制 final 的状态（熔断后给一次机会，仍不提交才判死）
     _ff_used = [0]
     _ff_pending = [False]
+    #: ★ P0.5 · 契约补齐机会（只对“已有动作但产物不满足”的任务，最多 1 次）
+    _contract_repairs = 0
     _last_rev_sig: str | None = None   # ★ R255 修订去重（连续同签名⇒fallback）
     _r302_strikes = 0   # ★ R302 · 同任务引用打回计数（≥2 放行防死循环）
     #: ★★★ R418 · 每个闸**各自**的打回额度（闸之间不许互相吃掉）
@@ -2431,6 +2433,40 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
             _extract_sources(log, task_id=sid, task=task,      # ★ R266A
                              answer=str(step.get("answer", "")),
                              artifacts=list(step.get("artifacts") or []))
+            # ★ P0.5 · 契约补齐：已有动作但缺产物/验证时，给一次明确机会；
+            #   零动作的假完成仍由 R383 直接判死（不在这里放行）。
+            if (not qa_mode and _contract_repairs < 1
+                    and any(isinstance(e, dict) and e.get("phase") == "obs"
+                            for e in log)
+                    and os.environ.get("DWC_CONTRACT_REPAIR", "1") != "0"):
+                try:
+                    from dwc.llm.task_contract import TaskContract
+                    _cc = TaskContract.from_task(
+                        task, qa_mode=False, max_rounds=max_rounds, root=ROOT)
+                    _cv = _cc.evaluate({
+                        "answer": str(step.get("answer", "")),
+                        "artifacts": list(step.get("artifacts") or []),
+                        "actions_log": log,
+                    })
+                except Exception as _ce:        # noqa: BLE001 — 契约坏不拦任务
+                    _cv = {"ok": True}
+                    _sess({"round": rnd, "phase": "contract",
+                           "ok": False, "why": "contract_error:%s"
+                           % type(_ce).__name__})
+                if not _cv.get("ok"):
+                    _contract_repairs += 1
+                    _missing = ", ".join(_cv.get("missing") or [])
+                    log.append({"round": rnd, "op": "contract",
+                                "phase": "contract", "ok": False,
+                                "missing": _missing})
+                    _sess({"round": rnd, "phase": "contract",
+                           "ok": False, "missing": _missing})
+                    prompt = (
+                        "任务: %s\n上一次 final 未满足完成契约: %s。\n"
+                        "请先补齐（把产物写到题面指定路径 / 运行并确认成功），"
+                        "再 final；不要重复已完成的步骤。\n"
+                        % (task, _missing))
+                    continue
             _ws = None if qa_mode else _working_state_gate(log, sid)
             if _ws:
                 return {"task": task, "task_id": sid, "rounds": rnd,
