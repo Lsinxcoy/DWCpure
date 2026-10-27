@@ -362,4 +362,4 @@ read/run/write … → final（缺产物）
 - plan mode 是**模型显式进入**的状态；模型不调用 `enter_plan` 就不会启用。
 - 它只拦动作，不评估计划质量；计划好坏仍由模型/用户判断。
 - 没有持久化 plan mode 状态；任务结束即消失。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `db9d7de`，pid `1502492`，生产全量 3391 passed / 9 skipped，gate 8/8。
