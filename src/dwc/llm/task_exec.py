@@ -709,6 +709,36 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "path": os.path.relpath(p, ROOT),
                 "bytes": len(content.encode("utf-8")),
                 "sec_warnings": _sw}
+    if op in ("task_create", "task_update", "task_list"):
+        from dwc.llm.task_graph import TaskGraph
+        tid = str(args.get("_task_id") or "default")
+        g = TaskGraph(tid)
+        try:
+            if op == "task_create":
+                node = g.create(
+                    str(args.get("subject", "")),
+                    description=str(args.get("description", "")),
+                    active_form=str(args.get("activeForm", "")),
+                    owner=str(args.get("owner", "")))
+                return {"ok": True, "task_id": tid, "node": node,
+                        "graph": g.summary(), "path": g.path}
+            if op == "task_update":
+                node = g.update(
+                    str(args.get("id", "")),
+                    status=(str(args.get("status")) if args.get("status")
+                            else None),
+                    owner=(str(args.get("owner")) if args.get("owner")
+                           is not None else None),
+                    add_blocks=args.get("addBlocks"),
+                    add_blocked_by=args.get("addBlockedBy"),
+                    metadata=args.get("metadata"))
+                return {"ok": True, "task_id": tid, "node": node,
+                        "graph": g.summary(), "path": g.path}
+            return {"ok": True, "task_id": tid,
+                    "graph": g.list(), "summary": g.summary(),
+                    "path": g.path}
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "error": "task_graph: %s" % exc}
     if op == "mcp":
         # ★ R224 · MCP 工具调用（标准协议面: server 配置在 config/mcp.json
         #   — 维护者写 agent 只读; 未配置的 server 明确报错不静默）
@@ -977,6 +1007,33 @@ TASK_TOOLS = [
                                       "replace_all": {"type": "boolean"}},
                        "required": ["path", "old", "new"]}}},
     {"type": "function", "function": {
+        "name": "task_create",
+        "description": "创建持久任务节点（多步任务先建图；返回节点 id）。",
+        "parameters": {"type": "object",
+                       "properties": {"subject": {"type": "string"},
+                                      "description": {"type": "string"},
+                                      "activeForm": {"type": "string"},
+                                      "owner": {"type": "string"}},
+                       "required": ["subject"]}}},
+    {"type": "function", "function": {
+        "name": "task_update",
+        "description": "更新任务节点状态/owner/依赖。status: "
+                       "pending|in_progress|completed|deleted。",
+        "parameters": {"type": "object",
+                       "properties": {"id": {"type": "string"},
+                                      "status": {"type": "string"},
+                                      "owner": {"type": "string"},
+                                      "addBlocks": {"type": "array",
+                                                    "items": {"type": "string"}},
+                                      "addBlockedBy": {"type": "array",
+                                                       "items": {"type": "string"}},
+                                      "metadata": {"type": "object"}},
+                       "required": ["id"]}}},
+    {"type": "function", "function": {
+        "name": "task_list",
+        "description": "读取当前任务的持久任务图（节点/状态/依赖）。",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
         "name": "run_command",
         "description": "在仓库根目录执行 shell 命令并返回输出",
         "parameters": {"type": "object",
@@ -1047,6 +1104,16 @@ _TOOL_TO_OP = {
     "apply_patch": ("apply_patch", {"path": "path", "old": "old",
                                     "new": "new",
                                     "replace_all": "replace_all"}),
+    "task_create": ("task_create", {"subject": "subject",
+                                    "description": "description",
+                                    "activeForm": "activeForm",
+                                    "owner": "owner"}),
+    "task_update": ("task_update", {"id": "id", "status": "status",
+                                    "owner": "owner",
+                                    "addBlocks": "addBlocks",
+                                    "addBlockedBy": "addBlockedBy",
+                                    "metadata": "metadata"}),
+    "task_list": ("task_list", {}),
     "run_command": ("run", {"cmd": "cmd"}),
     "list_dir": ("run", {}),          # 转成 ls 命令
     "search_code": ("run", {}),       # 转成 grep 命令
@@ -1847,7 +1914,8 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
         " \"read|write|apply_patch|run|final\", ...参数}。"
         # ★★★ R384 · 原生工具模式下必须换口径（旧口径会让模型困惑）
         " 【原生工具模式】你已挂载函数工具：read_file / write_file /"
-        " apply_patch / run_command / list_dir / search_code / find_files / final_answer。"
+        " apply_patch / task_create / task_update / task_list /"
+        " run_command / list_dir / search_code / find_files / final_answer。"
         "**必须调用工具**，"
         "不要在正文里描述「我将要做什么」或「已做了什么」——"
         " 只有真正调用工具才算执行。"
@@ -2615,6 +2683,7 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
                                           "（answer≥10 字中文），不要再出别的。"
                                           % (task, _err[:150]))
                                 continue
+            step = {**step, "_task_id": sid}
             obs = _do_action(op, step)
             if (op == "read" and isinstance(obs, dict)
                     and obs.get("image_path")):

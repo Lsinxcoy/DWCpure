@@ -303,3 +303,32 @@ read/run/write … → final（缺产物）
 - `apply_patch` 仍受 `_guard_path(write=True)` 限制，只能写 `var/inbox_work/`；还不能改 `src/`。
 - 没有 diff 预览/冲突检测；这是 P1 后续“改得动”的下一步。
 - 已部署生产：`~/.dwc` 提交 `8ae3af1`，pid `1451896`，生产全量 3384 passed / 9 skipped，gate 8/8。
+
+---
+
+## 11. P1 第二增量：TaskGraph（2026-10-27）
+
+### 11.1 已落地
+
+- `src/dwc/llm/task_graph.py`：`TaskGraph`，节点字段 id/subject/description/activeForm/status/owner/blocks/blockedBy/metadata；
+- 状态 `pending|in_progress|completed|deleted`，非法状态/未知 id fail-closed；
+- 存储 `var/task_graphs/<task_id>.json`，原子写；一个任务一个文件；
+- 原生工具 `task_create/task_update/task_list`，已注册 `_TOOL_TO_OP`、`VALID_OPS`、`validate_step`；
+- `_do_action` 执行后把图摘要回喂模型；`_task_id` 自动注入；
+- `task_list` 默认隐藏 deleted，`include_deleted=True` 才显示。
+
+### 11.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3389 passed / 9 skipped / 0 failed（280.05s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_task_graph` 5 项 + apply_patch/contract 24 项通过 |
+| 修复 | `TaskGraph.load` 的静默 `except pass` 改为计数 + stderr（G7） |
+
+### 11.3 边界
+
+- 任务图是**模型显式使用**的工具，不自动驱动主循环；模型不调用就没有图。
+- 状态只校验枚举，不证明节点真的完成；完成真值仍归 TaskContract/verifier。
+- 未做 UI/恢复视图；JSON 文件可直接读，但没有 `task_list` 之外的展示面。
+- 未部署生产；等 CI 绿后按路径同步。
