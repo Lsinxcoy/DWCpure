@@ -265,6 +265,60 @@ def main(argv=None) -> int:
             return 1
         print(json.dumps(rep, ensure_ascii=False, indent=1))
         return 0 if rep.get("status") == "done" else 1
+    if cmd == "skill":
+        # ★ P2/P3 · 技能提议/审批：默认只生成 proposal，不写 active
+        from dwc.organs import skill_review as SR
+        sub = rest[0] if rest else "list"
+        args = rest[1:]
+        if sub == "list":
+            status = None
+            for i, a in enumerate(args):
+                if a == "--status" and i + 1 < len(args):
+                    status = args[i + 1]
+            print(json.dumps({"proposals": SR.list_proposals(status)},
+                             ensure_ascii=False, indent=1))
+            return 0
+        if sub == "propose":
+            path = next((a for a in args if not a.startswith("--")), None)
+            task = ""
+            traj = ""
+            for i, a in enumerate(args):
+                if a == "--task" and i + 1 < len(args):
+                    task = args[i + 1]
+                if a == "--trajectory" and i + 1 < len(args):
+                    traj = args[i + 1]
+            if not path:
+                print("skill propose 需要 <result.json>")
+                return 1
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    res = json.load(fh)
+            except (OSError, ValueError) as exc:
+                print("result 读取失败: %s" % exc)
+                return 1
+            rep = SR.propose_from_result(
+                res, task=task or str(res.get("task") or ""),
+                trajectory_ref=traj)
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0 if rep.get("ok") else 1
+        if sub in ("approve", "reject"):
+            pid = next((a for a in args if not a.startswith("--")), None)
+            if not pid:
+                print("skill %s 需要 <proposal_id>" % sub)
+                return 1
+            if sub == "approve":
+                rep = SR.approve(pid, apply="--apply" in args)
+            else:
+                why = ""
+                for i, a in enumerate(args):
+                    if a == "--why" and i + 1 < len(args):
+                        why = args[i + 1]
+                rep = SR.reject(pid, why)
+            print(json.dumps(rep, ensure_ascii=False, indent=1))
+            return 0 if rep.get("ok") else 1
+        print("未知 skill 子命令 %r（当前: list, propose, approve, reject）"
+              % sub)
+        return 1
     if cmd in ("status", "doctor", "submit", "query", "list", "cancel",
                "freeze", "unfreeze", "history"):
         return _rpc([cmd] + rest)

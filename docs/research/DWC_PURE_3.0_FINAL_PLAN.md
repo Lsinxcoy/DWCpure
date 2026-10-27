@@ -423,3 +423,34 @@ read/run/write … → final（缺产物）
 - 没有跨机器恢复；state 在本地 `var/workflows/`。
 - 没有自动重试；失败即停。
 - 已部署生产：`~/.dwc` 提交 `d4dc9c1b`，pid `1532800`，生产全量 3401 passed / 9 skipped，gate 8/8。
+
+---
+
+## 15. P2/P3 增量：技能提议/审批（2026-10-27）
+
+### 15.1 已落地
+
+- `src/dwc/organs/skill_review.py`：
+  - `propose_from_result` 只接受 `status=done` + 成功 run/test/check/write 的真实轨迹；
+  - 没有真实动作 ⇒ `no_verified_actions`，不生成空技能；
+  - proposal 落 `var/skill_proposals/<id>.json`，`status=pending`；
+  - `approve(apply=False)` 只预览，`apply=True` 才写 `skills/<name>/SKILL.md`；
+  - `reject` 留原因；`list_proposals` 可按状态过滤。
+- CLI：`dwc skill list / propose / approve / reject`。
+- 审批写入复用 `skill_store.save`，不另造技能格式。
+
+### 15.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3405 passed / 9 skipped / 0 failed（217.74s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_skill_review` 4 项：无证据拒绝 / proposal 不写 active / 预览→apply / reject+list |
+| 安全验证 | 未 approve 前 `skills/<name>/SKILL.md` 不存在 |
+
+### 15.3 边界
+
+- 只从 `actions_log` 抽“做了什么”，不判断做法是否最优；语义质量仍需人审。
+- 当前生产 `n_active_procedural=0`；没有真实成功轨迹，proposal 不会凭空出现。
+- 没有自动 curator 生命周期（active/stale/archived）；下一步才做。
+- 未部署生产；等 CI 绿后按路径同步。
