@@ -237,4 +237,4 @@ verified trace → candidate procedure → human review → active skill
 - `T_b_core_classes` 是真实能力失败：agent 跑了多次命令但未落盘。
 - 契约只覆盖“产物/命令/答案”三类，不覆盖语义正确性；语义仍由 verifier 负责。
 - `permission_denials` / `structured_output` 尚未实现，留到 P1。
-- 生产尚未部署 P0；开发仓验证通过后再按显式命令同步。
+- 生产已部署 P0：`~/.dwc` 提交 `06ae386`，pid `1418168`，生产全量 3376 passed / 9 skipped，gate 8/8。
