@@ -3,7 +3,7 @@
 > **自进化常驻 agent** — 两大核心能力: **记忆**（拥有并有效使用）+ **自改进**（改进自身从而更强）。
 > 七器官 · 八质量门 · 全屏 TUI · 999 轮任务执行核 · 一行安装。
 
-[![pytest](https://img.shields.io/badge/pytest-3396%20passed%20%2F%209%20skipped-brightgreen)](#开发)
+[![pytest](https://img.shields.io/badge/pytest-3401%20passed%20%2F%209%20skipped-brightgreen)](#开发)
 [![rounds](https://img.shields.io/badge/rounds-R1%E2%80%93R458-FFB86B)](docs/PROGRESS.md)
 [![commits](https://img.shields.io/badge/commits-audit%20remediated-blue)](docs/PROGRESS.md)
 
@@ -88,10 +88,10 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 
 ## 开发
 
-四层验证每轮必过: `pytest`（3396 passed / 9 skipped，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
+四层验证每轮必过: `pytest`（3401 passed / 9 skipped，非真端点；r208 lifecycle 单独超时）· `gate.py`（8/8）· `e2e_loop.py` · `e2e_core.py`。
 纪律: 声称=实测（每个数字可复跑）· Layer-22（判据错修判据）· R73 无设计不发明 · G7 静默门。
 
-> ★ 2026-10-26 审计修复完成（P0–P3）: 全量基线 **3396 passed / 9 skipped / 0 failed**（P0 TaskContract 11 项 + P0.5 契约补齐 2 项 + P1 apply_patch 8 项 + P1 TaskGraph 5 项 + P1 plan mode 2 项 + P1 repo map 3 项）。
+> ★ 2026-10-26 审计修复完成（P0–P3）: 全量基线 **3401 passed / 9 skipped / 0 failed**（P0 TaskContract 11 + P0.5 契约补齐 2 + P1 apply_patch 8 + P1 TaskGraph 5 + P1 plan mode 2 + P1 repo map 3 + P2 workflow 5）。
 > 修复内容: 命令 allowlist · actor/candidates AST 沙箱 · SSRF/路径门 · 复读重试可达 ·
 > judge 泄漏检查 · QA 诚实状态 · FTS 一次性迁移 · SQLite 锁/超时 · 原子写 · CI。
 > F821 已清零；ruff/bandit 按 CI 选中规则门禁，不再声称“全库清零”。
@@ -99,7 +99,7 @@ TUI 内: `/help` · `/new` · `/update` · `/bg`(异步投单) · `/fg`(同步�
 ```bash
 git clone https://github.com/Lsinxcoy/divine-wisdom-core-pure.git && cd divine-wisdom-core-pure
 pip install -r requirements.txt && pip install -e .
-python -m pytest tests -q        # ~11 分钟（3396 passed / 9 skipped，非真端点）
+python -m pytest tests -q        # ~11 分钟（3401 passed / 9 skipped，非真端点）
 ```
 
 ---

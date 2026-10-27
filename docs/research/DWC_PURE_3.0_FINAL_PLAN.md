@@ -392,3 +392,34 @@ read/run/write … → final（缺产物）
 - diff 只覆盖 `apply_patch`，不覆盖 `write` 整文件覆盖。
 - 源码级写仍冻结；要改 `src/` 必须先做“diff + 显式批准 + 写后验证”，且 bench 到 80% 前不放开。
 - 已部署生产：`~/.dwc` 提交 `8af769f0`，pid `1520220`，生产全量 3396 passed / 9 skipped，gate 8/8。
+
+---
+
+## 14. P2 第一增量：workflow resume（2026-10-27）
+
+### 14.1 已落地
+
+- `src/dwc/llm/workflow.py`：JSON steps 编排；
+- 每步 key = `sha256(task + opts)`；同一 `run_id` 下 key 未变且 done ⇒ 复用；
+- 改了 task/opts ⇒ 只重跑该步；
+- 每步完成原子写 `var/workflows/<run_id>/state.json`；
+- 失败记录 `failed` 并停止，不静默继续；
+- CLI：`dwc workflow run <spec.json> [--run-id ID] [--resume ID] [--max-rounds N]`；
+- 真实 runner 走 `execute_user_task` + `LLMClient`，不是假执行。
+
+### 14.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3401 passed / 9 skipped / 0 failed（214.93s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_workflow` 5 项：首次 2 跑 / 二次 2 缓存 / 改一步只重跑一步 / 失败停止 / max_rounds 透传 |
+| CLI 路由 | `workflow run` 已接；参数错误/规格错误返回非 0 |
+
+### 14.3 边界
+
+- 缓存只按内容哈希，不按“语义等价”；改注释也会重跑。
+- 没有并行执行；steps 串行。
+- 没有跨机器恢复；state 在本地 `var/workflows/`。
+- 没有自动重试；失败即停。
+- 未部署生产；等 CI 绿后按路径同步。

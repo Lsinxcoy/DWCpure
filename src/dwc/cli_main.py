@@ -217,6 +217,54 @@ def main(argv=None) -> int:
             m.close()
         print(json.dumps(rep, ensure_ascii=False, indent=1))
         return 0
+    if cmd == "workflow":
+        # ★ P2 · 可恢复编排：步骤内容哈希缓存；--resume 复用未变步骤
+        from dwc.llm.workflow import run_workflow
+        sub = rest[0] if rest else "run"
+        args = rest[1:]
+        if sub != "run":
+            print("未知 workflow 子命令 %r（当前: run）" % sub)
+            return 1
+        spec_path = next((a for a in args if not a.startswith("--")), None)
+        if not spec_path:
+            print("workflow run 需要 <spec.json>")
+            return 1
+        run_id = None
+        resume = False
+        max_rounds = 6
+        for i, a in enumerate(args):
+            if a == "--run-id" and i + 1 < len(args):
+                run_id = args[i + 1]
+            if a == "--resume" and i + 1 < len(args):
+                resume = True
+                run_id = args[i + 1]
+            if a == "--max-rounds" and i + 1 < len(args):
+                try:
+                    max_rounds = max(1, int(args[i + 1]))
+                except ValueError:
+                    print("--max-rounds 非整数，使用默认 %d" % max_rounds,
+                          file=sys.stderr)
+        try:
+            with open(spec_path, encoding="utf-8") as fh:
+                spec = json.load(fh)
+        except (OSError, ValueError) as exc:
+            print("workflow spec 读取失败: %s" % exc)
+            return 1
+        from dwc.llm.client import LLMClient
+        from dwc.llm.task_exec import execute_user_task
+
+        def _runner(task, opts):
+            mr = int(opts.get("max_rounds") or max_rounds)
+            return execute_user_task(task, llm=LLMClient(), max_rounds=mr)
+
+        try:
+            rep = run_workflow(spec, runner=_runner, run_id=run_id,
+                               resume=resume)
+        except (ValueError, OSError) as exc:
+            print("workflow 失败: %s" % exc)
+            return 1
+        print(json.dumps(rep, ensure_ascii=False, indent=1))
+        return 0 if rep.get("status") == "done" else 1
     if cmd in ("status", "doctor", "submit", "query", "list", "cancel",
                "freeze", "unfreeze", "history"):
         return _rpc([cmd] + rest)
