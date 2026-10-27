@@ -453,4 +453,4 @@ read/run/write … → final（缺产物）
 - 只从 `actions_log` 抽“做了什么”，不判断做法是否最优；语义质量仍需人审。
 - 当前生产 `n_active_procedural=0`；没有真实成功轨迹，proposal 不会凭空出现。
 - 没有自动 curator 生命周期（active/stale/archived）；下一步才做。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `3baecc23`，pid `1546400`，生产全量 3405 passed / 9 skipped，gate 8/8。
