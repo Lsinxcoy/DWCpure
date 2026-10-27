@@ -1662,6 +1662,62 @@ from dwc.observability.context import (
 )
 
 
+def _turn_budget_note(rnd: int, max_rounds: int) -> str:
+    """过半后注入轮数预算（goose 同款；不提前干扰探索）。"""
+    if max_rounds <= 1:
+        return ""
+    used = max(0, int(rnd) - 1)
+    if used * 5 < max_rounds * 3:      # < 60%
+        return ""
+    return ("\n[turn-budget] 已用 %d/%d 轮；请收窄范围、合并动作、"
+            "优先提交当前最佳结果。\n" % (used, max_rounds))
+
+
+def _infer_terminal_reason(result: dict[str, Any]) -> str:
+    if str(result.get("status")) == "done":
+        return "completed"
+    why = str(result.get("why") or "")
+    if "达轮数上限" in why:
+        return "max_rounds"
+    if "契约" in why:
+        return "contract_failed"
+    if "拒绝" in why:
+        return "refused"
+    if "不存在" in why and "文件名" in why:
+        return "phantom_file"
+    return "incomplete"
+
+
+def _apply_task_contract(task: str, result: dict[str, Any],
+                         *, max_rounds: int) -> dict[str, Any]:
+    """把模型自述的 done 收敛为可验证的 done。
+
+    ★ P0：只在最外层包装器执行，主循环/既有闸零改动。
+    """
+    from dwc.llm.step_judge import is_qa_task
+    from dwc.llm.task_contract import TaskContract
+
+    qa_mode = bool(result.get("qa_mode", is_qa_task(task)))
+    contract = TaskContract.from_task(
+        task, qa_mode=qa_mode, max_rounds=max_rounds, root=ROOT)
+    result["qa_mode"] = qa_mode
+    result["contract"] = contract.as_dict()
+    if str(result.get("status")) == "done":
+        verdict = contract.evaluate(result)
+        result["contract"].update(verdict)
+        if not verdict.get("ok"):
+            missing = ", ".join(verdict.get("missing") or [])
+            result["status"] = "incomplete"
+            result["why"] = ("任务契约未满足（%s）；模型自述完成不予采信"
+                             % (missing or "unknown"))
+            result["terminal_reason"] = "contract_failed"
+        else:
+            result.setdefault("terminal_reason", "completed")
+    else:
+        result.setdefault("terminal_reason", _infer_terminal_reason(result))
+    return result
+
+
 def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
                       ctx: str | None = None,
                       task_id: str | None = None,
@@ -1678,6 +1734,7 @@ def execute_user_task(task: str, *, llm: Any, max_rounds: int = 999,
         if not isinstance(result, dict):
             raise TypeError("task executor must return dict")
         result.setdefault("task_id", sid)
+        result = _apply_task_contract(task, result, max_rounds=max_rounds)
         try:
             from dwc.llm.task_profiles import select_profile
             profile = select_profile(task)
@@ -2609,11 +2666,12 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
             except Exception as _ce:      # noqa: BLE001 — 留痕坏不掀任务
                 import sys as _s
                 _s.stderr.write("上下文留痕失败: %r\n" % (_ce,))
-        prompt = ("任务: %s\n%s最近轮次: %s\n上一步动作观察(JSON): %s\n"
+        prompt = ("任务: %s\n%s最近轮次: %s\n上一步动作观察(JSON): %s\n%s"
                   "请继续（下一步 op）"
                   % (task, prefix,
                      json.dumps(recent, ensure_ascii=False)[:1200],
-                     tool_raw.clip(json.dumps(obs, ensure_ascii=False), limit=6000)))
+                     tool_raw.clip(json.dumps(obs, ensure_ascii=False), limit=6000),
+                     _turn_budget_note(rnd, max_rounds)))
     _fail = {"status": "incomplete", "why": "达轮数上限未 final",
              "actions_log": log}
     if retry_on_fail and _depth == 0:
@@ -2624,4 +2682,5 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
     _extract_sources(log, task_id=sid, task=task)   # ★ R266A: 没完成也沉淀
     return {"task": task, "task_id": sid, "status": "incomplete",
             "rounds": max_rounds,
-            "why": "达轮数上限未 final", "actions_log": log}
+            "why": "达轮数上限未 final", "terminal_reason": "max_rounds",
+            "actions_log": log}

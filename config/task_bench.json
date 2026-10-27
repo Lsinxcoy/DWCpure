@@ -6,13 +6,13 @@
    "id": "T_b_core_classes",
    "kind": "read",
    "task": "读 src/dwc/core.py 的源码, 把其中所有 class 名字(不含前后缀装饰)写进 var/inbox_work/core_classes.md, 每行一个类名, 用 - 开头列表",
-   "ctx": "文件在 E:/Divine Wisdom Core/src/dwc/core.py",
+   "ctx": "文件在 src/dwc/core.py（仓库根相对路径）",
    "verifier": "classes"
   },
   {
    "id": "T_b_rung_dist",
    "kind": "read",
-   "task": "读 E:/Divine Wisdom Core/config/anchors/dev.json, 数一数有多少个任务的 verifier_rung 字段等于 3, 把数字写进 var/inbox_work/rung_dist.txt, 只写数字",
+   "task": "读 config/anchors/dev.json, 数一数有多少个任务的 verifier_rung 字段等于 3, 把数字写进 var/inbox_work/rung_dist.txt, 只写数字",
    "verifier": "rung3_count"
   },
   {
@@ -30,13 +30,13 @@
   {
    "id": "T_b_def_count",
    "kind": "read",
-   "task": "统计 E:/Divine Wisdom Core/src/dwc 目录所有 .py 文件里 'def ' 出现的总次数(注意 def 后有空格, 跨所有文件累加), 把数字写进 var/inbox_work/def_count.txt, 只写数字",
+   "task": "统计 src/dwc 目录所有 .py 文件里 'def ' 出现的总次数(注意 def 后有空格, 跨所有文件累加), 把数字写进 var/inbox_work/def_count.txt, 只写数字",
    "verifier": "def_count"
   },
   {
    "id": "T_b_readme_test",
    "kind": "read",
-   "task": "读 E:/Divine Wisdom Core/README.md, 找到'测试'那一行里 pytest 的项数(形如 'pytest 1478 项' 的数字), 把这个数字写进 var/inbox_work/readme_test.txt, 只写数字",
+   "task": "读 README.md, 找到 pytest 那一行的 passed 数字(形如 'pytest（3365 passed / 9 skipped' 的数字), 把这个数字写进 var/inbox_work/readme_test.txt, 只写数字",
    "verifier": "readme_test"
   },
   {
@@ -55,13 +55,13 @@
   {
    "id": "T_b_git_sha",
    "kind": "command",
-   "task": "在 E:/Divine Wisdom Core 目录运行 git rev-parse HEAD, 把输出的完整 40 位 sha 写进 var/inbox_work/gitsha.txt, 除了 sha 不要写别的",
+   "task": "在仓库根目录运行 git rev-parse HEAD, 把输出的完整 40 位 sha 写进 var/inbox_work/gitsha.txt, 除了 sha 不要写别的",
    "verifier": "gitsha"
   },
   {
    "id": "T_b_dual_symbol",
    "kind": "read",
-   "task": "在 E:/Divine Wisdom Core/src/dwc 目录下找出哪个 .py 文件同时包含单词 judge 和 anchor(都在源码文本里出现), 把那个文件的文件名写进 var/inbox_work/dualsym.txt, 只写文件名(带 .py)",
+   "task": "在 src/dwc 目录下找出哪个 .py 文件同时包含单词 judge 和 anchor(都在源码文本里出现), 把那个文件的文件名写进 var/inbox_work/dualsym.txt, 只写文件名(带 .py)",
    "verifier": "dual_symbol"
   }
  ]

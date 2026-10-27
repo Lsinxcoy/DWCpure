@@ -89,7 +89,9 @@ def _truth_def_count():
 
 
 def _truth_readme_test():
-    m = re.search(r"pytest\s+(\d+)\s+项", _src("README.md"))
+    # README 既有 badge（pytest-3363%20passed）也有正文（pytest（3365 passed）。
+    # 只认正文里“passed”前的数字，避免 badge 的百分号编码误匹配。
+    m = re.search(r"pytest[^\n]*?(\d+)\s+passed", _src("README.md"))
     return int(m.group(1)) if m else None
 
 
@@ -111,9 +113,12 @@ def _run_py(name):
 # ── verifier 表（每任务一个, 机判产物 vs 动态真值）────────────
 def v_classes(rep):
     got = _read("core_classes.md") or ""
-    hit = [c for c in _truth_classes() if re.search(r"\b%s\b" % c, got)]
-    ok = len(hit) >= max(3, len(_truth_classes()) // 2)
-    return ok, "命中类名 %d/%d" % (len(hit), len(_truth_classes()))
+    truth = _truth_classes()
+    hit = [c for c in truth if re.search(r"\b%s\b" % c, got)]
+    # 任务要求“所有 class 名字”；旧阈值 max(3, len//2) 在只有 2 个类时
+    # 恒为 3，导致该题不可能通过（基准 bug，不是 agent 能力）。
+    ok = bool(truth) and len(hit) >= len(truth)
+    return ok, "命中类名 %d/%d" % (len(hit), len(truth))
 
 
 def v_rung3_count(rep):

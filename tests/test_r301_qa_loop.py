@@ -116,7 +116,7 @@ def test_r301c_exec_still_r4(monkeypatch):
 
     class _R2:
         ok = True
-        text = '{"op": "final", "answer": "修好了，落盘三条规则", "analysis": "x"}'
+        text = '{"op": "final", "answer": "分析完了", "analysis": "x"}'
 
     seq = [_R(), _R2()]
     box = {"n": 0}
@@ -127,7 +127,9 @@ def test_r301c_exec_still_r4(monkeypatch):
             box["n"] += 1
             return r
 
-    r = T.execute_user_task("去把 var 下的失败签名修了并落盘", llm=_LLM2(),
+    # ★ P0 · 原任务含“修了并落盘”⇒ 现在会被 TaskContract 判为未交产物；
+    #   本条只测 R4 空 op 后的重跑纪律，故改成无写意图的任务。
+    r = T.execute_user_task("去把 var 下的失败签名分析一下", llm=_LLM2(),
                             task_id="T_R301EX", retry_on_fail=False)
     # ★ 3 次 complete=首轮空 op＋revision 重写＋重跑 final（R4 纪律工作证据）
     assert r["status"] == "done" and box["n"] == 3, (r, box)
@@ -211,9 +213,9 @@ def test_r386_readonly_grep_is_allowed_in_qa():
 
     T._do_action = _spy
     try:
-        r = T.execute_user_task("execute_user_task 定义在哪个文件",
-                                llm=_LLM(), task_id="T_R386",
-                                retry_on_fail=False)
+        T.execute_user_task("execute_user_task 定义在哪个文件",
+                            llm=_LLM(), task_id="T_R386",
+                            retry_on_fail=False)
     finally:
         T._do_action = orig
     assert box["exec"] >= 1, "只读 grep 仍被拦（R5 把查证本身禁了）"
