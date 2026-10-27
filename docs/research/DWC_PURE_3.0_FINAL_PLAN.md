@@ -302,4 +302,4 @@ read/run/write … → final（缺产物）
 
 - `apply_patch` 仍受 `_guard_path(write=True)` 限制，只能写 `var/inbox_work/`；还不能改 `src/`。
 - 没有 diff 预览/冲突检测；这是 P1 后续“改得动”的下一步。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `8ae3af1`，pid `1451896`，生产全量 3384 passed / 9 skipped，gate 8/8。
