@@ -23,7 +23,8 @@ from dwc.organs.memory import MemoryError, MemoryKind
 def _latest(memory: Any, kind: MemoryKind, topic: str) -> dict[str, Any] | None:
     rows = memory._conn.execute(
         "SELECT node_id, payload FROM memory_node"
-        " WHERE kind=? AND archived_at IS NULL ORDER BY created_at DESC",
+        " WHERE kind=? AND archived_at IS NULL"
+        " ORDER BY created_at DESC, rowid DESC",
         (kind.value,)).fetchall()
     for row in rows:
         try:

@@ -275,3 +275,31 @@ read/run/write … → final（缺产物）
 - 补齐是“给一次机会”，不是保证成功；模型仍可能补错或补不出。
 - 端点 502 属于 infra，不是 agent 能力；基准结果必须区分 `llm_reject`。
 - P0.5 已部署生产：`~/.dwc` 提交 `0cd2fa7`，pid `1432868`，生产全量 3378 passed / 9 skipped，gate 8/8。
+
+---
+
+## 10. P1 第一增量：apply_patch（2026-10-27）
+
+### 10.1 已落地
+
+- `apply_patch` 动作：`path` + `old` + `new` + `replace_all`；
+- `old` 为空、目标不存在、未命中、多处命中未开 `replace_all` 都 fail-closed；
+- 命中唯一时只替换一次；`replace_all=true` 才全替换；
+- 原子写回，返回 `replacements` / `bytes`；
+- 原生工具表与 `_TOOL_TO_OP` 已注册；`step_judge.VALID_OPS` 与 `validate_step` 已接；
+- 系统提示词已列出 `apply_patch`。
+
+### 10.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3384 passed / 9 skipped / 0 failed（211.82s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_apply_patch` 6 项 + 契约 13 项 + R301 通过 |
+| 顺带修复 | `preference._latest` 加 `rowid DESC` tie-break；同一秒写两条偏好不再随机取旧节点 |
+
+### 10.3 边界
+
+- `apply_patch` 仍受 `_guard_path(write=True)` 限制，只能写 `var/inbox_work/`；还不能改 `src/`。
+- 没有 diff 预览/冲突检测；这是 P1 后续“改得动”的下一步。
+- 未部署生产；等 CI 绿后按路径同步。

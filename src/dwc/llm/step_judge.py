@@ -36,7 +36,8 @@ import os
 from typing import Any
 
 #: 修订可用动作（白名单 — 与执行契约同集; final 由原提案自己给）
-VALID_OPS = ("read", "write", "run", "delegate", "ask", "web_read", "web_search", "final")
+VALID_OPS = ("read", "write", "apply_patch", "run", "delegate", "ask",
+             "web_read", "web_search", "final")
 
 #: ★★★ R386 · 只读命令白名单（qa_mode 下放行 —— 只读不等于禁用命令）。
 #:   现场：某 code-locate 题「execute_user_task 定义在哪个文件？」被判 qa_mode ⇒
@@ -264,7 +265,7 @@ def validate_step(step: Any, *, root: str | None = None,
     op = step.get("op")
     if op not in VALID_OPS:
         return "修订 op=%r 不在契约集" % (op,)
-    if op in ("read", "write") and not step.get("path"):
+    if op in ("read", "write", "apply_patch") and not step.get("path"):
         return "修订缺 path"
     # ★ R302补 · revision 亦受 qa 硬约束（R5 只在 judge 事前判别，
     #   revision 产 run 绕过执行——T_R302W 现场 revision 建议 run 即执行）。

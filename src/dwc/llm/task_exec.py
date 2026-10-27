@@ -669,6 +669,32 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
             except Exception:                    # noqa: BLE001 — 信号坏不拦任务
                 pass
         return out
+    if op == "apply_patch":
+        p = _guard_path(str(args.get("path", "")), write=True)
+        old = str(args.get("old", ""))
+        new = str(args.get("new", ""))
+        if not old:
+            return {"ok": False, "error": "apply_patch 需要非空 old"}
+        if not os.path.isfile(p):
+            return {"ok": False, "error": "apply_patch 目标不存在: %s"
+                    % os.path.relpath(p, ROOT)}
+        try:
+            text = open(p, encoding="utf-8").read()
+        except OSError as exc:
+            return {"ok": False, "error": "apply_patch 读取失败: %s" % exc}
+        n = text.count(old)
+        if n == 0:
+            return {"ok": False, "error": "apply_patch old 未命中"}
+        if n > 1 and not bool(args.get("replace_all")):
+            return {"ok": False,
+                    "error": "apply_patch old 命中 %d 次；需 replace_all=true"
+                             % n}
+        new_text = (text.replace(old, new) if args.get("replace_all")
+                    else text.replace(old, new, 1))
+        write_text_atomic(p, new_text)
+        return {"ok": True, "path": os.path.relpath(p, ROOT),
+                "replacements": (n if args.get("replace_all") else 1),
+                "bytes": len(new_text.encode("utf-8"))}
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
         content = str(args.get("content", ""))
@@ -940,6 +966,17 @@ TASK_TOOLS = [
                                       "content": {"type": "string"}},
                        "required": ["path", "content"]}}},
     {"type": "function", "function": {
+        "name": "apply_patch",
+        "description": "精确替换文件中的一段文本（old→new）。"
+                       "old 必须唯一；多处命中时需 replace_all=true。"
+                       "用于小改动，避免整文件重写。",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"},
+                                      "old": {"type": "string"},
+                                      "new": {"type": "string"},
+                                      "replace_all": {"type": "boolean"}},
+                       "required": ["path", "old", "new"]}}},
+    {"type": "function", "function": {
         "name": "run_command",
         "description": "在仓库根目录执行 shell 命令并返回输出",
         "parameters": {"type": "object",
@@ -1007,6 +1044,9 @@ except Exception as _e:  # noqa: BLE001 — 产物坏不拦任务，但留痕
 _TOOL_TO_OP = {
     "read_file": ("read", {"path": "path"}),
     "write_file": ("write", {"path": "path", "content": "content"}),
+    "apply_patch": ("apply_patch", {"path": "path", "old": "old",
+                                    "new": "new",
+                                    "replace_all": "replace_all"}),
     "run_command": ("run", {"cmd": "cmd"}),
     "list_dir": ("run", {}),          # 转成 ls 命令
     "search_code": ("run", {}),       # 转成 grep 命令
@@ -1804,10 +1844,10 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
     system = (
         "你是 DWC 独立 agent 的任务执行体。完成用户的任务。每轮只输出一个"
         " JSON 对象（无多余文本）: {\"analysis\": \"本步思考\", \"op\":"
-        " \"read|write|run|final\", ...参数}。"
+        " \"read|write|apply_patch|run|final\", ...参数}。"
         # ★★★ R384 · 原生工具模式下必须换口径（旧口径会让模型困惑）
         " 【原生工具模式】你已挂载函数工具：read_file / write_file /"
-        " run_command / list_dir / search_code / find_files / final_answer。"
+        " apply_patch / run_command / list_dir / search_code / find_files / final_answer。"
         "**必须调用工具**，"
         "不要在正文里描述「我将要做什么」或「已做了什么」——"
         " 只有真正调用工具才算执行。"
