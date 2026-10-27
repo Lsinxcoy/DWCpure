@@ -6,7 +6,7 @@
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `3391 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect；P0 TaskContract 11 项 + P0.5 契约补齐 2 项 + P1 apply_patch 6 项 + P1 TaskGraph 5 项 + P1 plan mode 2 项） |
+| 全量测试 | `3396 passed, 9 skipped`（7 个 `live` 真端点测试默认 skip；2 个常规 skip；无 deselect；P0 TaskContract 11 项 + P0.5 契约补齐 2 项 + P1 apply_patch 8 项 + P1 TaskGraph 5 项 + P1 plan mode 2 项 + P1 repo map 3 项） |
 | 质量门 | 8/8 通过（`scripts/gate.py --json`） |
 | 基线方案提交 | `881c2215e86d9cad214de802b944d3895992eeb7` |
 | 实现检查点 | `9c308bd` W1/W2–W6 核心；`b5775ab` 评价/shadow/apply 入口；`f5cc00f` 合并上游 R439–R458；`58524a9` W5 单一真源；`7b09f0f` agent term 级任务账；`c850809` 记忆 M0–M3；`5543f42` A 类边界（总 deadline/live 隔离/验证门/轨迹消费）；`ee754aa` 流式总 deadline |

@@ -53,6 +53,24 @@ def test_apply_patch_missing_old_is_rejected(tmp_path, monkeypatch):
     assert not out["ok"] and "未命中" in out["error"]
 
 
+def test_apply_patch_dry_run_previews_without_writing(tmp_path, monkeypatch):
+    p = _work(tmp_path, monkeypatch)
+    out = TE._do_action("apply_patch", {
+        "path": "var/inbox_work/x.txt", "old": "beta", "new": "BETA",
+        "dry_run": True})
+    assert out["ok"] and out["dry_run"] is True
+    assert "-beta" in out["diff"] and "+BETA" in out["diff"]
+    assert p.read_text(encoding="utf-8") == "alpha\nbeta\ngamma\n"
+
+
+def test_apply_patch_returns_diff_on_write(tmp_path, monkeypatch):
+    p = _work(tmp_path, monkeypatch)
+    out = TE._do_action("apply_patch", {
+        "path": "var/inbox_work/x.txt", "old": "beta", "new": "BETA"})
+    assert out["ok"] and "+BETA" in out["diff"]
+    assert p.read_text(encoding="utf-8") == "alpha\nBETA\ngamma\n"
+
+
 def test_apply_patch_is_registered_as_native_tool():
     names = [t["function"]["name"] for t in TE.TASK_TOOLS]
     assert "apply_patch" in names

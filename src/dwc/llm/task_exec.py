@@ -691,10 +691,21 @@ def _do_action(op: str, args: dict[str, Any]) -> dict[str, Any]:
                              % n}
         new_text = (text.replace(old, new) if args.get("replace_all")
                     else text.replace(old, new, 1))
+        import difflib
+        _rel = os.path.relpath(p, ROOT)
+        _diff = "\n".join(difflib.unified_diff(
+            text.splitlines(), new_text.splitlines(),
+            fromfile=_rel, tofile=_rel, lineterm=""))
+        _diff = _diff[:2000]
+        if args.get("dry_run"):
+            return {"ok": True, "dry_run": True, "path": _rel,
+                    "replacements": (n if args.get("replace_all") else 1),
+                    "diff": _diff, "diff_chars": len(_diff)}
         write_text_atomic(p, new_text)
-        return {"ok": True, "path": os.path.relpath(p, ROOT),
+        return {"ok": True, "path": _rel,
                 "replacements": (n if args.get("replace_all") else 1),
-                "bytes": len(new_text.encode("utf-8"))}
+                "bytes": len(new_text.encode("utf-8")),
+                "diff": _diff, "diff_chars": len(_diff)}
     if op == "write":
         p = _guard_path(str(args.get("path", "")), write=True)
         content = str(args.get("content", ""))
@@ -1004,7 +1015,8 @@ TASK_TOOLS = [
                        "properties": {"path": {"type": "string"},
                                       "old": {"type": "string"},
                                       "new": {"type": "string"},
-                                      "replace_all": {"type": "boolean"}},
+                                      "replace_all": {"type": "boolean"},
+                                      "dry_run": {"type": "boolean"}},
                        "required": ["path", "old", "new"]}}},
     {"type": "function", "function": {
         "name": "task_create",
@@ -2026,6 +2038,21 @@ def _execute_user_task_impl(task: str, *, llm: Any, max_rounds: int = 999,
             import sys as _sys2
             _sys2.stderr.write("skill 注入失败×%d: %s\n"
                                % (_SRC_FAIL[0], _exc2))
+    # ★ P1 · repo map（只读；只在像“仓库任务”时注入，避免无谓膨胀）
+    if not qa_mode and any(k in task for k in (
+            "代码", "仓库", "文件", "脚本", "运行", "读", "写", "函数",
+            "类", "模块", "src", ".py", "README")):
+        try:
+            from dwc.llm.repo_map import build as _build_repo_map
+            _rm = _build_repo_map(ROOT, max_chars=900)
+            if _rm:
+                system += "\n\n# 仓库地图（只读）\n" + _rm
+        except Exception as _rme:       # noqa: BLE001 — 地图坏不拦任务
+            _SRC_FAIL[0] += 1
+            if _SRC_FAIL[0] <= 3:
+                import sys as _sys3
+                _sys3.stderr.write("repo_map 注入失败×%d: %s\n"
+                                   % (_SRC_FAIL[0], _rme))
     log: list[dict[str, Any]] = []
     dup_sigs: list[str] = []   # ★ R247 复读熔断: (op|target|obs哈希) 滑窗
     #: ★ R384 · 原生工具模式下"只输出正文不调工具"的已重试次数（上限 1）

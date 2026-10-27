@@ -363,3 +363,32 @@ read/run/write … → final（缺产物）
 - 它只拦动作，不评估计划质量；计划好坏仍由模型/用户判断。
 - 没有持久化 plan mode 状态；任务结束即消失。
 - 已部署生产：`~/.dwc` 提交 `db9d7de`，pid `1502492`，生产全量 3391 passed / 9 skipped，gate 8/8。
+
+---
+
+## 13. P1 第四增量：repo map + diff 预览（2026-10-27）
+
+### 13.1 已落地
+
+- `src/dwc/llm/repo_map.py`：只读仓库地图，列顶层目录、关键文件、`src/dwc` 子目录、py 文件数、tests/scripts/docs/config 文件数；
+- 跳过 `.git` / `.venv` / `node_modules` / `var` / `archive` 等；不读文件正文；
+- 只在“像仓库任务”的非问答任务注入 system（≤900 字符），避免无谓膨胀；
+- `apply_patch` 新增 `dry_run`：只返回 unified diff，不写文件；
+- 正常写入也返回 diff（≤2000 字符），便于审查；
+- 没有放开 `src/` 写权限；`apply_patch` 仍受 `_guard_path(write=True)` 限制。
+
+### 13.2 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **3396 passed / 9 skipped / 0 failed（266.68s）** |
+| 质量门 | **8/8** |
+| 定向测试 | `test_repo_map` 3 项 + apply_patch 8 项 + plan/TaskGraph/contract 29 项通过 |
+| 安全验证 | repo map 不读正文；测试文件含 `API_KEY` 不泄露；dry-run 不写文件 |
+
+### 13.3 边界
+
+- repo map 是文件名/计数，不是符号索引；找定义仍用 `search_code`。
+- diff 只覆盖 `apply_patch`，不覆盖 `write` 整文件覆盖。
+- 源码级写仍冻结；要改 `src/` 必须先做“diff + 显式批准 + 写后验证”，且 bench 到 80% 前不放开。
+- 未部署生产；等 CI 绿后按路径同步。
