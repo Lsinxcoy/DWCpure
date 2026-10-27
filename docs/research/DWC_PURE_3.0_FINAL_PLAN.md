@@ -331,4 +331,4 @@ read/run/write … → final（缺产物）
 - 任务图是**模型显式使用**的工具，不自动驱动主循环；模型不调用就没有图。
 - 状态只校验枚举，不证明节点真的完成；完成真值仍归 TaskContract/verifier。
 - 未做 UI/恢复视图；JSON 文件可直接读，但没有 `task_list` 之外的展示面。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `ae3bf4b`，pid `1483560`，生产全量 3389 passed / 9 skipped，gate 8/8。
