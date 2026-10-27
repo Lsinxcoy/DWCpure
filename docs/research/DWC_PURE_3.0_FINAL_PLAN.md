@@ -422,4 +422,4 @@ read/run/write … → final（缺产物）
 - 没有并行执行；steps 串行。
 - 没有跨机器恢复；state 在本地 `var/workflows/`。
 - 没有自动重试；失败即停。
-- 未部署生产；等 CI 绿后按路径同步。
+- 已部署生产：`~/.dwc` 提交 `d4dc9c1b`，pid `1532800`，生产全量 3401 passed / 9 skipped，gate 8/8。
